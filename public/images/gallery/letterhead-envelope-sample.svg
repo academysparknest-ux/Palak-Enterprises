@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <filter id="letShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgDark)"/>
+
+  <!-- Branded DL Envelope (Behind) -->
+  <g filter="url(#letShadow)" transform="translate(360, 220) rotate(12)">
+    <rect width="360" height="190" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <!-- Envelope Flap Line -->
+    <path d="M0,0 L180,100 L360,0" stroke="#94a3b8" stroke-width="1.5" fill="none"/>
+    <rect x="20" y="130" width="180" height="40" fill="none"/>
+    <circle cx="40" cy="145" r="12" fill="#1e3a8a"/>
+    <text x="60" y="150" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#1e3a8a">PALAK ENTERPRISES</text>
+    <text x="60" y="162" font-family="system-ui, sans-serif" font-size="9" fill="#64748b">Station Road, Bihar</text>
+
+    <!-- Stamp Box -->
+    <rect x="300" y="20" width="40" height="45" rx="4" fill="#f8fafc" stroke="#dc2626" stroke-width="1" stroke-dasharray="2,2"/>
+    <text x="320" y="46" font-family="system-ui, sans-serif" font-size="9" fill="#dc2626" text-anchor="middle">STAMP</text>
+  </g>
+
+  <!-- Printed A4 Executive Letterhead (Main Subject) -->
+  <g filter="url(#letShadow)" transform="translate(120, 60) rotate(-3)">
+    <rect width="380" height="490" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+
+    <!-- Top Blue Header Banner -->
+    <path d="M0,0 L380,0 L380,65 L0,85 Z" fill="#1e3a8a"/>
+    <circle cx="45" cy="35" r="18" fill="#3b82f6"/>
+    <text x="45" y="42" font-family="system-ui, sans-serif" font-weight="900" font-size="18" fill="#ffffff" text-anchor="middle">P</text>
+    <text x="75" y="32" font-family="system-ui, sans-serif" font-weight="900" font-size="16" fill="#ffffff">PALAK ENTERPRISES</text>
+    <text x="75" y="48" font-family="system-ui, sans-serif" font-size="10" fill="#93c5fd">PRINTING, DIGITAL &amp; STATIONERY SERVICES</text>
+
+    <!-- Ref & Date Lines -->
+    <text x="35" y="115" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">Ref No: PE/2026/089</text>
+    <text x="280" y="115" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">Date: 16/08/2026</text>
+    <line x1="35" y1="125" x2="345" y2="125" stroke="#e2e8f0" stroke-width="1"/>
+
+    <!-- Letter Body Lines (Sample Printed Letter Layout) -->
+    <text x="35" y="150" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#1e293b">To Whom It May Concern,</text>
+
+    <!-- Simulated Document Text Lines -->
+    <rect x="35" y="170" width="310" height="6" fill="#cbd5e1" rx="3"/>
+    <rect x="35" y="185" width="290" height="6" fill="#cbd5e1" rx="3"/>
+    <rect x="35" y="200" width="300" height="6" fill="#cbd5e1" rx="3"/>
+
+    <rect x="35" y="225" width="310" height="6" fill="#cbd5e1" rx="3"/>
+    <rect x="35" y="240" width="270" height="6" fill="#cbd5e1" rx="3"/>
+    <rect x="35" y="255" width="295" height="6" fill="#cbd5e1" rx="3"/>
+
+    <rect x="35" y="280" width="310" height="6" fill="#cbd5e1" rx="3"/>
+    <rect x="35" y="295" width="260" height="6" fill="#cbd5e1" rx="3"/>
+
+    <!-- Signature & Seal -->
+    <text x="35" y="370" font-family="system-ui, sans-serif" font-size="10" fill="#475569">Sincerely,</text>
+    <!-- Official Blue Stamp Circle -->
+    <circle cx="90" cy="415" r="28" fill="none" stroke="#2563eb" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="90" y="412" font-family="system-ui, sans-serif" font-weight="bold" font-size="8" fill="#2563eb" text-anchor="middle">PALAK ENTERPRISES</text>
+    <text x="90" y="422" font-family="system-ui, sans-serif" font-size="7" fill="#2563eb" text-anchor="middle">BIHAR ★ VERIFIED</text>
+    
+    <line x1="35" y1="435" x2="150" y2="435" stroke="#000000" stroke-width="1"/>
+    <text x="35" y="448" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#0f172a">Authorized Signatory</text>
+
+    <!-- Bottom Footer Stripe -->
+    <rect x="0" y="465" width="380" height="25" fill="#0f172a"/>
+    <text x="190" y="481" font-family="system-ui, sans-serif" font-size="9" fill="#94a3b8" text-anchor="middle">Station Road, Near Mahavir Mandir | Phone: +91 98765 43210</text>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

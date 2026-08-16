@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="cardGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="cardGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="15" stdDeviation="15" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background surface -->
+  <rect width="800" height="600" fill="url(#bgGrad)"/>
+  <path d="M0,0 L800,600 M800,0 L0,600" stroke="#ffffff" stroke-opacity="0.03" stroke-width="1"/>
+
+  <!-- Stack Shadow / Bottom Cards -->
+  <g filter="url(#shadow)" transform="translate(180, 160) rotate(-6)">
+    <rect width="420" height="250" rx="12" fill="#090d16" stroke="#334155" stroke-width="2"/>
+  </g>
+  <g filter="url(#shadow)" transform="translate(195, 150) rotate(-2)">
+    <rect width="420" height="250" rx="12" fill="url(#cardGrad2)" stroke="#38bdf8" stroke-width="1"/>
+    <text x="30" y="50" font-family="system-ui, sans-serif" font-weight="900" font-size="18" fill="#ffffff" letter-spacing="2">PALAK ENTERPRISES</text>
+    <text x="30" y="75" font-family="system-ui, sans-serif" font-size="12" fill="#bae6fd">Premium Matte &amp; Gloss Cards</text>
+  </g>
+
+  <!-- Top Primary Visiting Card -->
+  <g filter="url(#shadow)" transform="translate(210, 135) rotate(4)">
+    <rect width="420" height="250" rx="12" fill="url(#cardGrad1)" stroke="url(#goldGrad)" stroke-width="3"/>
+    
+    <!-- Card Inner Content -->
+    <rect x="20" y="20" width="380" height="210" rx="8" fill="none" stroke="url(#goldGrad)" stroke-opacity="0.3" stroke-width="1" stroke-dasharray="4,4"/>
+
+    <!-- Gold Foil Logo Symbol -->
+    <circle cx="65" cy="65" r="24" fill="url(#goldGrad)"/>
+    <text x="65" y="73" font-family="system-ui, sans-serif" font-weight="900" font-size="22" fill="#1e1b4b" text-anchor="middle">P</text>
+
+    <!-- Company & Person Name -->
+    <text x="105" y="58" font-family="system-ui, sans-serif" font-weight="900" font-size="20" fill="url(#goldGrad)" letter-spacing="1">PALAK PRINTING PRESS</text>
+    <text x="105" y="78" font-family="system-ui, sans-serif" font-weight="600" font-size="11" fill="#a5b4fc" letter-spacing="2">VISITING CARD SAMPLE</text>
+
+    <line x1="30" y1="105" x2="390" y2="105" stroke="url(#goldGrad)" stroke-opacity="0.4" stroke-width="1"/>
+
+    <!-- Contact Info Mockup -->
+    <text x="35" y="135" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#ffffff">Rajesh Kumar</text>
+    <text x="35" y="152" font-family="system-ui, sans-serif" font-size="11" fill="#cbd5e1">Proprietor / General Manager</text>
+
+    <text x="35" y="180" font-family="system-ui, sans-serif" font-size="11" fill="#e0e7ff">📞 +91 98765 43210 / +91 91234 56789</text>
+    <text x="35" y="198" font-family="system-ui, sans-serif" font-size="11" fill="#e0e7ff">📍 Station Road, Near Mahavir Mandir, Bihar</text>
+
+    <!-- Metallic Spot UV Tag -->
+    <rect x="270" y="130" width="110" height="70" rx="6" fill="#ffffff" fill-opacity="0.05" stroke="url(#goldGrad)" stroke-width="1"/>
+    <text x="325" y="160" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="url(#goldGrad)" text-anchor="middle">SPOT UV METALLIC</text>
+    <text x="325" y="175" font-family="system-ui, sans-serif" font-size="9" fill="#a5b4fc" text-anchor="middle">VELVET FINISH</text>
+  </g>
+
+  <!-- Product Label Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

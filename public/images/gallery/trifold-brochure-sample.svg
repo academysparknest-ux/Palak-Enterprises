@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgWood" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <filter id="brochureShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgWood)"/>
+
+  <!-- Open Printed Tri-Fold Brochure Mockup (3 Panels) -->
+  <g filter="url(#brochureShadow)" transform="translate(100, 100) rotate(-2)">
+    <!-- Panel 1 (Left Inside Panel) -->
+    <g transform="translate(0, 0)">
+      <rect width="195" height="380" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+      <rect x="0" y="0" width="195" height="70" fill="#4c1d95"/>
+      <text x="97" y="38" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#ffffff" text-anchor="middle">ABOUT US</text>
+      <text x="97" y="55" font-family="system-ui, sans-serif" font-size="10" fill="#ddd6fe" text-anchor="middle">Quality Printing Press</text>
+      
+      <rect x="15" y="85" width="165" height="6" fill="#cbd5e1" rx="3"/>
+      <rect x="15" y="98" width="145" height="6" fill="#cbd5e1" rx="3"/>
+      <rect x="15" y="111" width="155" height="6" fill="#cbd5e1" rx="3"/>
+
+      <!-- Feature Bullet List -->
+      <circle cx="25" cy="140" r="4" fill="#7c3aed"/>
+      <text x="35" y="143" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#1e293b">Fast Turnaround</text>
+
+      <circle cx="25" cy="160" r="4" fill="#7c3aed"/>
+      <text x="35" y="163" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#1e293b">Affordable Pricing</text>
+
+      <circle cx="25" cy="180" r="4" fill="#7c3aed"/>
+      <text x="35" y="183" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#1e293b">Custom Designs</text>
+
+      <rect x="15" y="210" width="165" height="120" rx="8" fill="#f3e8ff" stroke="#c084fc" stroke-width="1"/>
+      <text x="97" y="270" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#6b21a8" text-anchor="middle">SAMPLE GRAPHIC</text>
+    </g>
+
+    <!-- Fold Crease 1 Line -->
+    <line x1="195" y1="0" x2="195" y2="380" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6,4"/>
+
+    <!-- Panel 2 (Center Inside Panel) -->
+    <g transform="translate(198, 0)">
+      <rect width="198" height="380" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+      <rect x="0" y="0" width="198" height="70" fill="#2563eb"/>
+      <text x="99" y="38" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#ffffff" text-anchor="middle">OUR SERVICES</text>
+      <text x="99" y="55" font-family="system-ui, sans-serif" font-size="10" fill="#bfdbfe" text-anchor="middle">What We Offer</text>
+
+      <rect x="15" y="85" width="168" height="35" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+      <text x="25" y="106" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#1e40af">1. Business Cards &amp; Banners</text>
+
+      <rect x="15" y="130" width="168" height="35" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+      <text x="25" y="151" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#1e40af">2. Wedding &amp; Tilak Cards</text>
+
+      <rect x="15" y="175" width="168" height="35" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+      <text x="25" y="196" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#1e40af">3. Duplicate Bill Books</text>
+
+      <rect x="15" y="220" width="168" height="35" rx="6" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+      <text x="25" y="241" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#1e40af">4. Instant Passport Photos</text>
+    </g>
+
+    <!-- Fold Crease 2 Line -->
+    <line x1="396" y1="0" x2="396" y2="380" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6,4"/>
+
+    <!-- Panel 3 (Right Cover Panel) -->
+    <g transform="translate(398, 0)">
+      <rect width="198" height="380" fill="#1e1b4b" stroke="#4338ca" stroke-width="2"/>
+      
+      <circle cx="99" cy="90" r="35" fill="#4f46e5"/>
+      <text x="99" y="98" font-family="system-ui, sans-serif" font-weight="900" font-size="28" fill="#ffffff" text-anchor="middle">P</text>
+
+      <text x="99" y="155" font-family="system-ui, sans-serif" font-weight="900" font-size="16" fill="#facc15" text-anchor="middle" letter-spacing="1">PALAK PRINTING</text>
+      <text x="99" y="175" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff" text-anchor="middle">PRESS &amp; SERVICES</text>
+
+      <line x1="30" y1="195" x2="168" y2="195" stroke="#facc15" stroke-width="1.5"/>
+
+      <text x="99" y="225" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#a5b4fc" text-anchor="middle">TRI-FOLD PROMOTIONAL</text>
+      <text x="99" y="242" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#a5b4fc" text-anchor="middle">BROCHURE SAMPLE</text>
+
+      <rect x="20" y="280" width="158" height="75" rx="8" fill="#312e81" stroke="#6366f1" stroke-width="1"/>
+      <text x="99" y="305" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#ffffff" text-anchor="middle">Station Road, Bihar</text>
+      <text x="99" y="325" font-family="system-ui, sans-serif" font-size="10" fill="#facc15" text-anchor="middle">📞 9876543210</text>
+    </g>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

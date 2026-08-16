@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgBday" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="cardBdayBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ec4899"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <filter id="bdayShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgBday)"/>
+
+  <!-- Back Envelope -->
+  <g filter="url(#bdayShadow)" transform="translate(140, 100) rotate(8)">
+    <rect width="480" height="340" rx="14" fill="#fef08a" stroke="#eab308" stroke-width="3"/>
+    <path d="M0,0 L240,160 L480,0" stroke="#ca8a04" stroke-width="2" fill="none"/>
+    <circle cx="240" cy="160" r="18" fill="#ec4899"/>
+    <text x="240" y="166" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#ffffff" text-anchor="middle">★</text>
+  </g>
+
+  <!-- Printed Birthday Invitation Card (Main Subject) -->
+  <g filter="url(#bdayShadow)" transform="translate(180, 80) rotate(-3)">
+    <rect width="440" height="380" rx="16" fill="url(#cardBdayBg)" stroke="#ffffff" stroke-width="4"/>
+    
+    <!-- White Card Inner Surface -->
+    <rect x="18" y="18" width="404" height="344" rx="12" fill="#ffffff" fill-opacity="0.95"/>
+    <rect x="24" y="24" width="392" height="332" rx="10" fill="none" stroke="#ec4899" stroke-width="2" stroke-dasharray="6,4"/>
+
+    <!-- Decorative Card Header -->
+    <text x="220" y="70" font-family="system-ui, sans-serif" font-weight="900" font-size="28" fill="#ec4899" text-anchor="middle" letter-spacing="2">YOU'RE INVITED!</text>
+    <text x="220" y="95" font-family="system-ui, sans-serif" font-weight="bold" font-size="16" fill="#8b5cf6" text-anchor="middle">★ BIRTHDAY CELEBRATION ★</text>
+
+    <line x1="60" y1="110" x2="380" y2="110" stroke="#f472b6" stroke-width="2"/>
+
+    <text x="220" y="145" font-family="system-ui, sans-serif" font-size="14" fill="#475569" text-anchor="middle">Please join us to celebrate the 5th Birthday of</text>
+
+    <!-- Child Name Mockup -->
+    <text x="220" y="195" font-family="Georgia, serif" font-weight="900" font-size="32" fill="#1e3a8a" text-anchor="middle">AARAV SHARMA</text>
+
+    <!-- Event Info Box -->
+    <rect x="60" y="220" width="320" height="85" rx="10" fill="#f3e8ff" stroke="#c084fc" stroke-width="1.5"/>
+    <text x="220" y="248" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#6b21a8" text-anchor="middle">📅 Sunday, 15th October 2026</text>
+    <text x="220" y="268" font-family="system-ui, sans-serif" font-weight="bold" font-size="13" fill="#6b21a8" text-anchor="middle">⏰ 6:00 PM Onwards</text>
+    <text x="220" y="288" font-family="system-ui, sans-serif" font-size="12" fill="#7e22ce" text-anchor="middle">📍 Hotel Royal Garden, Station Road, Bihar</text>
+
+    <text x="220" y="338" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#ec4899" text-anchor="middle">Printed by Palak Printing Press • Custom Invitation Card Sample</text>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

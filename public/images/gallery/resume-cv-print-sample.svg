@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgCV" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <filter id="cvShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgCV)"/>
+
+  <!-- Printed Resume/CV Document Sheet (Main Subject) -->
+  <g filter="url(#cvShadow)" transform="translate(190, 50) rotate(-1)">
+    <rect width="420" height="500" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+
+    <!-- Left Column Accent Header Bar -->
+    <rect x="0" y="0" width="130" height="500" fill="#1e293b"/>
+
+    <!-- Profile Circle Placeholder -->
+    <circle cx="65" cy="65" r="32" fill="#3b82f6"/>
+    <text x="65" y="73" font-family="system-ui, sans-serif" font-weight="bold" font-size="22" fill="#ffffff" text-anchor="middle">AK</text>
+
+    <!-- Left Sidebar Content -->
+    <text x="15" y="125" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#38bdf8">CONTACT</text>
+    <line x1="15" y1="132" x2="115" y2="132" stroke="#475569" stroke-width="1"/>
+    <text x="15" y="150" font-family="system-ui, sans-serif" font-size="9" fill="#94a3b8">📞 +91 98765 43210</text>
+    <text x="15" y="166" font-family="system-ui, sans-serif" font-size="9" fill="#94a3b8">✉ amit@email.com</text>
+    <text x="15" y="182" font-family="system-ui, sans-serif" font-size="9" fill="#94a3b8">📍 Patna, Bihar</text>
+
+    <text x="15" y="220" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#38bdf8">SKILLS</text>
+    <line x1="15" y1="227" x2="115" y2="227" stroke="#475569" stroke-width="1"/>
+    <text x="15" y="245" font-family="system-ui, sans-serif" font-size="9" fill="#e2e8f0">• MS Office &amp; Excel</text>
+    <text x="15" y="261" font-family="system-ui, sans-serif" font-size="9" fill="#e2e8f0">• Tally Prime ERP</text>
+    <text x="15" y="277" font-family="system-ui, sans-serif" font-size="9" fill="#e2e8f0">• Data Entry &amp; DTP</text>
+
+    <!-- Right Column Resume Body -->
+    <g transform="translate(145, 0)">
+      <text x="15" y="45" font-family="system-ui, sans-serif" font-weight="900" font-size="20" fill="#0f172a">AMIT KUMAR</text>
+      <text x="15" y="65" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#2563eb">Senior Accountant &amp; Office Executive</text>
+
+      <line x1="15" y1="78" x2="255" y2="78" stroke="#cbd5e1" stroke-width="1.5"/>
+
+      <text x="15" y="105" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#0f172a">CAREER OBJECTIVE</text>
+      <line x1="15" y1="112" x2="255" y2="112" stroke="#2563eb" stroke-width="1.5"/>
+      <rect x="15" y="122" width="240" height="5" fill="#cbd5e1" rx="2"/>
+      <rect x="15" y="133" width="230" height="5" fill="#cbd5e1" rx="2"/>
+      <rect x="15" y="144" width="210" height="5" fill="#cbd5e1" rx="2"/>
+
+      <text x="15" y="175" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#0f172a">WORK EXPERIENCE</text>
+      <line x1="15" y1="182" x2="255" y2="182" stroke="#2563eb" stroke-width="1.5"/>
+
+      <text x="15" y="200" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#1e293b">Accountant | XYZ Traders (2022 - Present)</text>
+      <rect x="15" y="210" width="240" height="5" fill="#cbd5e1" rx="2"/>
+      <rect x="15" y="221" width="220" height="5" fill="#cbd5e1" rx="2"/>
+
+      <text x="15" y="250" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#1e293b">Office Assistant | ABC Enterprises (2020 - 2022)</text>
+      <rect x="15" y="260" width="240" height="5" fill="#cbd5e1" rx="2"/>
+      <rect x="15" y="271" width="230" height="5" fill="#cbd5e1" rx="2"/>
+
+      <text x="15" y="305" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#0f172a">EDUCATION</text>
+      <line x1="15" y1="312" x2="255" y2="312" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="15" y="330" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#1e293b">B.Com (Hons) — Patna University (2020)</text>
+
+      <text x="135" y="475" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#64748b" text-anchor="middle">Printed by Palak Printing Press</text>
+    </g>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>
