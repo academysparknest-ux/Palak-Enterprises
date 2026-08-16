@@ -16,7 +16,7 @@ export const FAQSection: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-3 py-1 rounded-full uppercase tracking-wider">
+          <span className="text-xs font-bold text-brandred bg-red-50/70 border border-red-200/60 px-3 py-1 rounded-full uppercase tracking-wider">
             {language === "hi" ? "सवाल और जवाब" : "Got Questions?"}
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mt-3">
@@ -38,15 +38,15 @@ export const FAQSection: React.FC = () => {
               >
                 <button
                   onClick={() => toggleFaq(item.id)}
-                  className="w-full p-5 text-left flex items-center justify-between font-bold text-slate-900 hover:text-blue-900 text-base sm:text-lg focus:outline-none"
+                  className="w-full p-5 text-left flex items-center justify-between font-bold text-slate-900 hover:text-navy text-base sm:text-lg focus:outline-none"
                 >
                   <span className="flex items-center space-x-3">
-                    <HelpCircle className="w-5 h-5 text-blue-900 shrink-0" />
+                    <HelpCircle className="w-5 h-5 text-navy shrink-0" />
                     <span>{item.question[language]}</span>
                   </span>
                   <ChevronDown
                     className={`w-5 h-5 text-slate-400 shrink-0 transition-transform duration-300 ${
-                      isOpen ? "rotate-180 text-blue-900" : ""
+                      isOpen ? "rotate-180 text-navy" : ""
                     }`}
                   />
                 </button>

@@ -67,11 +67,7 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch {
       // Safe fallback
     }
-    if (active) {
-      setFontSizeState("large");
-    } else {
-      setFontSizeState("normal");
-    }
+    setFontSize(active ? "large" : "normal");
   };
 
   const toggleSeniorMode = () => setSeniorMode(!seniorMode);

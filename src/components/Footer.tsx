@@ -1,195 +1,217 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useAccessibility } from "../context/AccessibilityContext";
-import { businessConfig } from "../config/business";
-import { Printer, MapPin, Phone, MessageSquare, Globe, Eye } from "lucide-react";
+import { business } from "../config/business";
+import { cn } from "../lib/utils";
+import { Eye, ShieldCheck } from "lucide-react";
 
-export const Footer: React.FC = () => {
-  const { language, setLanguage, t } = useLanguage();
+export function Footer(): React.JSX.Element {
+  const { lang, language } = useLanguage();
   const { seniorMode, toggleSeniorMode } = useAccessibility();
+  const currentLang = (lang || language || "en") as "en" | "hi";
+  const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-slate-950 text-white border-t border-slate-800 pt-16 pb-12">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800">
-          {/* Col 1: Brand Info */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-900 text-white flex items-center justify-center font-bold">
-                <Printer className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="font-extrabold text-white text-lg block leading-tight">
-                  {businessConfig.name}
-                </span>
-                <span className="text-xs font-semibold text-red-500 uppercase tracking-wider">
-                  {businessConfig.associatedName}
-                </span>
-              </div>
+    <footer className="bg-[#0F172A] pb-24 pt-14 text-white/80 lg:pb-14 border-t border-slate-800">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 md:grid-cols-5">
+        {/* Column 1: Brand & Registrations */}
+        <div className="md:col-span-2 space-y-4">
+          <Link to="/" className="flex items-center gap-3 group">
+            <img
+              src={business.logoPath}
+              alt={business.name[currentLang]}
+              width={44}
+              height={44}
+              className="rounded-full object-cover ring-2 ring-amber-400/50 group-hover:scale-105 transition-transform"
+            />
+            <div>
+              <h3 className="font-display text-lg font-bold text-white group-hover:text-amber-400 transition-colors">
+                {business.name[currentLang]}
+              </h3>
+              <p className="text-xs text-amber-300 font-medium">
+                {business.unit[currentLang]}
+              </p>
             </div>
+          </Link>
 
-            <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-sm">
-              {businessConfig.subtitle[language]}
-            </p>
-
-            <p className="text-xs font-semibold text-amber-400">
-              {t.footer.proprietor}
-            </p>
-
-            {/* Language & Accessibility Footer Controls */}
-            <div className="pt-2 flex items-center space-x-3 text-xs">
-              <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-1">
-                <Globe className="w-3.5 h-3.5 text-slate-400 ml-1 mr-1" />
-                <button
-                  onClick={() => setLanguage("en")}
-                  className={`px-2.5 py-1 rounded text-xs font-bold ${
-                    language === "en" ? "bg-blue-900 text-white" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  EN
-                </button>
-                <button
-                  onClick={() => setLanguage("hi")}
-                  className={`px-2.5 py-1 rounded text-xs font-bold ${
-                    language === "hi" ? "bg-blue-900 text-white" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  हिन्दी
-                </button>
-              </div>
-
-              <button
-                onClick={toggleSeniorMode}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${
-                  seniorMode ? "bg-amber-500 text-slate-950 border-amber-600" : "bg-slate-900 text-slate-300 border-slate-800"
-                }`}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>{seniorMode ? t.footer.normalMode : t.footer.seniorMode}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Col 2: Services */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-white text-sm uppercase tracking-wider">
-              {t.footer.servicesTitle}
-            </h4>
-            <ul className="space-y-2 text-xs sm:text-sm text-slate-400">
-              <li>
-                <a href="#services" className="hover:text-white transition-colors">
-                  {language === "hi" ? "फोटोकॉपी व प्रिंटिंग" : "Photocopy & Printing"}
-                </a>
-              </li>
-              <li>
-                <a href="#services" className="hover:text-white transition-colors">
-                  {language === "hi" ? "पासपोर्ट फोटो (5 मिनट)" : "Instant Passport Photos"}
-                </a>
-              </li>
-              <li>
-                <a href="#services" className="hover:text-white transition-colors">
-                  {language === "hi" ? "जाति, आय, निवास फॉर्म" : "RTPS Certificate Help"}
-                </a>
-              </li>
-              <li>
-                <a href="#services" className="hover:text-white transition-colors">
-                  {language === "hi" ? "पेंशन व सरकारी योजनाएँ" : "Pension Schemes Help"}
-                </a>
-              </li>
-              <li>
-                <a href="#business-printing" className="hover:text-white transition-colors">
-                  {language === "hi" ? "विजिटिंग कार्ड व फ्लेक्स" : "Visiting Cards & Banners"}
-                </a>
-              </li>
-              <li>
-                <a href="#website-dev" className="hover:text-white transition-colors">
-                  {language === "hi" ? "वेबसाइट बनवाएँ" : "Website Development"}
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 3: Quick Navigation */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-white text-sm uppercase tracking-wider">
-              {t.footer.quickLinksTitle}
-            </h4>
-            <ul className="space-y-2 text-xs sm:text-sm text-slate-400">
-              <li>
-                <a href="#home" className="hover:text-white transition-colors">{t.nav.home}</a>
-              </li>
-              <li>
-                <a href="#services" className="hover:text-white transition-colors">{t.nav.services}</a>
-              </li>
-              <li>
-                <a href="#business-printing" className="hover:text-white transition-colors">{t.nav.businessPrinting}</a>
-              </li>
-              <li>
-                <a href="#website-dev" className="hover:text-white transition-colors">{t.nav.websiteDev}</a>
-              </li>
-              <li>
-                <a href="#about" className="hover:text-white transition-colors">{t.nav.about}</a>
-              </li>
-              <li>
-                <a href="#gallery" className="hover:text-white transition-colors">{t.nav.gallery}</a>
-              </li>
-              <li>
-                <a href="#faq" className="hover:text-white transition-colors">{t.nav.faq}</a>
-              </li>
-              <li>
-                <a href="#contact" className="hover:text-white transition-colors">{t.nav.contact}</a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 4: Contact */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-white text-sm uppercase tracking-wider">
-              {t.footer.contactTitle}
-            </h4>
-            <div className="space-y-2.5 text-xs text-slate-400">
-              <div className="flex items-start space-x-2">
-                <MapPin className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                <span>{businessConfig.address.fullAddress[language]}</span>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Phone className="w-4 h-4 text-blue-400 shrink-0" />
-                <a href={`tel:${businessConfig.phoneNumbers.primary}`} className="hover:text-white font-mono font-bold">
-                  {businessConfig.phoneNumbers.displayPrimary}
-                </a>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Phone className="w-4 h-4 text-blue-400 shrink-0" />
-                <a href={`tel:${businessConfig.phoneNumbers.secondary}`} className="hover:text-white font-mono font-bold">
-                  {businessConfig.phoneNumbers.displaySecondary}
-                </a>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <MessageSquare className="w-4 h-4 text-emerald-400 shrink-0" />
-                <a
-                  href={`https://wa.me/${businessConfig.whatsappNumber}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-emerald-400 font-semibold"
-                >
-                  WhatsApp Chat
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Bar */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
-          <p>{t.footer.rightsReserved}</p>
-          <p className="text-slate-600">
-            Designed for Chakia, East Champaran, Bihar
+          <p className="text-xs sm:text-sm leading-relaxed text-slate-300">
+            {currentLang === "hi"
+              ? "प्रिंटिंग, डिजिटल सेवाएँ, ऑनलाइन सरकारी आवेदन एवं व्यावसायिक समाधान — चकिया, पूर्वी चंपारण में आपका विश्वसनीय सेवा साथी।"
+              : "Professional printing, digital services, online applications, and business solutions from your trusted local center in Chakia, Bihar."}
           </p>
+
+          <div className="rounded-xl bg-slate-900/80 p-3.5 border border-slate-800 space-y-1.5 text-xs text-slate-300">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span>CSC ID: <strong className="text-white font-mono">{business.registrations.cscId}</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>MSME Udyam: <strong className="text-white font-mono">{business.registrations.udyamNo}</strong></span>
+            </div>
+          </div>
         </div>
+
+        {/* Column 2: Printing & Products */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+            {currentLang === "hi" ? "प्रिंटिंग कैटलॉग" : "Printing Store"}
+          </h4>
+          <ul className="space-y-2 text-xs">
+            <li>
+              <Link to="/printing" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "सभी प्रिंटिंग उत्पाद" : "All Printing Products"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/printing/visiting-cards" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "विजिटिंग कार्ड" : "Visiting Cards"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/printing/flex-banners" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "फ्लेक्स बैनर" : "Flex Banners"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/printing/pamphlets-flyers" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "पम्पलेट व हैंडबिल" : "Pamphlets & Flyers"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/wedding-events" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "शाही शादी कार्ड" : "Wedding & Event Cards"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/design-services" className="hover:text-white transition-colors text-amber-300 font-semibold">
+                {currentLang === "hi" ? "ग्राफिक डिज़ाइन स्टूडियो" : "Design Studio Help"}
+              </Link>
+            </li>
+          </ul>
+        </div>
+
+        {/* Column 3: Digital & Online Services */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+            {currentLang === "hi" ? "डिजिटल सेवाएँ" : "Digital & CSC"}
+          </h4>
+          <ul className="space-y-2 text-xs">
+            <li>
+              <Link to="/digital-services" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "सभी डिजिटल सेवाएँ" : "All Digital Services"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/digital-services/pan" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "पैन कार्ड आवेदन" : "PAN Card Services"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/digital-services/rtps-certificates" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "जाति/आय/निवास (RTPS)" : "RTPS Certificates"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/digital-services/govt-exam-forms" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "सरकारी फॉर्म सहायता" : "Govt Exam Form Filling"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/business" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "व्यावसायिक समाधान" : "Business Printing Kit"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/request-quote" className="text-amber-300 hover:underline font-bold">
+                {currentLang === "hi" ? "कस्टम कोटेशन मांगें →" : "Request Custom Quote →"}
+              </Link>
+            </li>
+          </ul>
+        </div>
+
+        {/* Column 4: Quick Links & Legal */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+            {currentLang === "hi" ? "ग्राहक सहायता एवं नीतियां" : "Support & Legal"}
+          </h4>
+          <ul className="space-y-2 text-xs">
+            <li>
+              <Link to="/track-order" className="hover:text-white text-emerald-400 font-bold transition-colors">
+                📦 {currentLang === "hi" ? "ऑर्डर / स्थिति ट्रैक करें" : "Track Order / Status"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/account" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "ग्राहक अकाउंट" : "Customer Portal"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/about" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "हमारे बारे में" : "About Us"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/contact" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "संपर्क एवं स्टोर का पता" : "Contact & Location"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/faq" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "अक्सर पूछे जाने वाले सवाल" : "Frequently Asked Questions"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/privacy" className="hover:text-white text-slate-400 transition-colors">
+                Privacy Policy
+              </Link>
+            </li>
+            <li>
+              <Link to="/terms" className="hover:text-white text-slate-400 transition-colors">
+                Terms of Service
+              </Link>
+            </li>
+            <li>
+              <Link to="/refund-policy" className="hover:text-white text-slate-400 transition-colors">
+                Refund & Reprint Policy
+              </Link>
+            </li>
+          </ul>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={toggleSeniorMode}
+              aria-pressed={seniorMode}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer",
+                seniorMode
+                  ? "bg-amber-400 text-slate-950 border-amber-400 shadow-sm"
+                  : "border-slate-700 text-slate-300 hover:bg-slate-800"
+              )}
+            >
+              <Eye size={13} />
+              <span>
+                {seniorMode
+                  ? (currentLang === "hi" ? "सामान्य मोड" : "Normal Mode")
+                  : (currentLang === "hi" ? "वरिष्ठ नागरिक मोड" : "Senior Mode")}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-2 border-t border-slate-800 px-4 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <p>
+          © {year} {business.name[currentLang]} ({business.unit[currentLang]}). {currentLang === "hi" ? "सर्वाधिकार सुरक्षित।" : "All rights reserved."}
+        </p>
+        <p>
+          {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]}
+        </p>
       </div>
     </footer>
   );
-};
+}
+
+export default Footer;

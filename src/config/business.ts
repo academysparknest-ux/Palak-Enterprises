@@ -1,6 +1,12 @@
 export interface BusinessConfig {
-  name: string;
-  associatedName: string;
+  name: {
+    en: string;
+    hi: string;
+  };
+  associatedName: {
+    en: string;
+    hi: string;
+  };
   tagline: {
     en: string;
     hi: string;
@@ -10,7 +16,10 @@ export interface BusinessConfig {
     hi: string;
   };
   owner: {
-    name: string;
+    name: {
+      en: string;
+      hi: string;
+    };
     title: {
       en: string;
       hi: string;
@@ -47,8 +56,14 @@ export interface BusinessConfig {
 }
 
 export const businessConfig: BusinessConfig = {
-  name: "Palak Enterprises",
-  associatedName: "Palak Printing Press",
+  name: {
+    en: "Palak Enterprises",
+    hi: "पालक इंटरप्राइजेज",
+  },
+  associatedName: {
+    en: "Palak Printing Press",
+    hi: "पालक प्रिंटिंग प्रेस",
+  },
   tagline: {
     en: "Printing & Digital Services, All in One Place",
     hi: "आपकी हर प्रिंटिंग और ऑनलाइन सेवा, एक ही जगह",
@@ -58,7 +73,10 @@ export const businessConfig: BusinessConfig = {
     hi: "प्रोफेशनल प्रिंटिंग, डिजिटल सेवाएँ और ऑनलाइन कार्य — सरल, तेज़ और भरोसेमंद तरीके से।",
   },
   owner: {
-    name: "Kumar Pankaj (Pankaj Kumar)",
+    name: {
+      en: "Kumar Pankaj",
+      hi: "कुमार पंकज",
+    },
     title: {
       en: "Proprietor",
       hi: "प्रोपराइटर",
@@ -94,28 +112,59 @@ export const businessConfig: BusinessConfig = {
   },
 };
 
-export const business = {
-  name: "Palak Enterprises",
-  unit: "Palak Printing Press",
+export interface BusinessInfo {
+  name: { en: string; hi: string };
+  unit: { en: string; hi: string };
+  tagline: { en: string; hi: string };
+  owner: { en: string; hi: string };
+  phones: string[];
+  primaryPhone: string;
+  whatsappNumber: string;
+  address: {
+    line1: { en: string; hi: string };
+    landmark: { en: string; hi: string };
+    city: { en: string; hi: string };
+  };
+  registrations: {
+    cscId: string;
+    udyamNo: string;
+  };
+  mapsQuery: string;
+  social: {
+    facebook: string;
+    instagram: string;
+  };
+  logoPath: string;
+}
+
+export const business: BusinessInfo = {
+  name: {
+    en: "Palak Enterprises",
+    hi: "पालक इंटरप्राइजेज",
+  },
+  unit: {
+    en: "Palak Printing Press",
+    hi: "पालक प्रिंटिंग प्रेस",
+  },
   tagline: {
     en: "Online Service Center",
     hi: "ऑनलाइन सेवा केंद्र",
   },
   owner: {
-    en: "Pankaj Kumar",
-    hi: "प्रो. कुमार पंकज",
+    en: "Kumar Pankaj",
+    hi: "कुमार पंकज",
   },
   phones: ["9905238015", "7324964770"],
   primaryPhone: "9905238015",
   whatsappNumber: "919905238015",
   address: {
     line1: {
-      en: "Ward No. 7, Raniganj Mohalla",
-      hi: "वार्ड नं. 7, रानीगंज मोहल्ला",
+      en: "Ward No. 7, Saniganj Mohalla",
+      hi: "वार्ड नं. 7, सनिगंज मोहल्ला",
     },
     landmark: {
       en: "Near Block Gate",
-      hi: "नियर ब्लॉक गेट",
+      hi: "ब्लॉक गेट के पास",
     },
     city: {
       en: "Chakia, East Champaran, Bihar – 845412",
@@ -132,7 +181,7 @@ export const business = {
     instagram: "",
   },
   logoPath: "/logo.webp",
-} as const;
+};
 
 export function getWhatsAppLink(prefilledMessage?: string) {
   const base = `https://wa.me/${business.whatsappNumber}`;

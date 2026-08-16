@@ -1,14 +1,18 @@
 import React from "react";
+import { Link, useLocation } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { businessConfig } from "../config/business";
 import { Home, Layers, Phone, MessageSquare, FileUp } from "lucide-react";
+import { cn } from "../lib/utils";
 
 interface MobileBottomNavProps {
-  onOpenRequestModal: () => void;
+  onOpenRequestModal?: () => void;
 }
 
-export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestModal }) => {
-  const { language, t } = useLanguage();
+export const MobileBottomNav: React.FC<MobileBottomNavProps> = () => {
+  const { lang, language } = useLanguage();
+  const currentLang = (lang || language || "en") as "en" | "hi";
+  const location = useLocation();
 
   return (
     <nav
@@ -16,55 +20,68 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestM
       aria-label="Mobile Navigation Bar"
     >
       <div className="flex items-center justify-around text-center">
-        <a
-          href="#home"
-          className="flex flex-col items-center justify-center py-1.5 px-3 min-w-[56px] min-h-[44px] text-slate-600 hover:text-blue-900 active:text-blue-900 transition-colors"
+        {/* Home */}
+        <Link
+          to="/"
+          className={cn(
+            "flex flex-col items-center justify-center py-1 px-2.5 min-w-[54px] transition-colors",
+            location.pathname === "/" ? "text-navy font-bold" : "text-slate-600 hover:text-navy"
+          )}
         >
           <Home className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px] font-medium leading-none">{t.nav.home}</span>
-        </a>
+          <span className="text-[10px] leading-none">{currentLang === "hi" ? "होम" : "Home"}</span>
+        </Link>
 
-        <a
-          href="#services"
-          className="flex flex-col items-center justify-center py-1.5 px-3 min-w-[56px] min-h-[44px] text-slate-600 hover:text-blue-900 active:text-blue-900 transition-colors"
+        {/* Services */}
+        <Link
+          to="/services"
+          className={cn(
+            "flex flex-col items-center justify-center py-1 px-2.5 min-w-[54px] transition-colors",
+            location.pathname.startsWith("/services") ? "text-navy font-bold" : "text-slate-600 hover:text-navy"
+          )}
         >
           <Layers className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px] font-medium leading-none">{t.nav.services}</span>
-        </a>
+          <span className="text-[10px] leading-none">{currentLang === "hi" ? "सेवाएँ" : "Services"}</span>
+        </Link>
 
-        <button
-          onClick={onOpenRequestModal}
-          className="flex flex-col items-center justify-center py-1 px-2 min-w-[56px] text-blue-900 font-bold transition-colors focus:outline-none"
-          aria-label={language === "hi" ? "अनुरोध भेजें" : "Submit Request"}
+        {/* Center Primary Action: Request */}
+        <Link
+          to="/request"
+          className="flex flex-col items-center justify-center py-0.5 px-2 min-w-[56px] text-navy font-bold transition-transform active:scale-95"
+          aria-label={currentLang === "hi" ? "सेवा अनुरोध" : "Request a Service"}
         >
-          <div className="w-10 h-10 rounded-full bg-blue-900 text-white flex items-center justify-center shadow-md mb-0.5 -mt-3 border-2 border-white">
+          <div className="w-10 h-10 rounded-full bg-brandred text-white flex items-center justify-center shadow-md mb-0.5 -mt-3 border-2 border-white">
             <FileUp className="w-5 h-5" />
           </div>
-          <span className="text-[10px] font-bold text-blue-950 leading-none">
-            {language === "hi" ? "अनुरोध" : "Request"}
+          <span className="text-[10px] font-bold text-navy leading-none">
+            {currentLang === "hi" ? "अनुरोध" : "Request"}
           </span>
-        </button>
+        </Link>
 
+        {/* Call */}
         <a
           href={`tel:${businessConfig.phoneNumbers.primary}`}
-          className="flex flex-col items-center justify-center py-1.5 px-3 min-w-[56px] min-h-[44px] text-red-600 hover:text-red-700 active:text-red-700 transition-colors"
-          aria-label="Call Now"
+          className="flex flex-col items-center justify-center py-1 px-2.5 min-w-[54px] text-brandred hover:text-red-700 transition-colors"
+          aria-label={currentLang === "hi" ? "कॉल करें" : "Call Now"}
         >
           <Phone className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px] font-medium leading-none">{t.nav.callNow}</span>
+          <span className="text-[10px] font-medium leading-none">{currentLang === "hi" ? "कॉल" : "Call"}</span>
         </a>
 
+        {/* WhatsApp */}
         <a
           href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises`}
           target="_blank"
           rel="noreferrer"
-          className="flex flex-col items-center justify-center py-1.5 px-3 min-w-[56px] min-h-[44px] text-emerald-600 hover:text-emerald-700 active:text-emerald-700 transition-colors"
-          aria-label="Chat on WhatsApp"
+          className="flex flex-col items-center justify-center py-1 px-2.5 min-w-[54px] text-emerald-600 hover:text-emerald-700 transition-colors"
+          aria-label={currentLang === "hi" ? "व्हाट्सएप चैट" : "WhatsApp Chat"}
         >
           <MessageSquare className="w-5 h-5 mb-0.5" />
-          <span className="text-[10px] font-medium leading-none">WhatsApp</span>
+          <span className="text-[10px] font-medium leading-none">{currentLang === "hi" ? "व्हाट्सएप" : "WhatsApp"}</span>
         </a>
       </div>
     </nav>
   );
 };
+
+export default MobileBottomNav;

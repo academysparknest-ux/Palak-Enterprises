@@ -368,20 +368,43 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                 <label htmlFor="req-file-input" className="block text-xs font-bold text-slate-700 mb-1">
                   {t.requestForm.fileLabel}
                 </label>
-                <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 bg-slate-50 hover:bg-slate-100 transition-colors text-center cursor-pointer relative">
-                  <input
-                    id="req-file-input"
-                    type="file"
-                    onChange={handleFileChange}
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  />
-                  <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1" />
-                  {file ? (
-                    <div className="text-xs font-bold text-blue-900 truncate px-2">
-                      📎 {sanitizeFilename(file.name)} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                {file ? (
+                  <div className="flex items-center justify-between gap-3 p-3 bg-blue-50/80 rounded-xl border border-blue-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base shrink-0">📎</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-navy truncate">
+                          {sanitizeFilename(file.name)}
+                        </p>
+                        <p className="text-[10px] text-blue-700">
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
                     </div>
-                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFile(null);
+                        const input = document.getElementById("req-file-input") as HTMLInputElement;
+                        if (input) input.value = "";
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-brandred text-xs font-bold transition-colors shrink-0 cursor-pointer"
+                      aria-label={language === "hi" ? "फाइल हटाएं" : "Remove file"}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>{language === "hi" ? "हटाएं" : "Remove"}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 bg-slate-50 hover:bg-slate-100 transition-colors text-center cursor-pointer relative">
+                    <input
+                      id="req-file-input"
+                      type="file"
+                      onChange={handleFileChange}
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                    <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1" />
                     <div>
                       <p className="text-xs font-semibold text-slate-700">
                         {language === "hi" ? "फाइल चुनने के लिए क्लिक करें" : "Click to select document or image"}
@@ -390,8 +413,8 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                         {t.requestForm.fileHelpText}
                       </p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Quantity & Print Type */}

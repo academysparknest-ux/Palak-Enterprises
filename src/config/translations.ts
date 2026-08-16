@@ -202,7 +202,7 @@ export const translations: Record<Language, Translations> = {
     featured: {
       title: "Most Requested Services",
       subtitle: "Quick access to our most popular printing and digital assistance services.",
-      viewAllServices: "View All 30+ Services",
+      viewAllServices: "View All Services",
     },
     categories: {
       title: "Explore Our Full Range of Services",
@@ -363,7 +363,7 @@ export const translations: Record<Language, Translations> = {
     featured: {
       title: "सर्वाधिक मांगी जाने वाली सेवाएँ",
       subtitle: "हमारे केंद्र की सबसे लोकप्रिय प्रिंटिंग एवं डिजिटल सेवाओं तक त्वरित पहुंच।",
-      viewAllServices: "सभी 30+ सेवाएँ देखें",
+      viewAllServices: "सभी सेवाएँ देखें",
     },
     categories: {
       title: "हमारी सभी सेवाओं की सूची",

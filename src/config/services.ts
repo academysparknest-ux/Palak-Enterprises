@@ -97,7 +97,7 @@ export const serviceCategories: ServiceCategory[] = [
     id: "website-dev",
     name: {
       en: "Website Development",
-      hi: "वेबसाइट बनवाएँ",
+      hi: "वेबसाइट निर्माण",
     },
     description: {
       en: "Modern, affordable websites for schools, shops, coaching centers, and businesses.",
@@ -110,72 +110,27 @@ export const serviceCategories: ServiceCategory[] = [
 export const servicesData: ServiceItem[] = [
   // --- Category 1: Printing & Photocopy ---
   {
-    id: "bw-printing",
+    id: "document-printing",
     categoryId: "printing-photocopy",
     name: {
-      en: "Black & White Printing",
-      hi: "ब्लैक एंड व्हाइट प्रिंटिंग",
+      en: "Document Printing & Photocopy",
+      hi: "दस्तावेज़ प्रिंटिंग व फोटोकॉपी",
     },
     description: {
-      en: "Crisp and fast printing for notes, contracts, school projects, and official documents.",
-      hi: "नोट्स, कॉन्ट्रैक्ट, स्कूल प्रोजेक्ट और सरकारी दस्तावेजों के लिए साफ़ प्रिंटिंग।",
+      en: "Fast, clear black & white and vibrant color document printing, high-speed photocopy, and digital prints for notes, contracts, and legal papers.",
+      hi: "नोट्स, कानूनी कागजात, प्रोजेक्ट्स और फोटो के लिए तीव्र सादा व रंगीन प्रिंटिंग एवं फोटोकॉपी सुविधा।",
     },
-    iconName: "FileText",
+    iconName: "Printer",
     featured: true,
     popular: true,
-    tags: ["bw", "black white", "print", "photocopy", "xerox", "ब्लैक", "व्हाइट", "फोटोकॉपी", "जेरोक्स"],
-  },
-  {
-    id: "color-printing",
-    categoryId: "printing-photocopy",
-    name: {
-      en: "Color Printing",
-      hi: "कलर प्रिंटिंग",
-    },
-    description: {
-      en: "Vibrant color prints on premium paper sizes up to A4 / A3 for presentations & photos.",
-      hi: "प्रेजेंटेशन और फोटो के लिए प्रीमियम पेपर पर ब्राइट और साफ़ कलर प्रिंटिंग।",
-    },
-    iconName: "Palette",
-    featured: true,
-    popular: true,
-    tags: ["color print", "colour", "rangeen", "कलर", "रंगीन", "प्रिंट"],
-  },
-  {
-    id: "photocopy",
-    categoryId: "printing-photocopy",
-    name: {
-      en: "High-Speed Photocopy",
-      hi: "फोटो कॉपी (Xerox)",
-    },
-    description: {
-      en: "Bulk copy service for books, exam papers, documents, and identity cards with clear contrast.",
-      hi: "किताबों, परीक्षा पेपर्स, दस्तावेजों और आईडी की बल्क फोटोकॉपी सेवा।",
-    },
-    iconName: "Copy",
-    featured: true,
-    tags: ["xerox", "copy", "photocopy", "फोटोकॉपी", "जेरोक्स", "कॉपी"],
-  },
-  {
-    id: "digital-printing",
-    categoryId: "printing-photocopy",
-    name: {
-      en: "Digital Printing",
-      hi: "डिजिटल प्रिंटिंग",
-    },
-    description: {
-      en: "High-resolution printing for certificates, flyers, posters, and heavy cardstock documents.",
-      hi: "प्रमाणपत्र, पोस्टर और कार्डस्टॉक पेपर्स के लिए उच्च-गुणवत्ता वाली डिजिटल प्रिंटिंग।",
-    },
-    iconName: "Layers",
-    tags: ["digital", "hd print", "डिजिटल"],
+    tags: ["bw", "color", "black white", "print", "photocopy", "xerox", "digital print", "ब्लैक", "व्हाइट", "कलर", "फोटोकॉपी", "जेरोक्स", "प्रिंट"],
   },
   {
     id: "lamination",
     categoryId: "printing-photocopy",
     name: {
       en: "Lamination Services",
-      hi: "लैमिनेशन (सुरक्षा कवर)",
+      hi: "लैमिनेशन सुरक्षा",
     },
     description: {
       en: "Durable heat lamination for certificates, marksheets, licenses, and important documents.",
@@ -187,25 +142,11 @@ export const servicesData: ServiceItem[] = [
     tags: ["lamination", "pouch", "protect", "लैमिनेशन", "कवर"],
   },
   {
-    id: "letter-pad",
-    categoryId: "printing-photocopy",
-    name: {
-      en: "Letter Pad & Stationeries",
-      hi: "लेटर पैड एवं पैड प्रिंटिंग",
-    },
-    description: {
-      en: "Custom office letterheads, pads, invoice slips, and branded writing stationery.",
-      hi: "कस्टम ऑफिस लेटरहेड, पैड, रसीद बुक और ब्रांडेड स्टेशनरी प्रिंटिंग।",
-    },
-    iconName: "FileSpreadsheet",
-    tags: ["letterpad", "letterhead", "pad", "लेटर", "पैड"],
-  },
-  {
     id: "pamphlets",
     categoryId: "printing-photocopy",
     name: {
-      en: "Pamphlets & Handbills",
-      hi: "पम्पलेट एवं पर्चे (Handbill)",
+      en: "Pamphlets & Flyers",
+      hi: "पम्पलेट एवं प्रचार पर्चे",
     },
     description: {
       en: "Single & multicolor promotional pamphlets for coaching, shops, events, and local ads.",
@@ -224,8 +165,8 @@ export const servicesData: ServiceItem[] = [
       hi: "इंस्टेंट पासपोर्ट फोटो",
     },
     description: {
-      en: "Urgent passport photos with background correction, suit/attire edit, and fast 5-minute print.",
-      hi: "बैकग्राउंड बदलाव, सूट/कपड़े एडिट और 5 मिनट में तुरंत पासपोर्ट फोटो प्रिंट।",
+      en: "Urgent passport photos with background correction, attire edit, and fast 5-minute print.",
+      hi: "बैकग्राउंड बदलाव, कपड़े एडिट और 5 मिनट में तुरंत पासपोर्ट फोटो प्रिंट।",
     },
     iconName: "UserCheck",
     featured: true,
@@ -237,11 +178,11 @@ export const servicesData: ServiceItem[] = [
     categoryId: "photo-id",
     name: {
       en: "Glossy Photo Print",
-      hi: "ग्लोसी फोटो प्रिंट (4x6, 8x10)",
+      hi: "ग्लोसी फोटो प्रिंट",
     },
     description: {
-      en: "Studio quality lab photo prints in all sizes (4x6, 5x7, 8x10, 12x18) on HD glossy paper.",
-      hi: "एचडी ग्लोसी पेपर पर सभी साइज़ (4x6, 8x10, 12x18) की स्टूडियो क्वालिटी फोटो प्रिंटिंग।",
+      en: "Studio quality lab photo prints in all standard sizes on HD glossy paper.",
+      hi: "एचडी ग्लोसी पेपर पर सभी साइज़ की स्टूडियो क्वालिटी फोटो प्रिंटिंग।",
     },
     iconName: "Image",
     tags: ["photo print", "glossy", "lab print", "फोटो", "प्रिंट"],
@@ -269,8 +210,8 @@ export const servicesData: ServiceItem[] = [
       hi: "मैरिज बायोडेटा एवं रिज्यूमे",
     },
     description: {
-      en: "Beautiful biodata design for marriage with photo framing + professional job resumes.",
-      hi: "शादी के लिए आकर्षक बायोडेटा और फोटो फ्रेमिंग + नौकरी हेतु प्रोफेशनल रिज्यूमे।",
+      en: "Beautiful biodata design for marriage with photo framing and professional job resumes.",
+      hi: "शादी के लिए आकर्षक बायोडेटा और फोटो फ्रेमिंग एवं नौकरी हेतु प्रोफेशनल रिज्यूमे।",
     },
     iconName: "FileText",
     tags: ["biodata", "resume", "marriage biodata", "बायोडेटा", "रिज्यूमे"],
@@ -301,7 +242,7 @@ export const servicesData: ServiceItem[] = [
     },
     description: {
       en: "Online submission assistance and status checking for Bihar RTPS certificate services.",
-      hi: "बिहार RTPS पोर्टल पर जाति, आय और आवास प्रमाणपत्र आवेदन एवं स्थिति जांच में सहायता।",
+      hi: "बिहार आरटीपीएस पोर्टल पर जाति, आय और आवास प्रमाणपत्र आवेदन एवं स्थिति जांच में सहायता।",
     },
     iconName: "Award",
     featured: true,
@@ -317,7 +258,7 @@ export const servicesData: ServiceItem[] = [
     categoryId: "certificates-docs",
     name: {
       en: "Aadhaar e-Print & PVC Print",
-      hi: "आधार ई-प्रिंट एवं PVC आधार",
+      hi: "आधार ई-प्रिंट एवं पीवीसी आधार",
     },
     description: {
       en: "High-clarity color print and PVC hard plastic card printing from official e-Aadhaar portal.",
@@ -329,7 +270,7 @@ export const servicesData: ServiceItem[] = [
     tags: ["aadhaar", "aadhar", "pvc aadhaar", "आधार", "प्रिंट", "आधार प्रिंट"],
     disclaimer: {
       en: "Services are subject to OTP validation by the cardholder via UIDAI official portal.",
-      hi: "यह सेवा कार्डधारक द्वारा UIDAI पोर्टल पर ओटीपी सत्यापन के अधीन है।",
+      hi: "यह सेवा कार्डधारक द्वारा यूआईडीएआई पोर्टल पर ओटीपी सत्यापन के अधीन है।",
     },
   },
   {
@@ -412,7 +353,7 @@ export const servicesData: ServiceItem[] = [
     categoryId: "online-services",
     name: {
       en: "Farmer Registration & PM-Kisan",
-      hi: "किसान पंजीकरण एवं PM-किसान ई-KYC",
+      hi: "किसान पंजीकरण एवं पीएम-किसान ई-केवाईसी",
     },
     description: {
       en: "DBT Agriculture Bihar registration, PM Kisan Samman Nidhi e-KYC, and land record assistance.",
@@ -425,11 +366,11 @@ export const servicesData: ServiceItem[] = [
     id: "dakhil-kharij",
     categoryId: "online-services",
     name: {
-      en: "Dakhil-Kharij & Land Receipt Assistance",
+      en: "Land Mutation & Lagan Receipt",
       hi: "दाखिल-खारिज एवं भूमि लगान रसीद",
     },
     description: {
-      en: "Online payment of land revenue (Lagan), mutation (Dakhil-Kharij) portal navigation support.",
+      en: "Online payment of land revenue (Lagan), mutation portal navigation support.",
       hi: "भूमि लगान का ऑनलाइन भुगतान और दाखिला-खारिज (म्यूटेशन) आवेदन पोर्टल में सहायता।",
     },
     iconName: "MapPin",
@@ -455,8 +396,8 @@ export const servicesData: ServiceItem[] = [
     id: "visiting-cards",
     categoryId: "business-printing",
     name: {
-      en: "Visiting Cards (Business Cards)",
-      hi: "विजिटिंग कार्ड (बिजनेस कार्ड)",
+      en: "Visiting Cards",
+      hi: "विजिटिंग कार्ड",
     },
     description: {
       en: "Matte, Gloss, Velvet finish, metallic & UV spot custom business cards with creative layout.",
@@ -500,15 +441,15 @@ export const servicesData: ServiceItem[] = [
     id: "letterhead-envelope",
     categoryId: "business-printing",
     name: {
-      en: "Official Letterheads & Envelopes",
-      hi: "ऑफिसियल लेटरहेड एवं लिफाफे",
+      en: "Letterheads, Pads & Envelopes",
+      hi: "ऑफिशियल लेटरहेड, पैड एवं लिफाफे",
     },
     description: {
-      en: "Standard executive letterheads on bond paper with matching printed company envelopes.",
-      hi: "बॉन्ड पेपर पर एग्जीक्यूटिव लेटरहेड और कंपनी के नाम वाले प्रिंटेड लिफाफे।",
+      en: "Standard executive letterheads on bond paper, customized doctor prescription & office writing pads, and company envelopes.",
+      hi: "बॉन्ड पेपर पर एग्जीक्यूटिव लेटरहेड, डॉक्टर पर्चा पैड, ऑफिस राइटिंग पैड और प्रिंटेड लिफाफे।",
     },
     iconName: "Mail",
-    tags: ["letterhead", "envelope", "office stationery", "लेटरहेड", "लिफाफा"],
+    tags: ["letterhead", "envelope", "letterpad", "pad", "office stationery", "लेटरहेड", "लिफाफा", "पैड"],
   },
 
   // --- Category 6: Website Development ---
@@ -517,7 +458,7 @@ export const servicesData: ServiceItem[] = [
     categoryId: "website-dev",
     name: {
       en: "Custom Website Development",
-      hi: "वेबसाइट बनवाएँ (स्कूल, दुकान, कोचिंग)",
+      hi: "कस्टम वेबसाइट निर्माण",
     },
     description: {
       en: "Modern, fast, mobile-friendly websites for schools, shops, coaching centers, doctors, and businesses.",

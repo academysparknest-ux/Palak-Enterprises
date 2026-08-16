@@ -8,7 +8,8 @@ interface WebsiteDevSectionProps {
 }
 
 export const WebsiteDevSection: React.FC<WebsiteDevSectionProps> = ({ onOpenRequestModal }) => {
-  const { t } = useLanguage();
+  const { lang, language, t } = useLanguage();
+  const currentLang = (lang || language || "en") as "en" | "hi";
 
   return (
     <section id="website-dev" className="py-14 sm:py-16 bg-white border-b border-line">
@@ -19,7 +20,7 @@ export const WebsiteDevSection: React.FC<WebsiteDevSectionProps> = ({ onOpenRequ
             <div className="lg:col-span-8 space-y-6">
               <div className="inline-flex items-center space-x-2 bg-blue-50 border border-blue-200 px-3.5 py-1 rounded-full text-xs font-bold text-blue-900">
                 <Globe2 className="w-4 h-4 text-blue-900" />
-                <span>Modern Digital Services</span>
+                <span>{currentLang === "hi" ? "आधुनिक डिजिटल सेवाएँ" : "Modern Digital Services"}</span>
               </div>
 
               <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
@@ -60,44 +61,46 @@ export const WebsiteDevSection: React.FC<WebsiteDevSectionProps> = ({ onOpenRequ
                 </button>
 
                 <a
-                  href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises,%20I%20want%20to%20get%20a%20website%20built%20for%20my%20business%20/%20school%20/%20coaching.`}
+                  href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises,%20I%20want%20to%20get%20a%20website%20built.`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md transition-all text-sm flex items-center justify-center space-x-2"
                 >
                   <MessageSquare className="w-4 h-4 fill-white" />
-                  <span>WhatsApp Enquiry</span>
+                  <span>{currentLang === "hi" ? "व्हाट्सएप पूछताछ" : "WhatsApp Enquiry"}</span>
                 </a>
               </div>
             </div>
 
             {/* Right Card Illustration */}
             <div className="lg:col-span-4 bg-gradient-to-br from-blue-900 to-slate-900 text-white p-6 rounded-2xl shadow-inner space-y-4">
-              <h3 className="font-bold text-lg text-amber-300">Who is this for? / किसके लिए?</h3>
+              <h3 className="font-bold text-lg text-amber-300">
+                {currentLang === "hi" ? "यह किसके लिए है?" : "Who is this for?"}
+              </h3>
               <ul className="space-y-2 text-xs sm:text-sm text-slate-200">
                 <li className="flex items-center space-x-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span>Private Schools & Colleges (स्कूल एवं कॉलेज)</span>
+                  <span>{currentLang === "hi" ? "निजी स्कूल एवं कॉलेज" : "Private Schools & Colleges"}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span>Coaching Institutes (कोचिंग संस्थान)</span>
+                  <span>{currentLang === "hi" ? "कोचिंग संस्थान एवं ट्यूशन सेंटर" : "Coaching Institutes"}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span>Local Retail Shops & Showrooms (दुकानें)</span>
+                  <span>{currentLang === "hi" ? "स्थानीय दुकानें एवं खुदरा शोरूम" : "Local Retail Shops & Showrooms"}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span>Clinics & Doctors (क्लिनिक व डॉक्टर)</span>
+                  <span>{currentLang === "hi" ? "क्लिनिक, अस्पताल एवं डॉक्टर" : "Clinics & Doctors"}</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span>Service Providers & Enterprises (व्यापारी)</span>
+                  <span>{currentLang === "hi" ? "व्यापारी, ठेकेदार एवं स्थानीय उद्यम" : "Service Providers & Enterprises"}</span>
                 </li>
               </ul>
               <div className="pt-2 border-t border-slate-700 flex items-center justify-between text-xs">
-                <span className="text-slate-400">Direct Contact:</span>
+                <span className="text-slate-400">{currentLang === "hi" ? "सीधा संपर्क:" : "Direct Contact:"}</span>
                 <a href={`tel:${businessConfig.phoneNumbers.primary}`} className="font-bold text-amber-400 flex items-center space-x-1">
                   <Phone className="w-3.5 h-3.5" />
                   <span>{businessConfig.phoneNumbers.primary}</span>

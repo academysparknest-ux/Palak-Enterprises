@@ -7,7 +7,7 @@ export default function LanguageSwitcher({ compact = false }: { compact?: boolea
   return (
     <div
       role="group"
-      aria-label="Choose language / भाषा चुनें"
+      aria-label={lang === "hi" ? "भाषा चुनें" : "Select Language"}
       className={cn(
         "inline-flex items-center rounded-pill border border-line bg-white p-1 shadow-sm",
         compact ? "text-xs" : "text-sm"

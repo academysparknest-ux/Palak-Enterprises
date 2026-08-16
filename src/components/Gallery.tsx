@@ -85,7 +85,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onOpenRequestModal }) => {
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <span className="text-xs font-bold text-blue-900 bg-blue-100 border border-blue-200 px-3.5 py-1 rounded-full uppercase tracking-wider">
+          <span className="text-xs font-bold text-navy bg-blue-50 border border-blue-200/70 px-3.5 py-1 rounded-full uppercase tracking-wider">
             {language === "hi" ? "सैंपल एवं रेफरेंस कार्य" : "Sample & Reference Showcase"}
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mt-3">
@@ -96,8 +96,8 @@ export const Gallery: React.FC<GalleryProps> = ({ onOpenRequestModal }) => {
           </p>
 
           {/* Explicit Misrepresentation Disclaimer Banner */}
-          <div className="mt-4 p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-blue-950 text-xs font-medium inline-flex items-center space-x-2 text-left max-w-2xl">
-            <Info className="w-4 h-4 text-blue-700 shrink-0" />
+          <div className="mt-4 p-3 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium inline-flex items-center space-x-2 text-left max-w-2xl">
+            <Info className="w-4 h-4 text-navy shrink-0" />
             <span>{t.gallery.sampleDisclaimer}</span>
           </div>
         </div>
@@ -113,9 +113,9 @@ export const Gallery: React.FC<GalleryProps> = ({ onOpenRequestModal }) => {
                 setActiveCategory(cat.id);
                 setActiveItemIndex(null);
               }}
-              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-blue-900 cursor-pointer min-h-[44px] ${
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-navy cursor-pointer min-h-[44px] ${
                 activeCategory === cat.id
-                  ? "bg-blue-900 text-white shadow-md shadow-blue-950/20"
+                  ? "bg-navy text-white shadow-xs"
                   : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
               }`}
             >
@@ -160,7 +160,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onOpenRequestModal }) => {
                     >
                       <div className="flex items-center space-x-1 text-xs opacity-75">
                         <ImageOff className="w-4 h-4" />
-                        <span>Sample Preview</span>
+                        <span>{language === "hi" ? "सैंपल पूर्वावलोकन" : "Sample Preview"}</span>
                       </div>
                       <h4 className="font-bold text-base line-clamp-2">{item.title[language]}</h4>
                     </div>
@@ -263,7 +263,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onOpenRequestModal }) => {
                   <button
                     onClick={handlePrevItem}
                     className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-white cursor-pointer min-w-[44px] min-h-[44px]"
-                    aria-label="Previous sample"
+                    aria-label={language === "hi" ? "पिछला नमूना" : "Previous sample"}
                   >
                     <ChevronLeft className="w-6 h-6" />
                   </button>
@@ -271,7 +271,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onOpenRequestModal }) => {
                   <button
                     onClick={handleNextItem}
                     className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-white cursor-pointer min-w-[44px] min-h-[44px]"
-                    aria-label="Next sample"
+                    aria-label={language === "hi" ? "अगला नमूना" : "Next sample"}
                   >
                     <ChevronRight className="w-6 h-6" />
                   </button>
@@ -290,7 +290,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onOpenRequestModal }) => {
                     <span className="flex items-center space-x-1.5">
                       <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                       <span>
-                        Source: <strong>{activeItem.source}</strong>
+                        {language === "hi" ? "स्रोत: " : "Source: "}<strong>{activeItem.source}</strong>
                       </span>
                     </span>
                     <span className="text-[11px] italic text-slate-400">

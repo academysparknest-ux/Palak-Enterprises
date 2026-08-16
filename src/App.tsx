@@ -1,21 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { LanguageProvider } from "./context/LanguageContext";
 import { AccessibilityProvider } from "./context/AccessibilityContext";
+import { CartProvider } from "./context/CartContext";
+import { AuthProvider } from "./context/AuthContext";
 import { Header } from "./components/Header";
-import { Hero } from "./components/Hero";
-import { ServiceSearch } from "./components/ServiceSearch";
-import { FeaturedServices } from "./components/FeaturedServices";
-import { ServiceCategories } from "./components/ServiceCategories";
-import { HowItWorks } from "./components/HowItWorks";
-import { TrustFeatures } from "./components/TrustFeatures";
-import { BusinessPrintingSection } from "./components/BusinessPrintingSection";
-import { WebsiteDevSection } from "./components/WebsiteDevSection";
-import { About } from "./components/About";
-import { Gallery } from "./components/Gallery";
-import { HomepageShowcase } from "./components/HomepageShowcase";
-import { FAQSection } from "./components/FAQSection";
-import { LocationSection } from "./components/LocationSection";
-import { ContactCTA } from "./components/ContactCTA";
 import { Footer } from "./components/Footer";
 import { MobileBottomNav } from "./components/MobileBottomNav";
 import { FloatingActions } from "./components/FloatingActions";
@@ -23,9 +12,49 @@ import { ServiceRequestModal } from "./components/ServiceRequestModal";
 import { StructuredData } from "./components/StructuredData";
 import { servicesData, type ServiceItem } from "./config/services";
 
+// Core Pages
+import { HomePage } from "./pages/HomePage";
+import { PrintingPage } from "./pages/PrintingPage";
+import { ProductDetailPage } from "./pages/ProductDetailPage";
+import { OnlineServicesPage } from "./pages/OnlineServicesPage";
+import { DigitalServiceDetailPage } from "./pages/DigitalServiceDetailPage";
+import { BusinessPage } from "./pages/BusinessPage";
+import { WeddingEventsPage } from "./pages/WeddingEventsPage";
+import { DesignServicesPage } from "./pages/DesignServicesPage";
+import { RequestQuotePage } from "./pages/RequestQuotePage";
+import { CartPage } from "./pages/CartPage";
+import { CheckoutPage } from "./pages/CheckoutPage";
+import { TrackOrderPage } from "./pages/TrackOrderPage";
+import { AccountPage } from "./pages/AccountPage";
+import { AdminPage } from "./pages/AdminPage";
+import { AboutPage } from "./pages/AboutPage";
+import { ContactPage } from "./pages/ContactPage";
+import { FAQPage } from "./pages/FAQPage";
+import { WorkPage } from "./pages/WorkPage";
+import { WebsiteDevPage } from "./pages/WebsiteDevPage";
+import { ServicesPage } from "./pages/ServicesPage";
+import { ServiceDetailPage } from "./pages/ServiceDetailPage";
+import { PrivacyPage, TermsPage, RefundPolicyPage } from "./pages/LegalPages";
+
+// Scroll to top on route change
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) {
+      window.scrollTo(0, 0);
+    } else {
+      const element = document.getElementById(hash.replace("#", ""));
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [pathname, hash]);
+
+  return null;
+}
+
 export function AppContent() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [modalService, setModalService] = useState<ServiceItem | null>(null);
 
@@ -44,76 +73,78 @@ export function AppContent() {
     setRequestModalOpen(true);
   };
 
-  const handleResetSearch = () => {
-    setSearchQuery("");
-    setSelectedCategory("all");
-  };
-
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 font-sans selection:bg-blue-900 selection:text-white pb-16 md:pb-0">
+    <div className="min-h-screen flex flex-col bg-[#F7F8FA] font-sans selection:bg-[#123B70] selection:text-white pb-16 md:pb-0">
       <StructuredData />
+      <ScrollToTop />
 
-      {/* Header Navigation */}
-      <Header onOpenRequestModal={() => handleOpenRequestModal()} />
+      {/* Global Header Navigation */}
+      <Header onOpenRequestModal={handleOpenRequestModal} />
 
-      {/* Main Content Sections */}
+      {/* Dynamic Page Routes */}
       <main className="flex-grow">
-        {/* Hero Section */}
-        <Hero onOpenRequestModal={() => handleOpenRequestModal()} />
+        <Routes>
+          <Route path="/" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
 
-        {/* Quick Search & Category Bar */}
-        <ServiceSearch
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          selectedCategory={selectedCategory}
-          setSelectedCategory={setSelectedCategory}
-        />
+          {/* Printing Catalog & Product Details */}
+          <Route path="/printing" element={<PrintingPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+          <Route path="/printing/:slug" element={<ProductDetailPage />} />
+          <Route path="/products" element={<PrintingPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+          <Route path="/products/:slug" element={<ProductDetailPage />} />
 
-        {/* Most Requested / Featured Services */}
-        {searchQuery === "" && selectedCategory === "all" && (
-          <FeaturedServices onSelectService={handleSelectServiceCard} />
-        )}
+          {/* Digital & Online Services */}
+          <Route path="/digital-services" element={<OnlineServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+          <Route path="/digital-services/:slug" element={<DigitalServiceDetailPage />} />
+          <Route path="/online-services" element={<OnlineServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+          <Route path="/online-services/:slug" element={<DigitalServiceDetailPage />} />
 
-        {/* All Service Categories & Search Results */}
-        <ServiceCategories
-          searchQuery={searchQuery}
-          selectedCategory={selectedCategory}
-          onSelectService={handleSelectServiceCard}
-          onResetSearch={handleResetSearch}
-        />
+          {/* Business & Bulk Printing Solutions */}
+          <Route path="/business" element={<BusinessPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+          <Route path="/business/:slug" element={<BusinessPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+          <Route path="/website-development" element={<WebsiteDevPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
 
-        {/* How It Works Guide */}
-        <HowItWorks />
+          {/* Wedding & Ceremony Cards */}
+          <Route path="/wedding-events" element={<WeddingEventsPage />} />
 
-        {/* Trust & Quality Features */}
-        <TrustFeatures />
+          {/* Graphic Design Studio */}
+          <Route path="/design-services" element={<DesignServicesPage />} />
 
-        {/* Commercial Business Printing Spotlight */}
-        <BusinessPrintingSection onOpenRequestModal={handleOpenRequestModal} />
+          {/* Quote Requests */}
+          <Route path="/request-quote" element={<RequestQuotePage />} />
+          <Route path="/request" element={<RequestQuotePage />} />
 
-        {/* Custom Website Development Spotlight */}
-        <WebsiteDevSection onOpenRequestModal={handleOpenRequestModal} />
+          {/* Shopping Cart & Checkout */}
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
 
-        {/* Compact Homepage Samples Showcase */}
-        <HomepageShowcase />
+          {/* Universal Tracking */}
+          <Route path="/track-order" element={<TrackOrderPage />} />
 
-        {/* Full Interactive Portfolio & Samples Gallery */}
-        <Gallery onOpenRequestModal={handleOpenRequestModal} />
+          {/* Customer Portal & Admin ERP */}
+          <Route path="/account" element={<AccountPage />} />
+          <Route path="/account/orders" element={<AccountPage />} />
+          <Route path="/account/requests" element={<AccountPage />} />
+          <Route path="/admin" element={<AdminPage />} />
 
-        {/* About Business Narrative */}
-        <About />
+          {/* Compatible Informational Pages */}
+          <Route path="/services" element={<ServicesPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+          <Route path="/services/:slug" element={<ServiceDetailPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+          <Route path="/work" element={<WorkPage onOpenRequestModal={handleOpenRequestModal} />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/faq" element={<FAQPage />} />
 
-        {/* Frequently Asked Questions */}
-        <FAQSection />
+          {/* Legal & Policy Pages */}
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/refund-policy" element={<RefundPolicyPage />} />
 
-        {/* Location & Map */}
-        <LocationSection />
-
-        {/* Bottom Contact CTA */}
-        <ContactCTA onOpenRequestModal={() => handleOpenRequestModal()} />
+          {/* Catch-all fallback */}
+          <Route path="*" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+        </Routes>
       </main>
 
-      {/* Footer */}
+      {/* Global Footer */}
       <Footer />
 
       {/* Floating Action Buttons */}
@@ -134,10 +165,16 @@ export function AppContent() {
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AccessibilityProvider>
-        <AppContent />
-      </AccessibilityProvider>
-    </LanguageProvider>
+    <BrowserRouter>
+      <LanguageProvider>
+        <AccessibilityProvider>
+          <AuthProvider>
+            <CartProvider>
+              <AppContent />
+            </CartProvider>
+          </AuthProvider>
+        </AccessibilityProvider>
+      </LanguageProvider>
+    </BrowserRouter>
   );
 }

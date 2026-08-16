@@ -1,0 +1,44 @@
+import { useEffect } from "react";
+import { useLanguage } from "../context/LanguageContext";
+
+interface SEOProps {
+  title?: {
+    en: string;
+    hi: string;
+  };
+  description?: {
+    en: string;
+    hi: string;
+  };
+}
+
+export function SEO({ title, description }: SEOProps) {
+  const { lang, language } = useLanguage();
+  const currentLang = (lang || language || "en") as "en" | "hi";
+
+  useEffect(() => {
+    const defaultTitle =
+      currentLang === "hi"
+        ? "पालक इंटरप्राइजेज | प्रिंटिंग, डिजिटल और ऑनलाइन सेवाएँ | चकिया"
+        : "Palak Enterprises | Printing, Digital & Online Services in Chakia";
+
+    const defaultDesc =
+      currentLang === "hi"
+        ? "पालक इंटरप्राइजेज (पालक प्रिंटिंग प्रेस) चकिया, पूर्वी चंपारण - प्रिंटिंग, फोटोकॉपी, पासपोर्ट फोटो, आधार प्रिंट, आरटीपीएस फॉर्म व ऑनलाइन सेवा सहायता केंद्र।"
+        : "Palak Enterprises (Palak Printing Press) in Chakia, East Champaran, Bihar. Premium printing, instant passport photos, lamination, Aadhaar PVC, online form assistance, and website development.";
+
+    const suffix = currentLang === "hi" ? "पालक इंटरप्राइजेज" : "Palak Enterprises";
+    document.title = title
+      ? (title[currentLang].includes(suffix) ? title[currentLang] : `${title[currentLang]} | ${suffix}`)
+      : defaultTitle;
+
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute("content", description ? description[currentLang] : defaultDesc);
+    }
+  }, [title, description, currentLang]);
+
+  return null;
+}
+
+export default SEO;

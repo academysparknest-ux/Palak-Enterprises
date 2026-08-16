@@ -94,7 +94,7 @@ export const ServiceCategories: React.FC<ServiceCategoriesProps> = ({
                 className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm shadow-md hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-1.5"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>WhatsApp</span>
+                <span>{language === "hi" ? "व्हाट्सएप" : "WhatsApp"}</span>
               </a>
             </div>
           </div>

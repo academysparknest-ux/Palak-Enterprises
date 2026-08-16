@@ -1,0 +1,304 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgBwGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090d16"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+
+    <!-- Printer Body Gradients -->
+    <linearGradient id="printerBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="printerSlot" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="laserBeam" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#38bdf8" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Deep Elevation Shadow for A4 Sheet -->
+    <filter id="a4DropShadow" x="-15%" y="-15%" width="135%" height="135%">
+      <feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#000000" flood-opacity="0.6"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+
+    <!-- Paper Texture / Subtle Tint -->
+    <linearGradient id="paperGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="90%" stop-color="#fdfdfd"/>
+      <stop offset="100%" stop-color="#f8fafc"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="800" height="600" fill="url(#bgBwGrad)"/>
+
+  <!-- Subtle Blueprint / Grid Lines for Professional Setup -->
+  <g opacity="0.04" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="100" x2="800" y2="100"/>
+    <line x1="0" y1="200" x2="800" y2="200"/>
+    <line x1="0" y1="300" x2="800" y2="300"/>
+    <line x1="0" y1="400" x2="800" y2="400"/>
+    <line x1="0" y1="500" x2="800" y2="500"/>
+    <line x1="100" y1="0" x2="100" y2="600"/>
+    <line x1="200" y1="0" x2="200" y2="600"/>
+    <line x1="300" y1="0" x2="300" y2="600"/>
+    <line x1="400" y1="0" x2="400" y2="600"/>
+    <line x1="500" y1="0" x2="500" y2="600"/>
+    <line x1="600" y1="0" x2="600" y2="600"/>
+    <line x1="700" y1="0" x2="700" y2="600"/>
+  </g>
+
+  <!-- Heavy Laser Printer Output Slot at Top -->
+  <g transform="translate(140, 18)">
+    <!-- Printer Header Body -->
+    <rect x="0" y="0" width="520" height="52" rx="10" fill="url(#printerBody)" stroke="#475569" stroke-width="1.5"/>
+    <rect x="25" y="16" width="470" height="22" rx="4" fill="url(#printerSlot)" stroke="#0f172a" stroke-width="1.5"/>
+
+    <!-- Printer Status Lights & Brand Mark -->
+    <circle cx="55" cy="8" r="3" fill="#22c55e"/>
+    <text x="65" y="11" font-family="system-ui, sans-serif" font-weight="bold" font-size="9" fill="#94a3b8">READY (1200 DPI)</text>
+
+    <circle cx="455" cy="8" r="3" fill="#38bdf8"/>
+    <text x="465" y="11" font-family="system-ui, sans-serif" font-weight="bold" font-size="9" fill="#94a3b8">A4 TRAY 1</text>
+
+    <!-- Laser Output Roller Line -->
+    <line x1="45" y1="27" x2="475" y2="27" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+    <rect x="60" y="24" width="400" height="6" fill="url(#laserBeam)"/>
+  </g>
+
+  <!-- Stack of Blank A4 Sheets in Tray (Background Depth) -->
+  <g transform="translate(204, 66) rotate(-2)">
+    <rect width="395" height="505" rx="3" fill="#94a3b8" opacity="0.3"/>
+  </g>
+  <g transform="translate(200, 62) rotate(-1)">
+    <rect width="398" height="506" rx="3" fill="#cbd5e1" opacity="0.5"/>
+  </g>
+
+  <!-- Main Printed A4 Document Sheet (Real Work Demonstration) -->
+  <g filter="url(#a4DropShadow)" transform="translate(195, 48)">
+    <!-- A4 Paper Surface (Standard 1 : 1.414 ratio) -->
+    <rect width="410" height="525" rx="3" fill="url(#paperGrad)" stroke="#cbd5e1" stroke-width="1.5"/>
+
+    <!-- Document Watermark Background (Palak Enterprises) -->
+    <g opacity="0.04" transform="translate(205, 270) rotate(-35)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-weight="900" font-size="34" fill="#000000" text-anchor="middle">PALAK PRINTING PRESS</text>
+      <text x="0" y="28" font-family="system-ui, sans-serif" font-weight="bold" font-size="16" fill="#000000" text-anchor="middle">OFFICIAL VERIFIED PRINT</text>
+    </g>
+
+    <!-- Document Margin Guide (Subtle Inner Border) -->
+    <rect x="22" y="22" width="366" height="481" fill="none" stroke="#e2e8f0" stroke-width="0.8" stroke-dasharray="3,3"/>
+
+    <!-- Header Section -->
+    <g transform="translate(32, 38)">
+      <!-- Logo Mark -->
+      <rect x="0" y="0" width="34" height="34" rx="6" fill="#0f172a"/>
+      <text x="17" y="23" font-family="system-ui, sans-serif" font-weight="900" font-size="20" fill="#ffffff" text-anchor="middle">P</text>
+
+      <!-- Organization Title -->
+      <text x="44" y="15" font-family="system-ui, sans-serif" font-weight="900" font-size="14" fill="#0f172a" letter-spacing="0.5">PALAK ENTERPRISES &amp; PRESS</text>
+      <text x="44" y="27" font-family="system-ui, sans-serif" font-weight="600" font-size="9" fill="#475569">NEAR BLOCK GATE, CHAKIA (BIHAR) • PIN: 845412</text>
+      <text x="44" y="37" font-family="system-ui, sans-serif" font-size="7.5" fill="#64748b">Govt. Form &amp; High-Speed Document Printing Center</text>
+
+      <!-- Document Metadata Box (Top Right) -->
+      <rect x="260" y="0" width="86" height="38" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+      <text x="266" y="12" font-family="monospace" font-weight="bold" font-size="7.5" fill="#0f172a">DOC ID: PE-8492</text>
+      <text x="266" y="22" font-family="monospace" font-size="7.5" fill="#475569">DATE: 16/08/2026</text>
+      <text x="266" y="32" font-family="monospace" font-weight="bold" font-size="7.5" fill="#0f172a">PAGE: 1 OF 1 (A4)</text>
+    </g>
+
+    <!-- Thick Separator Bar -->
+    <line x1="32" y1="88" x2="378" y2="88" stroke="#0f172a" stroke-width="2"/>
+    <line x1="32" y1="91" x2="378" y2="91" stroke="#0f172a" stroke-width="0.75"/>
+
+    <!-- Document Main Heading -->
+    <g transform="translate(32, 108)">
+      <text x="173" y="0" font-family="system-ui, sans-serif" font-weight="900" font-size="12" fill="#0f172a" text-anchor="middle" letter-spacing="0.5">
+        OFFICIAL DOCUMENT &amp; SERVICE AGREEMENT RECORD
+      </text>
+      <text x="173" y="12" font-family="system-ui, sans-serif" font-weight="600" font-size="8" fill="#475569" text-anchor="middle">
+        High-Resolution Black &amp; White Laser Print Sample • 80 GSM Executive White Paper
+      </text>
+    </g>
+
+    <!-- Section 1: Legible Body Text Paragraph -->
+    <g transform="translate(32, 134)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-weight="bold" font-size="9.5" fill="#0f172a">1. PURPOSE &amp; PRINTING CLARITY SPECIFICATION</text>
+      
+      <text x="0" y="14" font-family="system-ui, sans-serif" font-size="8" fill="#1e293b" line-height="1.4">
+        This document exemplifies high-density monochrome printing provided for contracts,
+      </text>
+      <text x="0" y="25" font-family="system-ui, sans-serif" font-size="8" fill="#1e293b">
+        legal affidavits, school study notes, examination forms, and corporate records.
+      </text>
+      <text x="0" y="36" font-family="system-ui, sans-serif" font-size="8" fill="#1e293b">
+        Every character is rendered with razor-sharp 1200 DPI edge definition with zero ink smudge.
+      </text>
+    </g>
+
+    <!-- Section 2: Formatted Structured Table (Real Work Verification) -->
+    <g transform="translate(32, 184)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-weight="bold" font-size="9.5" fill="#0f172a">2. DOCUMENT PRINTING SPECIFICATIONS &amp; METRICS</text>
+
+      <!-- Table Header -->
+      <rect x="0" y="8" width="346" height="16" fill="#0f172a" rx="2"/>
+      <text x="10" y="19" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#ffffff">SR.</text>
+      <text x="35" y="19" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#ffffff">SERVICE DESCRIPTION</text>
+      <text x="175" y="19" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#ffffff">PAPER SPEC</text>
+      <text x="250" y="19" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#ffffff">RESOLUTION</text>
+      <text x="315" y="19" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#ffffff">STATUS</text>
+
+      <!-- Table Row 1 -->
+      <rect x="0" y="24" width="346" height="15" fill="#f8fafc"/>
+      <line x1="0" y1="39" x2="346" y2="39" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="10" y="34" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#0f172a">01</text>
+      <text x="35" y="34" font-family="system-ui, sans-serif" font-size="7.5" fill="#0f172a">A4 Single-Side B/W Text</text>
+      <text x="175" y="34" font-family="system-ui, sans-serif" font-size="7.5" fill="#475569">80 GSM Bond</text>
+      <text x="250" y="34" font-family="system-ui, sans-serif" font-size="7.5" fill="#475569">1200 DPI Laser</text>
+      <text x="315" y="34" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#15803d">PASS ✓</text>
+
+      <!-- Table Row 2 -->
+      <rect x="0" y="39" width="346" height="15" fill="#ffffff"/>
+      <line x1="0" y1="54" x2="346" y2="54" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="10" y="49" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#0f172a">02</text>
+      <text x="35" y="49" font-family="system-ui, sans-serif" font-size="7.5" fill="#0f172a">A4 Back-to-Back (Duplex)</text>
+      <text x="175" y="49" font-family="system-ui, sans-serif" font-size="7.5" fill="#475569">75 GSM White</text>
+      <text x="250" y="49" font-family="system-ui, sans-serif" font-size="7.5" fill="#475569">1200 DPI Fast</text>
+      <text x="315" y="49" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#15803d">PASS ✓</text>
+
+      <!-- Table Row 3 -->
+      <rect x="0" y="54" width="346" height="15" fill="#f8fafc"/>
+      <line x1="0" y1="69" x2="346" y2="69" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="10" y="64" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#0f172a">03</text>
+      <text x="35" y="64" font-family="system-ui, sans-serif" font-size="7.5" fill="#0f172a">Legal Document / Affidavits</text>
+      <text x="175" y="64" font-family="system-ui, sans-serif" font-size="7.5" fill="#475569">85 GSM Green/White</text>
+      <text x="250" y="64" font-family="system-ui, sans-serif" font-size="7.5" fill="#475569">High Density</text>
+      <text x="315" y="64" font-family="system-ui, sans-serif" font-weight="bold" font-size="7.5" fill="#15803d">PASS ✓</text>
+    </g>
+
+    <!-- Section 3: Legal Terms & Real Clauses -->
+    <g transform="translate(32, 274)">
+      <text x="0" y="0" font-family="system-ui, sans-serif" font-weight="bold" font-size="9.5" fill="#0f172a">3. TERMS OF CERTIFICATION &amp; AUTHENTICITY</text>
+
+      <text x="0" y="14" font-family="system-ui, sans-serif" font-size="8" fill="#1e293b">
+        • All text, barcodes, and graphic charts are printed with high dark density and zero ghosting.
+      </text>
+      <text x="0" y="26" font-family="system-ui, sans-serif" font-size="8" fill="#1e293b">
+        • Heat-fused toner ensures long shelf-life resistance against moisture, smudging, and fading.
+      </text>
+      <text x="0" y="38" font-family="system-ui, sans-serif" font-size="8" fill="#1e293b">
+        • Suitable for court submissions, universities, banking verification, and government portals.
+      </text>
+      <text x="0" y="50" font-family="system-ui, sans-serif" font-size="8" fill="#1e293b">
+        • Instant bulk printing support up to 5,000 pages per hour with automated collation.
+      </text>
+    </g>
+
+    <!-- Barcode & Tracking Block (Real Tech Demonstration) -->
+    <g transform="translate(32, 344)">
+      <!-- Real Look Barcode -->
+      <g fill="#0f172a">
+        <rect x="0" y="0" width="3" height="24"/>
+        <rect x="5" y="0" width="1.5" height="24"/>
+        <rect x="8" y="0" width="4" height="24"/>
+        <rect x="14" y="0" width="2" height="24"/>
+        <rect x="18" y="0" width="1" height="24"/>
+        <rect x="21" y="0" width="5" height="24"/>
+        <rect x="28" y="0" width="2" height="24"/>
+        <rect x="32" y="0" width="3" height="24"/>
+        <rect x="37" y="0" width="1.5" height="24"/>
+        <rect x="41" y="0" width="4" height="24"/>
+        <rect x="47" y="0" width="2" height="24"/>
+        <rect x="51" y="0" width="5" height="24"/>
+        <rect x="58" y="0" width="1" height="24"/>
+        <rect x="61" y="0" width="3" height="24"/>
+        <rect x="66" y="0" width="4" height="24"/>
+        <rect x="72" y="0" width="2" height="24"/>
+        <rect x="76" y="0" width="1.5" height="24"/>
+        <rect x="80" y="0" width="3" height="24"/>
+      </g>
+      <text x="40" y="32" font-family="monospace" font-size="7" fill="#475569" text-anchor="middle">*PALAK-PRINT-A4-8492*</text>
+
+      <text x="100" y="12" font-family="system-ui, sans-serif" font-weight="bold" font-size="8" fill="#0f172a">VERIFIED A4 MONOCHROME PRINT JOB</text>
+      <text x="100" y="22" font-family="system-ui, sans-serif" font-size="7.5" fill="#64748b">Machine ID: HP-LaserJet-M506 • Speed: 45 PPM • Toner: Original Black</text>
+    </g>
+
+    <!-- Sign & Official Stamp Seal Section (Real Work Proof) -->
+    <g transform="translate(32, 396)">
+      <!-- Left Signatory Area -->
+      <line x1="0" y1="36" x2="110" y2="36" stroke="#94a3b8" stroke-width="1"/>
+      <!-- Realistic Stylized Signature Curve -->
+      <path d="M10,32 Q25,10 40,28 T70,18 T95,30" fill="none" stroke="#0f172a" stroke-width="1.8" stroke-linecap="round"/>
+      <text x="55" y="46" font-family="system-ui, sans-serif" font-weight="bold" font-size="8" fill="#0f172a" text-anchor="middle">Operator Signature</text>
+      <text x="55" y="55" font-family="system-ui, sans-serif" font-size="7" fill="#64748b" text-anchor="middle">Palak Printing Press</text>
+
+      <!-- Center Official Circular Stamp (Real Ink Look) -->
+      <g transform="translate(173, 26)">
+        <circle cx="0" cy="0" r="26" fill="none" stroke="#1e3a8a" stroke-width="2" stroke-dasharray="4,1"/>
+        <circle cx="0" cy="0" r="23" fill="none" stroke="#1e3a8a" stroke-width="1"/>
+        <path id="stampPath" d="M -18,0 A 18,18 0 1,1 18,0" fill="none"/>
+        <text font-family="system-ui, sans-serif" font-weight="900" font-size="5.5" fill="#1e3a8a" letter-spacing="1">
+          <textPath href="#stampPath" startOffset="50%" text-anchor="middle">PALAK ENTERPRISES</textPath>
+        </text>
+        <text x="0" y="-3" font-family="system-ui, sans-serif" font-weight="bold" font-size="6.5" fill="#1e3a8a" text-anchor="middle">★ VERIFIED ★</text>
+        <text x="0" y="6" font-family="system-ui, sans-serif" font-weight="900" font-size="7.5" fill="#dc2626" text-anchor="middle">PRINT OK</text>
+        <text x="0" y="14" font-family="system-ui, sans-serif" font-size="5" fill="#1e3a8a" text-anchor="middle">CHAKIA (BIHAR)</text>
+      </g>
+
+      <!-- Right Customer Verification -->
+      <g transform="translate(236, 0)">
+        <line x1="0" y1="36" x2="110" y2="36" stroke="#94a3b8" stroke-width="1"/>
+        <text x="55" y="46" font-family="system-ui, sans-serif" font-weight="bold" font-size="8" fill="#0f172a" text-anchor="middle">Authorized Signatory</text>
+        <text x="55" y="55" font-family="system-ui, sans-serif" font-size="7" fill="#64748b" text-anchor="middle">Customer Copy / Received</text>
+      </g>
+    </g>
+
+    <!-- Footer Security Stripe -->
+    <g transform="translate(32, 478)">
+      <line x1="0" y1="0" x2="346" y2="0" stroke="#cbd5e1" stroke-width="0.8"/>
+      <text x="0" y="10" font-family="system-ui, sans-serif" font-size="6.5" fill="#64748b">
+        Printed at Palak Enterprises, Near Block Gate, Chakia. High Quality Document &amp; Printing Solutions.
+      </text>
+      <text x="346" y="10" font-family="monospace" font-weight="bold" font-size="6.5" fill="#0f172a" text-anchor="end">
+        ISO 9001:2015 COMPLIANT PRINT QUALITY
+      </text>
+    </g>
+  </g>
+
+  <!-- High-Tech Floating Feature Badges -->
+  <!-- Top Left Badge: Real Print Work -->
+  <g transform="translate(40, 40)">
+    <rect width="135" height="34" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+    <circle cx="16" cy="17" r="4" fill="#38bdf8"/>
+    <text x="26" y="16" font-family="system-ui, sans-serif" font-weight="900" font-size="10" fill="#ffffff">A4 REAL WORK</text>
+    <text x="26" y="27" font-family="system-ui, sans-serif" font-size="8" fill="#7dd3fc">Crisp Text Demo</text>
+  </g>
+
+  <!-- Top Right Badge: 1200 DPI Laser -->
+  <g transform="translate(625, 40)">
+    <rect width="135" height="34" rx="8" fill="#0f172a" stroke="#22c55e" stroke-width="1.5"/>
+    <circle cx="16" cy="17" r="4" fill="#22c55e"/>
+    <text x="26" y="16" font-family="system-ui, sans-serif" font-weight="900" font-size="10" fill="#ffffff">1200 DPI LASER</text>
+    <text x="26" y="27" font-family="system-ui, sans-serif" font-size="8" fill="#86efac">Zero Ink Smudge</text>
+  </g>
+
+  <!-- Bottom Left Badge: 80 GSM Bond -->
+  <g transform="translate(40, 520)">
+    <rect width="135" height="42" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="1"/>
+    <text x="12" y="17" font-family="system-ui, sans-serif" font-weight="bold" font-size="9" fill="#f8fafc">PAPER TYPE</text>
+    <text x="12" y="32" font-family="system-ui, sans-serif" font-weight="900" font-size="11" fill="#fbbf24">80 GSM Executive A4</text>
+  </g>
+
+  <!-- Bottom Right Badge: Palak Enterprises Verified -->
+  <g transform="translate(625, 520)">
+    <rect width="135" height="42" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="1"/>
+    <text x="12" y="17" font-family="system-ui, sans-serif" font-weight="bold" font-size="9" fill="#f8fafc">PRINT SPEED</text>
+    <text x="12" y="32" font-family="system-ui, sans-serif" font-weight="900" font-size="11" fill="#38bdf8">Fast Turnaround</text>
+  </g>
+</svg>

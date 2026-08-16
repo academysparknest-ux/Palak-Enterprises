@@ -34,6 +34,31 @@ export const galleryCategories = [
 
 export const galleryData: GalleryItem[] = [
   {
+    id: "g-bw-a4",
+    category: "printing",
+    title: {
+      en: "A4 Black & White Document Laser Print",
+      hi: "A4 ब्लैक एंड व्हाइट डॉक्यूमेंट प्रिंटिंग",
+    },
+    subtitle: {
+      en: "Crisp 1200 DPI black & white single and duplex printing with sharp text, tables, and official stamp.",
+      hi: "साफ़ टेक्स्ट, टेबल एवं मुहर के साथ 1200 DPI ब्लैक एंड व्हाइट A4 डॉक्यूमेंट प्रिंटिंग।",
+    },
+    badge: {
+      en: "Real Print Sample",
+      hi: "वास्तविक प्रिंट नमूना",
+    },
+    imageUrl: "/images/gallery/bw-a4-printing-sample.svg",
+    imageAlt: {
+      en: "A4 printed black and white document sheet with legible text, clauses, and Palak Printing Press seal demonstrating real print work",
+      hi: "साफ़ टेक्स्ट और मुहर के साथ A4 ब्लैक एंड व्हाइट प्रिंटेड दस्तावेज का वास्तविक नमूना",
+    },
+    source: "Palak Enterprises High-Speed Laser Print",
+    colorTheme: "from-slate-900 to-zinc-950",
+    relatedServiceIds: ["bw-printing", "photocopy", "digital-printing"],
+    featuredOnHome: true,
+  },
+  {
     id: "g1",
     category: "printing",
     title: {
@@ -205,7 +230,7 @@ export const galleryData: GalleryItem[] = [
     },
     source: "Palak Enterprises Printed Sample",
     colorTheme: "from-slate-800 to-indigo-950",
-    relatedServiceIds: ["letterhead-envelope", "letter-pad"],
+    relatedServiceIds: ["letterhead-envelope"],
     featuredOnHome: true,
   },
   {
@@ -238,7 +263,7 @@ export const galleryData: GalleryItem[] = [
     category: "digital-printing",
     title: {
       en: "HD Glossy Photo Enlargement Print",
-      hi: "एचडी ग्लोसी फोटो प्रिंट (4x6, 8x10)",
+      hi: "एचडी ग्लोसी फोटो प्रिंट",
     },
     subtitle: {
       en: "High-definition photo enlargements with rich color depth and glossy lamination.",
@@ -303,7 +328,7 @@ export const galleryData: GalleryItem[] = [
     },
     source: "Palak Enterprises Printed Sample",
     colorTheme: "from-amber-700 to-stone-900",
-    relatedServiceIds: ["bw-printing", "color-printing", "digital-printing"],
+    relatedServiceIds: ["document-printing"],
   },
   {
     id: "g12",

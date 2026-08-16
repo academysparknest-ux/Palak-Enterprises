@@ -8,7 +8,8 @@ interface BusinessPrintingSectionProps {
 }
 
 export const BusinessPrintingSection: React.FC<BusinessPrintingSectionProps> = ({ onOpenRequestModal }) => {
-  const { t } = useLanguage();
+  const { lang, language, t } = useLanguage();
+  const currentLang = (lang || language || "en") as "en" | "hi";
 
   return (
     <section id="business-printing" className="py-14 sm:py-16 bg-white border-b border-line">
@@ -19,7 +20,7 @@ export const BusinessPrintingSection: React.FC<BusinessPrintingSectionProps> = (
             <div className="lg:col-span-7 space-y-6">
               <div className="inline-flex items-center space-x-2 bg-amber-500/20 border border-amber-500/40 px-3.5 py-1 rounded-full text-xs font-bold text-amber-300">
                 <Briefcase className="w-4 h-4 text-amber-400" />
-                <span>Commercial & Shopkeeper Printing</span>
+                <span>{currentLang === "hi" ? "व्यावसायिक एवं दुकान प्रिंटिंग" : "Commercial & Shopkeeper Printing"}</span>
               </div>
 
               <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white leading-tight">
@@ -60,13 +61,13 @@ export const BusinessPrintingSection: React.FC<BusinessPrintingSectionProps> = (
                 </button>
 
                 <a
-                  href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises,%20I%20want%20to%20inquire%20about%20business%20printing%20(visiting%20cards%20/%20banners%20/%20bill%20books).`}
+                  href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises,%20I%20want%20to%20inquire%20about%20business%20printing.`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold transition-all text-sm flex items-center justify-center space-x-2"
                 >
                   <MessageSquare className="w-4 h-4 text-emerald-400" />
-                  <span>WhatsApp Quote</span>
+                  <span>{currentLang === "hi" ? "व्हाट्सएप कोटेशन" : "WhatsApp Quote"}</span>
                 </a>
               </div>
             </div>
@@ -76,34 +77,54 @@ export const BusinessPrintingSection: React.FC<BusinessPrintingSectionProps> = (
               <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-6 sm:p-8 space-y-4 shadow-xl backdrop-blur-sm">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-700">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                    Popular Business Items
+                    {currentLang === "hi" ? "लोकप्रिय बिजनेस उत्पाद" : "Popular Business Items"}
                   </span>
-                  <span className="text-xs text-slate-400 font-semibold">Quality Guaranteed</span>
+                  <span className="text-xs text-slate-400 font-semibold">
+                    {currentLang === "hi" ? "गुणवत्ता की गारंटी" : "Quality Guaranteed"}
+                  </span>
                 </div>
 
                 <div className="space-y-3 text-xs sm:text-sm">
                   <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-700/60 flex justify-between items-center">
                     <div>
-                      <h4 className="font-bold text-white">Visiting Cards / बिज़नेस कार्ड</h4>
-                      <p className="text-slate-400 text-xs">Matte / Velvet / Spot UV Metallic</p>
+                      <h4 className="font-bold text-white">
+                        {currentLang === "hi" ? "विजिटिंग कार्ड" : "Visiting Cards"}
+                      </h4>
+                      <p className="text-slate-400 text-xs">
+                        {currentLang === "hi" ? "मैट, वेलवेट व स्पॉट यूवी मेटैलिक" : "Matte, Velvet & Spot UV Metallic"}
+                      </p>
                     </div>
-                    <span className="bg-blue-900/80 text-blue-200 text-xs px-2.5 py-1 rounded-lg font-bold">Top Pick</span>
+                    <span className="bg-blue-900/80 text-blue-200 text-xs px-2.5 py-1 rounded-lg font-bold">
+                      {currentLang === "hi" ? "टॉप पसंद" : "Top Pick"}
+                    </span>
                   </div>
 
                   <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-700/60 flex justify-between items-center">
                     <div>
-                      <h4 className="font-bold text-white">Star Flex Banner / फ्लेक्स बैनर</h4>
-                      <p className="text-slate-400 text-xs">Heavy HD print for shop boards</p>
+                      <h4 className="font-bold text-white">
+                        {currentLang === "hi" ? "स्टार फ्लेक्स बैनर" : "Star Flex Banners"}
+                      </h4>
+                      <p className="text-slate-400 text-xs">
+                        {currentLang === "hi" ? "दुकान बोर्ड के लिए भारी एचडी प्रिंट" : "Heavy HD print for shop boards"}
+                      </p>
                     </div>
-                    <span className="bg-red-900/80 text-red-200 text-xs px-2.5 py-1 rounded-lg font-bold">Outdoor</span>
+                    <span className="bg-red-900/80 text-red-200 text-xs px-2.5 py-1 rounded-lg font-bold">
+                      {currentLang === "hi" ? "आउटडोर" : "Outdoor"}
+                    </span>
                   </div>
 
                   <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-700/60 flex justify-between items-center">
                     <div>
-                      <h4 className="font-bold text-white">Bill Books / बिल बुक</h4>
-                      <p className="text-slate-400 text-xs">Carbonless duplicate/triplicate</p>
+                      <h4 className="font-bold text-white">
+                        {currentLang === "hi" ? "बिल बुक व रसीद बही" : "Bill Books & Cash Memos"}
+                      </h4>
+                      <p className="text-slate-400 text-xs">
+                        {currentLang === "hi" ? "कार्बनलेस डुप्लीकेट व ट्रिप्लीकेट" : "Carbonless duplicate/triplicate"}
+                      </p>
                     </div>
-                    <span className="bg-emerald-900/80 text-emerald-200 text-xs px-2.5 py-1 rounded-lg font-bold">Numbered</span>
+                    <span className="bg-emerald-900/80 text-emerald-200 text-xs px-2.5 py-1 rounded-lg font-bold">
+                      {currentLang === "hi" ? "नंबरिंग" : "Numbered"}
+                    </span>
                   </div>
                 </div>
               </div>

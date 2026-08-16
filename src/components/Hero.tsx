@@ -1,164 +1,193 @@
 import React from "react";
-import { Phone, MapPin, ArrowRight, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Printer, Globe, Search, ShieldCheck, CheckCircle2, Sparkles } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
-import { business, getCallLink, getDirectionsLink } from "../config/business";
-import { cn } from "../lib/utils";
-import AnimatedBrandHeadline from "./AnimatedBrandHeadline";
 
 interface HeroProps {
   onOpenRequestModal?: (serviceId?: string) => void;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
-  const { lang, t } = useLanguage();
+export const Hero: React.FC<HeroProps> = () => {
+  const { lang, language } = useLanguage();
+  const currentLang = (lang || language || "en") as "en" | "hi";
 
   return (
-    <section id="home" className="relative overflow-hidden bg-navy">
+    <section className="relative overflow-hidden bg-[#123B70] text-white">
       {/* Ambient background glows */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.18] animate-pulseSlow motion-reduce:animate-none"
+        className="pointer-events-none absolute inset-0 opacity-20"
         style={{
           backgroundImage:
-            "radial-gradient(circle at 15% 20%, #F97316 0, transparent 40%), radial-gradient(circle at 85% 80%, #15803D 0, transparent 45%)",
+            "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 80%, #0284C7 0, transparent 50%)",
         }}
       />
 
-      {/* Subtle printing dot grid texture */}
+      {/* Subtle geometric dot grid pattern */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.06]"
         style={{
           backgroundImage:
             "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
+          backgroundSize: "24px 24px",
         }}
       />
 
-      {/* Subtle floating paper/card silhouettes for printing theme */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -left-16 top-1/4 h-52 w-52 rounded-2xl border border-white/10 bg-white/5 opacity-40 blur-[1px] animate-floatSlow motion-reduce:animate-none"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute right-12 bottom-1/4 h-40 w-40 rounded-2xl border border-white/10 bg-white/5 opacity-30 blur-[1px] animate-floatSlow [animation-delay:4s] motion-reduce:animate-none"
-      />
+      <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:py-24">
+        <div className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+          {/* Main Brand & Hero Text Column */}
+          <div>
+            {/* Verified Local Business Pill */}
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1 text-xs font-semibold text-amber-300 ring-1 ring-white/20 mb-6 backdrop-blur-xs">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <span>
+                {currentLang === "hi"
+                  ? "चकिया, पूर्वी चंपारण का विश्वसनीय सेवा केंद्र"
+                  : "Trusted Local Printing & CSC Hub in Chakia, Bihar"}
+              </span>
+            </div>
 
-      <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-28">
-        <div className="animate-fadeUp">
-          {/* Logo + CSC Badge - Logo visually dominant */}
-          <div className="flex flex-wrap items-center gap-3.5">
-            <img
-              src={business.logoPath}
-              alt="Palak Enterprises logo"
-              width={48}
-              height={48}
-              className="w-12 h-12 rounded-full object-cover ring-2 ring-saffron/60 shadow-md shrink-0"
-              loading="eager"
-            />
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-pill bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-saffron-light ring-1 ring-white/20 shadow-sm",
-                lang === "hi" && "font-hindi"
+            {/* Main Headline */}
+            <h1 className="font-display text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl text-white leading-tight">
+              {currentLang === "hi" ? (
+                <>
+                  प्रिंट। आवेदन। निर्माण। <span className="text-amber-400">काम पूरा।</span>
+                </>
+              ) : (
+                <>
+                  Print. Apply. Create. <span className="text-amber-400">Get It Done.</span>
+                </>
               )}
-            >
-              <ShieldCheck size={14} aria-hidden />
-              {t.hero.badge}
-            </span>
+            </h1>
+
+            {/* Supporting Subtitle */}
+            <p className="mt-5 max-w-xl text-base text-slate-200 sm:text-lg leading-relaxed font-normal">
+              {currentLang === "hi"
+                ? "प्रोफेशनल प्रिंटिंग, डिजिटल सेवाएँ, ऑनलाइन सरकारी आवेदन एवं व्यावसायिक समाधान — आपके स्थानीय भरोसेमंद सेवा साथी द्वारा।"
+                : "Professional printing, digital services, online applications and business solutions — all from your trusted local service partner."}
+            </p>
+
+            {/* 3 Major CTA Buttons */}
+            <div className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
+              <Link
+                to="/digital-services"
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 px-5 sm:px-6 py-3.5 text-sm sm:text-base font-extrabold text-slate-950 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] cursor-pointer"
+              >
+                <Globe className="h-4 w-4 text-slate-950" />
+                <span>{currentLang === "hi" ? "सेवा शुरू करें" : "START A SERVICE"}</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+
+              <Link
+                to="/printing"
+                className="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/30 px-5 sm:px-6 py-3.5 text-sm sm:text-base font-bold text-white transition-all hover:scale-[1.02] cursor-pointer backdrop-blur-xs"
+              >
+                <Printer className="h-4 w-4 text-amber-300" />
+                <span>{currentLang === "hi" ? "प्रिंटिंग ऑर्डर करें" : "ORDER PRINTING"}</span>
+              </Link>
+
+              <Link
+                to="/track-order"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900/60 hover:bg-slate-900 border border-slate-700/80 px-4 py-3.5 text-xs sm:text-sm font-semibold text-slate-200 transition-colors"
+              >
+                <Search className="h-4 w-4 text-slate-400" />
+                <span>{currentLang === "hi" ? "ऑर्डर ट्रैक करें" : "TRACK ORDER"}</span>
+              </Link>
+            </div>
+
+            {/* Trust checkmarks list */}
+            <div className="mt-8 pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-slate-300">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span>{currentLang === "hi" ? "उसी दिन डिलीवरी" : "Same Day Delivery"}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span>{currentLang === "hi" ? "उच्च गुणवत्ता प्रिंटिंग" : "HD Offset & Digital"}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span>{currentLang === "hi" ? "अधिकृत CSC केंद्र" : "Govt CSC & RTPS"}</span>
+              </div>
+            </div>
           </div>
 
-          {/* Primary Animated Brand Headline */}
-          <AnimatedBrandHeadline
-            items={t.hero.brandNames}
-            isHindi={lang === "hi"}
-            className="mt-5 sm:mt-6"
-          />
-
-          {/* Supporting Subtitle Tagline */}
-          <h2
-            className={cn(
-              "mt-4 font-display text-lg font-bold text-saffron-light sm:mt-5 sm:text-xl md:text-2xl",
-              lang === "hi" && "font-hindi"
-            )}
-          >
-            {t.hero.headline}
-          </h2>
-
-          <p
-            className={cn(
-              "mt-2 max-w-xl text-sm text-white/80 sm:text-base leading-relaxed",
-              lang === "hi" && "font-hindi"
-            )}
-          >
-            {t.hero.subheadline}
-          </p>
-
-          {/* Action CTAs */}
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href="#services"
-              onClick={() => onOpenRequestModal?.()}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-pill bg-saffron px-6 py-3 text-sm font-bold text-navy shadow-raised transition-transform hover:scale-[1.03] sm:text-base cursor-pointer",
-                lang === "hi" && "font-hindi"
-              )}
-            >
-              {t.hero.ctaPrimary}
-              <ArrowRight size={18} aria-hidden />
-            </a>
-            <a
-              href={getCallLink()}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-pill bg-white px-6 py-3 text-sm font-bold text-navy shadow-card transition-transform hover:scale-[1.03] sm:text-base",
-                lang === "hi" && "font-hindi"
-              )}
-            >
-              <Phone size={18} aria-hidden />
-              {t.hero.ctaSecondary}
-            </a>
-            <a
-              href={getDirectionsLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                "inline-flex items-center gap-2 rounded-pill border border-white/30 px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-white/10 sm:text-base",
-                lang === "hi" && "font-hindi"
-              )}
-            >
-              <MapPin size={18} aria-hidden />
-              {t.hero.ctaDirections}
-            </a>
-          </div>
-        </div>
-
-        {/* Feature Cards Column */}
-        <div className="relative animate-fadeUp [animation-delay:150ms]">
-          <div className="rounded-card bg-white/95 p-5 shadow-raised sm:p-7 border border-white/20 backdrop-blur-sm">
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              {[
-                { en: "Printing", hi: "प्रिंटिंग", emoji: "🖨️" },
-                { en: "Passport Photo", hi: "पासपोर्ट फोटो", emoji: "📸" },
-                { en: "Online Forms", hi: "ऑनलाइन फॉर्म", emoji: "📝" },
-                { en: "Aadhaar Print", hi: "आधार प्रिंट", emoji: "🪪" },
-              ].map((item) => (
-                <div
-                  key={item.en}
-                  className="flex flex-col items-center gap-2 rounded-xl border border-line bg-canvas p-4 text-center hover:border-saffron/40 hover:shadow-xs transition-all"
-                >
-                  <span className="text-2xl sm:text-3xl" aria-hidden>
-                    {item.emoji}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-sm sm:text-base font-semibold text-navy",
-                      lang === "hi" && "font-hindi"
-                    )}
-                  >
-                    {lang === "hi" ? item.hi : item.en}
-                  </span>
+          {/* Right Visual Showcase Card */}
+          <div className="relative">
+            <div className="relative rounded-2xl bg-white/10 p-5 sm:p-6 border border-white/20 backdrop-blur-md shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-3 w-3 rounded-full bg-rose-500" />
+                  <div className="h-3 w-3 rounded-full bg-amber-400" />
+                  <div className="h-3 w-3 rounded-full bg-emerald-500" />
                 </div>
-              ))}
+                <span className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  <span>Chakia Hub</span>
+                </span>
+              </div>
+
+              {/* Showcase Grid of 4 Fast Lanes */}
+              <div className="grid grid-cols-2 gap-3">
+                <Link
+                  to="/printing/visiting-cards"
+                  className="rounded-xl bg-slate-900/60 hover:bg-slate-900 border border-white/10 p-3.5 transition-all group flex flex-col justify-between"
+                >
+                  <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">📇</div>
+                  <div>
+                    <div className="text-xs font-bold text-white group-hover:text-amber-300">
+                      {currentLang === "hi" ? "विजिटिंग कार्ड" : "Visiting Cards"}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">₹199 से शुरू</div>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/digital-services/pan"
+                  className="rounded-xl bg-slate-900/60 hover:bg-slate-900 border border-white/10 p-3.5 transition-all group flex flex-col justify-between"
+                >
+                  <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">💳</div>
+                  <div>
+                    <div className="text-xs font-bold text-white group-hover:text-amber-300">
+                      {currentLang === "hi" ? "पैन कार्ड आवेदन" : "PAN Card Services"}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">ई-पैन 3 दिन में</div>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/printing/flex-banners"
+                  className="rounded-xl bg-slate-900/60 hover:bg-slate-900 border border-white/10 p-3.5 transition-all group flex flex-col justify-between"
+                >
+                  <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">🚩</div>
+                  <div>
+                    <div className="text-xs font-bold text-white group-hover:text-amber-300">
+                      {currentLang === "hi" ? "फ्लेक्स बैनर" : "Flex Banners"}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">वेदरप्रूफ आउटडोर</div>
+                  </div>
+                </Link>
+
+                <Link
+                  to="/wedding-events"
+                  className="rounded-xl bg-slate-900/60 hover:bg-slate-900 border border-white/10 p-3.5 transition-all group flex flex-col justify-between"
+                >
+                  <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">💌</div>
+                  <div>
+                    <div className="text-xs font-bold text-white group-hover:text-amber-300">
+                      {currentLang === "hi" ? "शादी एवं निमंत्रण" : "Wedding Cards"}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">गोल्ड फॉयल डिजाइन</div>
+                  </div>
+                </Link>
+              </div>
+
+              {/* Call to direct action footer */}
+              <div className="pt-2 flex items-center justify-between text-xs text-slate-300">
+                <span className="truncate">Block Gate, Chakia, Bihar</span>
+                <span className="font-bold text-amber-300 shrink-0">Open Today</span>
+              </div>
             </div>
           </div>
         </div>
