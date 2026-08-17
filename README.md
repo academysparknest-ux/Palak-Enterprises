@@ -1,7 +1,7 @@
 # Palak Enterprises (Palak Printing Press & Digital Services)
 
-A modern, full-stack multi-page web platform and digital storefront for **Palak Enterprises / Palak Printing Press** (Chakia, East Champaran, Bihar).
-
+A modern, full-stack multi-page web platform and digital storefront for **Palak Enterprises / Palak Printing Press** (Chakia, East Champaran, Bihar). 
+  
 ---
 
 ## 🌟 Key Features
