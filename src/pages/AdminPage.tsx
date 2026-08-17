@@ -186,16 +186,36 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const handleDownloadFile = async (urlOrPath: string, _fileName?: string) => {
+  const handleDownloadFile = async (urlOrPath: string, fileName?: string) => {
     if (!urlOrPath) return;
     try {
-      const signed = await getSecureSignedUrl(urlOrPath, 3600);
-      if (signed) {
-        window.open(signed, "_blank");
-      } else {
-        window.open(urlOrPath, "_blank");
+      let downloadUrl = urlOrPath;
+      if (!urlOrPath.startsWith("data:") && !urlOrPath.startsWith("http://") && !urlOrPath.startsWith("https://")) {
+        const signed = await getSecureSignedUrl(urlOrPath, 3600);
+        if (signed) downloadUrl = signed;
       }
-    } catch {
+
+      const safeName = fileName || `document-${Date.now()}`;
+
+      if (downloadUrl.startsWith("data:")) {
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = safeName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = safeName;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      console.error("Download error:", err);
       window.open(urlOrPath, "_blank");
     }
   };
