@@ -18,6 +18,7 @@ export interface OrderItemPayload {
 export interface StoredOrder {
   id: string;
   orderCode: string;
+  userId?: string;
   customerName: string;
   customerPhone: string;
   customerEmail?: string;
@@ -32,8 +33,8 @@ export interface StoredOrder {
   subtotalAmount: number;
   deliveryFee: number;
   totalAmount: number;
-  paymentMethod: "pay_at_store" | "pay_after_confirmation" | "upi_online";
-  paymentStatus: "pending" | "confirmed" | "refunded";
+  paymentMethod: "pay_at_store" | "pay_after_confirmation" | "upi_online" | "pay_at_shop" | "pay_online";
+  paymentStatus: "pending" | "confirmed" | "paid" | "refunded";
   orderStatus:
     | "NEW"
     | "UNDER_REVIEW"
@@ -330,9 +331,10 @@ export class PalakDataStore {
     subtotalAmount: number;
     deliveryFee: number;
     totalAmount: number;
-    paymentMethod: "pay_at_store" | "pay_after_confirmation" | "upi_online";
-    paymentStatus?: "pending" | "paid" | "partial" | "refunded";
+    paymentMethod: "pay_at_store" | "pay_after_confirmation" | "upi_online" | "pay_at_shop" | "pay_online";
+    paymentStatus?: "pending" | "confirmed" | "paid" | "partial" | "refunded";
     orderStatus?: StoredOrder["orderStatus"];
+    userId?: string;
     staffNotes?: string;
     items: OrderItemPayload[];
   }): Promise<StoredOrder> {
@@ -341,6 +343,7 @@ export class PalakDataStore {
     const newOrder: StoredOrder = {
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
       orderCode,
+      userId: data.userId,
       customerName: data.customerName,
       customerPhone: data.customerPhone,
       customerEmail: data.customerEmail,
@@ -351,9 +354,10 @@ export class PalakDataStore {
       deliveryFee: data.deliveryFee,
       totalAmount: data.totalAmount,
       paymentMethod: data.paymentMethod,
-      paymentStatus: "pending",
-      orderStatus: "NEW",
+      paymentStatus: (data.paymentStatus as any) || "pending",
+      orderStatus: data.orderStatus || "NEW",
       items: data.items,
+      staffNotes: data.staffNotes,
       createdAt: now,
       updatedAt: now,
     };
@@ -478,8 +482,58 @@ export class PalakDataStore {
     return list[idx];
   }
 
+  static updateOrderPaymentStatus(
+    orderCode: string,
+    paymentStatus: StoredOrder["paymentStatus"]
+  ): StoredOrder | null {
+    const list = this.getOrders();
+    const idx = list.findIndex((o) => o.orderCode === orderCode);
+    if (idx === -1) return null;
+
+    list[idx].paymentStatus = paymentStatus;
+    list[idx].updatedAt = new Date().toISOString();
+    setLocal(ORDERS_KEY, list);
+
+    this.addStatusHistory({
+      entityType: "order",
+      entityCode: orderCode,
+      newStatus: list[idx].orderStatus,
+      messageEn: `Payment status updated to ${paymentStatus}.`,
+      messageHi: `भुगतान स्थिति ${paymentStatus} में अपडेट की गई।`,
+      performedBy: "Palak Staff",
+    });
+
+    return list[idx];
+  }
+
+  static addStaffOrderNote(
+    orderCode: string,
+    note: string
+  ): StoredOrder | null {
+    const list = this.getOrders();
+    const idx = list.findIndex((o) => o.orderCode === orderCode);
+    if (idx === -1) return null;
+
+    const existingNotes = list[idx].staffNotes || "";
+    list[idx].staffNotes = existingNotes ? `${existingNotes} | ${note}` : note;
+    list[idx].updatedAt = new Date().toISOString();
+    setLocal(ORDERS_KEY, list);
+
+    this.addStatusHistory({
+      entityType: "order",
+      entityCode: orderCode,
+      newStatus: list[idx].orderStatus,
+      messageEn: `Staff note added: "${note}".`,
+      messageHi: `स्टाफ नोट जोड़ा गया: "${note}"।`,
+      performedBy: "Palak Staff",
+    });
+
+    return list[idx];
+  }
+
   // --- Digital Service Requests ---
   static async createServiceRequest(data: {
+    requestCode?: string;
     serviceId: string;
     serviceName: string;
     customerName: string;
@@ -490,9 +544,10 @@ export class PalakDataStore {
     uploadedDocumentUrls?: string[];
     uploadedDocumentNames?: string[];
     additionalNotes?: string;
-    estimatedFee: number;
+    estimatedFee?: number;
+    requestStatus?: StoredServiceRequest["requestStatus"];
   }): Promise<StoredServiceRequest> {
-    const requestCode = generateCode("S");
+    const requestCode = data.requestCode || generateCode("S");
     const now = new Date().toISOString();
     const newReq: StoredServiceRequest = {
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
@@ -507,8 +562,8 @@ export class PalakDataStore {
       uploadedDocumentUrls: data.uploadedDocumentUrls || [],
       uploadedDocumentNames: data.uploadedDocumentNames || [],
       additionalNotes: data.additionalNotes,
-      estimatedFee: data.estimatedFee,
-      requestStatus: "NEW",
+      estimatedFee: data.estimatedFee || 0,
+      requestStatus: data.requestStatus || "NEW",
       createdAt: now,
       updatedAt: now,
     };

@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
+import { useAuth } from "../../context/AuthContext";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
@@ -33,6 +34,7 @@ const MATERIALS = [
 export const PosterBannerPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
+  const { user } = useAuth();
 
   const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
 
@@ -52,9 +54,19 @@ export const PosterBannerPage: React.FC = () => {
   const [fileError, setFileError] = useState<string | null>(null);
 
   // Contact
-  const [customerName, setCustomerName] = useState<string>("");
-  const [customerPhone, setCustomerPhone] = useState<string>("");
+  const [customerName, setCustomerName] = useState<string>(user?.name || "");
+  const [customerPhone, setCustomerPhone] = useState<string>(user?.phone || "");
   const [instructions, setInstructions] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      setCustomerName((prev) => prev || user.name || "");
+      setCustomerPhone((prev) => prev || user.phone || "");
+    }
+  }, [user]);
+
+  // Payment Method
+  const [paymentMethod, setPaymentMethod] = useState<"pay_at_shop" | "pay_online">("pay_at_shop");
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -63,6 +75,8 @@ export const PosterBannerPage: React.FC = () => {
     orderCode: string;
     totalAmount: number;
     specifications: Record<string, string>;
+    paymentMethod: string;
+    paymentStatus: string;
   } | null>(null);
 
   useEffect(() => {
@@ -160,6 +174,9 @@ export const PosterBannerPage: React.FC = () => {
         customerName: customerName.trim(),
         customerPhone: cleanPhone,
         instructions: instructions.trim() || undefined,
+        userId: user?.id,
+        paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
+        paymentStatus: "pending",
         pricingSnapshot: {
           unitPrice,
           subtotal: totalAmount,
@@ -190,6 +207,8 @@ export const PosterBannerPage: React.FC = () => {
           orderCode: res.orderCode,
           totalAmount,
           specifications,
+          paymentMethod,
+          paymentStatus: "pending",
         });
       } else {
         setSubmitError(res.error || "Failed to submit request.");
@@ -431,6 +450,86 @@ export const PosterBannerPage: React.FC = () => {
                 />
               </div>
             </section>
+
+            {/* Step 4: Choose Payment Method */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
+                    4
+                  </span>
+                  <span>{currentLang === "hi" ? "भुगतान माध्यम चुनें (Choose Payment Method)" : "Choose Payment Method"}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label
+                  className={cn(
+                    "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
+                    paymentMethod === "pay_at_shop"
+                      ? "border-[#123B70] bg-blue-50/50 ring-2 ring-[#123B70]/10"
+                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="pay_at_shop"
+                    checked={paymentMethod === "pay_at_shop"}
+                    onChange={() => setPaymentMethod("pay_at_shop")}
+                    className="mt-1 text-[#123B70] focus:ring-[#123B70]"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900">
+                        {currentLang === "hi" ? "दुकान पर भुगतान (Pay at Shop)" : "Pay at Shop (Cash / UPI)"}
+                      </span>
+                      <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.2">
+                        {currentLang === "hi" ? "त्वरित" : "Instant"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {currentLang === "hi"
+                        ? "ऑर्डर अभी दर्ज करें। प्रिंट कलेक्ट करते समय दुकान पर भुगतान करें।"
+                        : "Order prepared immediately. Pay when you collect."}
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
+                    paymentMethod === "pay_online"
+                      ? "border-[#123B70] bg-blue-50/50 ring-2 ring-[#123B70]/10"
+                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="pay_online"
+                    checked={paymentMethod === "pay_online"}
+                    onChange={() => setPaymentMethod("pay_online")}
+                    className="mt-1 text-[#123B70] focus:ring-[#123B70]"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900">
+                        {currentLang === "hi" ? "ऑनलाइन भुगतान (Pay Online)" : "Pay Online (UPI / QR)"}
+                      </span>
+                      <span className="rounded-full bg-blue-100 text-[#123B70] text-[10px] font-bold px-2 py-0.2">
+                        UPI Fast
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {currentLang === "hi"
+                        ? "ऑनलाइन भुगतान करें और प्राथमिकता के साथ पोस्टर कलेक्ट करें।"
+                        : "Express priority counter pickup after verified online payment."}
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </section>
           </div>
 
           {/* Right 1 Column */}
@@ -483,7 +582,17 @@ export const PosterBannerPage: React.FC = () => {
                 disabled={submitting}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] disabled:opacity-50 py-3.5 px-4 text-xs sm:text-sm font-extrabold text-white shadow-card transition-all cursor-pointer"
               >
-                {submitting ? "Submitting..." : isStandardPricing ? "Submit Print Order →" : "Request Custom Quote →"}
+                {submitting ? (
+                  "Submitting..."
+                ) : (
+                  <span>
+                    {isStandardPricing
+                      ? currentLang === "hi"
+                        ? `ऑर्डर सबमिट करें (${paymentMethod === "pay_online" ? "Pay Online" : "Pay at Shop"}) →`
+                        : `Submit Print Order (${paymentMethod === "pay_online" ? "Pay Online" : "Pay at Shop"}) →`
+                      : "Request Custom Quote →"}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -501,6 +610,8 @@ export const PosterBannerPage: React.FC = () => {
           totalAmount={successData.totalAmount}
           customerName={customerName}
           customerPhone={customerPhone}
+          paymentMethod={successData.paymentMethod}
+          paymentStatus={successData.paymentStatus}
         />
       )}
     </div>

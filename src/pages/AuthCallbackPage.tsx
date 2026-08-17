@@ -9,12 +9,72 @@ export const AuthCallbackPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const [statusText, setStatusText] = useState("Completing authentication...");
 
-  const returnTo = searchParams.get("returnTo") || searchParams.get("next") || "/account";
+  const returnTo = searchParams.get("returnTo") || searchParams.get("next") || searchParams.get("redirect") || "/account";
 
   useEffect(() => {
     let isMounted = true;
 
-    const checkSessionAndRedirect = async () => {
+    const handleCallback = async () => {
+      // 1. Check for OAuth errors in query string or hash fragment
+      const queryError = searchParams.get("error");
+      const queryErrorDesc = searchParams.get("error_description");
+      const queryErrorCode = searchParams.get("error_code");
+
+      let hashError = "";
+      let hashErrorDesc = "";
+      if (typeof window !== "undefined" && window.location.hash) {
+        try {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          hashError = hashParams.get("error") || "";
+          hashErrorDesc = hashParams.get("error_description") || "";
+        } catch {
+          // ignore hash parse errors
+        }
+      }
+
+      const error = queryError || hashError;
+      const errorDesc = queryErrorDesc || hashErrorDesc || "";
+
+      if (error) {
+        console.error("Google OAuth callback returned error:", {
+          error,
+          errorDesc,
+          queryErrorCode,
+        });
+
+        let friendlyError = "Google sign-in is temporarily unavailable. Please use email and password.";
+        const normalized = (error + " " + errorDesc).toLowerCase();
+
+        if (normalized.includes("access_denied") || normalized.includes("user_cancelled") || normalized.includes("cancelled")) {
+          friendlyError = "Google sign-in was cancelled.";
+        } else {
+          friendlyError = "Google sign-in is temporarily unavailable. Please use email and password.";
+        }
+
+        if (isMounted) {
+          navigate(`/login?error=${encodeURIComponent(friendlyError)}&returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
+        }
+        return;
+      }
+
+      // 2. Handle PKCE authorization code if returned in query params
+      const code = searchParams.get("code");
+      if (code && supabase) {
+        try {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error("OAuth code exchange error:", exchangeError);
+            if (isMounted) {
+              navigate(`/login?error=${encodeURIComponent("Google sign-in is temporarily unavailable. Please use email and password.")}&returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
+            }
+            return;
+          }
+        } catch (err: any) {
+          console.warn("Exception during OAuth exchange:", err);
+        }
+      }
+
+      // 3. Verify session
       try {
         if (supabase) {
           const { data: { session } } = await supabase.auth.getSession();
@@ -27,29 +87,36 @@ export const AuthCallbackPage: React.FC = () => {
           }
         }
 
-        // If auth context is already updated
         if (isAuthenticated && isMounted) {
+          setStatusText("Signed in successfully! Redirecting...");
           navigate(returnTo, { replace: true });
+          return;
         }
       } catch (err) {
-        console.warn("Auth callback session check error:", err);
+        console.warn("Auth callback session verification notice:", err);
       }
     };
 
-    checkSessionAndRedirect();
+    handleCallback();
 
-    // Safety fallback timeout
-    const timeout = setTimeout(() => {
-      if (isMounted) {
-        navigate(returnTo, { replace: true });
+    // Fallback timer if session detection takes longer or fails
+    const timeout = setTimeout(async () => {
+      if (!isMounted) return;
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          navigate(returnTo, { replace: true });
+          return;
+        }
       }
-    }, 2000);
+      navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
+    }, 2500);
 
     return () => {
       isMounted = false;
       clearTimeout(timeout);
     };
-  }, [isAuthenticated, navigate, returnTo]);
+  }, [isAuthenticated, navigate, returnTo, searchParams]);
 
   return (
     <div className="min-h-[50vh] flex items-center justify-center p-6">

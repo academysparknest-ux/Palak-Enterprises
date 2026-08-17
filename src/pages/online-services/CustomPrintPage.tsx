@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   Printer,
@@ -6,6 +6,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
+import { useAuth } from "../../context/AuthContext";
 import { submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 
@@ -27,6 +28,7 @@ const CUSTOM_PRODUCT_TYPES = [
 export const CustomPrintPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
+  const { user } = useAuth();
 
   const [productType, setProductType] = useState<string>(CUSTOM_PRODUCT_TYPES[0]);
   const [customProductText, setCustomProductText] = useState<string>("");
@@ -46,9 +48,16 @@ export const CustomPrintPage: React.FC = () => {
   const [fileError, setFileError] = useState<string | null>(null);
 
   // Customer Details
-  const [customerName, setCustomerName] = useState<string>("");
-  const [customerPhone, setCustomerPhone] = useState<string>("");
+  const [customerName, setCustomerName] = useState<string>(user?.name || "");
+  const [customerPhone, setCustomerPhone] = useState<string>(user?.phone || "");
   const [instructions, setInstructions] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      setCustomerName((prev) => prev || user.name || "");
+      setCustomerPhone((prev) => prev || user.phone || "");
+    }
+  }, [user]);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -135,6 +144,9 @@ export const CustomPrintPage: React.FC = () => {
         customerName: customerName.trim(),
         customerPhone: cleanPhone,
         instructions: instructions.trim() || undefined,
+        userId: user?.id,
+        paymentMethod: "pay_at_store",
+        paymentStatus: "pending",
         pricingSnapshot: {
           unitPrice: 0,
           subtotal: 0,

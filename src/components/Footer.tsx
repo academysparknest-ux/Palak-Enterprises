@@ -2,9 +2,9 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useAccessibility } from "../context/AccessibilityContext";
-import { business, businessConfig } from "../config/business";
+import { business } from "../config/business";
 import { cn } from "../lib/utils";
-import { Eye, ShieldCheck, Sparkles, MessageSquare, Phone, ArrowRight } from "lucide-react";
+import { Eye, ShieldCheck } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 export function Footer(): React.JSX.Element {
@@ -15,63 +15,6 @@ export function Footer(): React.JSX.Element {
 
   return (
     <footer className="bg-[#0F172A] pb-24 pt-10 text-white/80 lg:pb-14 border-t border-slate-800">
-      {/* 🌟 Prominent Get Quote CTA Banner */}
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 mb-12">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#123B70] via-[#1a4b8c] to-[#0F172A] border border-amber-500/30 p-6 sm:p-8 md:p-10 shadow-2xl">
-          {/* Subtle Decorative Background Elements */}
-          <div className="absolute -right-10 -bottom-10 w-60 h-60 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
-          <div className="absolute -left-10 -top-10 w-60 h-60 rounded-full bg-blue-500/10 blur-2xl pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-bold uppercase tracking-wider">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>{currentLang === "hi" ? "कस्टम कोटेशन सेवा" : "Instant Custom Quote"}</span>
-              </div>
-              <h3 className="font-display text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
-                {currentLang === "hi"
-                  ? "कस्टम प्रिंटिंग या बल्क ऑर्डर के लिए कोटेशन चाहिए?"
-                  : "Need Custom Printing or Bulk Orders? Get a Quote Today!"}
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-                {currentLang === "hi"
-                  ? "विजिटिंग कार्ड, फ्लेक्स बैनर, शादी कार्ड, बिल बुक, आईडी कार्ड या किसी भी डिजिटल सेवा के लिए तुरंत अनुमानित लागत प्राप्त करें।"
-                  : "Get transparent pricing, sample proofing, and personalized support for visiting cards, banners, wedding cards, bill books, and online services."}
-              </p>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <Link
-                to="/request-quote"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm px-5 py-3 shadow-lg hover:shadow-amber-500/25 transition-all cursor-pointer group"
-              >
-                <Sparkles className="w-4 h-4 text-slate-950" />
-                <span>{currentLang === "hi" ? "कोटेशन मांगें" : "Get Custom Quote"}</span>
-                <ArrowRight className="w-4 h-4 text-slate-950 group-hover:translate-x-1 transition-transform" />
-              </Link>
-
-              <a
-                href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises,%20I%20need%20a%20price%20quote%20for%20printing/services.`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm px-4 py-3 shadow-md transition-all"
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>{currentLang === "hi" ? "व्हाट्सएप चैट" : "WhatsApp"}</span>
-              </a>
-
-              <a
-                href={`tel:${businessConfig.phoneNumbers.primary}`}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-bold text-sm px-4 py-3 shadow-xs transition-all"
-              >
-                <Phone className="w-4 h-4 text-amber-400" />
-                <span>{businessConfig.phoneNumbers.displayPrimary}</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 md:grid-cols-5">
         {/* Column 1: Brand & Registrations */}

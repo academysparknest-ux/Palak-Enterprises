@@ -23,6 +23,8 @@ export interface OrderSuccessModalProps {
   totalAmount: number;
   customerName: string;
   customerPhone: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
 }
 
 export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
@@ -36,6 +38,8 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   totalAmount,
   customerName,
   customerPhone,
+  paymentMethod = "pay_at_shop",
+  paymentStatus = "pending",
 }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
@@ -50,26 +54,12 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Build clean WhatsApp message (no private storage URL)
-  let waMsg = `Hello Palak Enterprises,\n\nI have submitted a print order.\n\nOrder ID: ${orderCode}\nService: ${serviceName}`;
-  if (documentType) {
-    waMsg += `\nDocument Type: ${documentType}`;
-  }
-  if (Object.keys(specifications).length > 0) {
-    waMsg += `\nSpecifications:`;
-    for (const [k, v] of Object.entries(specifications)) {
-      waMsg += `\n- ${k}: ${v}`;
-    }
-  }
-  if (finishingSelected.length > 0) {
-    waMsg += `\nFinishing:\n${finishingSelected.map((f) => `✓ ${f}`).join("\n")}`;
-  }
-  if (totalAmount > 0) {
-    waMsg += `\nEstimated Price: ₹${totalAmount}`;
-  }
-  waMsg += `\n\nCustomer: ${customerName} (${customerPhone})\nStatus: Order Received\n\nThank you.`;
+  const isOnlinePayment = paymentMethod === "upi_online" || paymentMethod === "pay_online";
+  const isPaid = paymentStatus === "confirmed" || paymentStatus === "paid";
 
-  const waLink = getWhatsAppLink(waMsg);
+  // Optional WhatsApp support query (never contains private storage URLs)
+  const waSupportMsg = `Hello Palak Enterprises,\n\nI have a question regarding my order.\n\nOrder ID: ${orderCode}\nService: ${serviceName}\nCustomer: ${customerName} (${customerPhone})\n\nThank you!`;
+  const waLink = getWhatsAppLink(waSupportMsg);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
@@ -90,20 +80,20 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            {currentLang === "hi" ? "ऑर्डर सफलतापूर्वक प्राप्त हुआ!" : "Order Submitted Successfully!"}
+            {currentLang === "hi" ? "✓ ऑर्डर सफलतापूर्वक दर्ज हुआ!" : "✓ Order Submitted Successfully!"}
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-600 max-w-sm mx-auto">
             {currentLang === "hi"
-              ? "पालक इंटरप्राइजेज आपका प्रिंट तैयार करेगा। ऑर्डर रेडी होने पर दुकान से कलेक्ट करें।"
-              : "Palak Enterprises will process your print job. Collect it directly at the shop when ready."}
+              ? "आपका ऑर्डर पालक एंटरप्राइजेज एडमिन पोर्टल पर प्राप्त हो गया है। तैयार होने पर आपको सूचित किया जाएगा।"
+              : "Your order is registered in our production queue. We'll prepare your order and update its status when it is ready for pickup."}
           </p>
         </div>
 
         {/* Order ID Banner */}
         <div className="rounded-2xl border-2 border-dashed border-[#123B70]/30 bg-blue-50/50 p-4 text-center space-y-1.5">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            {currentLang === "hi" ? "आपका यूनिक ऑर्डर आईडी (Order ID)" : "Your Order Tracking ID"}
+            {currentLang === "hi" ? "यूनिक ऑर्डर ट्रैकिंग आईडी (Order ID)" : "Official Order Tracking ID"}
           </span>
           <div className="flex items-center justify-center gap-2">
             <span className="text-lg sm:text-xl font-mono font-black text-[#123B70] tracking-wide">
@@ -127,6 +117,31 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                 </>
               )}
             </button>
+          </div>
+        </div>
+
+        {/* Status & Payment Badges */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-1">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+              {currentLang === "hi" ? "ऑर्डर स्थिति" : "Order Status"}
+            </span>
+            <span className="font-bold text-[#123B70] flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse"></span>
+              <span>{currentLang === "hi" ? "ऑर्डर प्राप्त (Order Received)" : "Order Received"}</span>
+            </span>
+          </div>
+
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 space-y-1">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+              {currentLang === "hi" ? "भुगतान माध्यम एवं स्थिति" : "Payment Method"}
+            </span>
+            <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+              <span>{isOnlinePayment ? "Pay Online" : "Pay at Shop"}</span>
+              <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-md bg-white border border-emerald-300">
+                {isPaid ? "Paid" : "Pending"}
+              </span>
+            </span>
           </div>
         </div>
 
@@ -169,7 +184,9 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
 
           <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-extrabold text-slate-900">
             <span>{currentLang === "hi" ? "कुल अनुमानित राशि:" : "Estimated Total:"}</span>
-            <span className="text-base text-[#123B70]">₹{totalAmount}</span>
+            <span className="text-base text-[#123B70]">
+              {totalAmount > 0 ? `₹${totalAmount}` : "Price upon review"}
+            </span>
           </div>
         </div>
 
@@ -184,26 +201,25 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-2.5 pt-1">
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-5 py-3 text-xs sm:text-sm font-extrabold text-white shadow-card transition-all cursor-pointer"
+        {/* Primary Action Buttons */}
+        <div className="space-y-3 pt-1">
+          {/* Primary CTA: Track Order */}
+          <Link
+            to={`/order-status?code=${orderCode}`}
+            onClick={onClose}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-5 py-3 text-xs sm:text-sm font-extrabold text-white shadow-card transition-all cursor-pointer"
           >
-            <MessageSquare className="h-4 w-4" />
-            <span>{currentLang === "hi" ? "व्हाट्सएप पर ऑर्डर विवरण भेजें" : "Send Order Details on WhatsApp"}</span>
-          </a>
+            <span>{currentLang === "hi" ? "ऑर्डर लाइव ट्रैक करें" : "Track Order Status"}</span>
+            <ArrowRight className="h-4 w-4" />
+          </Link>
 
           <div className="grid grid-cols-2 gap-2">
             <Link
-              to={`/order-status?code=${orderCode}`}
+              to="/account/orders"
               onClick={onClose}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-800 transition-colors text-center"
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-800 transition-colors text-center cursor-pointer"
             >
-              <span>{currentLang === "hi" ? "ऑर्डर ट्रैक करें" : "Track Order"}</span>
-              <ArrowRight className="h-3.5 w-3.5" />
+              <span>{currentLang === "hi" ? "मेरे ऑर्डर्स देखें" : "View My Orders"}</span>
             </Link>
 
             <button
@@ -211,8 +227,21 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
               onClick={onClose}
               className="rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 px-3 py-2.5 text-xs font-bold text-slate-700 transition-colors text-center cursor-pointer"
             >
-              {currentLang === "hi" ? "नया ऑर्डर करें" : "Close / Order More"}
+              {currentLang === "hi" ? "नया ऑर्डर करें" : "Order More"}
             </button>
+          </div>
+
+          {/* Secondary Support Option: Chat on WhatsApp */}
+          <div className="pt-2 border-t border-slate-100 text-center">
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>{currentLang === "hi" ? "मदद चाहिए? व्हाट्सएप पर पूछें" : "Need help? Chat on WhatsApp"}</span>
+            </a>
           </div>
         </div>
       </div>

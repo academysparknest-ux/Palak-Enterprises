@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   User,
@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
-import { PalakDataStore } from "../lib/storage/store";
+import { PalakDataStore, type StoredOrder } from "../lib/storage/store";
+import { getUserOrders } from "../lib/supabase/database";
 import { SEO } from "../components/SEO";
 
 export const AccountPage: React.FC = () => {
@@ -101,9 +102,41 @@ export const AccountPage: React.FC = () => {
 
   // Fetch relevant orders and services
   const userPhone = user?.phone?.trim();
-  const customerOrders = userPhone
-    ? PalakDataStore.getOrdersByPhone(userPhone)
-    : PalakDataStore.getOrders().slice(0, 5);
+  const [customerOrders, setCustomerOrders] = useState<StoredOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchOrders = async () => {
+      setOrdersLoading(true);
+      try {
+        if (user?.id) {
+          const remote = await getUserOrders(user.id);
+          if (mounted && remote.length > 0) {
+            setCustomerOrders(remote);
+            return;
+          }
+        }
+        if (userPhone) {
+          const local = PalakDataStore.getOrdersByPhone(userPhone);
+          if (mounted) setCustomerOrders(local);
+        } else {
+          if (mounted) setCustomerOrders(PalakDataStore.getOrders().slice(0, 5));
+        }
+      } catch {
+        if (mounted && userPhone) {
+          setCustomerOrders(PalakDataStore.getOrdersByPhone(userPhone));
+        }
+      } finally {
+        if (mounted) setOrdersLoading(false);
+      }
+    };
+
+    fetchOrders();
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id, userPhone]);
 
   const customerServices = userPhone
     ? PalakDataStore.getServiceRequests().filter((s) => s.customerPhone.includes(userPhone))
@@ -250,7 +283,11 @@ export const AccountPage: React.FC = () => {
         {/* Tab 1: Orders */}
         {activeTab === "orders" && (
           <div className="space-y-4">
-            {customerOrders.length > 0 ? (
+            {ordersLoading ? (
+              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-xs text-slate-400">
+                Loading your orders...
+              </div>
+            ) : customerOrders.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {customerOrders.map((order) => (
                   <div

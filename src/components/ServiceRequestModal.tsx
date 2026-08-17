@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { servicesData, type ServiceItem } from "../config/services";
 import { galleryData } from "../config/gallery";
-import { businessConfig } from "../config/business";
+import { getWhatsAppLink } from "../config/business";
+import { PalakDataStore } from "../lib/storage/store";
+import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
+import { uploadOrderFile } from "../lib/supabase/database";
 import { X, Upload, CheckCircle2, MessageSquare, Phone, Send, AlertTriangle, ShieldCheck, Eye } from "lucide-react";
 
 interface ServiceRequestModalProps {
@@ -138,80 +142,107 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
     return true;
   };
 
-  const handleSubmitRequest = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedCode, setSubmittedCode] = useState<string | null>(null);
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
-    setIsSuccess(true);
-    setTimeout(() => {
-      setIsSuccess(false);
-      onClose();
-      resetForm();
-    }, 3000);
-  };
+    setIsSubmitting(true);
+    setErrorMsg("");
 
-  const handleSubmitWhatsApp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      const randomSuffix = String(Math.floor(1000 + Math.random() * 9000)).padStart(4, "0");
+      const requestCode = `PE-SR-${year}${month}${day}-${randomSuffix}`;
 
-    const serviceName = currentSelectedService
-      ? currentSelectedService.name[language]
-      : "General Service";
+      const serviceName = currentSelectedService
+        ? currentSelectedService.name.en
+        : "General Digital Service";
 
-    const colorText =
-      colorMode === "bw"
-        ? t.requestForm.bwOption
-        : colorMode === "color"
-        ? t.requestForm.colorOption
-        : "N/A";
+      let fileUrl = "";
+      let fileName = file ? sanitizeFilename(file.name) : "";
 
-    const sanitizedFileName = file ? sanitizeFilename(file.name) : null;
+      if (file) {
+        const uploadRes = await uploadOrderFile(file, requestCode);
+        if (uploadRes) {
+          fileUrl = uploadRes.url;
+        }
+      }
 
-    const paymentText =
-      paymentPreference === "pay_online"
-        ? language === "hi"
-          ? "ऑनलाइन भुगतान (UPI / Card) — पिकअप पर नो वेटिंग"
-          : "Pay Online (UPI / Card) — No waiting at pickup"
-        : language === "hi"
-        ? "दुकान पर भुगतान (Cash / UPI) — लेने पर भुगतान"
-        : "Pay at Shop (Cash / UPI) — Pay when you collect";
+      const estimatedFee = (currentSelectedService as any)?.price?.startingFrom || 0;
 
-    let text = "";
-    if (language === "hi") {
-      text = `*पालक इंटरप्राइजेज - सेवा अनुरोध*
---------------------------------
-👤 *नाम:* ${name}
-📞 *मोबाइल:* ${phone}
-🛠️ *सेवा:* ${serviceName}
-📄 *कॉपी की संख्या:* ${quantity}
-🎨 *प्रिंट प्रकार:* ${colorText}
-💳 *भुगतान माध्यम:* ${paymentText}
-📎 *चुनी गई फाइल:* ${sanitizedFileName ? sanitizedFileName : "कोई फाइल नहीं संलग्न"}
-📝 *अतिरिक्त निर्देश:* ${instructions || "कोई नहीं"}
-💬 *संपर्क माध्यम:* ${preferredContact === "whatsapp" ? "व्हाट्सएप" : "फोन कॉल"}`;
-    } else {
-      text = `*Palak Enterprises - Service Request*
---------------------------------
-👤 *Name:* ${name}
-📞 *Phone:* ${phone}
-🛠️ *Service:* ${serviceName}
-📄 *Copies:* ${quantity}
-🎨 *Print Type:* ${colorText}
-💳 *Payment Preference:* ${paymentText}
-📎 *Selected File:* ${sanitizedFileName ? sanitizedFileName : "None attached"}
-📝 *Instructions:* ${instructions || "None"}
-💬 *Preferred Contact:* ${preferredContact === "whatsapp" ? "WhatsApp" : "Phone Call"}`;
+      // 1. Sync to local store fallback
+      try {
+        PalakDataStore.createServiceRequest({
+          requestCode,
+          serviceId: currentSelectedService?.id || "general-service",
+          serviceName,
+          customerName: name.trim(),
+          customerPhone: phone.trim(),
+          preferredContact: preferredContact === "call" ? "phone" : "whatsapp",
+          applicantDetails: {
+            quantity: String(quantity),
+            colorMode,
+            paymentPreference,
+            serviceSlug: currentSelectedService?.slug || "",
+          },
+          uploadedDocumentUrls: fileUrl ? [fileUrl] : [],
+          uploadedDocumentNames: fileName ? [fileName] : [],
+          additionalNotes: instructions.trim() || undefined,
+          estimatedFee,
+          requestStatus: "NEW",
+        });
+      } catch (err) {
+        console.warn("Local fallback note:", err);
+      }
+
+      // 2. Persist to Supabase Database
+      if (isSupabaseConfigured && supabase) {
+        const { error: dbErr } = await supabase.from("service_requests").insert({
+          request_code: requestCode,
+          service_id: currentSelectedService?.id || "general-service",
+          service_name: serviceName,
+          customer_name: name.trim(),
+          customer_phone: phone.trim(),
+          preferred_contact: preferredContact === "call" ? "phone" : "whatsapp",
+          applicant_details: {
+            quantity: String(quantity),
+            colorMode,
+            paymentPreference,
+          },
+          uploaded_document_urls: fileUrl ? [fileUrl] : [],
+          additional_notes: instructions.trim() || null,
+          estimatedFee,
+          request_status: "NEW",
+        });
+
+        if (dbErr) {
+          console.warn("Supabase service request insert notice:", dbErr);
+        } else {
+          await supabase.from("status_history").insert({
+            entity_type: "service_request",
+            entity_code: requestCode,
+            new_status: "NEW",
+            message_en: `Service request received for ${serviceName}.`,
+            message_hi: `${serviceName} के लिए सेवा अनुरोध प्राप्त हुआ।`,
+            performed_by: "Online Customer",
+          });
+        }
+      }
+
+      setSubmittedCode(requestCode);
+      setIsSuccess(true);
+    } catch (err: any) {
+      console.error("Service request error:", err);
+      setErrorMsg(err.message || "Failed to submit request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const encoded = encodeURIComponent(text);
-    window.open(`https://wa.me/${businessConfig.whatsappNumber}?text=${encoded}`, "_blank");
-
-    setIsSuccess(true);
-    setTimeout(() => {
-      setIsSuccess(false);
-      onClose();
-      resetForm();
-    }, 2000);
   };
 
   const resetForm = () => {
@@ -222,6 +253,8 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
     setColorMode("bw");
     setInstructions("");
     setErrorMsg("");
+    setSubmittedCode(null);
+    setIsSuccess(false);
   };
 
   return (
@@ -234,22 +267,81 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
       <div className="relative bg-white rounded-3xl shadow-2xl max-w-xl w-full p-6 sm:p-8 border border-slate-200 overflow-hidden my-8">
         {/* Close Button */}
         <button
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-900"
+          onClick={() => {
+            onClose();
+            if (isSuccess) resetForm();
+          }}
+          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-900 cursor-pointer"
           aria-label={language === "hi" ? "मोडाल बंद करें" : "Close modal"}
         >
           <X className="w-6 h-6" />
         </button>
 
-        {isSuccess ? (
-          <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-10 h-10" />
+        {isSuccess && submittedCode ? (
+          <div className="py-6 text-center space-y-5 animate-fadeUp">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-9 h-9" />
             </div>
-            <h3 className="text-2xl font-black text-slate-900">
-              {language === "hi" ? "अनुरोध सफलतापूर्वक प्राप्त हुआ!" : "Request Submitted!"}
-            </h3>
-            <p className="text-slate-600 max-w-md mx-auto text-sm">{t.requestForm.successMessage}</p>
+
+            <div className="space-y-1">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                {language === "hi" ? "✓ अनुरोध सफलतापूर्वक प्राप्त हुआ!" : "✓ Request Submitted Successfully!"}
+              </h3>
+              <p className="text-slate-600 max-w-md mx-auto text-xs sm:text-sm">
+                {language === "hi"
+                  ? "आपका सेवा अनुरोध हमारे एडमिन पोर्टल पर दर्ज हो गया है। हमारी टीम जल्द ही इस पर काम शुरू करेगी।"
+                  : "Your service request is submitted directly to our CSC Operations Portal. You can track progress in real-time."}
+              </p>
+            </div>
+
+            {/* Request Code Box */}
+            <div className="rounded-2xl border-2 border-dashed border-[#123B70]/30 bg-blue-50/50 p-4 max-w-sm mx-auto space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                {language === "hi" ? "आपका ट्रैकिंग रेफरेंस कोड" : "Your Tracking Reference ID"}
+              </span>
+              <span className="text-xl font-mono font-black text-[#123B70] tracking-wide block">
+                {submittedCode}
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-3 pt-2 max-w-md mx-auto">
+              <Link
+                to={`/order-status?code=${submittedCode}`}
+                onClick={() => {
+                  onClose();
+                  resetForm();
+                }}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-card transition-all"
+              >
+                <span>{language === "hi" ? "अनुरोध लाइव ट्रैक करें" : "Track Request Status"}</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  resetForm();
+                }}
+                className="w-full py-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
+              >
+                {language === "hi" ? "बंद करें / अन्य सेवा चुनें" : "Close"}
+              </button>
+
+              <div className="pt-2 border-t border-slate-100">
+                <a
+                  href={getWhatsAppLink(
+                    `Hello Palak Enterprises, I have submitted service request ID: *${submittedCode}* for *${currentSelectedService?.name.en || "Digital Service"}*.`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>{language === "hi" ? "व्हाट्सएप पर सहायता चाहिए?" : "Need assistance on WhatsApp?"}</span>
+                </a>
+              </div>
+            </div>
           </div>
         ) : (
           <>
@@ -282,7 +374,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
             )}
 
             {/* Form */}
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-4" onSubmit={handleSubmitRequest}>
               {/* Name & Phone */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -590,24 +682,21 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                 </div>
               </div>
 
-              {/* Submit Buttons */}
-              <div className="pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Submit Button */}
+              <div className="pt-3">
                 <button
-                  type="button"
-                  onClick={handleSubmitWhatsApp}
-                  className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 focus:ring-2 focus:ring-emerald-500"
-                >
-                  <MessageSquare className="w-4 h-4 fill-white" />
-                  <span>{t.requestForm.submitWhatsAppButton}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSubmitRequest}
-                  className="w-full py-3 px-4 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 focus:ring-2 focus:ring-blue-900"
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3 px-4 rounded-xl bg-[#123B70] hover:bg-[#0c274c] text-white font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 focus:ring-2 focus:ring-blue-900 cursor-pointer disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{t.requestForm.submitButton}</span>
+                  <span>
+                    {isSubmitting
+                      ? language === "hi"
+                        ? "अनुरोध भेजा जा रहा है..."
+                        : "Submitting Request..."
+                      : t.requestForm.submitButton}
+                  </span>
                 </button>
               </div>
             </form>

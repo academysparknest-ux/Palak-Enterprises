@@ -11,7 +11,7 @@ import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type Store
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 
 export interface PrintOrderPayload {
-  serviceId: "document-printing" | "passport-photo" | "visiting-cards" | "id-cards" | "poster-banner" | "custom-print";
+  serviceId: "document-printing" | "passport-photo" | "visiting-cards" | "id-cards" | "poster-banner" | "custom-print" | "invitation-cards" | string;
   serviceName: string;
   documentType?: string;
   customerName: string;
@@ -19,9 +19,13 @@ export interface PrintOrderPayload {
   customerWhatsApp?: string;
   customerEmail?: string;
   instructions?: string;
+  userId?: string;
+  paymentMethod?: "pay_at_store" | "pay_at_shop" | "pay_after_confirmation" | "upi_online" | "pay_online";
+  paymentStatus?: "pending" | "confirmed" | "paid" | "refunded";
   pricingSnapshot: {
     unitPrice: number;
     subtotal: number;
+    finishingTotal?: number;
     totalAmount: number;
     breakdown?: Record<string, any>;
   };
@@ -353,13 +357,15 @@ export async function updateStaffOrderStatus(
   staffNotes?: string
 ): Promise<void> {
   if (!isSupabaseConfigured || !supabase) return;
+  const updatePayload: any = {
+    order_status: newStatus,
+    updated_at: new Date().toISOString(),
+  };
+  if (staffNotes !== undefined) updatePayload.staff_notes = staffNotes;
+
   const { error } = await supabase
     .from("orders")
-    .update({
-      order_status: newStatus,
-      staff_notes: staffNotes,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("order_code", orderCode);
 
   if (error) throw error;
@@ -373,6 +379,116 @@ export async function updateStaffOrderStatus(
     message_hi: `ऑर्डर स्थिति ${newStatus} में अपडेट हुई`,
     performed_by: "Palak Staff ERP",
   });
+}
+
+export async function updateStaffOrderPaymentStatus(
+  orderCode: string,
+  paymentStatus: StoredOrder["paymentStatus"],
+  staffNotes?: string
+): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return;
+  const updatePayload: any = {
+    payment_status: paymentStatus,
+    updated_at: new Date().toISOString(),
+  };
+  if (staffNotes !== undefined) updatePayload.staff_notes = staffNotes;
+
+  const { error } = await supabase
+    .from("orders")
+    .update(updatePayload)
+    .eq("order_code", orderCode);
+
+  if (error) throw error;
+
+  await supabase.from("status_history").insert({
+    entity_type: "order",
+    entity_code: orderCode,
+    new_status: `PAYMENT_${paymentStatus.toUpperCase()}`,
+    message_en: `Payment status marked as ${paymentStatus.toUpperCase()}`,
+    message_hi: `भुगतान स्थिति ${paymentStatus} के रूप में चिह्नित की गई`,
+    performed_by: "Palak Staff ERP",
+  });
+}
+
+export async function addStaffOrderNote(
+  orderCode: string,
+  noteText: string,
+  noteType: "staff" | "customer" = "staff"
+): Promise<void> {
+  if (!isSupabaseConfigured || !supabase || !noteText.trim()) return;
+  const fieldToUpdate = noteType === "customer" ? "order_notes" : "staff_notes";
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      [fieldToUpdate]: noteText.trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("order_code", orderCode);
+
+  if (error) throw error;
+}
+
+export async function getOrderStatusHistory(orderCode: string): Promise<Array<{
+  id: string;
+  new_status: string;
+  message_en: string;
+  message_hi?: string;
+  performed_by: string;
+  created_at: string;
+}>> {
+  if (!isSupabaseConfigured || !supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from("status_history")
+      .select("*")
+      .eq("entity_code", orderCode)
+      .order("created_at", { ascending: true });
+
+    if (error || !data) return [];
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+export async function getUserOrders(userId?: string, phone?: string): Promise<StoredOrder[]> {
+  if (!isSupabaseConfigured || !supabase) return [];
+  try {
+    let query = supabase.from("orders").select("*");
+    if (userId) {
+      query = query.eq("user_id", userId);
+    } else if (phone) {
+      query = query.eq("customer_phone", phone.trim());
+    } else {
+      return [];
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error || !data) return [];
+
+    return data.map((o) => ({
+      id: o.id,
+      orderCode: o.order_code,
+      customerName: o.customer_name,
+      customerPhone: o.customer_phone,
+      customerEmail: o.customer_email,
+      fulfillmentType: o.fulfillment_type,
+      deliveryAddress: o.delivery_address,
+      orderNotes: o.order_notes,
+      subtotalAmount: Number(o.subtotal_amount) || 0,
+      deliveryFee: Number(o.delivery_fee) || 0,
+      totalAmount: Number(o.total_amount) || 0,
+      paymentMethod: o.payment_method,
+      paymentStatus: o.payment_status,
+      orderStatus: o.order_status,
+      items: o.items || [],
+      staffNotes: o.staff_notes,
+      createdAt: o.created_at,
+      updatedAt: o.updated_at,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function updateStaffServiceStatus(
@@ -446,8 +562,25 @@ export function generatePrintOrderCode(): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  const randomSuffix = String(Math.floor(1000 + Math.random() * 9000)).padStart(4, "0");
   return `PE-${year}${month}${day}-${randomSuffix}`;
+}
+
+export async function getSecureSignedUrl(storagePath: string, expiresIn = 60 * 60 * 24 * 7): Promise<string> {
+  if (!isSupabaseConfigured || !supabase || !storagePath) return "";
+  try {
+    const cleanPath = storagePath.startsWith("customer-documents/")
+      ? storagePath.replace("customer-documents/", "")
+      : storagePath;
+    const { data, error } = await supabase.storage
+      .from("customer-documents")
+      .createSignedUrl(cleanPath, expiresIn);
+
+    if (error || !data?.signedUrl) return "";
+    return data.signedUrl;
+  } catch {
+    return "";
+  }
 }
 
 export async function uploadOrderFile(
@@ -470,7 +603,7 @@ export async function uploadOrderFile(
       return null;
     }
 
-    // Try signed URL valid for 7 days
+    // Generate signed URL valid for 7 days
     const { data: signedData } = await supabase.storage
       .from("customer-documents")
       .createSignedUrl(filePath, 60 * 60 * 24 * 7);
@@ -524,20 +657,32 @@ export async function updatePrintPricingConfig(config: PrintPricingConfig): Prom
 
 export async function submitPrintOrder(
   payload: PrintOrderPayload
-): Promise<{ success: boolean; orderCode: string; error?: string }> {
+): Promise<{ success: boolean; orderCode: string; orderId?: string; error?: string }> {
   const orderCode = generatePrintOrderCode();
+
+  // Normalize payment method and status
+  const paymentMethod =
+    payload.paymentMethod === "upi_online" || payload.paymentMethod === "pay_online"
+      ? "upi_online"
+      : "pay_at_store";
+  const paymentStatus =
+    payload.paymentStatus === "confirmed" || payload.paymentStatus === "paid"
+      ? "confirmed"
+      : "pending";
 
   const orderItem = {
     productId: payload.serviceId,
     productName: payload.serviceName,
-    quantity: Number(payload.options.copies) || 1,
+    quantity: Number(payload.options.copies) || Number(payload.options.quantity) || 1,
     unitPrice: payload.pricingSnapshot.unitPrice,
     totalPrice: payload.pricingSnapshot.totalAmount,
     selectedOptions: {
       ...payload.options,
       documentType: payload.documentType || "General Document",
       finishing: payload.finishingOptions || {},
+      finishingTotal: payload.pricingSnapshot.finishingTotal || 0,
       breakdown: payload.pricingSnapshot.breakdown || {},
+      storagePath: payload.file?.storagePath,
     },
     selectedOptionsLabels: payload.optionsLabels || {},
     uploadedFileName: payload.file?.name,
@@ -557,47 +702,57 @@ export async function submitPrintOrder(
       subtotalAmount: payload.pricingSnapshot.subtotal,
       deliveryFee: 0,
       totalAmount: payload.pricingSnapshot.totalAmount,
-      paymentMethod: "pay_at_store",
-      paymentStatus: "pending",
+      paymentMethod,
+      paymentStatus,
       orderStatus: "NEW",
       items: [orderItem],
-      staffNotes: `Instant Online Service: ${payload.serviceName} | Doc Type: ${payload.documentType || "N/A"}`,
+      staffNotes: `Online Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
     });
   } catch (e) {
     console.warn("Local store fallback sync notice:", e);
   }
 
-  // 2. Persist to Supabase Database
+  // 2. Persist to Supabase Database (Authoritative Source of Truth)
+  let orderId: string | undefined = undefined;
+
   if (isSupabaseConfigured && supabase) {
     try {
+      const insertPayload: any = {
+        order_code: orderCode,
+        customer_name: payload.customerName,
+        customer_phone: payload.customerPhone,
+        customer_email: payload.customerEmail || null,
+        fulfillment_type: "pickup",
+        order_notes: payload.instructions || null,
+        subtotal_amount: payload.pricingSnapshot.subtotal,
+        total_amount: payload.pricingSnapshot.totalAmount,
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
+        order_status: "NEW",
+        items: [orderItem],
+        staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+      };
+
+      if (payload.userId) {
+        insertPayload.user_id = payload.userId;
+      }
+
       const { data: orderData, error: orderErr } = await supabase
         .from("orders")
-        .insert({
-          order_code: orderCode,
-          customer_name: payload.customerName,
-          customer_phone: payload.customerPhone,
-          customer_email: payload.customerEmail || null,
-          fulfillment_type: "pickup",
-          order_notes: payload.instructions || null,
-          subtotal_amount: payload.pricingSnapshot.subtotal,
-          total_amount: payload.pricingSnapshot.totalAmount,
-          payment_method: "pay_at_store",
-          payment_status: "pending",
-          order_status: "NEW",
-          items: [orderItem],
-          staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
-        })
+        .insert(insertPayload)
         .select()
         .single();
 
       if (orderErr) {
         console.warn("Supabase order insert error:", orderErr);
       } else if (orderData) {
-        // Insert into order_items
+        orderId = orderData.id;
+
+        // Insert into order_items table
         await supabase.from("order_items").insert({
           order_id: orderData.id,
           product_name: payload.serviceName,
-          quantity: Number(payload.options.copies) || 1,
+          quantity: Number(payload.options.copies) || Number(payload.options.quantity) || 1,
           unit_price: payload.pricingSnapshot.unitPrice,
           total_price: payload.pricingSnapshot.totalAmount,
           selected_options: orderItem.selectedOptions,
@@ -621,5 +776,5 @@ export async function submitPrintOrder(
     }
   }
 
-  return { success: true, orderCode };
+  return { success: true, orderCode, orderId };
 }

@@ -393,7 +393,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
 
                       <div>
                         <Link
-                          to="/services/design"
+                          to="/design-services"
                           onClick={() => setServicesMenuOpen(false)}
                           className="group/cat flex items-center gap-2 font-display text-sm font-bold text-navy hover:text-brandred transition-colors"
                         >
@@ -437,7 +437,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
 
                       <div>
                         <Link
-                          to="/services/wedding-invitations"
+                          to="/wedding-events"
                           onClick={() => setServicesMenuOpen(false)}
                           className="group/cat flex items-center gap-2 font-display text-sm font-bold text-navy hover:text-brandred transition-colors"
                         >
@@ -448,6 +448,26 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
                             {currentLang === "hi" ? "शादी व मांगलिक कार्ड" : "Wedding & Invitations"}
                           </span>
                         </Link>
+                        <ul className="mt-1.5 space-y-1 pl-9 text-xs text-slate-600">
+                          <li>
+                            <Link
+                              to="/wedding-events"
+                              onClick={() => setServicesMenuOpen(false)}
+                              className="hover:text-brandred hover:underline block"
+                            >
+                              {currentLang === "hi" ? "शाही शादी कार्ड संग्रह" : "Royal Wedding Collection"}
+                            </Link>
+                          </li>
+                          <li>
+                            <Link
+                              to="/online-services/invitation-cards"
+                              onClick={() => setServicesMenuOpen(false)}
+                              className="hover:text-brandred hover:underline block"
+                            >
+                              {currentLang === "hi" ? "कस्टम निमंत्रण पत्र" : "Custom Invitation Cards"}
+                            </Link>
+                          </li>
+                        </ul>
                       </div>
                     </div>
 
@@ -455,7 +475,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
                     <div className="space-y-4">
                       <div>
                         <Link
-                          to="/services/government"
+                          to="/digital-services"
                           onClick={() => setServicesMenuOpen(false)}
                           className="group/cat flex items-center gap-2 font-display text-sm font-bold text-navy hover:text-brandred transition-colors"
                         >
@@ -543,7 +563,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
 
                       <div>
                         <Link
-                          to="/services/website-development"
+                          to="/website-development"
                           onClick={() => setServicesMenuOpen(false)}
                           className="group/cat flex items-center gap-2 font-display text-sm font-bold text-navy hover:text-brandred transition-colors"
                         >
@@ -557,7 +577,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
                         <ul className="mt-1.5 space-y-1 pl-9 text-xs text-slate-600">
                           <li>
                             <Link
-                              to="/services/website-development/custom-website-development"
+                              to="/website-development"
                               onClick={() => setServicesMenuOpen(false)}
                               className="hover:text-brandred hover:underline block"
                             >
@@ -607,9 +627,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               <span>{currentLang === "hi" ? "तुरंत सेवाएँ" : "Instant Print"}</span>
             </NavLink>
 
-            {/* Wedding Cards Link */}
+            {/* Business Solutions Link */}
             <NavLink
-              to="/wedding-events"
+              to="/business"
               className={({ isActive }) =>
                 cn(
                   "px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
@@ -619,7 +639,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
                 )
               }
             >
-              {currentLang === "hi" ? "शादी कार्ड" : "Wedding Cards"}
+              {currentLang === "hi" ? "बिजनेस प्रिंटिंग" : "Business Solutions"}
             </NavLink>
 
             {/* About Link */}

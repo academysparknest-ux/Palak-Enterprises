@@ -28,6 +28,14 @@ export const SignupPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
+  // If error is passed in URL (e.g. from OAuth redirect callback)
+  useEffect(() => {
+    const urlError = searchParams.get("error");
+    if (urlError) {
+      setError(decodeURIComponent(urlError));
+    }
+  }, [searchParams]);
+
   // If already authenticated, redirect
   useEffect(() => {
     if (!loading && isAuthenticated && !successMessage) {
@@ -103,8 +111,8 @@ export const SignupPage: React.FC = () => {
       setError(
         res.error ||
           (currentLang === "hi"
-            ? "गूगल साइन-अप अस्थायी रूप से अनुपलब्ध है। कृपया ईमेल और पासवर्ड का उपयोग करें।"
-            : "Google sign-up is temporarily unavailable. Please try again or use email and password.")
+            ? "गूगल साइन-इन वर्तमान में अनुपलब्ध है। कृपया ईमेल और पासवर्ड का उपयोग करें।"
+            : "Google sign-in is temporarily unavailable. Please use email and password.")
       );
     }
   };

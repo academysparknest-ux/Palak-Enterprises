@@ -1,18 +1,152 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  Sparkles,
-  Clock,
+  CheckCircle2,
+  Send,
   MessageSquare,
   ArrowLeft,
-  ArrowRight,
+  Heart,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
+import { useAuth } from "../../context/AuthContext";
 import { getWhatsAppLink } from "../../config/business";
+import { PalakDataStore } from "../../lib/storage/store";
+import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
+import { cn } from "../../lib/utils";
+
+const EVENT_TYPES = [
+  { id: "wedding", labelEn: "Wedding / Vivah (शादी)", icon: "💍" },
+  { id: "tilak", labelEn: "Tilak / Engagement (तिलक / सगाई)", icon: "👑" },
+  { id: "mundan", labelEn: "Mundan Sanskar (मुंडन)", icon: "🪔" },
+  { id: "anniversary", labelEn: "Anniversary / Birthday", icon: "🎂" },
+  { id: "other", labelEn: "Other Ceremony", icon: "✨" },
+];
+
+const CARD_STYLES = [
+  { id: "gold_foil", labelEn: "Royal Gold Foil", desc: "Traditional embossed with royal borders" },
+  { id: "laser_cut", labelEn: "Laser Cut & Acrylic", desc: "Modern laser filigree & frosted acrylic" },
+  { id: "box_card", labelEn: "Velvet Box Card", desc: "Luxury boxed invitation with inserts" },
+  { id: "economical", labelEn: "Standard Offset Card", desc: "Budget-friendly classic invitation" },
+];
 
 export const InvitationCardsPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
+  const { user } = useAuth();
+
+  const [eventType, setEventType] = useState<string>("wedding");
+  const [cardStyle, setCardStyle] = useState<string>("gold_foil");
+  const [quantity, setQuantity] = useState<string>("250");
+  const [eventDate, setEventDate] = useState<string>("");
+
+  const [customerName, setCustomerName] = useState<string>(user?.name || "");
+  const [customerPhone, setCustomerPhone] = useState<string>(user?.phone || "");
+  const [instructions, setInstructions] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      setCustomerName((prev) => prev || user.name || "");
+      setCustomerPhone((prev) => prev || user.phone || "");
+    }
+  }, [user]);
+
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submittedCode, setSubmittedCode] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitError(null);
+
+    if (!customerName.trim()) {
+      setSubmitError(currentLang === "hi" ? "कृपया अपना नाम दर्ज करें।" : "Please enter your name.");
+      return;
+    }
+
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      setSubmitError(
+        currentLang === "hi" ? "कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें।" : "Please enter a valid 10-digit mobile number."
+      );
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      const randomSuffix = String(Math.floor(1000 + Math.random() * 9000)).padStart(4, "0");
+      const requestCode = `PE-INV-${year}${month}${day}-${randomSuffix}`;
+
+      const selectedEvent = EVENT_TYPES.find((e) => e.id === eventType)?.labelEn || eventType;
+      const selectedStyle = CARD_STYLES.find((s) => s.id === cardStyle)?.labelEn || cardStyle;
+
+      // 1. Sync local store
+      try {
+        PalakDataStore.createServiceRequest({
+          requestCode,
+          serviceId: "invitation-cards",
+          serviceName: `Invitation Card Inquiry: ${selectedEvent}`,
+          customerName: customerName.trim(),
+          customerPhone: cleanPhone,
+          preferredContact: "whatsapp",
+          applicantDetails: {
+            eventType: selectedEvent,
+            cardStyle: selectedStyle,
+            quantity,
+            eventDate,
+          },
+          additionalNotes: instructions.trim() || undefined,
+          requestStatus: "NEW",
+        });
+      } catch (err) {
+        console.warn("Local store fallback error:", err);
+      }
+
+      // 2. Persist to Supabase
+      if (isSupabaseConfigured && supabase) {
+        const { error: dbErr } = await supabase.from("service_requests").insert({
+          request_code: requestCode,
+          service_id: "invitation-cards",
+          service_name: `Invitation Card Consultation: ${selectedEvent}`,
+          customer_name: customerName.trim(),
+          customer_phone: cleanPhone,
+          preferred_contact: "whatsapp",
+          applicant_details: {
+            eventType: selectedEvent,
+            cardStyle: selectedStyle,
+            quantity,
+            eventDate,
+          },
+          additional_notes: instructions.trim() || null,
+          request_status: "NEW",
+        });
+
+        if (dbErr) {
+          console.warn("Supabase insert warning:", dbErr);
+        } else {
+          await supabase.from("status_history").insert({
+            entity_type: "service_request",
+            entity_code: requestCode,
+            new_status: "NEW",
+            message_en: `Invitation inquiry received for ${selectedEvent} (${quantity} cards).`,
+            message_hi: `${selectedEvent} के लिए निमंत्रण कार्ड अनुरोध प्राप्त हुआ (${quantity} कार्ड)।`,
+            performed_by: "Online Customer",
+          });
+        }
+      }
+
+      setSubmittedCode(requestCode);
+    } catch (err: any) {
+      console.error("Invitation request error:", err);
+      setSubmitError(err.message || "Failed to submit request.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F7F8FA] pb-20">
@@ -26,86 +160,227 @@ export const InvitationCardsPage: React.FC = () => {
           </div>
 
           <div className="inline-flex items-center gap-2 rounded-full bg-rose-500/20 text-rose-200 border border-rose-400/30 px-4 py-1 text-xs font-black uppercase tracking-wider">
-            <Clock className="h-3.5 w-3.5" />
-            <span>Coming Soon • जल्द आ रहा है</span>
+            <Heart className="h-3.5 w-3.5 fill-rose-300 text-rose-300" />
+            <span>Royal Wedding & Event Stationery</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
-            💍 {currentLang === "hi" ? "शादी एवं मांगलिक निमंत्रण कार्ड" : "Invitation & Wedding Cards"}
+            💍 {currentLang === "hi" ? "शादी एवं मांगलिक निमंत्रण कार्ड" : "Wedding & Invitation Cards"}
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-200 max-w-xl mx-auto leading-relaxed">
             {currentLang === "hi"
-              ? "कस्टमाइज्ड ऑनलाइन निमंत्रण कार्ड कॉन्फिगरेटर जल्द आ रहा है। वर्तमान में ऑफलाइन डिज़ाइन व ऑर्डर के लिए हमारे चकिया केंद्र पर संपर्क करें।"
-              : "Interactive online invitation customizer is coming soon. For physical wedding card catalogs, samples, and printing, talk directly to our Chakia team."}
+              ? "शादी, तिलक, मुंडन और गृह प्रवेश के 100+ डिज़ाइनों के लिए ऑनलाइन परामर्श व सैंपल बुकिंग दर्ज करें।"
+              : "Register your wedding & ceremony card order or catalog sample request directly with our press specialists."}
           </p>
         </div>
       </div>
 
-      {/* Main Showcase / Status Notice */}
-      <div className="mx-auto max-w-4xl px-4 sm:px-6 -mt-6 space-y-8">
-        {/* Notice Card */}
-        <div className="rounded-3xl border border-rose-200 bg-white p-6 sm:p-10 text-center shadow-card space-y-6">
-          <div className="h-16 w-16 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto ring-8 ring-rose-50/50">
-            <Sparkles className="h-8 w-8" />
-          </div>
-
-          <div className="space-y-2 max-w-lg mx-auto">
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-              {currentLang === "hi"
-                ? "ऑनलाइन कस्टमाइज़ेशन जल्द उपलब्ध होगा"
-                : "Customized Online Ordering Under Development"}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              {currentLang === "hi"
-                ? "हम आपके लिए शादी, तिलक, मुंडन और जन्मदिन के 50+ शानदार कार्ड डिज़ाइनों का ऑनलाइन कैटलॉग तैयार कर रहे हैं।"
-                : "We are curating an extensive collection of 50+ royal gold-foil, velvet box, acrylic, and laser-cut invitation templates with live preview."}
-            </p>
-          </div>
-
-          {/* Feature Preview Pills */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 max-w-2xl mx-auto text-left">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
-              <span className="text-base">👑</span>
-              <h3 className="text-xs font-bold text-slate-900">Royal Gold Foil</h3>
-              <p className="text-[11px] text-slate-500">Traditional shloka & embossed borders</p>
+      {/* Main Container */}
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 -mt-6">
+        {submittedCode ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 sm:p-12 text-center shadow-card space-y-6 animate-fadeUp">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-9 h-9" />
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
-              <span className="text-base">🪞</span>
-              <h3 className="text-xs font-bold text-slate-900">Acrylic & Laser Cut</h3>
-              <p className="text-[11px] text-slate-500">Modern frosted acrylic & velvet boxes</p>
+
+            <div className="space-y-2">
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
+                {currentLang === "hi" ? "✓ निमंत्रण कार्ड अनुरोध दर्ज हुआ!" : "✓ Invitation Request Registered!"}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
+                {currentLang === "hi"
+                  ? "आपका अनुरोध हमारे एडमिन पोर्टल पर पहुंच गया है। हमारी डिज़ाइन टीम जल्द ही आपसे संपर्क कर सैंपल एवं रेट साझा करेगी।"
+                  : "Your inquiry is in our Admin Operations portal. Our invitation consultant will contact you with matching catalogs & pricing."}
+              </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-1">
-              <span className="text-base">🪔</span>
-              <h3 className="text-xs font-bold text-slate-900">Tilak & Mundan</h3>
-              <p className="text-[11px] text-slate-500">Custom ceremony & anniversary cards</p>
+
+            <div className="rounded-2xl border-2 border-dashed border-[#123B70]/30 bg-blue-50/50 p-4 max-w-sm mx-auto space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                {currentLang === "hi" ? "आपका संदर्भ कोड" : "Your Reference ID"}
+              </span>
+              <span className="text-xl font-mono font-black text-[#123B70] tracking-wide block">
+                {submittedCode}
+              </span>
+            </div>
+
+            <div className="space-y-3 pt-2 max-w-md mx-auto">
+              <Link
+                to={`/order-status?code=${submittedCode}`}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-card transition-all"
+              >
+                <span>{currentLang === "hi" ? "अनुरोध लाइव ट्रैक करें" : "Track Request Status"}</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setSubmittedCode(null)}
+                className="w-full py-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-colors"
+              >
+                {currentLang === "hi" ? "नया अनुरोध दर्ज करें" : "Submit Another Inquiry"}
+              </button>
+
+              <div className="pt-2 border-t border-slate-100">
+                <a
+                  href={getWhatsAppLink(
+                    `Hello Palak Enterprises, I have registered an invitation card inquiry ID: *${submittedCode}*.`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>{currentLang === "hi" ? "व्हाट्सएप पर कैटलॉग मंगाएं" : "Chat on WhatsApp with Reference ID"}</span>
+                </a>
+              </div>
             </div>
           </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-card space-y-6">
+            {/* Step 1: Event Type */}
+            <div className="space-y-3">
+              <label className="block text-xs sm:text-sm font-extrabold text-slate-900">
+                1. {currentLang === "hi" ? "मांगलिक अवसर चुनें (Select Event)" : "Select Event / Ceremony"}
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {EVENT_TYPES.map((ev) => (
+                  <button
+                    key={ev.id}
+                    type="button"
+                    onClick={() => setEventType(ev.id)}
+                    className={cn(
+                      "p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1",
+                      eventType === ev.id
+                        ? "border-rose-500 bg-rose-50/60 ring-2 ring-rose-500/20"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+                    )}
+                  >
+                    <span className="text-xl">{ev.icon}</span>
+                    <span className="text-xs font-bold text-slate-900">{ev.labelEn}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          {/* Direct WhatsApp Consultation */}
-          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href={getWhatsAppLink("Hello Palak Enterprises, I want to inquire about Wedding and Invitation Card printing.")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-6 py-3 text-xs sm:text-sm font-extrabold text-white shadow-card transition-transform hover:scale-105"
+            {/* Step 2: Card Style Preference */}
+            <div className="space-y-3">
+              <label className="block text-xs sm:text-sm font-extrabold text-slate-900">
+                2. {currentLang === "hi" ? "कार्ड स्टाइल प्राथमिकता (Card Style)" : "Card Style Preference"}
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {CARD_STYLES.map((style) => (
+                  <button
+                    key={style.id}
+                    type="button"
+                    onClick={() => setCardStyle(style.id)}
+                    className={cn(
+                      "p-3.5 rounded-2xl border text-left transition-all cursor-pointer space-y-0.5",
+                      cardStyle === style.id
+                        ? "border-[#123B70] bg-blue-50/60 ring-2 ring-[#123B70]/20"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+                    )}
+                  >
+                    <div className="text-xs font-bold text-slate-900">{style.labelEn}</div>
+                    <div className="text-[11px] text-slate-500">{style.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Step 3: Quantity & Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-800">
+                  {currentLang === "hi" ? "अनुमानित प्रतियां (Quantity)" : "Estimated Quantity"}
+                </label>
+                <select
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                >
+                  <option value="100">100 Cards</option>
+                  <option value="250">250 Cards</option>
+                  <option value="500">500 Cards</option>
+                  <option value="1000">1,000 Cards</option>
+                  <option value="1500+">1,500+ Cards (Bulk)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-800">
+                  {currentLang === "hi" ? "कार्यक्रम की तारीख (Event Date)" : "Event / Ceremony Date"}
+                </label>
+                <input
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            {/* Step 4: Contact Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-800">
+                  {currentLang === "hi" ? "आपका नाम *" : "Your Full Name *"}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="e.g. Rajesh Kumar"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-800">
+                  {currentLang === "hi" ? "मोबाइल नंबर *" : "Mobile Number *"}
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="e.g. 9905238015"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-800">
+                {currentLang === "hi" ? "अतिरिक्त निर्देश या वर/वधू का नाम" : "Groom/Bride Names or Special Notes"}
+              </label>
+              <textarea
+                rows={2}
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="Mention specific text, language (Hindi / English / Sanskrit), or sample requests..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+              />
+            </div>
+
+            {submitError && (
+              <div className="rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700 border border-rose-200">
+                {submitError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] disabled:opacity-50 py-3.5 px-4 text-xs sm:text-sm font-extrabold text-white shadow-card transition-all cursor-pointer"
             >
-              <MessageSquare className="h-4 w-4" />
-              <span>{currentLang === "hi" ? "व्हाट्सएप पर कैटलॉग देखें" : "Inquire on WhatsApp"}</span>
-            </a>
+              <Send className="h-4 w-4" />
+              <span>{submitting ? "Submitting Inquiry..." : "Submit Card Request to Admin →"}</span>
+            </button>
+          </form>
+        )}
 
-            <Link
-              to="/wedding-events"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-6 py-3 text-xs sm:text-sm font-bold text-slate-700 transition-colors"
-            >
-              <span>{currentLang === "hi" ? "मौजूदा शादी कैटलॉग देखें" : "Browse Physical Showcase"}</span>
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Back Link */}
-        <div className="text-center">
+        <div className="text-center pt-6">
           <Link
             to="/online-services"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-[#123B70] hover:underline"

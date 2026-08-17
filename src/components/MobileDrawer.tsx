@@ -4,7 +4,6 @@ import { useLanguage } from "../context/LanguageContext";
 import { useAccessibility } from "../context/AccessibilityContext";
 import { useAuth } from "../context/AuthContext";
 import { business, getWhatsAppLink, getCallLink } from "../config/business";
-import { categories } from "../config/services";
 import {
   X,
   Phone,
@@ -14,16 +13,8 @@ import {
   Home,
   Zap,
   Printer,
-  FileText,
-  Camera,
   Heart,
   FileCheck,
-  ClipboardList,
-  HeartHandshake,
-  Sprout,
-  Landmark,
-  Banknote,
-  MonitorSmartphone,
   Sparkles,
   HelpCircle,
   Info,
@@ -41,21 +32,6 @@ import {
   Briefcase,
 } from "lucide-react";
 import { cn } from "../lib/utils";
-
-const categoryIconMap: Record<string, any> = {
-  Printer,
-  FileText,
-  Camera,
-  Heart,
-  Sparkles,
-  FileCheck,
-  ClipboardList,
-  HeartHandshake,
-  Sprout,
-  Landmark,
-  Banknote,
-  MonitorSmartphone,
-};
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -121,7 +97,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
     },
     {
       to: "/online-services",
-      label: { en: "Instant Online Services", hi: "तुरंत ऑनलाइन सेवाएँ" },
+      label: { en: "Instant Online Print", hi: "तुरंत ऑनलाइन प्रिंट" },
       icon: Zap,
     },
     {
@@ -152,25 +128,31 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   ];
 
   const primaryNavLinks = [
-    { to: "/", label: { en: "Home", hi: "मुख्य पृष्ठ" }, icon: Home },
     {
-      to: "/online-services",
-      label: { en: "Instant Online Services", hi: "तुरंत ऑनलाइन सेवाएँ" },
-      icon: Zap,
-      badge: currentLang === "hi" ? "त्वरित" : "Instant",
+      to: "/business",
+      label: { en: "Business Solutions", hi: "बिजनेस प्रिंटिंग व समाधान" },
+      icon: Briefcase,
     },
-    { to: "/wedding-events", label: { en: "Wedding Cards", hi: "शादी कार्ड व इवेंट" }, icon: Heart },
-    { to: "/about", label: { en: "About Us", hi: "हमारे बारे में" }, icon: Info },
-    { to: "/contact", label: { en: "Contact & Location", hi: "संपर्क एवं केंद्र पता" }, icon: MapPin },
-    { to: "/track-order", label: { en: "Track Order / Status", hi: "ऑर्डर स्थिति ट्रैक करें" }, icon: Package },
     {
-      to: isAuthenticated ? "/account" : "/login",
-      label: isAuthenticated
-        ? { en: isStaff ? "Staff ERP Dashboard" : `Account (${user?.name?.split(" ")[0] || "User"})`, hi: isStaff ? "स्टाफ ERP डैशबोर्ड" : `अकाउंट (${user?.name?.split(" ")[0] || "यूजर"})` }
-        : { en: "Login / Sign In", hi: "लॉगिन / साइन इन" },
-      icon: isAuthenticated ? User : LogIn,
+      to: "/track-order",
+      label: { en: "Track Order / Status", hi: "ऑर्डर स्थिति ट्रैक करें" },
+      icon: Package,
     },
-    { to: "/faq", label: { en: "FAQs & Help", hi: "अक्सर पूछे जाने वाले सवाल" }, icon: HelpCircle },
+    {
+      to: "/about",
+      label: { en: "About Us", hi: "हमारे बारे में" },
+      icon: Info,
+    },
+    {
+      to: "/contact",
+      label: { en: "Contact & Location", hi: "संपर्क एवं केंद्र पता" },
+      icon: MapPin,
+    },
+    {
+      to: "/faq",
+      label: { en: "FAQs & Help", hi: "अक्सर पूछे जाने वाले सवाल" },
+      icon: HelpCircle,
+    },
   ];
 
   return (
@@ -305,7 +287,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 <ChevronRight className="w-3.5 h-3.5 opacity-60" />
               </Link>
 
-              {/* ▾ Collapsible Services Item (Tapping expands submenu, does NOT close navbar) */}
+              {/* ▾ Collapsible Services Item (Tapping expands submenu, does NOT close drawer) */}
               <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 overflow-hidden">
                 <button
                   type="button"
@@ -363,8 +345,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 )}
               </div>
 
-              {/* Other Primary Links */}
-              {primaryNavLinks.slice(1).map((link) => {
+              {/* Other Primary Links (All unique, no duplicate service links) */}
+              {primaryNavLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = location.pathname === link.to;
 
@@ -392,21 +374,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {link.badge && (
-                        <span
-                          className={cn(
-                            "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                            isActive
-                              ? "bg-white/20 text-white"
-                              : "bg-amber-100 text-amber-900 border border-amber-200"
-                          )}
-                        >
-                          {link.badge}
-                        </span>
-                      )}
-                      <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   </Link>
                 );
               })}
@@ -415,32 +383,43 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
             {/* Mobile Auth Quick Action Bar */}
             <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs">
               {isAuthenticated ? (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {user?.avatarUrl ? (
-                      <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover shrink-0" />
-                    ) : (
-                      <div className="h-8 w-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
-                        {(user?.name || "U").charAt(0).toUpperCase()}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {user?.avatarUrl ? (
+                        <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                          {(user?.name || "U").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{user?.email || `+91 ${user?.phone}`}</p>
                       </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
-                      <p className="text-[10px] text-slate-500 truncate">{user?.email || `+91 ${user?.phone}`}</p>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logout();
+                        onClose();
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 shrink-0 cursor-pointer"
+                    >
+                      <LogOut className="h-3 w-3" />
+                      <span>{currentLang === "hi" ? "लॉगआउट" : "Logout"}</span>
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      logout();
-                      onClose();
-                    }}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 shrink-0 cursor-pointer"
+                  <Link
+                    to="/account"
+                    onClick={onClose}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors"
                   >
-                    <LogOut className="h-3 w-3" />
-                    <span>{currentLang === "hi" ? "लॉगआउट" : "Logout"}</span>
-                  </button>
+                    <User className="w-3.5 h-3.5 text-[#123B70]" />
+                    <span>{isStaff ? (currentLang === "hi" ? "स्टाफ ERP डैशबोर्ड" : "Staff ERP Dashboard") : (currentLang === "hi" ? "मेरा अकाउंट व ऑर्डर्स" : "My Account & Orders")}</span>
+                  </Link>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -463,42 +442,6 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                   </Link>
                 </div>
               )}
-            </div>
-
-            {/* 12 Service Categories Grid Quick Access */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className={cn("text-xs font-bold text-navy flex items-center gap-1.5", currentLang === "hi" && "font-hindi")}>
-                  <Layers size={13} className="text-amber-600" />
-                  <span>{currentLang === "hi" ? "सेवा कैटलॉग हब (12)" : "12 Service Hubs"}</span>
-                </span>
-                <Link
-                  to="/services"
-                  onClick={onClose}
-                  className="text-[11px] font-bold text-[#123B70] hover:underline"
-                >
-                  {currentLang === "hi" ? "सभी देखें →" : "View All →"}
-                </Link>
-              </div>
-
-              <div className="grid grid-cols-2 gap-1.5 text-xs pt-0.5">
-                {categories.map((cat) => {
-                  const Icon = categoryIconMap[cat.icon] ?? Printer;
-                  return (
-                    <Link
-                      key={cat.id}
-                      to={`/services/${cat.slug}`}
-                      onClick={onClose}
-                      className="flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white p-2 text-slate-800 transition-colors hover:bg-navy hover:text-white"
-                    >
-                      <Icon size={12} className="shrink-0 text-navy" />
-                      <span className={cn("truncate font-medium text-[11px]", currentLang === "hi" && "font-hindi")}>
-                        {cat.shortName[currentLang]}
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Quick Request & WhatsApp CTA Box */}
@@ -564,3 +507,4 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 };
 
 export default MobileDrawer;
+
