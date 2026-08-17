@@ -149,7 +149,8 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleTogglePaymentStatus = async (order: StoredOrder) => {
-    const nextStatus = order.paymentStatus === "confirmed" ? "pending" : "confirmed";
+    const isCurrentlyPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
+    const nextStatus = isCurrentlyPaid ? "pending" : "confirmed";
     setUpdatingPayment(true);
     try {
       await updateStaffOrderPaymentStatus(order.orderCode, nextStatus);

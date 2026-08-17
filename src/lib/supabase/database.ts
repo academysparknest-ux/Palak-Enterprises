@@ -410,6 +410,55 @@ export async function updateStaffOrderPaymentStatus(
   });
 }
 
+export async function markStaffPaymentReceived(
+  orderCode: string,
+  amount: number,
+  paymentMethod: string = "cash",
+  notes?: string,
+  staffName: string = "Palak Cashier"
+): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return;
+
+  const { data: orderData } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("order_code", orderCode)
+    .maybeSingle();
+
+  await supabase
+    .from("orders")
+    .update({
+      payment_status: "paid",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("order_code", orderCode);
+
+  if (orderData?.id) {
+    try {
+      await supabase.from("payments").insert({
+        order_id: orderData.id,
+        amount: amount,
+        payment_method: paymentMethod,
+        payment_status: "paid",
+        received_by: staffName,
+        notes: notes || `Payment collected at store by ${staffName}`,
+        paid_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn("Payment table insert notice:", e);
+    }
+  }
+
+  await supabase.from("status_history").insert({
+    entity_type: "order",
+    entity_code: orderCode,
+    new_status: "PAYMENT_PAID",
+    message_en: `Payment of ₹${amount} received via ${paymentMethod.toUpperCase()} (${staffName})`,
+    message_hi: `₹${amount} का भुगतान प्राप्त हुआ (${paymentMethod.toUpperCase()})`,
+    performed_by: staffName,
+  });
+}
+
 export async function addStaffOrderNote(
   orderCode: string,
   noteText: string,
@@ -663,11 +712,11 @@ export async function submitPrintOrder(
   // Normalize payment method and status
   const paymentMethod =
     payload.paymentMethod === "upi_online" || payload.paymentMethod === "pay_online"
-      ? "upi_online"
-      : "pay_at_store";
+      ? "pay_online"
+      : "pay_at_shop";
   const paymentStatus =
     payload.paymentStatus === "confirmed" || payload.paymentStatus === "paid"
-      ? "confirmed"
+      ? "paid"
       : "pending";
 
   const orderItem = {
@@ -694,6 +743,7 @@ export async function submitPrintOrder(
   try {
     PalakDataStore.createOrder({
       orderCode,
+      userId: payload.userId,
       customerName: payload.customerName,
       customerPhone: payload.customerPhone,
       customerEmail: payload.customerEmail,
@@ -749,7 +799,7 @@ export async function submitPrintOrder(
         orderId = orderData.id;
 
         // Insert into order_items table
-        await supabase.from("order_items").insert({
+        const { data: itemData } = await supabase.from("order_items").insert({
           order_id: orderData.id,
           product_name: payload.serviceName,
           quantity: Number(payload.options.copies) || Number(payload.options.quantity) || 1,
@@ -759,7 +809,24 @@ export async function submitPrintOrder(
           selected_options_labels: orderItem.selectedOptionsLabels,
           uploaded_file_name: payload.file?.name,
           uploaded_file_url: payload.file?.url,
-        });
+        }).select("id").maybeSingle();
+
+        // Insert into order_files table if file exists
+        if (payload.file?.url || payload.file?.storagePath || payload.file?.name) {
+          try {
+            await supabase.from("order_files").insert({
+              order_id: orderData.id,
+              order_item_id: itemData?.id || null,
+              file_name: payload.file.name || "Customer Upload",
+              file_path: payload.file.storagePath || payload.file.url || "",
+              file_url: payload.file.url || "",
+              file_type: "document",
+              uploaded_by: payload.customerName,
+            });
+          } catch (fileErr) {
+            console.warn("order_files insert notice:", fileErr);
+          }
+        }
 
         // Insert status history entry
         await supabase.from("status_history").insert({

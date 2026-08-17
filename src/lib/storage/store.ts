@@ -33,19 +33,22 @@ export interface StoredOrder {
   subtotalAmount: number;
   deliveryFee: number;
   totalAmount: number;
-  paymentMethod: "pay_at_store" | "pay_after_confirmation" | "upi_online" | "pay_at_shop" | "pay_online";
-  paymentStatus: "pending" | "confirmed" | "paid" | "refunded";
+  paymentMethod: "pay_online" | "pay_at_shop" | "pay_at_store" | "pay_after_confirmation" | "upi_online";
+  paymentStatus: "pending" | "confirmed" | "paid" | "pay_at_shop" | "failed" | "refunded" | "partially_paid";
   orderStatus:
     | "NEW"
+    | "PENDING"
     | "UNDER_REVIEW"
     | "PAYMENT_PENDING"
     | "CONFIRMED"
     | "DESIGN_REVIEW"
     | "IN_PRODUCTION"
+    | "PROCESSING"
     | "READY_FOR_PICKUP"
     | "OUT_FOR_DELIVERY"
     | "COMPLETED"
-    | "CANCELLED";
+    | "CANCELLED"
+    | "REJECTED";
   items: OrderItemPayload[];
   staffNotes?: string;
   createdAt: string;
@@ -377,24 +380,30 @@ export class PalakDataStore {
 
     if (isSupabaseConfigured && supabase) {
       try {
+        const orderInsertPayload: any = {
+          order_code: orderCode,
+          customer_name: data.customerName,
+          customer_phone: data.customerPhone,
+          customer_email: data.customerEmail || null,
+          fulfillment_type: data.fulfillmentType,
+          delivery_address: data.deliveryAddress || null,
+          order_notes: data.orderNotes || null,
+          subtotal_amount: data.subtotalAmount,
+          delivery_fee: data.deliveryFee,
+          total_amount: data.totalAmount,
+          payment_method: data.paymentMethod,
+          payment_status: data.paymentStatus || "pending",
+          order_status: data.orderStatus || "NEW",
+          items: data.items,
+        };
+
+        if (data.userId) {
+          orderInsertPayload.user_id = data.userId;
+        }
+
         const { data: insertedOrder, error: orderErr } = await supabase
           .from("orders")
-          .insert({
-            order_code: orderCode,
-            customer_name: data.customerName,
-            customer_phone: data.customerPhone,
-            customer_email: data.customerEmail,
-            fulfillment_type: data.fulfillmentType,
-            delivery_address: data.deliveryAddress,
-            order_notes: data.orderNotes,
-            subtotal_amount: data.subtotalAmount,
-            delivery_fee: data.deliveryFee,
-            total_amount: data.totalAmount,
-            payment_method: data.paymentMethod,
-            payment_status: "pending",
-            order_status: "NEW",
-            items: data.items,
-          })
+          .insert(orderInsertPayload)
           .select("id")
           .single();
 
@@ -415,6 +424,20 @@ export class PalakDataStore {
           }));
 
           await supabase.from("order_items").insert(itemRows);
+
+          // If file uploaded, record in order_files table
+          for (const item of data.items) {
+            if (item.uploadedFileUrl || item.uploadedFileName) {
+              await supabase.from("order_files").insert({
+                order_id: insertedOrder.id,
+                file_name: item.uploadedFileName || "Document",
+                file_path: item.uploadedFileUrl || "",
+                file_url: item.uploadedFileUrl || "",
+                file_type: "document",
+                uploaded_by: data.customerName,
+              });
+            }
+          }
         }
       } catch (err) {
         console.warn("Supabase order cloud sync notice:", err);

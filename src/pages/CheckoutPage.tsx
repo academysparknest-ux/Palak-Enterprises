@@ -29,13 +29,19 @@ export const CheckoutPage: React.FC = () => {
   const [streetAddress, setStreetAddress] = useState("");
   const [landmark, setLandmark] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"pay_at_store" | "pay_after_confirmation">("pay_at_store");
+  const [paymentMethod, setPaymentMethod] = useState<"pay_online" | "pay_at_shop" | "pay_at_store" | "pay_after_confirmation">("pay_at_store");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [placedOrderCode, setPlacedOrderCode] = useState<string | null>(null);
+  const [placedOrder, setPlacedOrder] = useState<{
+    code: string;
+    paymentMethod: string;
+    paymentStatus: string;
+    totalAmount: number;
+    fulfillmentType: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (itemCount === 0 && !placedOrderCode) {
+  if (itemCount === 0 && !placedOrder) {
     return (
       <div className="mx-auto max-w-md px-4 py-20 text-center space-y-4">
         <h2 className="text-xl font-extrabold text-slate-900">Your Cart is Empty</h2>
@@ -49,6 +55,7 @@ export const CheckoutPage: React.FC = () => {
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError(null);
 
     if (!customerName.trim()) {
@@ -66,7 +73,12 @@ export const CheckoutPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      const calculatedSubtotal = items.reduce((acc, i) => acc + (Number(i.unitPrice) * Number(i.quantity)), 0);
+      const deliveryCharge = fulfillmentType === "delivery" ? 50 : 0;
+      const finalTotal = calculatedSubtotal + deliveryCharge;
+
       const order = await PalakDataStore.createOrder({
+        userId: user?.id,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         customerEmail: customerEmail.trim() || undefined,
@@ -81,14 +93,22 @@ export const CheckoutPage: React.FC = () => {
               }
             : undefined,
         orderNotes: orderNotes.trim() || undefined,
-        subtotalAmount: subtotal,
-        deliveryFee: fulfillmentType === "delivery" ? 50 : 0,
-        totalAmount: total + (fulfillmentType === "delivery" ? 50 : 0),
-        paymentMethod,
+        subtotalAmount: calculatedSubtotal,
+        deliveryFee: deliveryCharge,
+        totalAmount: finalTotal,
+        paymentMethod: paymentMethod,
+        paymentStatus: paymentMethod === "pay_online" ? "paid" : "pending",
+        orderStatus: "NEW",
         items,
       });
 
-      setPlacedOrderCode(order.orderCode);
+      setPlacedOrder({
+        code: order.orderCode,
+        paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
+        totalAmount: order.totalAmount,
+        fulfillmentType: order.fulfillmentType,
+      });
       clearCart();
     } catch (err: any) {
       setError(err.message || "Failed to place order. Please try again.");
@@ -112,48 +132,79 @@ export const CheckoutPage: React.FC = () => {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 -mt-4">
-        {placedOrderCode ? (
-          <div className="rounded-2xl border border-emerald-200 bg-white p-8 sm:p-12 text-center max-w-xl mx-auto space-y-5 shadow-card animate-fadeUp">
+        {placedOrder ? (
+          <div className="rounded-3xl border border-emerald-200 bg-white p-8 sm:p-12 text-center max-w-xl mx-auto space-y-6 shadow-card animate-fadeUp">
             <div className="h-16 w-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
               <CheckCircle2 className="h-10 w-10" />
             </div>
 
-            <h2 className="text-2xl font-extrabold text-slate-900">
-              {currentLang === "hi" ? "ऑर्डर सफलतापूर्वक दर्ज हुआ!" : "Order Placed Successfully!"}
-            </h2>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-extrabold text-slate-900">
+                {currentLang === "hi" ? "ऑर्डर सफलतापूर्वक दर्ज हुआ!" : "Order Placed Successfully!"}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                {placedOrder.paymentMethod === "pay_online"
+                  ? (currentLang === "hi"
+                      ? "ऑनलाइन भुगतान प्राप्त हुआ। हमारी टीम प्रिंटिंग शुरू कर रही है। तैयार होते ही आपको सूचित किया जाएगा।"
+                      : "Payment confirmed. Our team has received your order and is preparing the print job.")
+                  : (currentLang === "hi"
+                      ? "ऑर्डर दर्ज हो गया है। कृपया दुकान पर सामग्री प्राप्त करते समय भुगतान करें।"
+                      : "Order registered. Please pay at the shop when collecting your order.")}
+              </p>
+            </div>
 
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              {currentLang === "hi"
-                ? "धन्यवाद! आपका प्रिंटिंग ऑर्डर पालक टीम को प्राप्त हो गया है। हमारी टीम फाइल चेक कर आपको सूचित करेगी।"
-                : "Thank you! Your order has been registered in the Palak Enterprises ERP system. You will receive progress updates."}
-            </p>
-
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block">
-                Your Official Order ID
-              </span>
-              <span className="text-2xl font-black text-[#123B70] tracking-wider block mt-0.5">
-                {placedOrderCode}
-              </span>
+            {/* Order Summary Receipt Box */}
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5 text-left space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Order ID</span>
+                <span className="text-lg font-black text-[#123B70] tracking-wider font-mono">{placedOrder.code}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Payment Status:</span>
+                <span className={`px-2.5 py-0.5 rounded-full font-bold uppercase text-[11px] ${
+                  placedOrder.paymentStatus === "paid"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
+                }`}>
+                  {placedOrder.paymentStatus === "paid" ? "✓ Paid Online" : "⏳ Pay at Shop"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Fulfillment:</span>
+                <span className="font-bold text-slate-800">
+                  {placedOrder.fulfillmentType === "delivery" ? "Local Delivery (East Champaran)" : "Store Pickup (Chakia)"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs border-t border-slate-200 pt-2 font-bold">
+                <span className="text-slate-800">Total Amount:</span>
+                <span className="text-base text-[#123B70]">₹{placedOrder.totalAmount}</span>
+              </div>
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
-                to={`/track-order?code=${placedOrderCode}`}
+                to={`/track-order?code=${placedOrder.code}`}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#123B70] px-6 py-3 text-xs font-bold text-white hover:bg-[#0c274c]"
               >
                 <span>{currentLang === "hi" ? "ऑर्डर ट्रैक करें" : "Track Order Status"}</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
 
+              <Link
+                to="/account"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-6 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              >
+                <span>{currentLang === "hi" ? "मेरे ऑर्डर्स देखें" : "View in Account"}</span>
+              </Link>
+
               <a
-                href={getWhatsAppLink(`Hello Palak, I placed Order *${placedOrderCode}*.`)}
+                href={getWhatsAppLink(`Hello Palak Enterprises, I placed Order *${placedOrder.code}*.`)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-6 py-3 text-xs font-bold text-emerald-800"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-xs font-bold text-emerald-800"
               >
                 <MessageSquare className="h-4 w-4 text-emerald-600" />
-                <span>Get WhatsApp Confirmation</span>
+                <span>WhatsApp Notice</span>
               </a>
             </div>
           </div>
@@ -328,31 +379,53 @@ export const CheckoutPage: React.FC = () => {
                   {currentLang === "hi" ? "भुगतान विकल्प" : "3. Payment Method"}
                 </h2>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod("pay_at_store")}
-                    className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
-                      paymentMethod === "pay_at_store"
-                        ? "border-[#123B70] bg-blue-50/60 ring-1 ring-[#123B70]"
-                        : "border-slate-200 bg-slate-50"
+                    onClick={() => setPaymentMethod("pay_online")}
+                    className={`p-4 rounded-2xl border text-left cursor-pointer transition-all ${
+                      paymentMethod === "pay_online"
+                        ? "border-[#123B70] bg-blue-50/70 ring-2 ring-[#123B70]"
+                        : "border-slate-200 bg-slate-50 hover:bg-slate-100"
                     }`}
                   >
-                    <div className="font-bold text-xs text-slate-900">Pay at Store (Cash/UPI)</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">Pay when you collect</div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-slate-900">
+                        {currentLang === "hi" ? "ऑनलाइन भुगतान (UPI / QR)" : "Pay Online (UPI / Card)"}
+                      </span>
+                      <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                        {currentLang === "hi" ? "फास्ट ट्रैक" : "Zero Wait"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {currentLang === "hi"
+                        ? "ऑनलाइन पे करें ➔ हम प्रिंट करेंगे ➔ सीधे तैयार प्रिंट लें"
+                        : "Pay online ➔ We print it ➔ Collect when ready"}
+                    </p>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod("pay_after_confirmation")}
-                    className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
-                      paymentMethod === "pay_after_confirmation"
-                        ? "border-[#123B70] bg-blue-50/60 ring-1 ring-[#123B70]"
-                        : "border-slate-200 bg-slate-50"
+                    onClick={() => setPaymentMethod("pay_at_shop")}
+                    className={`p-4 rounded-2xl border text-left cursor-pointer transition-all ${
+                      paymentMethod === "pay_at_shop"
+                        ? "border-[#123B70] bg-blue-50/70 ring-2 ring-[#123B70]"
+                        : "border-slate-200 bg-slate-50 hover:bg-slate-100"
                     }`}
                   >
-                    <div className="font-bold text-xs text-slate-900">Pay after Proof Approval</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5">UPI QR sent on WhatsApp</div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-slate-900">
+                        {currentLang === "hi" ? "दुकान पर भुगतान (Cash/UPI)" : "Pay at Shop (Cash/UPI)"}
+                      </span>
+                      <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                        {currentLang === "hi" ? "दुकान पर" : "On Pickup"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {currentLang === "hi"
+                        ? "अभी ऑर्डर बुक करें ➔ हम तैयार करेंगे ➔ लेते समय भुगतान करें"
+                        : "Order now ➔ We prepare it ➔ Pay when you collect"}
+                    </p>
                   </button>
                 </div>
               </div>

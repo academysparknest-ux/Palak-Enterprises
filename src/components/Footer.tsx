@@ -4,7 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { useAccessibility } from "../context/AccessibilityContext";
 import { business } from "../config/business";
 import { cn } from "../lib/utils";
-import { Eye, ShieldCheck } from "lucide-react";
+import { Eye, ShieldCheck, Zap } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 export function Footer(): React.JSX.Element {
@@ -54,11 +54,20 @@ export function Footer(): React.JSX.Element {
             </div>
           </div>
 
-          <div className="pt-1">
-            <h5 className={cn("mb-2 text-xs font-bold uppercase tracking-wide text-amber-400", currentLang === "hi" && "font-hindi")}>
-              {currentLang === "hi" ? "भाषा चुनें" : "Language"}
+          <div className="pt-2 space-y-2">
+            <h5 className={cn("text-xs font-bold uppercase tracking-wider text-amber-400", currentLang === "hi" && "font-hindi")}>
+              {currentLang === "hi" ? "भाषा एवं त्वरित कोटेशन" : "Language & Custom Quote"}
             </h5>
-            <LanguageSwitcher compact />
+            <div className="flex flex-wrap items-center gap-2.5">
+              <LanguageSwitcher compact />
+              <Link
+                to="/request-quote"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-3 py-1.5 text-xs font-bold transition-all shadow-xs"
+              >
+                <Zap className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                <span>{currentLang === "hi" ? "कस्टम कोटेशन" : "Custom Quote"}</span>
+              </Link>
+            </div>
           </div>
         </div>
 
