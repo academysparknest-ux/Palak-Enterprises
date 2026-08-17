@@ -1229,85 +1229,88 @@ export const DocumentPrintingPage: React.FC = () => {
               </div>
             </section>
 
-            {/* Step 6: Choose Payment Method */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
-                    6
+              {/* Step 6: Choose Payment Method */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
+                      6
+                    </span>
+                    <span>{currentLang === "hi" ? "भुगतान माध्यम चुनें (Choose Payment Method)" : "Choose Payment Method"}</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    📍 Shop Pickup
                   </span>
-                  <span>{currentLang === "hi" ? "भुगतान माध्यम चुनें (Choose Payment Method)" : "Choose Payment Method"}</span>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label
-                  className={cn(
-                    "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
-                    paymentMethod === "pay_at_shop"
-                      ? "border-[#123B70] bg-blue-50/50 ring-2 ring-[#123B70]/10"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="pay_at_shop"
-                    checked={paymentMethod === "pay_at_shop"}
-                    onChange={() => setPaymentMethod("pay_at_shop")}
-                    className="mt-1 text-[#123B70] focus:ring-[#123B70]"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "दुकान पर भुगतान (Pay at Shop)" : "Pay at Shop (Cash / UPI)"}
-                      </span>
-                      <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.2">
-                        {currentLang === "hi" ? "त्वरित" : "Instant"}
-                      </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
+                      paymentMethod === "pay_online"
+                        ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600 shadow-xs"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="pay_online"
+                      checked={paymentMethod === "pay_online"}
+                      onChange={() => setPaymentMethod("pay_online")}
+                      className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">
+                          {currentLang === "hi" ? "ऑनलाइन भुगतान (Pay Online)" : "Pay Online (UPI / QR)"}
+                        </span>
+                        <span className="rounded-full bg-emerald-600 text-white text-[10px] font-black px-2 py-0.2 uppercase">
+                          {currentLang === "hi" ? "0 इंतज़ार" : "FASTEST"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                        {currentLang === "hi"
+                          ? "⚡ दुकान पर लाइन लगे बिना सीधे तैयार प्रिंट लें! आपके पहुँचने से पहले ही दस्तावेज प्रिंट व पैक रहेंगे।"
+                          : "⚡ Skip the line! Pre-printed and packed before you arrive. Walk in, show Order ID, and collect instantly."}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {currentLang === "hi"
-                        ? "ऑर्डर अभी सबमिट करें। प्रिंट कलेक्ट करते समय काउंटर पर नकद या UPI द्वारा भुगतान करें।"
-                        : "Order is registered and prepared immediately. Pay when you collect."}
-                    </p>
-                  </div>
-                </label>
+                  </label>
 
-                <label
-                  className={cn(
-                    "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
-                    paymentMethod === "pay_online"
-                      ? "border-[#123B70] bg-blue-50/50 ring-2 ring-[#123B70]/10"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="pay_online"
-                    checked={paymentMethod === "pay_online"}
-                    onChange={() => setPaymentMethod("pay_online")}
-                    className="mt-1 text-[#123B70] focus:ring-[#123B70]"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "ऑनलाइन भुगतान (Pay Online)" : "Pay Online (UPI / QR)"}
-                      </span>
-                      <span className="rounded-full bg-blue-100 text-[#123B70] text-[10px] font-bold px-2 py-0.2">
-                        UPI Fast
-                      </span>
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
+                      paymentMethod === "pay_at_shop"
+                        ? "border-[#123B70] bg-blue-50/50 ring-2 ring-[#123B70]/10"
+                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="pay_at_shop"
+                      checked={paymentMethod === "pay_at_shop"}
+                      onChange={() => setPaymentMethod("pay_at_shop")}
+                      className="mt-1 text-[#123B70] focus:ring-[#123B70]"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">
+                          {currentLang === "hi" ? "दुकान पर भुगतान (Pay at Shop)" : "Pay at Shop Counter"}
+                        </span>
+                        <span className="rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.2">
+                          Cash / UPI
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                        {currentLang === "hi"
+                          ? "ऑर्डर अभी दर्ज करें। दुकान (ब्लॉक गेट, चकिया) पहुँचकर काउंटर पर भुगतान कर प्रिंट प्राप्त करें।"
+                          : "Order is registered now. Pay at the shop counter when you arrive for collection."}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {currentLang === "hi"
-                        ? "ऑर्डर सबमिट कर ऑनलाइन भुगतान करें। पिकअप काउंटर पर बिना किसी रुकावट के सीधे प्रिंट प्राप्त करें।"
-                        : "Express priority counter pickup after verified online transaction."}
-                    </p>
-                  </div>
-                </label>
-              </div>
-            </section>
+                  </label>
+                </div>
+              </section>
           </div>
 
           {/* Right 1 Column: Price Summary & Submit Sidebar */}

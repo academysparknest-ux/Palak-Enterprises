@@ -190,15 +190,27 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           </div>
         </div>
 
-        {/* Pickup Details */}
-        <div className="rounded-2xl bg-amber-50/70 border border-amber-200 p-3.5 space-y-1.5 text-xs text-amber-900">
-          <div className="flex items-center gap-1.5 font-bold">
-            <MapPin className="h-4 w-4 text-amber-700 shrink-0" />
-            <span>{currentLang === "hi" ? "दुकान से पिकअप पता:" : "Collection Location:"}</span>
+        {/* Clear Shop Pickup & Express Zero-Wait Queue Notice */}
+        <div className="rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50/60 to-blue-50/70 border-2 border-emerald-500/40 p-4 space-y-2.5 text-xs text-slate-800 shadow-xs">
+          <div className="flex items-center gap-2 font-black text-emerald-950">
+            <MapPin className="h-4 w-4 text-emerald-700 shrink-0" />
+            <span>{currentLang === "hi" ? "📍 दुकान से संग्रह (Shop Collection & Express Pickup):" : "📍 Collect Order at Our Shop (Store Pickup):"}</span>
           </div>
-          <p className="text-[11px] text-amber-800 pl-5">
-            {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]}
+
+          <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
+            <strong>{business.name[currentLang]}</strong>: {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]} (Near Block Gate).
           </p>
+
+          <div className="rounded-xl bg-white/90 border border-emerald-200 p-2.5 text-[11px] text-slate-700 space-y-1">
+            <span className="font-extrabold text-emerald-900 flex items-center gap-1.5">
+              <span>⚡ {currentLang === "hi" ? "ऑनलाइन ऑर्डर का फायदा (Zero Waiting):" : "Why Ordering Online Saves Your Time:"}</span>
+            </span>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              {currentLang === "hi"
+                ? "दुकान पर फ़ाइल भेजने या प्रिंटिंग के लिए लाइन में इंतज़ार नहीं करना पड़ेगा! आपका प्रिंट पहले से तैयार व पैक रहेगा — बस दुकान पहुँचकर ऑर्डर आईडी बताएं और तुरंत प्राप्त करें।"
+                : "No need to wait in line or wait for your turn to send files via WhatsApp/Bluetooth! Your documents are pre-printed and packed. Just show your Order ID at the counter and collect in seconds!"}
+            </p>
+          </div>
         </div>
 
         {/* Primary Action Buttons */}

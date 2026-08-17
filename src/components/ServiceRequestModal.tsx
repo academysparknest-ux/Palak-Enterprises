@@ -589,7 +589,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                   <label
                     className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
                       paymentPreference === "pay_online"
-                        ? "bg-emerald-50/80 border-emerald-500 text-emerald-950 ring-1 ring-emerald-500"
+                        ? "bg-emerald-50/80 border-emerald-500 text-emerald-950 ring-1 ring-emerald-500 shadow-xs"
                         : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
                     }`}
                   >
@@ -603,15 +603,15 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                     />
                     <div>
                       <div className="text-xs font-bold flex items-center gap-1.5">
-                        <span>{language === "hi" ? "ऑनलाइन भुगतान" : "Pay Online"}</span>
+                        <span>{language === "hi" ? "ऑनलाइन भुगतान" : "Pay Online (UPI / QR)"}</span>
                         <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-emerald-600 text-white rounded-full">
-                          {language === "hi" ? "नो वेटिंग" : "NO WAITING"}
+                          {language === "hi" ? "0 इंतज़ार • लाइन से बचें" : "SKIP QUEUE"}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
+                      <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
                         {language === "hi"
-                          ? "पिकअप पर प्रतीक्षा नहीं — तैयार मिलेगा"
-                          : "No waiting at pickup — ready before arrival"}
+                          ? "दुकान पर बिना लाइन लगे पहले से तैयार व पैक प्रिंट तुरंत प्राप्त करें"
+                          : "Pre-printed & packed in advance. No line or file-sending wait at shop"}
                       </p>
                     </div>
                   </label>
@@ -619,7 +619,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                   <label
                     className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
                       paymentPreference === "pay_at_shop"
-                        ? "bg-amber-50/80 border-amber-500 text-amber-950 ring-1 ring-amber-500"
+                        ? "bg-amber-50/80 border-amber-500 text-amber-950 ring-1 ring-amber-500 shadow-xs"
                         : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
                     }`}
                   >
@@ -633,15 +633,15 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                     />
                     <div>
                       <div className="text-xs font-bold flex items-center gap-1.5">
-                        <span>{language === "hi" ? "दुकान पर भुगतान" : "Pay at Shop"}</span>
+                        <span>{language === "hi" ? "दुकान पर भुगतान" : "Pay at Shop Counter"}</span>
                         <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-amber-600 text-white rounded-full">
                           {language === "hi" ? "दुकान पर" : "AT SHOP"}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
+                      <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
                         {language === "hi"
-                          ? "प्रिंट तैयार रहेगा, लेने पर भुगतान करें"
-                          : "We'll prepare it. Pay when you collect."}
+                          ? "दुकान (ब्लॉक गेट, चकिया) पहुँचकर काउंटर पर भुगतान करें"
+                          : "Collect and pay at the shop counter (Near Block Gate, Chakia)"}
                       </p>
                     </div>
                   </label>

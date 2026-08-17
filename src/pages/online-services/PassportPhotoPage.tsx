@@ -510,6 +510,39 @@ export const PassportPhotoPage: React.FC = () => {
                 <label
                   className={cn(
                     "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
+                    paymentMethod === "pay_online"
+                      ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600 shadow-xs"
+                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="pay_online"
+                    checked={paymentMethod === "pay_online"}
+                    onChange={() => setPaymentMethod("pay_online")}
+                    className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900">
+                        {currentLang === "hi" ? "ऑनलाइन भुगतान (Pay Online)" : "Pay Online (UPI / QR)"}
+                      </span>
+                      <span className="rounded-full bg-emerald-600 text-white text-[10px] font-black px-2 py-0.2 uppercase">
+                        {currentLang === "hi" ? "0 इंतज़ार" : "FASTEST"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                      {currentLang === "hi"
+                        ? "⚡ बिना लाइन लगे तुरंत फोटो शीट लें! आपके पहुँचने से पहले ही फोटो प्रिंट व कट कर तैयार रहेंगे।"
+                        : "⚡ Skip the line! Photos printed and cut in advance. Walk in, show Order ID, and collect instantly."}
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
                     paymentMethod === "pay_at_shop"
                       ? "border-[#123B70] bg-blue-50/50 ring-2 ring-[#123B70]/10"
                       : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
@@ -526,49 +559,16 @@ export const PassportPhotoPage: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "दुकान पर भुगतान (Pay at Shop)" : "Pay at Shop (Cash / UPI)"}
+                        {currentLang === "hi" ? "दुकान पर भुगतान (Pay at Shop)" : "Pay at Shop Counter"}
                       </span>
-                      <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.2">
-                        {currentLang === "hi" ? "त्वरित" : "Instant"}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {currentLang === "hi"
-                        ? "ऑर्डर अभी सबमिट करें। कलेक्ट करते समय दुकान पर भुगतान करें।"
-                        : "Order prepared immediately. Pay cash or UPI at pickup counter."}
-                    </p>
-                  </div>
-                </label>
-
-                <label
-                  className={cn(
-                    "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
-                    paymentMethod === "pay_online"
-                      ? "border-[#123B70] bg-blue-50/50 ring-2 ring-[#123B70]/10"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="pay_online"
-                    checked={paymentMethod === "pay_online"}
-                    onChange={() => setPaymentMethod("pay_online")}
-                    className="mt-1 text-[#123B70] focus:ring-[#123B70]"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "ऑनलाइन भुगतान (Pay Online)" : "Pay Online (UPI / QR)"}
-                      </span>
-                      <span className="rounded-full bg-blue-100 text-[#123B70] text-[10px] font-bold px-2 py-0.2">
-                        UPI Fast
+                      <span className="rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.2">
+                        Cash / UPI
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                       {currentLang === "hi"
-                        ? "ऑनलाइन भुगतान करें और सीधे काउंटर से अपनी फोटो कलेक्ट करें।"
-                        : "Express priority pickup after verified online payment."}
+                        ? "ऑर्डर अभी दर्ज करें। दुकान (ब्लॉक गेट, चकिया) पहुँचकर काउंटर पर भुगतान कर फोटो प्राप्त करें।"
+                        : "Order is registered now. Pay at the shop counter when you arrive for collection."}
                     </p>
                   </div>
                 </label>

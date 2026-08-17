@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSquare, User } from "lucide-react";
+import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSquare, User, Sparkles, CreditCard, Building } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -145,11 +145,23 @@ export const CheckoutPage: React.FC = () => {
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                 {placedOrder.paymentMethod === "pay_online"
                   ? (currentLang === "hi"
-                      ? "ऑनलाइन भुगतान प्राप्त हुआ। हमारी टीम प्रिंटिंग शुरू कर रही है। तैयार होते ही आपको सूचित किया जाएगा।"
-                      : "Payment confirmed. Our team has received your order and is preparing the print job.")
+                      ? "⚡ ऑनलाइन भुगतान सफल! आपका ऑर्डर प्राथमिकता से प्रिंट व पैक किया जा रहा है। दुकान पहुँचते ही बिना लाइन लगे सीधे अपना पार्सल प्राप्त करें।"
+                      : "⚡ Online payment confirmed! Your job is queued for priority printing and express packing. Skip the line and collect directly at the shop.")
                   : (currentLang === "hi"
-                      ? "ऑर्डर दर्ज हो गया है। कृपया दुकान पर सामग्री प्राप्त करते समय भुगतान करें।"
-                      : "Order registered. Please pay at the shop when collecting your order.")}
+                      ? "ऑर्डर दर्ज हो गया है। कृपया दुकान (ब्लॉक गेट, चकिया) आकर काउंटर पर भुगतान करें और प्रिंट प्राप्त करें।"
+                      : "Order registered. Please visit our shop (Near Block Gate, Chakia) to pay at the counter and collect your prints.")}
+              </p>
+            </div>
+
+            {/* Express Pickup Instructions Callout */}
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-left space-y-1 text-xs text-slate-700">
+              <span className="font-extrabold text-[#123B70] block">
+                📍 {currentLang === "hi" ? "दुकान से संग्रह निर्देश (Store Pickup):" : "Shop Collection Location & Pickup:"}
+              </span>
+              <p className="text-[11px] text-slate-600">
+                {currentLang === "hi"
+                  ? "पालक एंटरप्राइजेज, ब्लॉक गेट के पास, चकिया। दुकान पहुँचकर केवल अपना ऑर्डर आईडी दिखाएं।"
+                  : "Palak Enterprises, Near Block Gate, Chakia, East Champaran. Just show your Order ID at the counter to collect."}
               </p>
             </div>
 
@@ -166,13 +178,13 @@ export const CheckoutPage: React.FC = () => {
                     ? "bg-emerald-100 text-emerald-800"
                     : "bg-amber-100 text-amber-800"
                 }`}>
-                  {placedOrder.paymentStatus === "paid" ? "✓ Paid Online" : "⏳ Pay at Shop"}
+                  {placedOrder.paymentStatus === "paid" ? "✓ Paid Online (Express Zero Wait)" : "⏳ Pay at Shop"}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 font-medium">Fulfillment:</span>
+                <span className="text-slate-500 font-medium">Collection:</span>
                 <span className="font-bold text-slate-800">
-                  {placedOrder.fulfillmentType === "delivery" ? "Local Delivery (East Champaran)" : "Store Pickup (Chakia)"}
+                  {placedOrder.fulfillmentType === "delivery" ? "Local Delivery" : "Store Pickup (Chakia Block Gate)"}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs border-t border-slate-200 pt-2 font-bold">
@@ -373,58 +385,91 @@ export const CheckoutPage: React.FC = () => {
                 )}
               </div>
 
+              {/* Express Pickup & Skip-the-Queue Highlight Notice */}
+              <div className="rounded-2xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-50/90 via-teal-50/50 to-blue-50/60 p-4 sm:p-5 space-y-2.5 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-xs sm:text-sm font-black text-emerald-950">
+                        {currentLang === "hi"
+                          ? "⚡ दुकान से पिकअप — ऑनलाइन भुगतान से लाइन से बचें!"
+                          : "⚡ Store Pickup — Pay Online to Skip the Counter Queue!"}
+                      </h3>
+                      <span className="rounded-full bg-emerald-600 text-white text-[10px] font-extrabold px-2 py-0.5 uppercase tracking-wide">
+                        Zero Wait
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      {currentLang === "hi"
+                        ? "प्रिंट लेने के लिए आपको दुकान (ब्लॉक गेट, चकिया) आना होगा। ऑनलाइन भुगतान करने से आपको दुकान पर फ़ाइल भेजने या प्रिंटिंग के लिए लाइन में इंतज़ार नहीं करना पड़ेगा — आपके पहुँचने से पहले ही आपका प्रिंट तैयार व पैक रहेगा!"
+                        : "You will collect your order at our shop (Near Block Gate, Chakia). Paying online ensures your files are pre-printed and packed in advance—so you don't wait in queue to transfer files or wait for printing. Just walk in and collect instantly!"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Payment Option */}
-              <div className="pt-4 border-t border-slate-100 space-y-3">
-                <h2 className="text-lg font-extrabold text-slate-900">
-                  {currentLang === "hi" ? "भुगतान विकल्प" : "3. Payment Method"}
-                </h2>
+              <div className="pt-2 border-t border-slate-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                    {currentLang === "hi" ? "3. भुगतान विकल्प चुनें" : "3. Choose Payment Method"}
+                  </h2>
+                  <span className="text-[11px] font-semibold text-emerald-700">
+                    {currentLang === "hi" ? "✓ तेज़ और सुरक्षित" : "✓ Fast & Secure"}
+                  </span>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("pay_online")}
-                    className={`p-4 rounded-2xl border text-left cursor-pointer transition-all ${
+                    className={`p-4 rounded-2xl border text-left cursor-pointer transition-all space-y-2 ${
                       paymentMethod === "pay_online"
-                        ? "border-[#123B70] bg-blue-50/70 ring-2 ring-[#123B70]"
+                        ? "border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-600 shadow-xs"
                         : "border-slate-200 bg-slate-50 hover:bg-slate-100"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-slate-900">
-                        {currentLang === "hi" ? "ऑनलाइन भुगतान (UPI / QR)" : "Pay Online (UPI / Card)"}
+                      <span className="font-black text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
+                        <CreditCard className="h-4 w-4 text-emerald-700" />
+                        <span>{currentLang === "hi" ? "ऑनलाइन भुगतान (UPI / QR)" : "Pay Online (UPI / QR / Cards)"}</span>
                       </span>
-                      <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                        {currentLang === "hi" ? "फास्ट ट्रैक" : "Zero Wait"}
+                      <span className="text-[10px] font-black bg-emerald-600 text-white px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                        {currentLang === "hi" ? "सुझावित • 0 इंतज़ार" : "Recommended"}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                       {currentLang === "hi"
-                        ? "ऑनलाइन पे करें ➔ हम प्रिंट करेंगे ➔ सीधे तैयार प्रिंट लें"
-                        : "Pay online ➔ We print it ➔ Collect when ready"}
+                        ? "✅ सबसे तेज़! दुकान पर बिना लाइन लगे सीधे तैयार प्रिंट पैकेट प्राप्त करें।"
+                        : "✅ Fastest! Pre-printed & kept packed. Walk in, show Order ID, collect immediately with zero queue."}
                     </p>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("pay_at_shop")}
-                    className={`p-4 rounded-2xl border text-left cursor-pointer transition-all ${
+                    className={`p-4 rounded-2xl border text-left cursor-pointer transition-all space-y-2 ${
                       paymentMethod === "pay_at_shop"
-                        ? "border-[#123B70] bg-blue-50/70 ring-2 ring-[#123B70]"
+                        ? "border-[#123B70] bg-blue-50/70 ring-2 ring-[#123B70] shadow-xs"
                         : "border-slate-200 bg-slate-50 hover:bg-slate-100"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-slate-900">
-                        {currentLang === "hi" ? "दुकान पर भुगतान (Cash/UPI)" : "Pay at Shop (Cash/UPI)"}
+                      <span className="font-black text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
+                        <Building className="h-4 w-4 text-[#123B70]" />
+                        <span>{currentLang === "hi" ? "दुकान काउंटर पर भुगतान" : "Pay at Shop Counter"}</span>
                       </span>
-                      <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                        {currentLang === "hi" ? "दुकान पर" : "On Pickup"}
+                      <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                        {currentLang === "hi" ? "काउंटर पर" : "Cash / UPI"}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
                       {currentLang === "hi"
-                        ? "अभी ऑर्डर बुक करें ➔ हम तैयार करेंगे ➔ लेते समय भुगतान करें"
-                        : "Order now ➔ We prepare it ➔ Pay when you collect"}
+                        ? "ऑर्डर अभी सबमिट करें और दुकान पहुँचने पर काउंटर पर नकद या UPI द्वारा भुगतान करें।"
+                        : "Submit order now and pay at the shop counter when you arrive to collect."}
                     </p>
                   </button>
                 </div>

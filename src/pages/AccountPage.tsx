@@ -464,6 +464,31 @@ export const AccountPage: React.FC = () => {
               </div>
             </Link>
           </div>
+
+          {/* Store Pickup & Queue-Skipping Notice */}
+          <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/90 via-teal-50/50 to-emerald-50/80 p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-[#123B70] text-white flex items-center justify-center shrink-0">
+                <Building className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="font-black text-slate-900 block">
+                  📍 {currentLang === "hi" ? "दुकान से संग्रह (Store Pickup at Chakia):" : "Order Collection Location & Zero Queue:"}
+                </span>
+                <p className="text-[11px] text-slate-600 leading-tight mt-0.5">
+                  {currentLang === "hi"
+                    ? "तैयार प्रिंट लेने के लिए दुकान (ब्लॉक गेट, चकिया) आएं। ऑनलाइन ऑर्डर और भुगतान से आपको दुकान पर लाइन में इंतज़ार नहीं करना पड़ता — प्रिंट पहले से तैयार मिलता है!"
+                    : "Collect your prints at Palak Enterprises (Near Block Gate, Chakia). Online orders & payments skip counter lines and file-transfer delays for instant collection!"}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/track-order"
+              className="text-[11px] font-bold text-[#123B70] bg-white border border-blue-200 hover:bg-blue-50 px-3 py-1.5 rounded-xl shrink-0 transition-colors"
+            >
+              {currentLang === "hi" ? "लाइव ट्रैकिंग →" : "Track Order →"}
+            </Link>
+          </div>
         </div>
 
         {/* Dashboard Tabs Navigation */}
