@@ -8,15 +8,19 @@ import {
   Phone,
   MessageSquare,
   Eye,
-  FileText,
   Globe,
   Printer,
   FileCheck,
   Briefcase,
+  Gift,
+  Palette,
+  Sparkles,
   HelpCircle,
   Image as ImageIcon,
   Info,
   MapPin,
+  Package,
+  User,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -29,7 +33,6 @@ interface MobileDrawerProps {
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   isOpen,
   onClose,
-  onOpenRequestModal,
 }) => {
   const { language, lang, setLanguage } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
@@ -63,14 +66,16 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 
   const links = [
     { to: "/", label: { en: "Home", hi: "मुख्य पृष्ठ" } },
-    { to: "/services", label: { en: "All Services Directory", hi: "संपूर्ण सेवा सूची" }, icon: FileText },
     { to: "/printing", label: { en: "Printing & Press", hi: "प्रिंटिंग व प्रेस" }, icon: Printer },
-    { to: "/online-services", label: { en: "Online & Govt Services", hi: "ऑनलाइन सेवा सहायता" }, icon: FileCheck },
+    { to: "/digital-services", label: { en: "Online & CSC Services", hi: "ऑनलाइन सेवा सहायता" }, icon: FileCheck },
     { to: "/business", label: { en: "Business Solutions", hi: "बिजनेस सॉल्यूशंस" }, icon: Briefcase },
-    { to: "/website-development", label: { en: "Website Development", hi: "वेबसाइट निर्माण" } },
-    { to: "/work", label: { en: "Our Work & Gallery", hi: "हमारा काम व गैलरी" }, icon: ImageIcon },
+    { to: "/wedding-events", label: { en: "Wedding & Ceremonies", hi: "शादी कार्ड व निमंत्रण" }, icon: Gift },
+    { to: "/design-services", label: { en: "Graphic Design Studio", hi: "ग्राफिक डिज़ाइन स्टूडियो" }, icon: Palette },
+    { to: "/track-order", label: { en: "Track Order / Status", hi: "ऑर्डर ट्रैक करें" }, icon: Package },
+    { to: "/account", label: { en: "My Account / ERP", hi: "अकाउंट / स्टाफ लॉगिन" }, icon: User },
+    { to: "/work", label: { en: "Our Work Samples", hi: "हमारा काम व गैलरी" }, icon: ImageIcon },
     { to: "/about", label: { en: "About Palak Enterprises", hi: "हमारे बारे में" }, icon: Info },
-    { to: "/faq", label: { en: "Frequently Asked Questions", hi: "अक्सर पूछे जाने वाले सवाल" }, icon: HelpCircle },
+    { to: "/faq", label: { en: "FAQs", hi: "अक्सर पूछे जाने वाले सवाल" }, icon: HelpCircle },
     { to: "/contact", label: { en: "Contact & Location", hi: "संपर्क एवं केंद्र" }, icon: MapPin },
   ];
 
@@ -96,13 +101,13 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               <img
                 src={business.logoPath}
                 alt={business.name[currentLang]}
-                className="w-9 h-9 rounded-full object-cover ring-2 ring-saffron/40"
+                className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-400/50"
               />
               <div className="flex flex-col">
-                <span className="font-display text-sm font-bold text-navy leading-tight">
+                <span className="font-display text-sm font-bold text-[#123B70] leading-tight">
                   {business.name[currentLang]}
                 </span>
-                <span className="text-[11px] text-muted">{business.unit[currentLang]}</span>
+                <span className="text-[11px] text-slate-500">{business.unit[currentLang]}</span>
               </div>
             </div>
             <button
@@ -121,14 +126,14 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
             <div className="bg-slate-100 p-3 rounded-2xl space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-600 flex items-center">
-                  <Globe className="w-3.5 h-3.5 mr-1 text-navy" /> {currentLang === "hi" ? "भाषा" : "Language"}
+                  <Globe className="w-3.5 h-3.5 mr-1 text-[#123B70]" /> {currentLang === "hi" ? "भाषा" : "Language"}
                 </span>
                 <div className="flex bg-white p-0.5 rounded-xl border border-slate-200 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => setLanguage("en")}
                     className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer ${
-                      currentLang === "en" ? "bg-navy text-white" : "text-slate-700"
+                      currentLang === "en" ? "bg-[#123B70] text-white" : "text-slate-700"
                     }`}
                   >
                     English
@@ -137,7 +142,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                     type="button"
                     onClick={() => setLanguage("hi")}
                     className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer ${
-                      currentLang === "hi" ? "bg-navy text-white font-hindi" : "text-slate-700 font-hindi"
+                      currentLang === "hi" ? "bg-[#123B70] text-white font-hindi" : "text-slate-700 font-hindi"
                     }`}
                   >
                     हिन्दी
@@ -177,7 +182,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                     className={cn(
                       "px-3 py-2.5 rounded-xl flex items-center justify-between transition-colors",
                       isActive
-                        ? "bg-navy text-white"
+                        ? "bg-[#123B70] text-white"
                         : "hover:bg-slate-100 text-slate-800",
                       currentLang === "hi" && "font-hindi"
                     )}
@@ -191,24 +196,16 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               })}
             </nav>
 
-            {/* Primary Request Service Action */}
+            {/* Primary Request Quote Action */}
             <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  if (onOpenRequestModal) {
-                    onOpenRequestModal();
-                  }
-                }}
-                className={cn(
-                  "w-full py-3 px-4 rounded-xl bg-brandred text-white font-bold text-sm flex items-center justify-center space-x-2 shadow-sm hover:bg-red-700 transition-colors cursor-pointer",
-                  currentLang === "hi" && "font-hindi"
-                )}
+              <Link
+                to="/request-quote"
+                onClick={onClose}
+                className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center justify-center space-x-2 shadow-sm transition-colors"
               >
-                <FileText className="w-4 h-4" />
-                <span>{currentLang === "hi" ? "सेवा अनुरोध फॉर्म भरें" : "Request a Service"}</span>
-              </button>
+                <Sparkles className="w-4 h-4" />
+                <span>{currentLang === "hi" ? "कस्टम कोटेशन मांगें" : "Request Custom Quote"}</span>
+              </Link>
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { Search, Package, MessageSquare } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
@@ -19,7 +19,7 @@ export const TrackOrderPage: React.FC = () => {
   const [quotes, setQuotes] = useState<StoredQuoteRequest[]>([]);
   const [designs, setDesigns] = useState<StoredDesignRequest[]>([]);
 
-  const handleSearch = (codeToSearch?: string) => {
+  const handleSearch = useCallback((codeToSearch?: string) => {
     const q = (codeToSearch !== undefined ? codeToSearch : queryCode).trim();
     if (!q) return;
 
@@ -29,7 +29,7 @@ export const TrackOrderPage: React.FC = () => {
     setQuotes(result.quotes);
     setDesigns(result.designs);
     setSearched(true);
-  };
+  }, [queryCode]);
 
   useEffect(() => {
     const initialCode = searchParams.get("code");
@@ -37,7 +37,7 @@ export const TrackOrderPage: React.FC = () => {
       setQueryCode(initialCode);
       handleSearch(initialCode);
     }
-  }, [searchParams]);
+  }, [searchParams, handleSearch]);
 
   const hasAnyResults = orders.length > 0 || services.length > 0 || quotes.length > 0 || designs.length > 0;
 
