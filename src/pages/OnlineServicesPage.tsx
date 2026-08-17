@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { SEO } from "../components/SEO";
+import { PageHero } from "../components/PageHero";
 import { cn } from "../lib/utils";
 
 interface OnlineServicesPageProps {
@@ -205,44 +206,32 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
         }}
       />
 
-      {/* 1. COMPACT PAGE HEADER (~220-260px) */}
-      <header className="bg-[#123B70] text-white border-b border-blue-950/40">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8 space-y-2.5">
-          {/* Breadcrumb */}
-          <nav aria-label="Breadcrumb" className="text-xs text-slate-300 flex items-center gap-1.5">
-            <Link to="/" className="hover:text-white transition-colors">
-              Home
-            </Link>
-            <span className="text-slate-400">/</span>
-            <span className="text-amber-300 font-medium">Instant Online Services</span>
-          </nav>
-
-          {/* Main Title & Tagline */}
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-                ⚡ {currentLang === "hi" ? "इंस्टेंट ऑनलाइन सेवाएँ" : "Instant Online Services"}
-              </h1>
-              <span className="rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 px-3 py-0.5 text-[11px] font-bold tracking-wide">
-                Direct Shop Collection
-              </span>
-            </div>
-
-            <p className="text-sm sm:text-base font-semibold text-amber-200/95">
-              {currentLang === "hi"
-                ? "अपना काम खुद करें — बिना लाइन में इंतज़ार किए।"
-                : "Apna kaam khud karein — bina line mein wait kiye."}
-            </p>
-          </div>
-
-          {/* 1-2 Line Description */}
-          <p className="text-xs sm:text-sm text-slate-200/90 max-w-3xl leading-relaxed">
-            {currentLang === "hi"
-              ? "फाइल अपलोड करें, प्रिंटिंग विकल्प चुनें और ऑर्डर सबमिट करें। पालक इंटरप्राइजेज आपका ऑर्डर तैयार रखेगा, जिसे आप दुकान से सीधे कलेक्ट कर सकते हैं।"
-              : "File upload karein, printing options choose karein aur order submit karein. Palak Enterprises aapka order ready karega, jise aap shop se collect kar sakte hain."}
-          </p>
-        </div>
-      </header>
+      {/* 1. Page Hero */}
+      <PageHero
+        breadcrumbs={[
+          { label: { en: "Instant Online Services", hi: "इंस्टेंट ऑनलाइन सेवाएँ" }, path: "/online-services" },
+        ]}
+        badge={{
+          en: "⚡ Direct Shop Collection · Fast Turnaround",
+          hi: "⚡ डायरेक्ट दुकान से पिकअप · त्वरित सेवा",
+        }}
+        title={{
+          en: "Instant Online Printing & Self-Service",
+          hi: "इंस्टेंट ऑनलाइन प्रिंटिंग व सेल्फ सर्विस",
+        }}
+        subtitle={{
+          en: "Upload your files, customize print and finishing options, and pick up your ready printouts directly at our Chakia store without waiting in line.",
+          hi: "फाइल अपलोड करें, प्रिंटिंग विकल्प चुनें और ऑर्डर सबमिट करें। दुकान से बिना लाइन में लगे तैयार प्रिंट तुरंत कलेक्ट करें।",
+        }}
+        primaryCta={{
+          label: { en: "Document Printing", hi: "दस्तावेज प्रिंटिंग" },
+          to: "/online-services/document-printing",
+        }}
+        secondaryCta={{
+          label: { en: "Passport Photos", hi: "पासपोर्ट फोटो" },
+          to: "/online-services/passport-photo",
+        }}
+      />
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10 space-y-10 sm:space-y-12">
         {/* 2. QUICK PRINT SERVICES GRID (Above the fold on standard desktop) */}

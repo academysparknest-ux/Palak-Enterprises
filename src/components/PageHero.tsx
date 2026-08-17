@@ -52,19 +52,20 @@ export const PageHero: React.FC<PageHeroProps> = ({
   const currentLang = (lang || language || "en") as "en" | "hi";
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-navy via-navy to-slate-900 text-white pt-6 pb-12 sm:pb-16 border-b border-line">
-      {/* Background glow effects */}
+    <section className="relative overflow-hidden bg-[#123B70] text-white pt-6 pb-12 sm:pb-16 border-b border-line">
+      {/* Ambient background glows */}
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.12]"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-20"
         style={{
           backgroundImage:
-            "radial-gradient(circle at 10% 20%, #F97316 0, transparent 40%), radial-gradient(circle at 90% 80%, #15803D 0, transparent 45%)",
+            "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
         }}
       />
+      {/* Subtle geometric dot grid pattern */}
       <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.04]"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
         style={{
           backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
           backgroundSize: "24px 24px",

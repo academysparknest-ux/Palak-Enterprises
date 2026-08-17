@@ -1,7 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Briefcase, ArrowRight, CheckCircle2, Store, School, UtensilsCrossed, Globe } from "lucide-react";
+import { ArrowRight, CheckCircle2, Store, School, UtensilsCrossed, Globe } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
+import { PageHero } from "../components/PageHero";
 import { ProductCard } from "../components/ProductCard";
 import { PalakDataStore } from "../lib/storage/store";
 import { getWhatsAppLink } from "../config/business";
@@ -51,45 +52,34 @@ export const BusinessPage: React.FC<{ onOpenRequestModal?: () => void }> = () =>
 
   return (
     <div className="min-h-screen bg-[#F7F8FA] pb-20">
-      {/* Hero Banner */}
-      <div className="bg-[#123B70] text-white py-12 px-4 sm:px-6">
-        <div className="mx-auto max-w-7xl space-y-4">
-          <div className="text-xs text-slate-300">
-            <Link to="/" className="hover:underline">Home</Link> / <span className="text-amber-300">Business Solutions</span>
-          </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 px-3 py-0.5 text-xs font-bold">
-            <Briefcase className="h-3.5 w-3.5" />
-            <span>Commercial & Bulk Printing Hub</span>
-          </span>
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">
-            {currentLang === "hi" ? "व्यावसायिक प्रिंटिंग एवं ब्रांडिंग समाधान" : "Commercial Printing & Business Solutions"}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-200 max-w-2xl leading-relaxed">
-            {currentLang === "hi"
-              ? "दुकानों, कंपनियों, स्कूलों और कोचिंग सेंटरों के लिए संपूर्ण स्टेशनरी, थोक बिल बुक, फ्लेक्स बोर्ड और कस्टम वेबसाइट विकास।"
-              : "End-to-end commercial printing, corporate stationery, wholesale carbonless invoicing, and custom websites tailored for local businesses in Bihar."}
-          </p>
+      {/* Page Hero */}
+      <PageHero
+        breadcrumbs={[
+          { label: { en: "Business Solutions", hi: "बिजनेस सॉल्यूशंस" }, path: "/business" },
+        ]}
+        badge={{
+          en: "Commercial & Bulk Printing Hub",
+          hi: "व्यावसायिक एवं थोक प्रिंटिंग हब",
+        }}
+        title={{
+          en: "Commercial Printing & Business Solutions",
+          hi: "व्यावसायिक प्रिंटिंग एवं ब्रांडिंग समाधान",
+        }}
+        subtitle={{
+          en: "End-to-end commercial printing, corporate stationery, wholesale carbonless invoicing, and custom websites tailored for local businesses in Bihar.",
+          hi: "दुकानों, कंपनियों, स्कूलों और कोचिंग सेंटरों के लिए संपूर्ण स्टेशनरी, थोक बिल बुक, फ्लेक्स बोर्ड और कस्टम वेबसाइट विकास।",
+        }}
+        primaryCta={{
+          label: { en: "Request Bulk Quote", hi: "थोक कोटेशन मांगें" },
+          to: "/request-quote",
+        }}
+        secondaryCta={{
+          label: { en: "Talk to B2B Team", hi: "B2B टीम से बात करें" },
+          to: getWhatsAppLink("Hello Palak Enterprises, I am inquiring about corporate / business printing solutions."),
+        }}
+      />
 
-          <div className="pt-2 flex flex-wrap items-center gap-3">
-            <Link
-              to="/request-quote"
-              className="rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-3 text-xs sm:text-sm font-extrabold text-slate-950 transition-transform hover:scale-105"
-            >
-              {currentLang === "hi" ? "थोक कोटेशन मांगें" : "Request Bulk Quote"}
-            </Link>
-            <a
-              href={getWhatsAppLink("Hello Palak Enterprises, I am inquiring about corporate / business printing solutions.")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-5 py-3 text-xs sm:text-sm font-bold text-white transition-colors"
-            >
-              Talk to B2B Team
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 -mt-6 space-y-14">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-8 space-y-14">
         {/* Industry Packages Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {businessSolutions.map((sol, idx) => {

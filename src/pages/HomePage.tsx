@@ -191,7 +191,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
         </section>
 
         {/* 6. Business & Bulk Printing Banner */}
-        <section className="rounded-3xl bg-[#123B70] text-white p-6 sm:p-10 relative overflow-hidden">
+        <section className="rounded-3xl border border-line bg-[#123B70] text-white p-6 sm:p-10 relative overflow-hidden shadow-raised">
+          {/* Ambient background glows */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-20"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
+            }}
+          />
+          {/* Subtle geometric dot grid pattern */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-[0.06]"
+            style={{
+              backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
+            }}
+          />
           <div className="relative z-10 max-w-2xl space-y-4">
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 px-3 py-1 text-xs font-bold">
               <Briefcase className="h-3.5 w-3.5" />

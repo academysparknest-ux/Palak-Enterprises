@@ -357,6 +357,15 @@ export async function updateStaffOrderStatus(
   staffNotes?: string
 ): Promise<void> {
   if (!isSupabaseConfigured || !supabase) return;
+
+  // Read current status before updating — for accurate history
+  const { data: currentOrder } = await supabase
+    .from("orders")
+    .select("order_status")
+    .eq("order_code", orderCode)
+    .single();
+  const previousStatus = currentOrder?.order_status || null;
+
   const updatePayload: any = {
     order_status: newStatus,
     updated_at: new Date().toISOString(),
@@ -370,15 +379,20 @@ export async function updateStaffOrderStatus(
 
   if (error) throw error;
 
-  // Insert status history entry
-  await supabase.from("status_history").insert({
+  // Insert status history entry with previous_status
+  const { error: historyError } = await supabase.from("status_history").insert({
     entity_type: "order",
     entity_code: orderCode,
+    previous_status: previousStatus,
     new_status: newStatus,
     message_en: `Order status updated to ${newStatus}`,
     message_hi: `ऑर्डर स्थिति ${newStatus} में अपडेट हुई`,
     performed_by: "Palak Staff ERP",
   });
+
+  if (historyError) {
+    console.error("Failed to insert status history:", historyError);
+  }
 }
 
 export async function updateStaffOrderPaymentStatus(
@@ -615,7 +629,11 @@ export function generatePrintOrderCode(): string {
   return `PE-${year}${month}${day}-${randomSuffix}`;
 }
 
-export async function getSecureSignedUrl(storagePath: string, expiresIn = 60 * 60 * 24 * 7): Promise<string> {
+export async function getSecureSignedUrl(
+  storagePath: string,
+  expiresIn = 60 * 60 * 24 * 7,
+  options?: { download?: boolean | string }
+): Promise<string> {
   if (!isSupabaseConfigured || !supabase || !storagePath) return "";
   try {
     const cleanPath = storagePath.startsWith("customer-documents/")
@@ -623,11 +641,15 @@ export async function getSecureSignedUrl(storagePath: string, expiresIn = 60 * 6
       : storagePath;
     const { data, error } = await supabase.storage
       .from("customer-documents")
-      .createSignedUrl(cleanPath, expiresIn);
+      .createSignedUrl(cleanPath, expiresIn, options as any);
 
-    if (error || !data?.signedUrl) return "";
+    if (error || !data?.signedUrl) {
+      console.error("[Palak Storage] Signed URL generation failed:", error?.message || "No signedUrl returned", "Path:", cleanPath);
+      return "";
+    }
     return data.signedUrl;
-  } catch {
+  } catch (err) {
+    console.error("[Palak Storage] Signed URL exception:", err);
     return "";
   }
 }

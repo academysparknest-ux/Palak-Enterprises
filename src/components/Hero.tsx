@@ -22,7 +22,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
   const currentLang = (lang || language || "en") as "en" | "hi";
 
   return (
-    <section className="relative overflow-hidden bg-[#123B70] text-white flex flex-col justify-center min-h-fit lg:min-h-[clamp(560px,72vh,700px)]">
+    <section className="relative overflow-hidden bg-[#123B70] text-white flex flex-col justify-center min-h-fit lg:min-h-[clamp(560px,72vh,700px)] pt-6 sm:pt-8 pb-10 sm:pb-14 border-b border-line">
       {/* Ambient background glows */}
       <div
         aria-hidden="true"
@@ -39,12 +39,12 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
         className="pointer-events-none absolute inset-0 opacity-[0.06]"
         style={{
           backgroundImage:
-            "radial-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px)",
+            "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
         }}
       />
 
-      <div className="relative mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-10">
+      <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6">
         <div className="grid gap-6 lg:gap-8 lg:grid-cols-[52%_48%] lg:items-center">
           
           {/* =========================================================================
@@ -152,10 +152,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
               RIGHT COLUMN: Quick Print Workflow Panel (48%)
              ========================================================================= */}
           <div className="relative">
-            {/* Subtle ambient glow behind card */}
-            <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-sky-500/20 blur-md opacity-60 pointer-events-none" />
-
-            <div className="relative rounded-2xl bg-white/[0.10] p-4 sm:p-5 border border-white/20 backdrop-blur-md shadow-xl space-y-3">
+            <div className="relative rounded-2xl bg-white/[0.08] p-4 sm:p-5 border border-white/15 backdrop-blur-md shadow-card space-y-3">
               
               {/* Top Header Bar */}
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">

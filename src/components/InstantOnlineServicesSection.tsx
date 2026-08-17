@@ -145,10 +145,25 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
   return (
     <section className={cn("space-y-6 sm:space-y-8", className)}>
       {/* Section Header */}
-      <div className="rounded-3xl border border-blue-100 bg-linear-to-br from-blue-900 via-[#123B70] to-slate-900 text-white p-6 sm:p-10 shadow-raised relative overflow-hidden">
-        {/* Subtle decorative glow */}
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-blue-400/10 blur-3xl pointer-events-none" />
+      <div className="rounded-3xl border border-line bg-[#123B70] text-white p-6 sm:p-10 shadow-raised relative overflow-hidden">
+        {/* Ambient background glows */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
+          }}
+        />
+        {/* Subtle geometric dot grid pattern */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
 
         <div className="relative z-10 max-w-3xl space-y-3">
           <div className="inline-flex items-center gap-2 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 px-3.5 py-1 text-xs font-black tracking-wide uppercase">

@@ -224,7 +224,25 @@ export const PosterBannerPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F7F8FA] pb-20">
       {/* Header */}
-      <div className="bg-[#123B70] text-white py-10 px-4 sm:px-6">
+      <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
+        {/* Ambient background glows */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
+          }}
+        />
+        {/* Subtle geometric dot grid pattern */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
         <div className="mx-auto max-w-5xl space-y-2.5">
           <div className="text-xs text-slate-300">
             <Link to="/" className="hover:underline">Home</Link> /{" "}

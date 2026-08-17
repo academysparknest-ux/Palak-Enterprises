@@ -6,6 +6,7 @@ import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { PalakDataStore } from "../lib/storage/store";
 import { getWhatsAppLink } from "../config/business";
+import { initiateRazorpayPayment } from "../lib/razorpay";
 
 export const CheckoutPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -77,42 +78,71 @@ export const CheckoutPage: React.FC = () => {
       const deliveryCharge = fulfillmentType === "delivery" ? 50 : 0;
       const finalTotal = calculatedSubtotal + deliveryCharge;
 
-      const order = await PalakDataStore.createOrder({
-        userId: user?.id,
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        customerEmail: customerEmail.trim() || undefined,
-        fulfillmentType,
-        deliveryAddress:
-          fulfillmentType === "delivery"
-            ? {
-                street: streetAddress.trim(),
-                landmark: landmark.trim() || undefined,
-                city: "Chakia",
-                pincode: "845412",
-              }
-            : undefined,
-        orderNotes: orderNotes.trim() || undefined,
-        subtotalAmount: calculatedSubtotal,
-        deliveryFee: deliveryCharge,
-        totalAmount: finalTotal,
-        paymentMethod: paymentMethod,
-        paymentStatus: paymentMethod === "pay_online" ? "paid" : "pending",
-        orderStatus: "NEW",
-        items,
-      });
+      const completeOrderCreation = async (razorpayPaymentId?: string) => {
+        const order = await PalakDataStore.createOrder({
+          userId: user?.id,
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim(),
+          customerEmail: customerEmail.trim() || undefined,
+          fulfillmentType,
+          deliveryAddress:
+            fulfillmentType === "delivery"
+              ? {
+                  street: streetAddress.trim(),
+                  landmark: landmark.trim() || undefined,
+                  city: "Chakia",
+                  pincode: "845412",
+                }
+              : undefined,
+          orderNotes: razorpayPaymentId 
+            ? `${orderNotes.trim() ? orderNotes.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]` 
+            : (orderNotes.trim() || undefined),
+          subtotalAmount: calculatedSubtotal,
+          deliveryFee: deliveryCharge,
+          totalAmount: finalTotal,
+          paymentMethod: paymentMethod,
+          paymentStatus: razorpayPaymentId ? "paid" : "pending",
+          orderStatus: "NEW",
+          items,
+        });
 
-      setPlacedOrder({
-        code: order.orderCode,
-        paymentMethod: order.paymentMethod,
-        paymentStatus: order.paymentStatus,
-        totalAmount: order.totalAmount,
-        fulfillmentType: order.fulfillmentType,
-      });
-      clearCart();
+        setPlacedOrder({
+          code: order.orderCode,
+          paymentMethod: order.paymentMethod,
+          paymentStatus: order.paymentStatus,
+          totalAmount: order.totalAmount,
+          fulfillmentType: order.fulfillmentType,
+        });
+        clearCart();
+        setIsSubmitting(false);
+      };
+
+      if (paymentMethod === "pay_online") {
+        await initiateRazorpayPayment({
+          amount: finalTotal,
+          name: "Palak Enterprises",
+          description: `Order checkout (${items.length} item${items.length > 1 ? "s" : ""})`,
+          prefill: {
+            name: customerName.trim(),
+            email: customerEmail.trim(),
+            contact: customerPhone.trim(),
+          },
+          onSuccess: async (paymentId) => {
+            await completeOrderCreation(paymentId);
+          },
+          onDismiss: () => {
+            setIsSubmitting(false);
+          },
+          onError: (err) => {
+            setError(err?.description || "Payment was cancelled or failed. You can try again or choose 'Pay at Shop Counter'.");
+            setIsSubmitting(false);
+          },
+        });
+      } else {
+        await completeOrderCreation();
+      }
     } catch (err: any) {
       setError(err.message || "Failed to place order. Please try again.");
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -120,8 +150,26 @@ export const CheckoutPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F7F8FA] pb-20">
       {/* Header */}
-      <div className="bg-[#123B70] text-white py-10 px-4 sm:px-6">
-        <div className="mx-auto max-w-7xl space-y-2">
+      <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 px-4 sm:px-6">
+        {/* Ambient background glows */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
+          }}
+        />
+        {/* Subtle geometric dot grid pattern */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+        <div className="relative mx-auto max-w-7xl space-y-2">
           <div className="text-xs text-slate-300">
             <Link to="/" className="hover:underline">Home</Link> / <Link to="/cart" className="hover:underline">Cart</Link> / <span className="text-amber-300">Checkout</span>
           </div>

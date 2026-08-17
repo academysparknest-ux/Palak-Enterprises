@@ -16,7 +16,7 @@ export function Footer(): React.JSX.Element {
   return (
     <footer className="bg-[#0F172A] pb-24 pt-10 text-white/80 lg:pb-14 border-t border-slate-800">
 
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 md:grid-cols-5">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:px-8 md:grid-cols-5">
         {/* Column 1: Brand & Registrations */}
         <div className="md:col-span-2 space-y-4">
           <Link to="/" className="flex items-center gap-3 group">
@@ -220,7 +220,7 @@ export function Footer(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-2 border-t border-slate-800 px-4 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-2 border-t border-slate-800 px-4 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
         <p>
           © {year} {business.name[currentLang]} ({business.unit[currentLang]}). {currentLang === "hi" ? "सर्वाधिकार सुरक्षित।" : "All rights reserved."}
         </p>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   User,
@@ -30,6 +30,7 @@ import {
   type StoredQuoteRequest,
 } from "../lib/storage/store";
 import { getUserOrders } from "../lib/supabase/database";
+import { supabase } from "../lib/supabase/client";
 import { SEO } from "../components/SEO";
 import { business, getWhatsAppLink } from "../config/business";
 
@@ -167,6 +168,41 @@ export const AccountPage: React.FC = () => {
     };
   }, [isAuthenticated, loading, userId, userPhone, userEmail]);
 
+  // Supabase Realtime: auto-refresh customer orders on status changes
+  const customerRealtimeRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated || !userId || !supabase) return;
+
+    const channel = supabase
+      .channel("customer-orders-realtime")
+      .on(
+        "postgres_changes" as any,
+        { event: "UPDATE", schema: "public", table: "orders", filter: `user_id=eq.${userId}` },
+        async () => {
+          // Refresh the customer's orders from database
+          try {
+            const fresh = await getUserOrders(userId);
+            if (fresh && fresh.length > 0) {
+              setCustomerOrders(fresh);
+            }
+          } catch (e) {
+            console.warn("[Palak] Customer realtime refresh failed:", e);
+          }
+        }
+      )
+      .subscribe();
+
+    customerRealtimeRef.current = channel;
+
+    const client = supabase;
+    return () => {
+      if (customerRealtimeRef.current && client) {
+        client.removeChannel(customerRealtimeRef.current);
+        customerRealtimeRef.current = null;
+      }
+    };
+  }, [isAuthenticated, userId]);
+
   const handleLogout = async () => {
     await logout();
     navigate("/", { replace: true });
@@ -300,8 +336,26 @@ export const AccountPage: React.FC = () => {
       />
 
       {/* Header Profile Banner */}
-      <div className="bg-[#123B70] text-white py-8 sm:py-10 px-4 sm:px-6">
-        <div className="mx-auto max-w-7xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-8 sm:py-10 px-4 sm:px-6">
+        {/* Ambient background glows */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
+          }}
+        />
+        {/* Subtle geometric dot grid pattern */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+        <div className="relative mx-auto max-w-7xl flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             {/* User Avatar */}
             {user?.avatarUrl ? (

@@ -168,13 +168,23 @@ export const ContactPage: React.FC = () => {
       />
 
       {/* Page Header Banner */}
-      <section className="bg-navy py-12 sm:py-16 text-white relative overflow-hidden">
+      <section className="relative overflow-hidden bg-[#123B70] border-b border-line text-white pt-6 pb-12 sm:pb-16">
+        {/* Ambient background glows */}
         <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-15"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-20"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 80% 20%, #F97316 0, transparent 40%), radial-gradient(circle at 20% 80%, #15803D 0, transparent 40%)",
+              "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
+          }}
+        />
+        {/* Subtle geometric dot grid pattern */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
           }}
         />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6">

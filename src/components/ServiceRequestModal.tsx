@@ -38,6 +38,8 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 
   const [errorMsg, setErrorMsg] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedCode, setSubmittedCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialPaymentMethod) {
@@ -142,8 +144,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
     return true;
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittedCode, setSubmittedCode] = useState<string | null>(null);
+
 
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -17,7 +17,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, className }) 
   return (
     <div
       className={cn(
-        "group relative flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg",
+        "group relative flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-[#123B70]/40 hover:shadow-md",
         className
       )}
     >

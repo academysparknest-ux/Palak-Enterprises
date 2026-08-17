@@ -214,34 +214,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
                   onMouseEnter={handleMouseEnter}
                   onMouseLeave={handleMouseLeave}
                 >
-                  {/* Mega Menu Top Header */}
-                  <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
-                    <div>
-                      <h3
-                        className={cn(
-                          "font-display text-base font-bold text-navy",
-                          currentLang === "hi" && "font-hindi text-lg"
-                        )}
-                      >
-                        {currentLang === "hi" ? "सेवा श्रेणियाँ व कैटलॉग" : "Service Categories & Hubs"}
-                      </h3>
-                      <p className={cn("text-xs text-slate-500", currentLang === "hi" && "font-hindi")}>
-                        {currentLang === "hi"
-                          ? "अपनी पसंद की श्रेणी या सेवा का चयन करें (50+ सेवाएँ)"
-                          : "Browse all 12 specialized service categories (50+ services)"}
-                      </p>
-                    </div>
-                    <Link
-                      to="/services"
-                      onClick={() => setServicesMenuOpen(false)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full bg-navy/5 px-3.5 py-1.5 text-xs font-bold text-navy transition-colors hover:bg-brandred hover:text-white",
-                        currentLang === "hi" && "font-hindi"
-                      )}
-                    >
-                      {currentLang === "hi" ? "सभी सेवाएँ देखें →" : "View All Services →"}
-                    </Link>
-                  </div>
 
                   {/* 3 Columns / 6 Groups Grid */}
                   <div className="grid grid-cols-3 gap-6 py-2">
@@ -589,24 +561,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
                     </div>
                   </div>
 
-                  {/* Mega Menu Footer Banner */}
-                  <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs border border-slate-100">
-                    <span className={cn("text-slate-600 font-medium", currentLang === "hi" && "font-hindi")}>
-                      {currentLang === "hi"
-                        ? "कोई विशेष आवश्यकता है? हमारे केंद्र पर संपर्क करें या ऑनलाइन अनुरोध भेजें।"
-                        : "Need a custom printing or online service? Contact our Chakia center today."}
-                    </span>
-                    <Link
-                      to="/request-quote"
-                      onClick={() => setServicesMenuOpen(false)}
-                      className={cn(
-                        "inline-flex items-center gap-1 font-bold text-brandred hover:underline",
-                        currentLang === "hi" && "font-hindi"
-                      )}
-                    >
-                      {currentLang === "hi" ? "कोटेशन / अनुरोध भेजें →" : "Request a Quote →"}
-                    </Link>
-                  </div>
                 </div>
               )}
             </div>

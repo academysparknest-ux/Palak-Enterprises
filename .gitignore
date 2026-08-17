@@ -45,3 +45,6 @@ ehthumbs.db
 # TypeScript Cache
 *.tsbuildinfo
 next-env.d.ts
+
+# Scratch & Temporary Scripts
+scratch/

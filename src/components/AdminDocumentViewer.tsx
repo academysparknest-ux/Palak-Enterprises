@@ -1,0 +1,609 @@
+import React, { useState, useEffect, useRef } from "react";
+import {
+  FileText,
+  FileCode,
+  Image as ImageIcon,
+  Printer,
+  Download,
+  ExternalLink,
+  X,
+  Loader2,
+  AlertTriangle,
+  Eye,
+  ShieldCheck,
+} from "lucide-react";
+import {
+  getFileCategory,
+  resolveDocumentUrl,
+  printDocumentFile,
+  downloadNonPdfFile,
+  type FileCategory,
+} from "../lib/documentUtils";
+import { cn } from "../lib/utils";
+
+export interface DocumentItem {
+  name: string;
+  url: string;
+  mimeType?: string;
+  size?: number;
+  orderCode?: string;
+}
+
+interface AdminFilePreviewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  document: DocumentItem | null;
+}
+
+export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
+  isOpen,
+  onClose,
+  document: doc,
+}) => {
+  const [resolvedUrl, setResolvedUrl] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const category: FileCategory = doc
+    ? getFileCategory(doc.name, doc.url, doc.mimeType)
+    : "other";
+
+  useEffect(() => {
+    if (!isOpen || !doc || !doc.url) {
+      setResolvedUrl("");
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+
+    // Resolve inline browser-accessible signed URL (download: false)
+    resolveDocumentUrl(doc.url, false, doc.name)
+      .then((url) => {
+        if (!isMounted) return;
+        if (!url) {
+          setError("Unable to preview this PDF. Please try again or contact support.");
+        } else {
+          setResolvedUrl(url);
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error("Failed to resolve document preview:", err);
+        setError("Unable to preview this PDF. Please try again or contact support.");
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, doc]);
+
+  if (!isOpen || !doc) return null;
+
+  const handlePrint = async () => {
+    if (!doc || !resolvedUrl) return;
+    setIsPrinting(true);
+    try {
+      if (category === "pdf" && iframeRef.current?.contentWindow) {
+        try {
+          iframeRef.current.contentWindow.focus();
+          iframeRef.current.contentWindow.print();
+        } catch {
+          await printDocumentFile(resolvedUrl, doc.name, doc.mimeType);
+        }
+      } else {
+        await printDocumentFile(resolvedUrl, doc.name, doc.mimeType);
+      }
+    } catch (err) {
+      console.error("Print error:", err);
+      window.open(resolvedUrl, "_blank");
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!doc || category === "pdf") return;
+    try {
+      await downloadNonPdfFile(doc.url, doc.name, doc.mimeType);
+    } catch (err) {
+      console.error("Download error:", err);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in">
+      <div className="relative flex flex-col w-full max-w-5xl h-[92vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+        {/* Modal Header Toolbar */}
+        <div className="flex items-center justify-between px-4 py-3 bg-[#0F172A] text-white border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={cn(
+              "p-2 rounded-lg text-white shrink-0",
+              category === "pdf" ? "bg-red-500/20 text-red-400 border border-red-500/30" :
+              category === "image" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" :
+              "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+            )}>
+              {category === "pdf" ? <FileText className="h-4 w-4" /> :
+               category === "image" ? <ImageIcon className="h-4 w-4" /> :
+               <FileCode className="h-4 w-4" />}
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-white truncate">{doc.name || "Customer Document"}</h3>
+                <span className={cn(
+                  "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                  category === "pdf" ? "bg-red-500/30 text-red-300" :
+                  category === "image" ? "bg-blue-500/30 text-blue-300" :
+                  "bg-slate-700 text-slate-300"
+                )}>
+                  {category.toUpperCase()}
+                </span>
+                {doc.orderCode && (
+                  <span className="text-xs text-slate-400 font-mono hidden sm:inline">
+                    [{doc.orderCode}]
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 truncate">
+                {category === "pdf"
+                  ? "Inline PDF Viewer — Direct Print & Customization Proofing"
+                  : "Customer Attached Document Preview"}
+              </p>
+            </div>
+          </div>
+
+          {/* Header Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Print Action (Supported for PDF and Images) */}
+            {(category === "pdf" || category === "image") && (
+              <button
+                type="button"
+                onClick={handlePrint}
+                disabled={loading || !!error || isPrinting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                title="Print directly without downloading to disk"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                <span>{isPrinting ? "Printing..." : category === "pdf" ? "Print PDF" : "Print"}</span>
+              </button>
+            )}
+
+            {/* Download Button: ONLY FOR NON-PDF FILES! NEVER SHOWN FOR PDF */}
+            {category !== "pdf" && (
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={loading || !!error}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-slate-700 transition-all cursor-pointer disabled:opacity-50"
+                title="Download original file"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Download</span>
+              </button>
+            )}
+
+            {/* Open in New Tab (Inline) */}
+            {resolvedUrl && !error && (
+              <a
+                href={resolvedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition-all"
+                title="Open preview in new browser tab"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">New Tab</span>
+              </a>
+            )}
+
+            {/* Close Modal */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              aria-label="Close Preview"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Security & Workflow Notification Banner */}
+        <div className="bg-slate-100 px-4 py-1.5 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-600 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <span>
+              {category === "pdf"
+                ? "Secure Customer PDF • Ready for print verification & production workflow."
+                : "Secure Document Stream • Authorized Staff Session"}
+            </span>
+          </div>
+          {category === "pdf" && (
+            <span className="text-slate-500 hidden md:inline">
+              PDF files are configured for direct preview & print.
+            </span>
+          )}
+        </div>
+
+        {/* Modal Main Content / Viewer */}
+        <div className="flex-1 bg-slate-900/5 relative overflow-hidden flex items-center justify-center p-2 sm:p-4">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-[#123B70]" />
+              <p className="text-xs font-semibold text-slate-600">Loading secure preview...</p>
+            </div>
+          ) : error ? (
+            <div className="max-w-md rounded-2xl bg-white p-6 shadow-sm border border-red-200 text-center space-y-3">
+              <div className="inline-flex p-3 rounded-full bg-red-50 text-red-600">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-900">Preview Unavailable</h4>
+              <p className="text-xs text-slate-600 leading-relaxed">{error}</p>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800"
+                >
+                  Close Window
+                </button>
+              </div>
+            </div>
+          ) : category === "pdf" ? (
+            <div className="w-full h-full rounded-xl overflow-hidden bg-white shadow-inner border border-slate-300 flex flex-col">
+              <iframe
+                ref={iframeRef}
+                src={`${resolvedUrl}#toolbar=1&navpanes=0`}
+                title={doc.name}
+                className="w-full flex-1 border-0"
+                onLoad={() => setLoading(false)}
+                onError={() => setError("Unable to preview this PDF. Please try again or contact support.")}
+              />
+            </div>
+          ) : category === "image" ? (
+            <div className="w-full h-full rounded-xl overflow-auto bg-slate-950/90 p-4 flex items-center justify-center shadow-inner">
+              <img
+                src={resolvedUrl}
+                alt={doc.name}
+                className="max-h-full max-w-full object-contain rounded-lg shadow-lg"
+              />
+            </div>
+          ) : (
+            <div className="max-w-md rounded-2xl bg-white p-6 shadow-sm border border-slate-200 text-center space-y-4">
+              <div className="inline-flex p-3 rounded-full bg-blue-50 text-[#123B70]">
+                <FileText className="h-8 w-8" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">{doc.name}</h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  This document format ({category.toUpperCase()}) is not supported for inline browser preview.
+                </p>
+              </div>
+              <div className="pt-2 flex justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download Document</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer Info */}
+        <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
+          <span className="truncate max-w-md">
+            File: <strong>{doc.name}</strong>
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-slate-400">
+              Format: {doc.mimeType || category.toUpperCase()}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export interface AdminFileActionsProps {
+  fileName?: string;
+  fileUrl?: string;
+  mimeType?: string;
+  fileSize?: number;
+  orderCode?: string;
+  compact?: boolean;
+  onOpenPreview?: (doc: DocumentItem) => void;
+}
+
+/**
+ * File List Item with strict file-type-specific action buttons.
+ *
+ * Rules:
+ * - PDF: [ Open PDF ] [ 🖨 Print ] (NO DOWNLOAD BUTTON)
+ * - Image: [ Open ] [ Download ] [ 🖨 Print ]
+ * - DOC/DOCX: [ Download ]
+ * - Other: [ Download ]
+ */
+export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
+  fileName,
+  fileUrl,
+  mimeType,
+  fileSize,
+  orderCode,
+  compact = false,
+  onOpenPreview,
+}) => {
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  if (!fileUrl && !fileName) {
+    return <span className="text-[11px] text-slate-400 italic">No digital file uploaded</span>;
+  }
+
+  const name = fileName || "customer-file";
+  const url = fileUrl || "";
+  const category = getFileCategory(name, url, mimeType);
+
+  const handleOpen = () => {
+    if (onOpenPreview) {
+      onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
+    } else {
+      resolveDocumentUrl(url, false, name).then((inlineUrl) => {
+        if (inlineUrl) window.open(inlineUrl, "_blank");
+      });
+    }
+  };
+
+  const handleDirectPrint = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsPrinting(true);
+    try {
+      await printDocumentFile(url, name, mimeType);
+    } catch (err) {
+      console.error("Print error:", err);
+      if (onOpenPreview) {
+        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
+      }
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleDirectDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (category === "pdf") return;
+    setIsDownloading(true);
+    try {
+      await downloadNonPdfFile(url, name, mimeType);
+    } catch (err) {
+      console.error("Download error:", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const formattedSize = fileSize
+    ? fileSize > 1024 * 1024
+      ? `${(fileSize / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.round(fileSize / 1024)} KB`
+    : null;
+
+  if (compact) {
+    return (
+      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200 text-xs shadow-2xs">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {category === "pdf" ? (
+            <span className="shrink-0 text-red-600 font-bold text-xs" title="PDF Document">📄</span>
+          ) : category === "image" ? (
+            <span className="shrink-0 text-blue-600 font-bold text-xs" title="Image File">🖼️</span>
+          ) : (
+            <span className="shrink-0 text-slate-600 font-bold text-xs" title="Document">📄</span>
+          )}
+          <span className="truncate font-semibold max-w-[130px] sm:max-w-[180px] text-slate-800 text-[11px]" title={name}>
+            {name}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* PDF Action Set */}
+          {category === "pdf" && (
+            <>
+              <button
+                type="button"
+                onClick={handleOpen}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold transition-colors cursor-pointer"
+                title="Open PDF Preview"
+              >
+                <Eye className="h-3 w-3" />
+                <span>Open PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDirectPrint}
+                disabled={isPrinting}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                title="Print PDF directly"
+              >
+                <Printer className="h-3 w-3" />
+                <span>{isPrinting ? "..." : "Print"}</span>
+              </button>
+            </>
+          )}
+
+          {/* Image Action Set */}
+          {category === "image" && (
+            <>
+              <button
+                type="button"
+                onClick={handleOpen}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition-colors cursor-pointer"
+                title="Open Image Preview"
+              >
+                <Eye className="h-3 w-3" />
+                <span>Open</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDirectDownload}
+                disabled={isDownloading}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                title="Download Image"
+              >
+                <Download className="h-3 w-3" />
+                <span>{isDownloading ? "..." : "Download"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDirectPrint}
+                disabled={isPrinting}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                title="Print Image"
+              >
+                <Printer className="h-3 w-3" />
+                <span>{isPrinting ? "..." : "Print"}</span>
+              </button>
+            </>
+          )}
+
+          {/* DOC/DOCX / Other Action Set */}
+          {category !== "pdf" && category !== "image" && (
+            <button
+              type="button"
+              onClick={handleDirectDownload}
+              disabled={isDownloading}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#123B70] hover:bg-[#0c274c] text-white text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+              title="Download Document"
+            >
+              <Download className="h-3 w-3" />
+              <span>{isDownloading ? "Downloading..." : "Download"}</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Full / Card Mode
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className={cn(
+          "p-2 rounded-lg shrink-0",
+          category === "pdf" ? "bg-red-100 text-red-700" :
+          category === "image" ? "bg-blue-100 text-blue-700" :
+          "bg-slate-200 text-slate-700"
+        )}>
+          {category === "pdf" ? <FileText className="h-4 w-4" /> :
+           category === "image" ? <ImageIcon className="h-4 w-4" /> :
+           <FileCode className="h-4 w-4" />}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-900 truncate" title={name}>
+              {name}
+            </span>
+            <span className={cn(
+              "px-1.5 py-0.2 rounded text-[9px] font-bold uppercase",
+              category === "pdf" ? "bg-red-100 text-red-800" :
+              category === "image" ? "bg-blue-100 text-blue-800" :
+              "bg-slate-200 text-slate-800"
+            )}>
+              {category.toUpperCase()}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+            {formattedSize && <span>{formattedSize}</span>}
+            {category === "pdf" ? (
+              <span className="text-red-600 font-medium">Inline Preview & Direct Print</span>
+            ) : (
+              <span>Customer Uploaded File</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        {/* PDF Workflow */}
+        {category === "pdf" && (
+          <>
+            <button
+              type="button"
+              onClick={handleOpen}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>Open PDF</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDirectPrint}
+              disabled={isPrinting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span>{isPrinting ? "Printing..." : "Print"}</span>
+            </button>
+          </>
+        )}
+
+        {/* Image Workflow */}
+        {category === "image" && (
+          <>
+            <button
+              type="button"
+              onClick={handleOpen}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>Open</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDirectDownload}
+              disabled={isDownloading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>{isDownloading ? "..." : "Download"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDirectPrint}
+              disabled={isPrinting}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span>{isPrinting ? "..." : "Print"}</span>
+            </button>
+          </>
+        )}
+
+        {/* DOC / DOCX / Other Workflow */}
+        {category !== "pdf" && category !== "image" && (
+          <button
+            type="button"
+            onClick={handleDirectDownload}
+            disabled={isDownloading}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>{isDownloading ? "Downloading..." : "Download"}</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};

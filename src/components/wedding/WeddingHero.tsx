@@ -18,19 +18,35 @@ export const WeddingHero: React.FC<WeddingHeroProps> = ({ onBrowseClick, onOpenC
   );
 
   return (
-    <div className="relative overflow-hidden bg-gradient-to-b from-[#FAF7F2] via-[#F5EFEB] to-[#FCFBF7] border-b border-[#E8E1D5] py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8">
-      {/* Subtle royal background decorative ornaments */}
-      <div className="absolute top-0 right-0 -mt-16 -mr-16 w-80 h-80 rounded-full bg-amber-200/20 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 -mb-16 -ml-16 w-80 h-80 rounded-full bg-rose-200/20 blur-3xl pointer-events-none" />
+    <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-12 sm:py-16 md:py-20 px-4 sm:px-6 lg:px-8">
+      {/* Ambient background glows */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-20"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
+        }}
+      />
+      {/* Subtle geometric dot grid pattern */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
       
       <div className="relative mx-auto max-w-7xl">
         {/* Breadcrumb Navigation */}
-        <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-xs font-semibold text-slate-500">
-          <Link to="/" className="hover:text-[#881337] transition-colors">
+        <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-2 text-xs font-semibold text-white/60">
+          <Link to="/" className="hover:text-white transition-colors">
             {currentLang === "hi" ? "होम" : "Home"}
           </Link>
           <span>/</span>
-          <span className="text-[#881337] font-bold">
+          <span className="text-amber-300 font-bold">
             {currentLang === "hi" ? "शादी एवं मांगलिक कार्ड" : "Wedding & Events Catalogue"}
           </span>
         </nav>
@@ -39,8 +55,8 @@ export const WeddingHero: React.FC<WeddingHeroProps> = ({ onBrowseClick, onOpenC
           {/* Left Column: Headline, Copy & CTAs */}
           <div className="lg:col-span-7 space-y-5 sm:space-y-6">
             {/* Top pill badge */}
-            <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-300/80 px-3.5 py-1 text-xs font-bold text-amber-900 shadow-xs">
-              <Sparkles className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/20 px-3.5 py-1 text-xs font-bold text-amber-300 shadow-xs">
+              <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
               <span>
                 {currentLang === "hi"
                   ? "शाही शादी, तिलक, मुंडन एवं मांगलिक निमंत्रण पत्र"
@@ -49,18 +65,18 @@ export const WeddingHero: React.FC<WeddingHeroProps> = ({ onBrowseClick, onOpenC
             </div>
 
             {/* Main Headline */}
-            <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-black tracking-tight text-slate-900 leading-[1.15]">
+            <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-black tracking-tight text-white leading-[1.15]">
               {currentLang === "hi" ? (
                 <>
                   मांगलिक पलों के लिए <br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#881337] via-[#B45309] to-[#9F1239]">
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-rose-300 to-amber-200">
                     शाही एवं सुंदर निमंत्रण
                   </span>
                 </>
               ) : (
                 <>
                   Beautiful Invitations for <br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#881337] via-[#B45309] to-[#9F1239]">
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-rose-300 to-amber-200">
                     Beautiful Moments
                   </span>
                 </>
@@ -68,7 +84,7 @@ export const WeddingHero: React.FC<WeddingHeroProps> = ({ onBrowseClick, onOpenC
             </h1>
 
             {/* Supporting Copy */}
-            <p className="text-sm sm:text-base text-slate-700 leading-relaxed max-w-2xl font-normal">
+            <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl font-normal">
               {currentLang === "hi"
                 ? "शुभ विवाह, तिलक, मुंडन, सगाई और गृह प्रवेश के लिए 500+ से अधिक आकर्षक डिज़ाइनों का डिजिटल कैटलॉग। शुद्ध हिंदी/संस्कृत श्लोक, गोल्डन फॉयल एम्बॉसिंग, लेज़र कटिंग एवं चकिया में इन-हाउस स्क्रीन व डिजिटल प्रिंटिंग।"
                 : "Explore Palak Enterprises' curated showroom of royal wedding cards, sacred Tilak & Mundan stationery, laser-cut floral invitations, and custom luxury box suites with bespoke Sanskrit shlokas and in-house gold foil printing in Chakia."}
@@ -79,7 +95,7 @@ export const WeddingHero: React.FC<WeddingHeroProps> = ({ onBrowseClick, onOpenC
               <button
                 type="button"
                 onClick={onBrowseClick}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#881337] hover:bg-[#700f2d] text-white px-6 py-3.5 text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-xl bg-brandred hover:bg-red-700 text-white px-6 py-3.5 text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
               >
                 <span>{currentLang === "hi" ? "कलेक्शन देखें" : "Browse Collection"}</span>
                 <ArrowDown className="h-4 w-4" />
@@ -89,17 +105,17 @@ export const WeddingHero: React.FC<WeddingHeroProps> = ({ onBrowseClick, onOpenC
                 <button
                   type="button"
                   onClick={onOpenCustomQuote}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-900 px-5 py-3.5 text-xs sm:text-sm font-bold shadow-xs hover:border-[#881337] transition-all cursor-pointer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/30 text-white px-5 py-3.5 text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer"
                 >
-                  <Sparkles className="h-4 w-4 text-amber-600" />
+                  <Sparkles className="h-4 w-4 text-amber-400" />
                   <span>{currentLang === "hi" ? "कस्टम डिज़ाइन कोटेशन" : "Request Custom Design"}</span>
                 </button>
               ) : (
                 <Link
                   to="/request-quote"
-                  className="inline-flex items-center gap-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-900 px-5 py-3.5 text-xs sm:text-sm font-bold shadow-xs hover:border-[#881337] transition-all"
+                  className="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/30 text-white px-5 py-3.5 text-xs sm:text-sm font-bold shadow-xs transition-all"
                 >
-                  <Sparkles className="h-4 w-4 text-amber-600" />
+                  <Sparkles className="h-4 w-4 text-amber-400" />
                   <span>{currentLang === "hi" ? "कस्टम डिज़ाइन कोटेशन" : "Request Custom Design"}</span>
                 </Link>
               )}
@@ -108,30 +124,30 @@ export const WeddingHero: React.FC<WeddingHeroProps> = ({ onBrowseClick, onOpenC
                 href={whatsappInquiryUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-5 py-3.5 text-xs sm:text-sm font-bold transition-colors shadow-xs"
+                className="inline-flex items-center gap-2 rounded-xl bg-leaf hover:bg-emerald-700 text-white border border-emerald-500/40 px-5 py-3.5 text-xs sm:text-sm font-bold transition-colors shadow-xs"
               >
-                <MessageSquare className="h-4 w-4 text-emerald-600" />
+                <MessageSquare className="h-4 w-4" />
                 <span>WhatsApp Us</span>
               </a>
             </div>
 
             {/* Trust Micro Badges */}
-            <div className="pt-4 border-t border-slate-200/80 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-slate-600">
+            <div className="pt-4 border-t border-white/15 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-slate-300">
               <div className="flex items-center gap-2">
-                <Printer className="h-4 w-4 text-[#881337] shrink-0" />
-                <span className="font-semibold text-slate-800">
+                <Printer className="h-4 w-4 text-amber-400 shrink-0" />
+                <span className="font-semibold text-white">
                   {currentLang === "hi" ? "चकिया में इन-हाउस प्रिंटिंग" : "In-House Press in Chakia"}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span className="font-semibold text-slate-800">
+                <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span className="font-semibold text-white">
                   {currentLang === "hi" ? "हिंदी एवं संस्कृत श्लोक प्रूफ़िंग" : "Sanskrit & Hindi Calligraphy"}
                 </span>
               </div>
               <div className="flex items-center gap-2 col-span-2 sm:col-span-1">
-                <MapPin className="h-4 w-4 text-amber-600 shrink-0" />
-                <span className="font-semibold text-slate-800">
+                <MapPin className="h-4 w-4 text-amber-400 shrink-0" />
+                <span className="font-semibold text-white">
                   {currentLang === "hi" ? "500+ फिजिकल सैंपल स्टोर में" : "500+ Walk-in Store Samples"}
                 </span>
               </div>

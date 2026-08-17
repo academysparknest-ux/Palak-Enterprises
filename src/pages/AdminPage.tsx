@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Package,
@@ -11,7 +11,6 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  Download,
   MessageSquare,
   Settings,
   Save,
@@ -20,7 +19,6 @@ import {
   X,
   CreditCard,
   History,
-  FileDown,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -30,6 +28,7 @@ import {
   type StoredQuoteRequest,
   type StoredDesignRequest,
 } from "../lib/storage/store";
+import { supabase } from "../lib/supabase/client";
 import {
   getStaffOrders,
   getStaffServiceRequests,
@@ -38,7 +37,6 @@ import {
   updateStaffOrderPaymentStatus,
   addStaffOrderNote,
   getOrderStatusHistory,
-  getSecureSignedUrl,
   updateStaffServiceStatus,
   updateStaffQuoteStatus,
   getPrintPricingConfig,
@@ -49,6 +47,11 @@ import {
   type PrintPricingConfig,
 } from "../config/printPricing";
 import { getWhatsAppLink } from "../config/business";
+import {
+  AdminFilePreviewModal,
+  AdminFileActions,
+  type DocumentItem,
+} from "../components/AdminDocumentViewer";
 import { cn } from "../lib/utils";
 
 export const AdminPage: React.FC = () => {
@@ -62,6 +65,9 @@ export const AdminPage: React.FC = () => {
   const [quoteRequests, setQuoteRequests] = useState<StoredQuoteRequest[]>([]);
   const [designRequests, setDesignRequests] = useState<StoredDesignRequest[]>([]);
 
+  // Active Document Preview in Modal
+  const [activePreviewDoc, setActivePreviewDoc] = useState<DocumentItem | null>(null);
+
   // Search & Filter for Orders
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -74,6 +80,7 @@ export const AdminPage: React.FC = () => {
   const [staffNoteInput, setStaffNoteInput] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
   // Pricing Config
   const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
@@ -90,8 +97,17 @@ export const AdminPage: React.FC = () => {
         getPrintPricingConfig().catch(() => DEFAULT_PRINT_PRICING),
       ]);
 
-      if (cloudOrders.length > 0) setOrders(cloudOrders);
-      else setOrders(PalakDataStore.getOrders());
+      if (cloudOrders.length > 0) {
+        setOrders(cloudOrders);
+        // Sync the detail modal with fresh data from database
+        setSelectedOrderForModal((prev) => {
+          if (!prev) return null;
+          const fresh = cloudOrders.find((o) => o.orderCode === prev.orderCode);
+          return fresh || null;
+        });
+      } else {
+        setOrders(PalakDataStore.getOrders());
+      }
 
       if (cloudServices.length > 0) setServiceRequests(cloudServices);
       else setServiceRequests(PalakDataStore.getServiceRequests());
@@ -117,6 +133,42 @@ export const AdminPage: React.FC = () => {
     }
   }, [isStaff, loadData]);
 
+  // Supabase Realtime subscription for orders table
+  const realtimeChannelRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
+  useEffect(() => {
+    if (!isStaff || !supabase) return;
+
+    const channel = supabase
+      .channel("admin-orders-realtime")
+      .on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "orders" },
+        () => {
+          // Refresh orders from database on any change
+          loadData();
+        }
+      )
+      .subscribe((status: string) => {
+        if (status === "SUBSCRIBED") {
+          console.info("[Palak ERP] Realtime subscription active for orders table.");
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            "[Palak ERP] Realtime subscription could not connect. " +
+            "Ensure the 'orders' table is added to the supabase_realtime publication in your Supabase Dashboard."
+          );
+        }
+      });
+
+    realtimeChannelRef.current = channel;
+
+    return () => {
+      if (realtimeChannelRef.current && supabase) {
+        supabase.removeChannel(realtimeChannelRef.current);
+        realtimeChannelRef.current = null;
+      }
+    };
+  }, [isStaff, loadData]);
+
   // Open Order Drawer & Load Timeline
   const handleOpenOrderModal = async (order: StoredOrder) => {
     setSelectedOrderForModal(order);
@@ -134,17 +186,23 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleUpdateOrderStatus = async (orderCode: string, newStatus: StoredOrder["orderStatus"]) => {
+    if (updatingStatus) return; // Prevent double-clicks / concurrent updates
+    setUpdatingStatus(orderCode);
     try {
       await updateStaffOrderStatus(orderCode, newStatus);
+      // Only update local store + UI after confirmed cloud success
+      PalakDataStore.updateOrderStatus(orderCode, newStatus);
+      await loadData();
+      if (selectedOrderForModal && selectedOrderForModal.orderCode === orderCode) {
+        setSelectedOrderForModal((prev) => prev ? { ...prev, orderStatus: newStatus } : null);
+        const history = await getOrderStatusHistory(orderCode);
+        setOrderHistoryTimeline(history);
+      }
     } catch (e) {
-      console.warn("Cloud update notice:", e);
-    }
-    PalakDataStore.updateOrderStatus(orderCode, newStatus);
-    await loadData();
-    if (selectedOrderForModal && selectedOrderForModal.orderCode === orderCode) {
-      setSelectedOrderForModal((prev) => prev ? { ...prev, orderStatus: newStatus } : null);
-      const history = await getOrderStatusHistory(orderCode);
-      setOrderHistoryTimeline(history);
+      console.error("Status update failed — database not updated:", e);
+      // Do NOT update local state or UI on failure
+    } finally {
+      setUpdatingStatus(null);
     }
   };
 
@@ -184,40 +242,6 @@ export const AdminPage: React.FC = () => {
       console.error("Save note error:", e);
     } finally {
       setSavingNote(false);
-    }
-  };
-
-  const handleDownloadFile = async (urlOrPath: string, fileName?: string) => {
-    if (!urlOrPath) return;
-    try {
-      let downloadUrl = urlOrPath;
-      if (!urlOrPath.startsWith("data:") && !urlOrPath.startsWith("http://") && !urlOrPath.startsWith("https://")) {
-        const signed = await getSecureSignedUrl(urlOrPath, 3600);
-        if (signed) downloadUrl = signed;
-      }
-
-      const safeName = fileName || `document-${Date.now()}`;
-
-      if (downloadUrl.startsWith("data:")) {
-        const link = document.createElement("a");
-        link.href = downloadUrl;
-        link.download = safeName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        const link = document.createElement("a");
-        link.href = downloadUrl;
-        link.download = safeName;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    } catch (err) {
-      console.error("Download error:", err);
-      window.open(urlOrPath, "_blank");
     }
   };
 
@@ -716,9 +740,10 @@ export const AdminPage: React.FC = () => {
                             {/* Status Selector */}
                             <select
                               value={order.orderStatus}
+                              disabled={updatingStatus === order.orderCode}
                               onChange={(e: any) => handleUpdateOrderStatus(order.orderCode, e.target.value)}
                               className={cn(
-                                "rounded-xl border px-3 py-1.5 text-xs font-black uppercase tracking-wider focus:outline-hidden cursor-pointer",
+                                "rounded-xl border px-3 py-1.5 text-xs font-black uppercase tracking-wider focus:outline-hidden cursor-pointer disabled:opacity-50",
                                 order.orderStatus === "READY_FOR_PICKUP"
                                   ? "bg-emerald-50 text-emerald-800 border-emerald-300"
                                   : order.orderStatus === "IN_PRODUCTION"
@@ -796,28 +821,33 @@ export const AdminPage: React.FC = () => {
                           </div>
 
                           {/* File & Instructions */}
-                          <div className="rounded-xl bg-slate-50 p-3 space-y-1.5">
+                          <div className="rounded-xl bg-slate-50 p-3 space-y-2">
                             <span className="font-bold text-slate-700 block uppercase text-[10px] tracking-wider">
-                              Attached File & Notes
+                              Attached Customer Files {order.items?.filter((it) => it.uploadedFileName || it.uploadedFileUrl).length > 1 ? `(${order.items.filter((it) => it.uploadedFileName || it.uploadedFileUrl).length})` : ""}
                             </span>
-                            {firstItem?.uploadedFileName || firstItem?.uploadedFileUrl ? (
-                              <div className="flex items-center justify-between text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-200">
-                                <span className="truncate font-semibold max-w-[140px]">{firstItem.uploadedFileName || "document"}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDownloadFile(firstItem.uploadedFileUrl || "", firstItem.uploadedFileName)}
-                                  className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline cursor-pointer"
-                                >
-                                  <Download className="h-3.5 w-3.5" />
-                                  <span>Download</span>
-                                </button>
+
+                            {order.items?.some((it) => it.uploadedFileName || it.uploadedFileUrl) ? (
+                              <div className="space-y-1.5">
+                                {order.items
+                                  .filter((it) => it.uploadedFileName || it.uploadedFileUrl)
+                                  .map((it, idx) => (
+                                    <AdminFileActions
+                                      key={idx}
+                                      fileName={it.uploadedFileName}
+                                      fileUrl={it.uploadedFileUrl}
+                                      mimeType={it.selectedOptions?.mimeType}
+                                      orderCode={order.orderCode}
+                                      compact
+                                      onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                                    />
+                                  ))}
                               </div>
                             ) : (
-                              <span className="text-[11px] text-slate-400">No digital file uploaded</span>
+                              <span className="text-[11px] text-slate-400 italic">No digital file uploaded</span>
                             )}
 
                             {order.orderNotes && (
-                              <p className="text-[11px] text-slate-500 italic">
+                              <p className="text-[11px] text-slate-500 italic bg-white/70 p-2 rounded-lg border border-slate-200">
                                 Note: "{order.orderNotes}"
                               </p>
                             )}
@@ -1163,7 +1193,7 @@ export const AdminPage: React.FC = () => {
                         <span className="text-xs text-slate-500 ml-2">({req.customerName} - {req.customerPhone})</span>
                       </div>
 
-                      <select
+                        <select
                         value={req.requestStatus}
                         onChange={(e: any) => handleUpdateServiceStatus(req.requestCode, e.target.value)}
                         className="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-800 cursor-pointer"
@@ -1173,6 +1203,26 @@ export const AdminPage: React.FC = () => {
                         ))}
                       </select>
                     </div>
+
+                    {req.uploadedDocumentUrls && req.uploadedDocumentUrls.length > 0 && (
+                      <div className="pt-2 border-t border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                          Applicant Documents ({req.uploadedDocumentUrls.length})
+                        </span>
+                        <div className="space-y-1">
+                          {req.uploadedDocumentUrls.map((url, idx) => (
+                            <AdminFileActions
+                              key={idx}
+                              fileName={req.uploadedDocumentNames?.[idx] || `applicant-doc-${idx + 1}`}
+                              fileUrl={url}
+                              orderCode={req.requestCode}
+                              compact
+                              onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -1213,6 +1263,26 @@ export const AdminPage: React.FC = () => {
                         <option value="DECLINED">DECLINED</option>
                       </select>
                     </div>
+
+                    {q.referenceFileUrls && q.referenceFileUrls.length > 0 && (
+                      <div className="pt-2 border-t border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                          Reference Documents ({q.referenceFileUrls.length})
+                        </span>
+                        <div className="space-y-1">
+                          {q.referenceFileUrls.map((url, idx) => (
+                            <AdminFileActions
+                              key={idx}
+                              fileName={q.referenceFileNames?.[idx] || `reference-doc-${idx + 1}`}
+                              fileUrl={url}
+                              orderCode={q.quoteCode}
+                              compact
+                              onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -1253,6 +1323,35 @@ export const AdminPage: React.FC = () => {
                         <option value="SENT_TO_PRINT">SENT_TO_PRINT</option>
                       </select>
                     </div>
+
+                    {((d.referenceFileUrls && d.referenceFileUrls.length > 0) || d.proofFileUrl) && (
+                      <div className="pt-2 border-t border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                          Design Assets & Proofs
+                        </span>
+                        <div className="space-y-1">
+                          {d.referenceFileUrls?.map((url, idx) => (
+                            <AdminFileActions
+                              key={idx}
+                              fileName={d.referenceFileNames?.[idx] || `design-ref-${idx + 1}`}
+                              fileUrl={url}
+                              orderCode={d.designCode}
+                              compact
+                              onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                            />
+                          ))}
+                          {d.proofFileUrl && (
+                            <AdminFileActions
+                              fileName="design-proof"
+                              fileUrl={d.proofFileUrl}
+                              orderCode={d.designCode}
+                              compact
+                              onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -1417,20 +1516,20 @@ export const AdminPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Attached File Download */}
+                  {/* Attached File Display & Actions */}
                   {(item.uploadedFileName || item.uploadedFileUrl) && (
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 border border-blue-200">
-                      <div className="flex items-center gap-2">
-                        <FileDown className="h-4 w-4 text-[#123B70]" />
-                        <span className="text-xs font-bold text-slate-900">{item.uploadedFileName || "Customer File"}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadFile(item.uploadedFileUrl || "", item.uploadedFileName)}
-                        className="px-3 py-1.5 rounded-lg bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold shadow-xs cursor-pointer"
-                      >
-                        Download Original File
-                      </button>
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
+                        Customer Artwork / Attached Document
+                      </span>
+                      <AdminFileActions
+                        fileName={item.uploadedFileName}
+                        fileUrl={item.selectedOptions?.storagePath || item.uploadedFileUrl}
+                        mimeType={item.selectedOptions?.mimeType}
+                        orderCode={selectedOrderForModal.orderCode}
+                        compact={false}
+                        onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                      />
                     </div>
                   )}
                 </div>
@@ -1477,9 +1576,10 @@ export const AdminPage: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
+                  disabled={Boolean(updatingStatus)}
                   onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "UNDER_REVIEW")}
                   className={cn(
-                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
                     selectedOrderForModal.orderStatus === "UNDER_REVIEW"
                       ? "bg-amber-500 text-white border-amber-600"
                       : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
@@ -1490,9 +1590,10 @@ export const AdminPage: React.FC = () => {
 
                 <button
                   type="button"
+                  disabled={Boolean(updatingStatus)}
                   onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "CONFIRMED")}
                   className={cn(
-                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
                     selectedOrderForModal.orderStatus === "CONFIRMED"
                       ? "bg-blue-600 text-white border-blue-700"
                       : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
@@ -1503,9 +1604,10 @@ export const AdminPage: React.FC = () => {
 
                 <button
                   type="button"
+                  disabled={Boolean(updatingStatus)}
                   onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "IN_PRODUCTION")}
                   className={cn(
-                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
                     selectedOrderForModal.orderStatus === "IN_PRODUCTION"
                       ? "bg-indigo-600 text-white border-indigo-700"
                       : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
@@ -1516,9 +1618,10 @@ export const AdminPage: React.FC = () => {
 
                 <button
                   type="button"
+                  disabled={Boolean(updatingStatus)}
                   onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "READY_FOR_PICKUP")}
                   className={cn(
-                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
                     selectedOrderForModal.orderStatus === "READY_FOR_PICKUP"
                       ? "bg-emerald-600 text-white border-emerald-700"
                       : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
@@ -1529,9 +1632,10 @@ export const AdminPage: React.FC = () => {
 
                 <button
                   type="button"
+                  disabled={Boolean(updatingStatus)}
                   onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "COMPLETED")}
                   className={cn(
-                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
                     selectedOrderForModal.orderStatus === "COMPLETED"
                       ? "bg-slate-900 text-white border-black"
                       : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
@@ -1542,9 +1646,10 @@ export const AdminPage: React.FC = () => {
 
                 <button
                   type="button"
+                  disabled={Boolean(updatingStatus)}
                   onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "CANCELLED")}
                   className={cn(
-                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer",
+                    "py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
                     selectedOrderForModal.orderStatus === "CANCELLED"
                       ? "bg-rose-600 text-white border-rose-700"
                       : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-rose-700"
@@ -1591,6 +1696,13 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Dedicated Inline Document & PDF Preview Modal */}
+      <AdminFilePreviewModal
+        isOpen={!!activePreviewDoc}
+        onClose={() => setActivePreviewDoc(null)}
+        document={activePreviewDoc}
+      />
     </div>
   );
 };

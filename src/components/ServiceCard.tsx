@@ -40,7 +40,7 @@ export default function ServiceCard({
   const detailHref = `/services/${service.categoryId}/${service.slug}`;
 
   return (
-    <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-navy/30 hover:shadow-lg">
+    <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-[#123B70]/40 hover:shadow-md">
       {/* Top Image Preview Header */}
       <div className="relative aspect-16/10 w-full overflow-hidden bg-slate-100 border-b border-slate-100">
         <Link to={detailHref} className="block h-full w-full" tabIndex={-1}>
