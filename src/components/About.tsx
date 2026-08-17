@@ -1,7 +1,9 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
-import { businessConfig } from "../config/business";
-import { Award, UserCheck, ShieldCheck, MapPin, Phone } from "lucide-react";
+import { businessConfig, business } from "../config/business";
+import { Award, ShieldCheck, MapPin, Phone, Building } from "lucide-react";
+import { cn } from "../lib/utils";
 
 export const About: React.FC = () => {
   const { language, t } = useLanguage();
@@ -13,40 +15,48 @@ export const About: React.FC = () => {
           <div className="grid lg:grid-cols-12 gap-12 items-center">
             {/* Left Column Text */}
             <div className="lg:col-span-7 space-y-6">
-              <span className="text-xs font-bold text-brandred bg-red-50/70 border border-red-200/60 px-3.5 py-1 rounded-full uppercase tracking-wider">
-                {language === "hi" ? "हमारे बारे में" : "About Palak Enterprises"}
-              </span>
+              <div className="inline-flex items-center gap-2 rounded-pill bg-red-50 border border-red-200/60 px-3.5 py-1 text-xs font-bold text-brandred uppercase tracking-wider">
+                <Building size={14} />
+                <span>{language === "hi" ? "हमारे बारे में" : "About Palak Enterprises"}</span>
+              </div>
 
-              <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight">
+              <h2 className={cn(
+                "text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight",
+                language === "hi" && "font-hindi"
+              )}>
                 {t.about.title}
               </h2>
 
-              <p className="text-slate-700 text-base leading-relaxed">
+              <p className={cn("text-slate-700 text-base leading-relaxed", language === "hi" && "font-hindi")}>
                 {t.about.p1}
               </p>
 
-              <p className="text-slate-700 text-base leading-relaxed">
+              <p className={cn("text-slate-700 text-base leading-relaxed", language === "hi" && "font-hindi")}>
                 {t.about.p2}
               </p>
 
-              <p className="text-slate-700 text-base leading-relaxed">
-                {t.about.p3}
-              </p>
-
               {/* Badges */}
-              <div className="flex flex-wrap gap-3 pt-2">
-                <span className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-bold text-xs shadow-xs flex items-center">
-                  <Award className="w-4 h-4 mr-1.5 text-navy" />
-                  {t.about.badge1}
+              <div className="flex flex-wrap gap-2.5 pt-1">
+                <span className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-bold text-xs shadow-xs flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-leaf" />
+                  <span>CSC: {business.registrations.cscId}</span>
                 </span>
-                <span className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-bold text-xs shadow-xs flex items-center">
-                  <ShieldCheck className="w-4 h-4 mr-1.5 text-brandred" />
-                  {t.about.badge2}
+                <span className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-bold text-xs shadow-xs flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-navy" />
+                  <span>MSME: {business.registrations.udyamNo}</span>
                 </span>
-                <span className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-bold text-xs shadow-xs flex items-center">
-                  <UserCheck className="w-4 h-4 mr-1.5 text-leaf" />
-                  {t.about.badge3}
-                </span>
+              </div>
+
+              <div className="pt-2">
+                <Link
+                  to="/about"
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-pill bg-navy px-5 py-2.5 text-xs font-bold text-white shadow-card hover:bg-brandred transition-colors",
+                    language === "hi" && "font-hindi"
+                  )}
+                >
+                  <span>{language === "hi" ? "संस्थान के बारे में और जानें →" : "Read Full Story & Mission →"}</span>
+                </Link>
               </div>
             </div>
 
@@ -54,7 +64,7 @@ export const About: React.FC = () => {
             <div className="lg:col-span-5">
               <div className="bg-white rounded-2xl border border-line shadow-sm p-6 sm:p-8 space-y-6">
                 <div className="flex items-center space-x-4 pb-6 border-b border-line">
-                  <div className="w-16 h-16 rounded-2xl bg-navy text-white flex items-center justify-center font-black text-2xl shadow-md">
+                  <div className="w-16 h-16 rounded-2xl bg-navy text-white flex items-center justify-center font-black text-2xl shadow-md shrink-0">
                     P
                   </div>
                   <div>
@@ -99,3 +109,4 @@ export const About: React.FC = () => {
     </section>
   );
 };
+

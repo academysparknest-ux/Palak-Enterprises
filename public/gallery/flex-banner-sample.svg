@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgWall" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="50%" stop-color="#b91c1c"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+    <linearGradient id="yellowBox" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#facc15"/>
+      <stop offset="100%" stop-color="#eab308"/>
+    </linearGradient>
+    <filter id="bannerShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgWall)"/>
+
+  <!-- Star Flex Banner Board Outer Frame -->
+  <g filter="url(#bannerShadow)" transform="translate(80, 100)">
+    <!-- Banner Sheet -->
+    <rect width="640" height="400" rx="6" fill="url(#bannerBg)" stroke="#ffffff" stroke-width="4"/>
+
+    <!-- Brass Grommets / Eyelets at Corners -->
+    <circle cx="20" cy="20" r="10" fill="#78716c" stroke="#f59e0b" stroke-width="3"/>
+    <circle cx="620" cy="20" r="10" fill="#78716c" stroke="#f59e0b" stroke-width="3"/>
+    <circle cx="20" cy="380" r="10" fill="#78716c" stroke="#f59e0b" stroke-width="3"/>
+    <circle cx="620" cy="380" r="10" fill="#78716c" stroke="#f59e0b" stroke-width="3"/>
+    
+    <!-- Heavy Frontlit Flex Banner Texture lines -->
+    <rect x="15" y="15" width="610" height="370" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="2"/>
+
+    <!-- Header Yellow Block -->
+    <rect x="30" y="35" width="580" height="85" rx="8" fill="url(#yellowBox)"/>
+    <text x="320" y="80" font-family="system-ui, sans-serif" font-weight="900" font-size="32" fill="#7f1d1d" text-anchor="middle" letter-spacing="2">PALAK GENERAL STORE</text>
+    <text x="320" y="105" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#000000" text-anchor="middle">COMPLETE GROCERY, STATIONERY &amp; DAILY NEEDS</text>
+
+    <!-- Services Bullet List Box -->
+    <rect x="40" y="140" width="350" height="220" rx="8" fill="#ffffff" fill-opacity="0.95"/>
+    <text x="60" y="175" font-family="system-ui, sans-serif" font-weight="900" font-size="18" fill="#dc2626">★ हमारे यहाँ उपलब्ध सेवाएँ:</text>
+
+    <text x="60" y="210" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#1e293b">✔ किराना एवं जनरल सामान</text>
+    <text x="60" y="240" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#1e293b">✔ स्कूल स्टेशनरी एवं कॉपी-किताब</text>
+    <text x="60" y="270" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#1e293b">✔ ऑनलाइन फॉर्म, फोटोकॉपी व लैमिनेशन</text>
+    <text x="60" y="300" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#1e293b">✔ अर्जेंट पासपोर्ट फोटो (5 मिनट)</text>
+    <text x="60" y="335" font-family="system-ui, sans-serif" font-weight="bold" font-size="13" fill="#166534">📞 संपर्क: 9876543210, 9123456789</text>
+
+    <!-- Right Side Special Offer Badge -->
+    <circle cx="510" cy="230" r="85" fill="#facc15" stroke="#ffffff" stroke-width="4"/>
+    <text x="510" y="210" font-family="system-ui, sans-serif" font-weight="900" font-size="20" fill="#991b1b" text-anchor="middle">SPECIAL</text>
+    <text x="510" y="235" font-family="system-ui, sans-serif" font-weight="900" font-size="28" fill="#000000" text-anchor="middle">OFFER</text>
+    <text x="510" y="260" font-family="system-ui, sans-serif" font-weight="bold" font-size="13" fill="#166534" text-anchor="middle">BEST QUALITY PRINT</text>
+
+    <!-- Footer Flex Printing Tag -->
+    <rect x="410" y="330" width="200" height="35" rx="6" fill="#000000" fill-opacity="0.8"/>
+    <text x="510" y="352" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#facc15" text-anchor="middle">Printed by Palak Printing Press</text>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

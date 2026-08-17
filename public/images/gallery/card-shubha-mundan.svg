@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgMundan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff1f2"/>
+      <stop offset="100%" stop-color="#ffe4e6"/>
+    </linearGradient>
+    <linearGradient id="goldMundan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9f1239"/>
+      <stop offset="100%" stop-color="#be123c"/>
+    </linearGradient>
+    <filter id="shadowM" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#881337" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgMundan)"/>
+
+  <!-- Mundan Card Board -->
+  <g filter="url(#shadowM)" transform="translate(190, 85)">
+    <rect width="420" height="430" rx="16" fill="#ffffff" stroke="#e11d48" stroke-width="2.5"/>
+    <rect x="12" y="12" width="396" height="406" rx="10" fill="none" stroke="#f43f5e" stroke-dasharray="6,4" stroke-width="1.5"/>
+
+    <!-- Emblem -->
+    <circle cx="210" cy="70" r="28" fill="#fff1f2" stroke="#e11d48" stroke-width="1.5"/>
+    <text x="210" y="78" font-family="Georgia, serif" font-weight="bold" font-size="20" fill="#be123c" text-anchor="middle">👶 ॐ 👶</text>
+
+    <!-- Header -->
+    <text x="210" y="125" font-family="Georgia, serif" font-weight="bold" font-size="16" fill="#881337" text-anchor="middle">॥ शुभ मुंडन एवं चूड़ाकरण संस्कार ॥</text>
+    <text x="210" y="148" font-family="Georgia, serif" font-size="11" fill="#9f1239" text-anchor="middle">परम पूज्य कुलदेवता के आशीर्वाद से आमंत्रण</text>
+
+    <line x1="50" y1="165" x2="370" y2="165" stroke="#fecdd3" stroke-width="1.5"/>
+
+    <!-- Child Name -->
+    <text x="210" y="210" font-family="Georgia, serif" font-style="italic" font-weight="bold" font-size="26" fill="#e11d48" text-anchor="middle">चि. आरव (बाबू)</text>
+    <text x="210" y="235" font-family="Georgia, serif" font-size="12" fill="#475569" text-anchor="middle">के मुंडन संस्कार एवं प्रीतिभोज में आप सपरिवार सादर आमंत्रित हैं</text>
+
+    <!-- Details Box -->
+    <rect x="45" y="260" width="330" height="95" rx="8" fill="#fff1f2" stroke="#fda4af" stroke-width="1"/>
+    <text x="210" y="290" font-family="system-ui, sans-serif" font-weight="bold" font-size="13" fill="#881337" text-anchor="middle">दिनांक: 5 दिसंबर 2026</text>
+    <text x="210" y="312" font-family="system-ui, sans-serif" font-size="12" fill="#475569" text-anchor="middle">स्थान: सिद्धेश्वर धाम / निज आवास, चकिया</text>
+    <text x="210" y="335" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#be123c" text-anchor="middle">पालक प्रिंटिंग प्रेस • SKU: PE-MDN-201</text>
+  </g>
+</svg>

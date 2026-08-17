@@ -79,7 +79,7 @@ export const ProductDetailPage: React.FC = () => {
               {/* Thumbnail selector */}
               {images.length > 1 && (
                 <div className="mt-4 flex items-center gap-2.5">
-                  {images.map((img, idx) => (
+                  {images.map((img: string, idx: number) => (
                     <button
                       key={idx}
                       onClick={() => setActiveImage(img)}

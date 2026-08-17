@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="landBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#451a03"/>
+      <stop offset="100%" stop-color="#1c1917"/>
+    </linearGradient>
+    <filter id="landShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="800" height="600" fill="url(#landBg)"/>
+  <g filter="url(#landShadow)" transform="translate(160, 110)">
+    <rect width="480" height="340" rx="10" fill="#fffbeb" stroke="#92400e" stroke-width="2"/>
+    <!-- Header -->
+    <rect x="0" y="0" width="480" height="55" rx="8" fill="#78350f"/>
+    <text x="240" y="24" font-family="system-ui, sans-serif" font-weight="bold" font-size="13" fill="#fef3c7" text-anchor="middle">राजस्व एवं भूमि सुधार विभाग, बिहार</text>
+    <text x="240" y="42" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#ffffff" text-anchor="middle">ऑनलाइन भू-लगान भुगतान रसीद व दाखिल-खारिज</text>
+    <!-- Details Table -->
+    <rect x="25" y="70" width="430" height="150" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="40" y="95" font-family="system-ui, sans-serif" font-size="11" fill="#475569">जिला: <tspan font-weight="bold" fill="#0f172a">पूर्वी चम्पारण</tspan> | अंचल: <tspan font-weight="bold" fill="#0f172a">चकिया</tspan></text>
+    <text x="40" y="120" font-family="system-ui, sans-serif" font-size="11" fill="#475569">हल्का: <tspan font-weight="bold" fill="#0f172a">रानीगंज</tspan> | मौजा: <tspan font-weight="bold" fill="#0f172a">बारा चकिया</tspan></text>
+    <text x="40" y="145" font-family="system-ui, sans-serif" font-size="11" fill="#475569">खाता संख्या: <tspan font-weight="bold" fill="#b45309">142</tspan> | खेसरा / प्लॉट: <tspan font-weight="bold" fill="#b45309">589</tspan></text>
+    <text x="40" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#475569">रैयत का नाम: <tspan font-weight="bold" fill="#0f172a">विनोद सिंह व अन्य</tspan></text>
+    <text x="40" y="195" font-family="system-ui, sans-serif" font-size="11" fill="#475569">जमाबंदी संख्या: <tspan font-weight="bold" fill="#b45309">JMB-2026-881</tspan></text>
+    <!-- Payment status -->
+    <rect x="25" y="235" width="430" height="50" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="240" y="258" font-family="system-ui, sans-serif" font-weight="900" font-size="13" fill="#047857" text-anchor="middle">✓ ऑनलाइन लगान रसीद चुकता (अद्यतन 2026-27)</text>
+    <text x="240" y="275" font-family="system-ui, sans-serif" font-size="10" fill="#065f46" text-anchor="middle">भुगतान संदर्भ संख्या: BIHLAGAN2026081699</text>
+    <line x1="20" y1="300" x2="460" y2="300" stroke="#e2e8f0" stroke-width="1"/>
+    <text x="240" y="322" font-family="system-ui, sans-serif" font-size="9" fill="#78350f" text-anchor="middle">बिहार भूमि पोर्टल सहायता केंद्र - पलक एंटरप्राइजेज चकिया</text>
+  </g>
+  <rect x="30" y="30" width="220" height="32" rx="8" fill="#78350f"/>
+  <text x="140" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff" text-anchor="middle">LAND RECORD &amp; LAGAN</text>
+</svg>

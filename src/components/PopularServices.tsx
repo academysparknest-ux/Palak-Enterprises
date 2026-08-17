@@ -86,7 +86,7 @@ export const PopularServices: React.FC<PopularServicesProps> = ({ onSelectServic
               <div>
                 <div className="flex items-center justify-between mb-3.5">
                   <div className="w-11 h-11 rounded-xl bg-slate-100 text-navy flex items-center justify-center group-hover:bg-navy group-hover:text-white transition-colors">
-                    <DynamicIcon name={service.iconName} className="w-5 h-5" />
+                    <DynamicIcon name={service.icon || service.iconName || "Sparkles"} className="w-5 h-5" />
                   </div>
                   <span className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
                     {currentLang === "hi" ? "लोकप्रिय" : "Popular"}

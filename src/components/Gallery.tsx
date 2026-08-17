@@ -1,335 +1,434 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  MessageSquare,
+  Sparkles,
+} from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
-import { galleryCategories, galleryData } from "../config/gallery";
-import { Maximize2, X, ChevronLeft, ChevronRight, Info, ExternalLink, Send, ImageOff } from "lucide-react";
+import { extendedTranslations } from "../config/translations";
+import type {
+  SampleItem,
+  SampleCategory,
+} from "../config/samples";
+import {
+  sampleItems,
+  sampleCategories,
+} from "../config/samples";
+import SampleImage from "./SampleImage";
+import { getWhatsAppLink } from "../config/business";
+import { cn } from "../lib/utils";
 
 interface GalleryProps {
+  selectedSample?: SampleItem | null;
+  initialSample?: SampleItem | null;
+  onCloseSelectedSample?: () => void;
+  onClose?: () => void;
   onOpenRequestModal?: (serviceId?: string) => void;
 }
 
-export const Gallery: React.FC<GalleryProps> = ({ onOpenRequestModal }) => {
-  const { language, t } = useLanguage();
-  const [activeCategory, setActiveCategory] = useState("all");
-  const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
-  const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({});
+export default function Gallery({
+  selectedSample = null,
+  initialSample = null,
+  onCloseSelectedSample,
+  onClose,
+}: GalleryProps) {
+  const effectiveSample = selectedSample || initialSample;
+  const effectiveClose = onCloseSelectedSample || onClose;
 
-  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const { lang, language } = useLanguage();
+  const currentLang = (lang || language || "en") as "en" | "hi";
+  const t = extendedTranslations.gallery;
 
-  const filteredData =
-    activeCategory === "all"
-      ? galleryData
-      : galleryData.filter((item) => item.category === activeCategory);
+  const [activeCategory, setActiveCategory] = useState<SampleCategory>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const activeItem = activeItemIndex !== null ? filteredData[activeItemIndex] : null;
-
-  const handlePrevItem = useCallback(() => {
-    if (activeItemIndex === null || filteredData.length === 0) return;
-    setActiveItemIndex((prev) => (prev === 0 ? filteredData.length - 1 : (prev as number) - 1));
-  }, [activeItemIndex, filteredData.length]);
-
-  const handleNextItem = useCallback(() => {
-    if (activeItemIndex === null || filteredData.length === 0) return;
-    setActiveItemIndex((prev) => (prev === filteredData.length - 1 ? 0 : (prev as number) + 1));
-  }, [activeItemIndex, filteredData.length]);
-
-  const handleOpenLightbox = (index: number, e: React.SyntheticEvent) => {
-    lastFocusedElementRef.current = e.currentTarget as HTMLElement;
-    setActiveItemIndex(index);
-  };
-
-  const handleCloseLightbox = () => {
-    setActiveItemIndex(null);
-    if (lastFocusedElementRef.current) {
-      setTimeout(() => {
-        lastFocusedElementRef.current?.focus();
-      }, 50);
-    }
-  };
-
-  // Lock scroll, manage focus & keyboard navigation for Lightbox
+  // Sync external sample selection (e.g. from homepage or service card) with lightbox
   useEffect(() => {
-    if (activeItemIndex === null) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    // Auto-focus close button when modal opens
-    if (closeButtonRef.current) {
-      closeButtonRef.current.focus();
+    if (effectiveSample) {
+      setActiveCategory("all");
+      setSearchQuery("");
+      const allIdx = sampleItems.findIndex((item) => item.id === effectiveSample.id);
+      setLightboxIndex(allIdx !== -1 ? allIdx : 0);
     }
+  }, [effectiveSample]);
+
+  // Filter logic
+  const filteredItems = sampleItems.filter((item) => {
+    const matchesCategory =
+      activeCategory === "all" || item.category === activeCategory;
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      item.title.en.toLowerCase().includes(q) ||
+      item.title.hi.toLowerCase().includes(q) ||
+      item.description.en.toLowerCase().includes(q) ||
+      item.description.hi.toLowerCase().includes(q);
+
+    return matchesCategory && matchesSearch;
+  });
+
+  const closeLightbox = useCallback(() => {
+    setLightboxIndex(null);
+    if (effectiveClose) {
+      effectiveClose();
+    }
+  }, [effectiveClose]);
+
+  const prevLightbox = useCallback(() => {
+    if (lightboxIndex === null || filteredItems.length === 0) return;
+    setLightboxIndex((prev) => (prev === 0 ? filteredItems.length - 1 : prev! - 1));
+  }, [lightboxIndex, filteredItems.length]);
+
+  const nextLightbox = useCallback(() => {
+    if (lightboxIndex === null || filteredItems.length === 0) return;
+    setLightboxIndex((prev) => (prev === filteredItems.length - 1 ? 0 : prev! + 1));
+  }, [lightboxIndex, filteredItems.length]);
+
+  // Keyboard navigation for Lightbox
+  useEffect(() => {
+    if (lightboxIndex === null) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleCloseLightbox();
-      } else if (e.key === "ArrowLeft") {
-        handlePrevItem();
-      } else if (e.key === "ArrowRight") {
-        handleNextItem();
-      }
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowLeft") prevLightbox();
+      if (e.key === "ArrowRight") nextLightbox();
     };
+
     window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxIndex, closeLightbox, prevLightbox, nextLightbox]);
 
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [activeItemIndex, handlePrevItem, handleNextItem]);
-
-  const handleImageError = (id: string) => {
-    setFailedImageIds((prev) => ({ ...prev, [id]: true }));
-  };
+  const activeItem =
+    lightboxIndex !== null && filteredItems[lightboxIndex]
+      ? filteredItems[lightboxIndex]
+      : null;
 
   return (
-    <section id="gallery" className="py-20 bg-slate-50 border-b border-slate-200">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        {/* Header */}
-        <div className="text-center max-w-3xl mx-auto mb-10">
-          <span className="text-xs font-bold text-navy bg-blue-50 border border-blue-200/70 px-3.5 py-1 rounded-full uppercase tracking-wider">
-            {language === "hi" ? "सैंपल एवं रेफरेंस कार्य" : "Sample & Reference Showcase"}
+    <section id="gallery" className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+      {/* Section Header */}
+      <div className="mx-auto max-w-3xl text-center">
+        <div className="inline-flex items-center gap-2 rounded-full bg-navy/10 px-3.5 py-1 text-xs font-bold text-navy">
+          <Sparkles size={14} className="text-amber-500" />
+          <span className={cn(currentLang === "hi" && "font-hindi")}>
+            {currentLang === "hi" ? "सैंपल पोर्टफोलियो" : "Sample Portfolio"}
           </span>
-          <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mt-3">
-            {t.gallery.title}
-          </h2>
-          <p className="text-slate-600 mt-2 text-base">
-            {t.gallery.subtitle}
-          </p>
-
-          {/* Explicit Misrepresentation Disclaimer Banner */}
-          <div className="mt-4 p-3 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium inline-flex items-center space-x-2 text-left max-w-2xl">
-            <Info className="w-4 h-4 text-navy shrink-0" />
-            <span>{t.gallery.sampleDisclaimer}</span>
-          </div>
         </div>
+        <h2
+          className={cn(
+            "mt-3 font-display text-2xl font-extrabold text-navy sm:text-4xl",
+            currentLang === "hi" && "font-hindi"
+          )}
+        >
+          {t.heading[currentLang]}
+        </h2>
+        <p className={cn("mt-2.5 text-base text-slate-500 max-w-2xl mx-auto", currentLang === "hi" && "font-hindi")}>
+          {t.sub[currentLang]}
+        </p>
+      </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center justify-center flex-wrap gap-2.5 mb-10" role="tablist" aria-label="Sample Categories">
-          {galleryCategories.map((cat) => (
+      {/* Filter Tabs & Search Bar */}
+      <div className="mt-10 flex flex-col items-center justify-between gap-4 lg:flex-row">
+        {/* Category Pills */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {sampleCategories.map((cat) => (
             <button
               key={cat.id}
-              role="tab"
-              aria-selected={activeCategory === cat.id}
-              onClick={() => {
-                setActiveCategory(cat.id);
-                setActiveItemIndex(null);
-              }}
-              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all focus:outline-none focus:ring-2 focus:ring-navy cursor-pointer min-h-[44px] ${
+              type="button"
+              onClick={() => setActiveCategory(cat.id)}
+              className={cn(
+                "rounded-full px-4 py-2 text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer",
                 activeCategory === cat.id
-                  ? "bg-navy text-white shadow-xs"
-                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
-              }`}
+                  ? "bg-navy text-white shadow-sm scale-[1.02]"
+                  : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-navy",
+                currentLang === "hi" && "font-hindi"
+              )}
             >
-              {language === "hi" ? cat.hi : cat.en}
+              {cat.name[currentLang]}
             </button>
           ))}
         </div>
 
-        {/* Samples Grid (4 columns desktop, 2-3 tablet, 1 mobile) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {filteredData.map((item, index) => {
-            const hasFailed = failedImageIds[item.id];
+        {/* Search Bar */}
+        <div className="relative w-full max-w-xs sm:w-72">
+          <Search
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t.searchPlaceholder[currentLang]}
+            className={cn(
+              "w-full rounded-full border border-slate-200 bg-white pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:border-navy focus:outline-none focus:ring-2 focus:ring-navy/20",
+              currentLang === "hi" && "font-hindi"
+            )}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Samples Portfolio Grid */}
+      {filteredItems.length > 0 ? (
+        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {filteredItems.map((item, index) => {
+            const message =
+              currentLang === "hi"
+                ? `नमस्ते, मैं आपके "${item.title.hi}" (सैंपल डिज़ाइन) के बारे में जानकारी चाहता हूँ।`
+                : `Hello, I would like to inquire about "${item.title.en}" (Sample Design).`;
 
             return (
               <div
                 key={item.id}
-                onClick={(e) => handleOpenLightbox(index, e)}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleOpenLightbox(index, e);
-                  }
-                }}
-                aria-label={`View ${item.title[language]}`}
-                className="group cursor-pointer rounded-2xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 bg-white flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-blue-900"
+                className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-md"
               >
-                {/* Image Container with Aspect Ratio */}
-                <div className="relative aspect-4/3 overflow-hidden bg-slate-900">
-                  {!hasFailed ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.imageAlt[language]}
-                      loading="lazy"
-                      onError={() => handleImageError(item.id)}
-                      className="w-full h-full object-cover group-hover:scale-105 motion-reduce:transform-none transition-transform duration-500"
-                    />
-                  ) : (
-                    /* Local Gradient Fallback if remote URL fails */
-                    <div
-                      className={`w-full h-full bg-gradient-to-br ${item.colorTheme} p-4 flex flex-col justify-between text-white`}
-                    >
-                      <div className="flex items-center space-x-1 text-xs opacity-75">
-                        <ImageOff className="w-4 h-4" />
-                        <span>{language === "hi" ? "सैंपल पूर्वावलोकन" : "Sample Preview"}</span>
-                      </div>
-                      <h4 className="font-bold text-base line-clamp-2">{item.title[language]}</h4>
-                    </div>
-                  )}
+                {/* Image & Lightbox Trigger */}
+                <div
+                  className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100 cursor-pointer"
+                  onClick={() => setLightboxIndex(index)}
+                >
+                  <SampleImage
+                    src={item.image}
+                    alt={item.title[currentLang]}
+                    title={item.title[currentLang]}
+                    fallbackType={item.fallbackType}
+                    width={500}
+                    height={375}
+                  />
 
-                  {/* Gradient Overlay for Text legibility */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20 opacity-80 group-hover:opacity-90 transition-opacity" />
+                  {/* Badge */}
+                  <span
+                    className={cn(
+                      "absolute top-3 left-3 rounded-full bg-slate-900/85 backdrop-blur-xs px-2.5 py-1 text-[11px] font-bold text-amber-300 shadow-xs border border-white/20",
+                      currentLang === "hi" && "font-hindi"
+                    )}
+                  >
+                    {item.badge[currentLang]}
+                  </span>
 
-                  {/* Top Badges */}
-                  <div className="absolute top-3 left-3 right-3 flex justify-between items-center pointer-events-none">
-                    <span className="bg-white/90 backdrop-blur-md text-slate-900 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs border border-white/50">
-                      {item.badge[language]}
+                  {/* Overlay on hover */}
+                  <div className="absolute inset-0 bg-navy/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-navy shadow-md">
+                      {currentLang === "hi" ? "बड़ा करके देखें" : "Click to Enlarge"}
                     </span>
-                    <div className="w-7 h-7 rounded-full bg-slate-900/60 backdrop-blur-md flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
-
-                  {/* Bottom Image Title */}
-                  <div className="absolute bottom-3 left-3 right-3 text-white pointer-events-none">
-                    <h3 className="font-extrabold text-sm sm:text-base text-white line-clamp-1 group-hover:translate-x-0.5 motion-reduce:transform-none transition-transform">
-                      {item.title[language]}
-                    </h3>
                   </div>
                 </div>
 
-                {/* Card Content & Footer */}
-                <div className="p-4 flex flex-col justify-between flex-grow bg-white">
-                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                    {item.subtitle[language]}
+                {/* Card Info */}
+                <div className="flex flex-1 flex-col p-4">
+                  <h3
+                    className={cn(
+                      "font-display text-base font-bold text-navy line-clamp-1 group-hover:text-brandred transition-colors",
+                      currentLang === "hi" && "font-hindi text-[1.05rem]"
+                    )}
+                  >
+                    {item.title[currentLang]}
+                  </h3>
+                  <p
+                    className={cn(
+                      "mt-1.5 flex-1 text-xs text-slate-500 line-clamp-2 leading-relaxed",
+                      currentLang === "hi" && "font-hindi"
+                    )}
+                  >
+                    {item.description[currentLang]}
                   </p>
 
-                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                    <span className="truncate">{item.source}</span>
-                    <span className="font-bold text-blue-900 group-hover:underline shrink-0 ml-2">
-                      {language === "hi" ? "विस्तार से देखें →" : "View Sample →"}
-                    </span>
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setLightboxIndex(index)}
+                      className={cn(
+                        "text-xs font-bold text-navy hover:text-brandred transition-colors cursor-pointer",
+                        currentLang === "hi" && "font-hindi"
+                      )}
+                    >
+                      {currentLang === "hi" ? "ज़ूम देखें" : "View Zoom"}
+                    </button>
+
+                    <a
+                      href={getWhatsAppLink(message)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-500 hover:text-white",
+                        currentLang === "hi" && "font-hindi"
+                      )}
+                    >
+                      <MessageSquare size={13} />
+                      {currentLang === "hi" ? "पूछताछ" : "Inquire"}
+                    </a>
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
-
-        {/* Interactive Lightbox Modal */}
-        {activeItem && activeItemIndex !== null && (
-          <div
-            className="fixed inset-0 z-[200] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="lightbox-title"
+      ) : (
+        <div className="mt-12 rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+          <p className={cn("text-base text-slate-500", currentLang === "hi" && "font-hindi")}>
+            {t.noSamples[currentLang]}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCategory("all");
+              setSearchQuery("");
+            }}
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-navy px-4 py-2 text-xs font-bold text-white cursor-pointer"
           >
-            {/* Main Lightbox Container */}
-            <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl relative border border-slate-200 flex flex-col">
-              {/* Top Navigation Bar */}
-              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
-                <div className="flex items-center space-x-2">
-                  <span className="bg-blue-100 text-blue-900 text-xs font-extrabold px-3 py-1 rounded-full border border-blue-200">
-                    {activeItem.badge[language]}
-                  </span>
-                  <span className="text-xs text-slate-500 font-medium">
-                    {language === "hi"
-                      ? `नमूना ${activeItemIndex + 1} / ${filteredData.length}`
-                      : `Sample ${activeItemIndex + 1} of ${filteredData.length}`}
-                  </span>
-                </div>
+            {t.filterAll[currentLang]}
+          </button>
+        </div>
+      )}
 
-                {/* Close Button */}
-                <button
-                  ref={closeButtonRef}
-                  onClick={handleCloseLightbox}
-                  className="w-10 h-10 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-800 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-900 cursor-pointer min-w-[44px] min-h-[44px]"
-                  aria-label={language === "hi" ? "पूर्वावलोकन बंद करें" : "Close preview"}
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      {/* Legal & Sample Disclaimer Notice */}
+      <div className="mt-12 rounded-2xl border border-amber-200/80 bg-amber-50/70 p-4 text-center">
+        <p className={cn("text-xs text-amber-900/90 font-medium leading-relaxed max-w-4xl mx-auto", currentLang === "hi" && "font-hindi")}>
+          {t.disclaimer[currentLang]}
+        </p>
+      </div>
 
-              {/* Lightbox Body: Image Preview + Details */}
-              <div className="p-4 sm:p-6 space-y-5 overflow-y-auto">
-                {/* Image Stage with Controls */}
-                <div className="relative aspect-16/10 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 flex items-center justify-center max-h-[50vh] sm:max-h-[60vh]">
-                  {!failedImageIds[activeItem.id] ? (
-                    <img
-                      src={activeItem.imageUrl}
-                      alt={activeItem.imageAlt[language]}
-                      className="w-full h-full object-contain bg-slate-950"
-                    />
-                  ) : (
-                    <div
-                      className={`w-full h-full bg-gradient-to-br ${activeItem.colorTheme} p-8 text-white flex flex-col items-center justify-center text-center`}
-                    >
-                      <ImageOff className="w-12 h-12 mb-3 opacity-60" />
-                      <h4 className="text-xl font-black">{activeItem.title[language]}</h4>
-                      <p className="text-xs text-white/80 mt-1">{activeItem.subtitle[language]}</p>
-                    </div>
+      {/* Lightbox Modal */}
+      {activeItem && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-label={activeItem.title[currentLang]}
+        >
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={closeLightbox}
+            aria-label={t.close[currentLang]}
+            className="absolute right-4 top-4 z-10 rounded-full bg-white/20 p-2.5 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
+          >
+            <X size={24} />
+          </button>
+
+          {/* Previous button */}
+          <button
+            type="button"
+            onClick={prevLightbox}
+            aria-label={t.previous[currentLang]}
+            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-10 rounded-full bg-white/20 p-3 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
+          >
+            <ChevronLeft size={28} />
+          </button>
+
+          {/* Next button */}
+          <button
+            type="button"
+            onClick={nextLightbox}
+            aria-label={t.next[currentLang]}
+            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-10 rounded-full bg-white/20 p-3 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
+          >
+            <ChevronRight size={28} />
+          </button>
+
+          {/* Modal Card Box */}
+          <div
+            className="relative flex flex-col lg:flex-row max-h-[90vh] max-w-4xl w-full overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Image Section */}
+            <div className="relative flex-1 bg-slate-900 min-h-[300px] lg:min-h-[450px] flex items-center justify-center p-2">
+              <SampleImage
+                src={activeItem.image}
+                alt={activeItem.title[currentLang]}
+                title={activeItem.title[currentLang]}
+                fallbackType={activeItem.fallbackType}
+                width={800}
+                height={600}
+                priority
+                className="max-h-[65vh] w-auto max-w-full rounded object-contain"
+              />
+
+              <span
+                className={cn(
+                  "absolute top-4 left-4 rounded-full bg-slate-900/85 backdrop-blur px-3 py-1 text-xs font-bold text-amber-300 border border-white/20",
+                  currentLang === "hi" && "font-hindi"
+                )}
+              >
+                {activeItem.badge[currentLang]}
+              </span>
+            </div>
+
+            {/* Information & Action Sidebar */}
+            <div className="flex flex-col justify-between p-6 lg:w-80 bg-white border-t lg:border-t-0 lg:border-l border-slate-200">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  {currentLang === "hi" ? "नमूना डिज़ाइन" : "Sample Design"}
+                </span>
+
+                <h3
+                  className={cn(
+                    "mt-1 font-display text-xl font-bold text-navy",
+                    currentLang === "hi" && "font-hindi"
                   )}
+                >
+                  {activeItem.title[currentLang]}
+                </h3>
 
-                  {/* Previous / Next Arrow Controls */}
-                  <button
-                    onClick={handlePrevItem}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-white cursor-pointer min-w-[44px] min-h-[44px]"
-                    aria-label={language === "hi" ? "पिछला नमूना" : "Previous sample"}
-                  >
-                    <ChevronLeft className="w-6 h-6" />
-                  </button>
+                <p
+                  className={cn(
+                    "mt-3 text-sm text-slate-500 leading-relaxed",
+                    currentLang === "hi" && "font-hindi"
+                  )}
+                >
+                  {activeItem.description[currentLang]}
+                </p>
 
-                  <button
-                    onClick={handleNextItem}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-white cursor-pointer min-w-[44px] min-h-[44px]"
-                    aria-label={language === "hi" ? "अगला नमूना" : "Next sample"}
-                  >
-                    <ChevronRight className="w-6 h-6" />
-                  </button>
-                </div>
-
-                {/* Details Content */}
-                <div>
-                  <h3 id="lightbox-title" className="text-2xl font-black text-slate-900">
-                    {activeItem.title[language]}
-                  </h3>
-                  <p className="text-slate-600 text-sm mt-2 leading-relaxed">
-                    {activeItem.subtitle[language]}
-                  </p>
-
-                  <div className="mt-4 p-3 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500 flex items-center justify-between flex-wrap gap-2">
-                    <span className="flex items-center space-x-1.5">
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                      <span>
-                        {language === "hi" ? "स्रोत: " : "Source: "}<strong>{activeItem.source}</strong>
-                      </span>
-                    </span>
-                    <span className="text-[11px] italic text-slate-400">
-                      {language === "hi"
-                        ? "पालक इंटरप्राइजेज डिज़ाइन एवं प्रिंटिंग क्षमता का नमूना"
-                        : "Reference design sample by Palak Enterprises"}
-                    </span>
+                {/* Source attribution */}
+                <div className="mt-4 rounded-lg bg-slate-50 p-2.5 text-[11px] text-slate-500 border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span>Source: {activeItem.source.name}</span>
+                    <span className="font-semibold text-slate-600">{activeItem.source.license}</span>
                   </div>
                 </div>
+              </div>
 
-                {/* CTA Footer inside Lightbox */}
-                <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <p className="text-xs text-slate-500 font-medium text-center sm:text-left">
-                    {language === "hi"
-                      ? "क्या आपको ऐसा ही प्रिंटिंग या डिज़ाइन कार्य चाहिए?"
-                      : "Looking for similar printing or custom design work?"}
-                  </p>
+              {/* Modal CTA */}
+              <div className="mt-6 border-t border-slate-200 pt-4">
+                <a
+                  href={getWhatsAppLink(
+                    currentLang === "hi"
+                      ? `नमस्ते, मैं आपके "${activeItem.title.hi}" (सैंपल डिज़ाइन) के बारे में पूछना चाहता हूँ।`
+                      : `Hello, I would like to inquire about "${activeItem.title.en}" (Sample Design).`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    "flex items-center justify-center gap-2 w-full rounded-full bg-brandred px-4 py-3 text-sm font-bold text-white shadow-sm transition-all hover:bg-navy hover:scale-[1.02]",
+                    currentLang === "hi" && "font-hindi"
+                  )}
+                >
+                  <MessageSquare size={16} />
+                  {t.inquireSample[currentLang]}
+                </a>
 
-                  <button
-                    onClick={() => {
-                      const relatedId = activeItem.relatedServiceIds?.[0];
-                      handleCloseLightbox();
-                      if (onOpenRequestModal) {
-                        onOpenRequestModal(relatedId);
-                      }
-                    }}
-                    className="w-full sm:w-auto px-5 py-3 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 focus:outline-none focus:ring-2 focus:ring-blue-900 cursor-pointer min-h-[44px]"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span>
-                      {language === "hi" ? "इस प्रकार का ऑर्डर दें" : "Request Similar Print"}
-                    </span>
-                  </button>
-                </div>
+                <p className={cn("mt-2 text-center text-[11px] text-slate-400", currentLang === "hi" && "font-hindi")}>
+                  {currentLang === "hi" ? "कीबोर्ड: Arrow Keys से बदलें, Esc से बंद करें" : "Use ← → arrows to navigate, Esc to close"}
+                </p>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   );
-};
+}
+
+export { Gallery };

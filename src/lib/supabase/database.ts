@@ -7,7 +7,41 @@ import {
   type LocalService,
   type LocalCategory,
 } from "../storage/catalogData";
-import type { StoredOrder, StoredServiceRequest, StoredQuoteRequest } from "../storage/store";
+import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest } from "../storage/store";
+import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
+
+export interface PrintOrderPayload {
+  serviceId: "document-printing" | "passport-photo" | "visiting-cards" | "id-cards" | "poster-banner" | "custom-print";
+  serviceName: string;
+  documentType?: string;
+  customerName: string;
+  customerPhone: string;
+  customerWhatsApp?: string;
+  customerEmail?: string;
+  instructions?: string;
+  pricingSnapshot: {
+    unitPrice: number;
+    subtotal: number;
+    totalAmount: number;
+    breakdown?: Record<string, any>;
+  };
+  options: Record<string, any>;
+  optionsLabels?: Record<string, string>;
+  finishingOptions?: {
+    spiralBinding?: boolean;
+    combBinding?: boolean;
+    lamination?: boolean;
+    stapling?: boolean;
+  };
+  file?: {
+    name: string;
+    size: number;
+    url?: string;
+    storagePath?: string;
+    pageCount?: number;
+    mimeType?: string;
+  };
+}
 
 // ==============================================================================
 // 1. PUBLIC CATALOG DATA FETCHERS (Database-Driven with Safe Local Fallback)
@@ -401,4 +435,191 @@ export async function updateStaffQuoteStatus(
     message_hi: `कोटेशन स्थिति अपडेट हुई`,
     performed_by: "Palak Estimator",
   });
+}
+
+// ==============================================================================
+// 4. INSTANT ONLINE PRINT ORDERS & CONFIGURATION
+// ==============================================================================
+
+export function generatePrintOrderCode(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  return `PE-${year}${month}${day}-${randomSuffix}`;
+}
+
+export async function uploadOrderFile(
+  file: File,
+  orderCode: string
+): Promise<{ url: string; storagePath: string } | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    const fileExt = file.name.split(".").pop() || "dat";
+    const filePath = `orders/${orderCode}/${Date.now()}.${fileExt}`;
+    const { error } = await supabase.storage
+      .from("customer-documents")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+      });
+
+    if (error) {
+      console.warn("Storage upload error:", error);
+      return null;
+    }
+
+    // Try signed URL valid for 7 days
+    const { data: signedData } = await supabase.storage
+      .from("customer-documents")
+      .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+
+    return {
+      url: signedData?.signedUrl || filePath,
+      storagePath: filePath,
+    };
+  } catch (err) {
+    console.error("Storage upload exception:", err);
+    return null;
+  }
+}
+
+export async function getPrintPricingConfig(): Promise<PrintPricingConfig> {
+  if (!isSupabaseConfigured || !supabase) {
+    return DEFAULT_PRINT_PRICING;
+  }
+  try {
+    const { data, error } = await supabase
+      .from("business_settings")
+      .select("value")
+      .eq("key", "print_pricing_config")
+      .maybeSingle();
+
+    if (error || !data || !data.value) {
+      return DEFAULT_PRINT_PRICING;
+    }
+    return { ...DEFAULT_PRINT_PRICING, ...data.value };
+  } catch {
+    return DEFAULT_PRINT_PRICING;
+  }
+}
+
+export async function updatePrintPricingConfig(config: PrintPricingConfig): Promise<boolean> {
+  if (!isSupabaseConfigured || !supabase) return false;
+  try {
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert({
+        key: "print_pricing_config",
+        value: config as any,
+        description: "Authoritative pricing configuration for instant online printing services",
+        updated_at: new Date().toISOString(),
+      });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function submitPrintOrder(
+  payload: PrintOrderPayload
+): Promise<{ success: boolean; orderCode: string; error?: string }> {
+  const orderCode = generatePrintOrderCode();
+
+  const orderItem = {
+    productId: payload.serviceId,
+    productName: payload.serviceName,
+    quantity: Number(payload.options.copies) || 1,
+    unitPrice: payload.pricingSnapshot.unitPrice,
+    totalPrice: payload.pricingSnapshot.totalAmount,
+    selectedOptions: {
+      ...payload.options,
+      documentType: payload.documentType || "General Document",
+      finishing: payload.finishingOptions || {},
+      breakdown: payload.pricingSnapshot.breakdown || {},
+    },
+    selectedOptionsLabels: payload.optionsLabels || {},
+    uploadedFileName: payload.file?.name,
+    uploadedFileUrl: payload.file?.url,
+    designNotes: payload.instructions,
+  };
+
+  // 1. Sync with local store for resilience
+  try {
+    PalakDataStore.createOrder({
+      orderCode,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      customerEmail: payload.customerEmail,
+      fulfillmentType: "pickup",
+      orderNotes: payload.instructions,
+      subtotalAmount: payload.pricingSnapshot.subtotal,
+      deliveryFee: 0,
+      totalAmount: payload.pricingSnapshot.totalAmount,
+      paymentMethod: "pay_at_store",
+      paymentStatus: "pending",
+      orderStatus: "NEW",
+      items: [orderItem],
+      staffNotes: `Instant Online Service: ${payload.serviceName} | Doc Type: ${payload.documentType || "N/A"}`,
+    });
+  } catch (e) {
+    console.warn("Local store fallback sync notice:", e);
+  }
+
+  // 2. Persist to Supabase Database
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: orderData, error: orderErr } = await supabase
+        .from("orders")
+        .insert({
+          order_code: orderCode,
+          customer_name: payload.customerName,
+          customer_phone: payload.customerPhone,
+          customer_email: payload.customerEmail || null,
+          fulfillment_type: "pickup",
+          order_notes: payload.instructions || null,
+          subtotal_amount: payload.pricingSnapshot.subtotal,
+          total_amount: payload.pricingSnapshot.totalAmount,
+          payment_method: "pay_at_store",
+          payment_status: "pending",
+          order_status: "NEW",
+          items: [orderItem],
+          staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+        })
+        .select()
+        .single();
+
+      if (orderErr) {
+        console.warn("Supabase order insert error:", orderErr);
+      } else if (orderData) {
+        // Insert into order_items
+        await supabase.from("order_items").insert({
+          order_id: orderData.id,
+          product_name: payload.serviceName,
+          quantity: Number(payload.options.copies) || 1,
+          unit_price: payload.pricingSnapshot.unitPrice,
+          total_price: payload.pricingSnapshot.totalAmount,
+          selected_options: orderItem.selectedOptions,
+          selected_options_labels: orderItem.selectedOptionsLabels,
+          uploaded_file_name: payload.file?.name,
+          uploaded_file_url: payload.file?.url,
+        });
+
+        // Insert status history entry
+        await supabase.from("status_history").insert({
+          entity_type: "order",
+          entity_code: orderCode,
+          new_status: "NEW",
+          message_en: `Print order received online for ${payload.serviceName}.`,
+          message_hi: `${payload.serviceName} के लिए ऑनलाइन प्रिंट ऑर्डर प्राप्त हुआ।`,
+          performed_by: "Online Customer",
+        });
+      }
+    } catch (dbErr) {
+      console.error("Supabase insert exception:", dbErr);
+    }
+  }
+
+  return { success: true, orderCode };
 }

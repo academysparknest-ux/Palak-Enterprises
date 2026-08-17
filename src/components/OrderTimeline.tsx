@@ -19,12 +19,13 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({
   const currentLang = (lang || language || "en") as "en" | "hi";
 
   const orderSteps = [
-    { key: "NEW", labelEn: "Order Placed", labelHi: "ऑर्डर प्राप्त" },
-    { key: "UNDER_REVIEW", labelEn: "File Review", labelHi: "फाइल जांच" },
-    { key: "CONFIRMED", labelEn: "Confirmed", labelHi: "कन्फर्म" },
+    { key: "NEW", labelEn: "Order Received", labelHi: "ऑर्डर प्राप्त" },
+    { key: "UNDER_REVIEW", labelEn: "Under Review", labelHi: "फाइल जांच" },
+    { key: "CONFIRMED", labelEn: "Price Confirmed", labelHi: "मूल्य कन्फर्म" },
     { key: "IN_PRODUCTION", labelEn: "Printing", labelHi: "प्रिंटिंग जारी" },
-    { key: "READY_FOR_PICKUP", labelEn: "Ready / Dispatch", labelHi: "तैयार / डिस्पैच" },
-    { key: "COMPLETED", labelEn: "Fulfilled", labelHi: "पूर्ण" },
+    { key: "FINISHING", labelEn: "Finishing", labelHi: "फिनिशिंग / बाइंडिंग" },
+    { key: "READY_FOR_PICKUP", labelEn: "Ready for Pickup", labelHi: "दुकान पर तैयार" },
+    { key: "COMPLETED", labelEn: "Completed", labelHi: "पूर्ण" },
   ];
 
   const serviceSteps = [
@@ -66,7 +67,12 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({
           }}
         />
 
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 sm:gap-1">
+        <div
+          className={cn(
+            "grid grid-cols-2 gap-3 sm:gap-1",
+            steps.length === 7 ? "sm:grid-cols-7" : "sm:grid-cols-5"
+          )}
+        >
           {steps.map((step, idx) => {
             const isCompleted = idx < activeStepIndex || currentStatus === "COMPLETED";
             const isCurrent = idx === activeStepIndex && currentStatus !== "COMPLETED";

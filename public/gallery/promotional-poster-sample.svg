@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgPosterWall" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="posterBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="50%" stop-color="#4c1d95"/>
+      <stop offset="100%" stop-color="#2e1065"/>
+    </linearGradient>
+    <filter id="postShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgPosterWall)"/>
+
+  <!-- Printed Promotional Retail Poster (Main Subject) -->
+  <g filter="url(#postShadow)" transform="translate(200, 60) rotate(-2)">
+    <rect width="400" height="490" rx="10" fill="url(#posterBg)" stroke="#ffffff" stroke-width="4"/>
+    
+    <!-- Heavy Glossy Paper Inner Margin -->
+    <rect x="15" y="15" width="370" height="460" rx="8" fill="none" stroke="#facc15" stroke-width="2"/>
+
+    <!-- Header Banner -->
+    <rect x="30" y="35" width="340" height="65" rx="8" fill="#facc15"/>
+    <text x="200" y="62" font-family="system-ui, sans-serif" font-weight="900" font-size="24" fill="#000000" text-anchor="middle" letter-spacing="2">GRAND FESTIVE SALE</text>
+    <text x="200" y="85" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#7c2d12" text-anchor="middle">BIGGEST SHOPPING OFFERS OF THE YEAR</text>
+
+    <!-- Center Discount Badge -->
+    <circle cx="200" cy="205" r="75" fill="#ef4444" stroke="#ffffff" stroke-width="4"/>
+    <text x="200" y="180" font-family="system-ui, sans-serif" font-weight="900" font-size="20" fill="#ffffff" text-anchor="middle">UP TO</text>
+    <text x="200" y="225" font-family="system-ui, sans-serif" font-weight="900" font-size="44" fill="#facc15" text-anchor="middle">50%</text>
+    <text x="200" y="252" font-family="system-ui, sans-serif" font-weight="900" font-size="22" fill="#ffffff" text-anchor="middle">OFF</text>
+
+    <!-- Highlights List Box -->
+    <rect x="40" y="300" width="320" height="110" rx="8" fill="#ffffff" fill-opacity="0.95"/>
+    <text x="60" y="328" font-family="system-ui, sans-serif" font-weight="900" font-size="14" fill="#7c3aed">★ SPECIAL HIGHLIGHTS:</text>
+    <text x="60" y="352" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#0f172a">✔ New Arrival Clothing &amp; Footwear</text>
+    <text x="60" y="372" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#0f172a">✔ Assured Gift on Purchase above ₹1999</text>
+    <text x="60" y="392" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#166534">✔ Valid: 1st Nov to 15th Nov 2026</text>
+
+    <!-- Footer Printed Poster Tag -->
+    <text x="200" y="440" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff" text-anchor="middle">📍 MAIN MARKET, STATION ROAD, BIHAR</text>
+    <text x="200" y="460" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#facc15" text-anchor="middle">Printed by Palak Printing Press • Poster Print Sample</text>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

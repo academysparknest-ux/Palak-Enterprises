@@ -1,8 +1,14 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { cn } from "../lib/utils";
 
+export interface BrandItem {
+  prefix: string;
+  highlight: string;
+  full?: string;
+}
+
 export interface AnimatedBrandHeadlineProps {
-  items?: string[];
+  items?: BrandItem[];
   names?: string[];
   intervalMs?: number;
   intervalDuration?: number;
@@ -13,32 +19,57 @@ export interface AnimatedBrandHeadlineProps {
   as?: React.ElementType;
 }
 
-export default function AnimatedBrandHeadline({
+const DEFAULT_ITEMS_EN: BrandItem[] = [
+  { prefix: "Palak Printing ", highlight: "Press", full: "Palak Printing Press" },
+  { prefix: "Palak ", highlight: "Enterprises", full: "Palak Enterprises" },
+];
+
+const DEFAULT_ITEMS_HI: BrandItem[] = [
+  { prefix: "पलक प्रिंटिंग ", highlight: "प्रेस", full: "पलक प्रिंटिंग प्रेस" },
+  { prefix: "पलक ", highlight: "एंटरप्राइजेज", full: "पलक एंटरप्राइजेज" },
+];
+
+export const AnimatedBrandHeadline: React.FC<AnimatedBrandHeadlineProps> = ({
   items,
   names,
   intervalMs,
-  intervalDuration = 2600,
+  intervalDuration = 2800,
   transitionMs,
-  transitionDuration = 450,
+  transitionDuration = 700,
   className,
   isHindi = false,
   as: Component = "h1",
-}: AnimatedBrandHeadlineProps) {
-  const brandList = items || names || ["Palak Enterprises", "Palak Printing Press"];
+}) => {
+  const brandList: BrandItem[] = items
+    ? items
+    : names
+    ? names.map((name) => {
+        const parts = name.trim().split(" ");
+        if (parts.length > 1) {
+          const highlight = parts.pop() || "";
+          const prefix = parts.join(" ") + " ";
+          return { prefix, highlight, full: name };
+        }
+        return { prefix: name, highlight: "", full: name };
+      })
+    : isHindi
+    ? DEFAULT_ITEMS_HI
+    : DEFAULT_ITEMS_EN;
+
   const finalInterval = intervalMs ?? intervalDuration;
   const finalTransition = transitionMs ?? transitionDuration;
 
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<"enter" | "visible" | "exit">("visible");
-  const prefersReducedMotion = useRef(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    prefersReducedMotion.current = mediaQuery.matches;
+    setReducedMotion(mediaQuery.matches);
 
-    const handleChange = () => {
-      prefersReducedMotion.current = mediaQuery.matches;
+    const handleChange = (e: MediaQueryListEvent) => {
+      setReducedMotion(e.matches);
     };
 
     if (mediaQuery.addEventListener) {
@@ -55,18 +86,20 @@ export default function AnimatedBrandHeadline({
   useEffect(() => {
     if (brandList.length <= 1) return;
 
-    const displayTimer = setTimeout(() => {
-      if (prefersReducedMotion.current) {
+    const timer = setTimeout(() => {
+      if (reducedMotion) {
         setIndex((prev) => (prev + 1) % brandList.length);
       } else {
         setPhase("exit");
       }
     }, finalInterval);
 
-    return () => clearTimeout(displayTimer);
-  }, [index, brandList.length, finalInterval]);
+    return () => clearTimeout(timer);
+  }, [index, brandList.length, finalInterval, reducedMotion]);
 
   useEffect(() => {
+    if (reducedMotion) return;
+
     if (phase === "exit") {
       const exitTimer = setTimeout(() => {
         setIndex((prev) => (prev + 1) % brandList.length);
@@ -80,49 +113,59 @@ export default function AnimatedBrandHeadline({
       });
       return () => cancelAnimationFrame(frame);
     }
-  }, [phase, brandList.length, finalTransition]);
+  }, [phase, brandList.length, finalTransition, reducedMotion]);
 
-  const currentItem = brandList[index] || brandList[0];
-  const longestItem = brandList.reduce(
-    (max, item) => (item.length > max.length ? item : max),
-    brandList[0] || ""
-  );
+  const longestItem = brandList.reduce((max, curr) => {
+    const currLen = (curr.prefix + curr.highlight).length;
+    const maxLen = (max.prefix + max.highlight).length;
+    return currLen > maxLen ? curr : max;
+  }, brandList[0] || { prefix: "", highlight: "" });
+
+  const currentItem = brandList[index] || brandList[0] || { prefix: "", highlight: "" };
 
   return (
     <Component
       className={cn(
-        "font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl md:text-5xl lg:text-6xl",
-        isHindi ? "font-hindi leading-snug tracking-normal" : "leading-tight",
+        "font-display text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-[2.65rem] xl:text-5xl leading-tight",
+        isHindi && "font-hindi",
         className
       )}
       aria-live="polite"
       aria-atomic="true"
     >
-      <span className="relative inline-block max-w-full overflow-hidden align-middle py-1">
-        {/* Invisible sizing element reserves width/height for zero layout shift */}
+      <span className="relative block w-full max-w-full overflow-hidden py-0.5">
+        {/* Invisible sizing reservation to prevent layout shift */}
         <span
-          className="invisible block select-none pointer-events-none whitespace-nowrap"
+          className="invisible select-none pointer-events-none block"
           aria-hidden="true"
         >
-          {longestItem}
+          <span>{longestItem.prefix}</span>
+          <span>{longestItem.highlight}</span>
         </span>
 
-        {/* Animated brand headline element */}
+        {/* Animated Brand Name Element */}
         <span
           className={cn(
-            "absolute inset-0 flex items-center transition-all cubic-bezier(0.16,1,0.3,1)",
-            phase === "visible" && "translate-y-0 opacity-100",
-            phase === "enter" && "translate-y-2.5 opacity-0",
-            phase === "exit" && "-translate-y-2.5 opacity-0",
-            "motion-reduce:transition-none motion-reduce:transform-none motion-reduce:opacity-100"
+            "absolute inset-0 block transition-all ease-in-out",
+            phase === "visible" && "translate-y-0 opacity-100 filter-none",
+            phase === "enter" && "translate-y-2.5 opacity-0 blur-[0.5px]",
+            phase === "exit" && "-translate-y-2.5 opacity-0 blur-[0.5px]",
+            "motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:filter-none motion-reduce:transition-none"
           )}
-          style={{ transitionDuration: `${finalTransition}ms` }}
+          style={{
+            transitionDuration: reducedMotion ? "0ms" : `${finalTransition}ms`,
+          }}
         >
-          <span className="text-white drop-shadow-md select-none">{currentItem}</span>
+          <span className="text-white drop-shadow-sm select-none">
+            {currentItem.prefix}
+          </span>
+          <span className="text-amber-400 drop-shadow-sm select-none">
+            {currentItem.highlight}
+          </span>
         </span>
       </span>
     </Component>
   );
-}
+};
 
-export { AnimatedBrandHeadline };
+export default AnimatedBrandHeadline;

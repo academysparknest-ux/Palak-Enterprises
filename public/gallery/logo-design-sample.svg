@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="logoBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#27272a"/>
+    </linearGradient>
+    <linearGradient id="logoGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <filter id="logoShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="800" height="600" fill="url(#logoBg)"/>
+  <!-- Designer Artboard -->
+  <g filter="url(#logoShadow)" transform="translate(160, 100)">
+    <rect width="480" height="360" rx="12" fill="#09090b" stroke="#3f3f46" stroke-width="2"/>
+    <!-- Canvas Grid lines -->
+    <path d="M40 0 L40 360 M80 0 L80 360 M120 0 L120 360 M160 0 L160 360 M200 0 L200 360 M240 0 L240 360 M280 0 L280 360 M320 0 L320 360 M360 0 L360 360 M400 0 L400 360 M440 0 L440 360" stroke="#27272a" stroke-width="0.5"/>
+    <path d="M0 40 L480 40 M0 80 L480 80 M0 120 L480 120 M0 160 L480 160 M0 200 L480 200 M0 240 L480 240 M0 280 L480 280 M0 320 L480 320" stroke="#27272a" stroke-width="0.5"/>
+    <!-- Center Emblem Mockup -->
+    <circle cx="240" cy="150" r="70" fill="none" stroke="url(#logoGlow)" stroke-width="4"/>
+    <circle cx="240" cy="150" r="50" fill="url(#logoGlow)" fill-opacity="0.1" stroke="#f43f5e" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="240" y="165" font-family="system-ui, sans-serif" font-weight="900" font-size="44" fill="url(#logoGlow)" text-anchor="middle">PE</text>
+    <!-- Brand Title -->
+    <text x="240" y="255" font-family="system-ui, sans-serif" font-weight="900" font-size="22" fill="#ffffff" text-anchor="middle" letter-spacing="3">PALAK CREATIVE</text>
+    <text x="240" y="278" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#a1a1aa" text-anchor="middle" letter-spacing="4">BRAND IDENTITY &amp; GRAPHIC DESIGN</text>
+    <!-- Color Swatches -->
+    <circle cx="160" cy="320" r="12" fill="#f43f5e"/>
+    <circle cx="200" cy="320" r="12" fill="#8b5cf6"/>
+    <circle cx="240" cy="320" r="12" fill="#06b6d4"/>
+    <circle cx="280" cy="320" r="12" fill="#10b981"/>
+    <circle cx="320" cy="320" r="12" fill="#f59e0b"/>
+  </g>
+  <rect x="30" y="30" width="220" height="32" rx="8" fill="#8b5cf6"/>
+  <text x="140" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff" text-anchor="middle">LOGO &amp; BRAND DESIGN</text>
+</svg>

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgDarkP" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="sunsetGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+    <filter id="photoShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgDarkP)"/>
+
+  <!-- Back Photo 1 (Bottom Layer) -->
+  <g filter="url(#photoShadow)" transform="translate(180, 140) rotate(-10)">
+    <rect width="360" height="260" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="8"/>
+    <rect x="12" y="12" width="336" height="236" fill="url(#sunsetGrad)"/>
+    <circle cx="280" cy="60" r="30" fill="#fef08a"/>
+    <path d="M12,248 L100,140 L180,210 L270,120 L348,248 Z" fill="#7c2d12"/>
+    <!-- Glossy Shine -->
+    <path d="M12,12 L200,12 L12,248 Z" fill="#ffffff" fill-opacity="0.15"/>
+  </g>
+
+  <!-- Middle Photo 2 -->
+  <g filter="url(#photoShadow)" transform="translate(260, 170) rotate(6)">
+    <rect width="360" height="260" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="8"/>
+    <rect x="12" y="12" width="336" height="236" fill="#059669"/>
+    <path d="M12,120 Q180,60 348,150 L348,248 L12,248 Z" fill="#047857"/>
+    <circle cx="70" cy="60" r="22" fill="#fef08a"/>
+    <!-- Glossy Reflection Stripe -->
+    <path d="M12,12 L240,12 L12,248 Z" fill="#ffffff" fill-opacity="0.18"/>
+  </g>
+
+  <!-- Front Main Photo Print 3 (8x10 HD Glossy Paper) -->
+  <g filter="url(#photoShadow)" transform="translate(200, 100) rotate(-2)">
+    <rect width="400" height="300" rx="4" fill="#ffffff" stroke="#e2e8f0" stroke-width="10"/>
+    
+    <!-- Vivid Landscape Graphic on Photo Paper -->
+    <rect x="12" y="12" width="376" height="276" fill="url(#skyGrad)"/>
+    <circle cx="310" cy="70" r="35" fill="#fde047"/>
+    
+    <!-- Mountains -->
+    <path d="M12,288 L120,130 L220,230 L320,100 L388,288 Z" fill="#1e3a8a"/>
+    <path d="M12,288 L120,130 L160,288 Z" fill="#3b82f6" opacity="0.5"/>
+    <path d="M320,100 L388,288 L280,288 Z" fill="#1d4ed8" opacity="0.6"/>
+
+    <!-- Paper Gloss Highlight Overlays -->
+    <polygon points="12,12 250,12 12,288" fill="#ffffff" opacity="0.22"/>
+    
+    <text x="200" y="270" font-family="system-ui, sans-serif" font-weight="900" font-size="14" fill="#ffffff" text-anchor="middle" letter-spacing="1">HD GLOSSY PHOTO PRINT (4x6 / 8x10)</text>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

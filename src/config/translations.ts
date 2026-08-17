@@ -160,6 +160,24 @@ export interface Translations {
     seniorMode: string;
     normalMode: string;
   };
+  instantOnlineServices: {
+    title: string;
+    tagline: string;
+    promise: string;
+    subtext: string;
+    startNow: string;
+    requestQuote: string;
+    comingSoon: string;
+    services: {
+      document: { name: string; desc: string };
+      passportPhoto: { name: string; desc: string };
+      visitingCard: { name: string; desc: string };
+      invitationCard: { name: string; desc: string };
+      idCard: { name: string; desc: string };
+      posterBanner: { name: string; desc: string };
+      customPrint: { name: string; desc: string };
+    };
+  };
 }
 
 export const translations: Record<Language, Translations> = {
@@ -323,6 +341,45 @@ export const translations: Record<Language, Translations> = {
       seniorMode: "Senior / High-Contrast Mode",
       normalMode: "Standard Text Mode",
     },
+    instantOnlineServices: {
+      title: "⚡ Instant Online Services",
+      tagline: "Apna kaam khud karein — bina line mein wait kiye.",
+      promise: "Online order submit karein, order ready hone par shop se collect karein.",
+      subtext: "File upload karein, printing options select karein, finishing add karein aur order submit karein. Palak Enterprises aapka order ready karega, taaki aap bina line mein wait kiye collect kar saken.",
+      startNow: "Start Now →",
+      requestQuote: "Request Quote →",
+      comingSoon: "Coming Soon",
+      services: {
+        document: {
+          name: "Document Printing",
+          desc: "Notes, assignments, forms, reports aur documents print karein — spiral binding, comb binding aur lamination ke sath.",
+        },
+        passportPhoto: {
+          name: "Passport Photo Printing",
+          desc: "Apni photo upload karein aur printable photo sheet order karein.",
+        },
+        visitingCard: {
+          name: "Visiting Card Printing",
+          desc: "Apna design upload karein ya available template se start karein.",
+        },
+        invitationCard: {
+          name: "Invitation / Wedding Cards",
+          desc: "Customized invitation printing — coming soon.",
+        },
+        idCard: {
+          name: "ID Card Printing",
+          desc: "Personal aur organization ID cards ke liye print order karein.",
+        },
+        posterBanner: {
+          name: "Poster & Banner Printing",
+          desc: "Apna design upload karein aur required size/material select karein.",
+        },
+        customPrint: {
+          name: "Custom Print Order",
+          desc: "Agar aapko required printing option nahi mil raha, custom requirement submit karein.",
+        },
+      },
+    },
   },
   hi: {
     nav: {
@@ -484,5 +541,136 @@ export const translations: Record<Language, Translations> = {
       seniorMode: "वरिष्ठ नागरिक / उच्च कन्ट्रास्ट मोड",
       normalMode: "सामान्य टेक्स्ट मोड",
     },
+    instantOnlineServices: {
+      title: "⚡ इंस्टेंट ऑनलाइन सेवाएँ",
+      tagline: "अपना काम खुद करें — बिना लाइन में वेट किए।",
+      promise: "ऑनलाइन ऑर्डर सबमिट करें, ऑर्डर रेडी होने पर दुकान से कलेक्ट करें।",
+      subtext: "फ़ाइल अपलोड करें, प्रिंटिंग ऑप्शंस चुनें, फ़िनिशिंग जोड़ें और ऑर्डर सबमिट करें। पालक इंटरप्राइजेज आपका ऑर्डर तैयार रखेगा ताकि आप बिना लाइन में प्रतीक्षा किए कलेक्ट कर सकें।",
+      startNow: "शुरू करें →",
+      requestQuote: "कोटेशन मांगें →",
+      comingSoon: "जल्द आ रहा है",
+      services: {
+        document: {
+          name: "दस्तावेज प्रिंटिंग (Document Printing)",
+          desc: "नोट्स, असाइनमेंट, फॉर्म, रिपोर्ट व दस्तावेज प्रिंट कराएं — स्पाइरल, कॉम्ब बाइंडिंग व लैमिनेशन के साथ।",
+        },
+        passportPhoto: {
+          name: "पासपोर्ट फोटो प्रिंटिंग",
+          desc: "अपनी फोटो अपलोड करें और तुरंत प्रिंटेबल फोटो शीट ऑर्डर करें।",
+        },
+        visitingCard: {
+          name: "विजिटिंग कार्ड प्रिंटिंग",
+          desc: "अपना डिजाइन अपलोड करें या उपलब्ध टेम्पलेट से कार्ड ऑर्डर करें।",
+        },
+        invitationCard: {
+          name: "शादी व निमंत्रण कार्ड",
+          desc: "कस्टमाइज्ड निमंत्रण पत्र प्रिंटिंग — जल्द उपलब्ध होगा।",
+        },
+        idCard: {
+          name: "पहचान पत्र (ID Card) प्रिंटिंग",
+          desc: "व्यक्तिगत व संस्थान आईडी कार्ड के लिए प्रिंट ऑर्डर करें।",
+        },
+        posterBanner: {
+          name: "पोस्टर एवं बैनर प्रिंटिंग",
+          desc: "अपना डिजाइन अपलोड करें और आवश्यक साइज व मटेरियल चुनें।",
+        },
+        customPrint: {
+          name: "कस्टम प्रिंट ऑर्डर",
+          desc: "यदि आपकी आवश्यकता का विकल्प नहीं मिल रहा, तो कस्टम रिक्वायरमेंट सबमिट करें।",
+        },
+      },
+    },
   },
 };
+
+// Extend translations with bilingual property objects for direct component consumption (e.g., translations.servicesPage.heading[lang])
+export const extendedTranslations = {
+  servicesPage: {
+    heading: { en: "All Services", hi: "सभी सेवाएँ" },
+    subheading: {
+      en: "Printing, digital services, government assistance, business solutions and more — all in one place.",
+      hi: "प्रिंटिंग, डिजिटल सेवाएँ, सरकारी सहायता, व्यावसायिक समाधान और बहुत कुछ — सब एक ही जगह।",
+    },
+    searchPlaceholder: {
+      en: "Search services... (e.g. Aadhaar, Visiting Card, Passport Photo, PAN, Wedding Card, Bill Book)",
+      hi: "सेवाएँ खोजें... (जैसे आधार, विजिटिंग कार्ड, पासपोर्ट फोटो, पैन कार्ड, शादी कार्ड, बिल बुक)",
+    },
+    filterAll: { en: "All Services", hi: "सभी सेवाएँ" },
+    categoriesHeading: { en: "Categories", hi: "श्रेणियाँ" },
+    noResultsTitle: { en: "No services found", hi: "कोई सेवा नहीं मिली" },
+    noResultsSub: {
+      en: "We couldn't find any service matching your query. Contact us for custom requirements!",
+      hi: "आपकी खोज के अनुसार कोई सेवा नहीं मिली। कस्टम आवश्यकता के लिए हमसे सीधे संपर्क करें।",
+    },
+    customReqCta: { en: "Contact Us for Custom Requirement", hi: "कस्टम आवश्यकता के लिए संपर्क करें" },
+    viewDetails: { en: "View Details →", hi: "विवरण देखें →" },
+    resultsCount: { en: "services found", hi: "सेवाएँ उपलब्ध" },
+  },
+  serviceDetail: {
+    overviewHeading: { en: "Service Overview", hi: "सेवा का परिचय" },
+    optionsHeading: { en: "Available Options & Specifications", hi: "उपलब्ध विकल्प व विशेषताएँ" },
+    processHeading: { en: "How It Works (Step-by-Step)", hi: "कार्य प्रक्रिया (चरणबद्ध)" },
+    suitableHeading: { en: "Suitable For", hi: "किसके लिए उपयुक्त" },
+    faqHeading: { en: "Frequently Asked Questions", hi: "अक्सर पूछे जाने वाले सवाल" },
+    relatedHeading: { en: "Related Services", hi: "संबंधित सेवाएँ" },
+    viewSamples: { en: "View Samples", hi: "सैंपल देखें" },
+    needServiceHeading: { en: "Need This Service?", hi: "क्या आपको यह सेवा चाहिए?" },
+    needServiceSub: {
+      en: "Get in touch with us on WhatsApp, call directly, or submit a request online.",
+      hi: "व्हाट्सएप पर संपर्क करें, सीधे कॉल करें या ऑनलाइन अनुरोध दर्ज करें।",
+    },
+    requestService: { en: "Request Service →", hi: "सेवा अनुरोध करें →" },
+    callDirectly: { en: "Call Directly", hi: "सीधे कॉल करें" },
+    whatsappChat: { en: "Chat on WhatsApp", hi: "व्हाट्सएप पर बात करें" },
+    complianceNote: { en: "Important Legal & Compliance Notice", hi: "महत्वपूर्ण कानूनी सूचना" },
+  },
+  portfolioPage: {
+    heading: { en: "Design Samples & Reference Portfolio", hi: "डिज़ाइन सैंपल व संदर्भ पोर्टफोलियो" },
+    subheading: {
+      en: "Browse design concepts, printing samples, stationery layouts, and document preparation references.",
+      hi: "प्रिंटिंग डिज़ाइन, स्टेशनरी लेआउट, शादी कार्ड और डिजिटल सेवा संदर्भों के विभिन्न नमूने देखें।",
+    },
+    filterTabs: {
+      all: { en: "All", hi: "सभी" },
+      printing: { en: "Printing", hi: "प्रिंटिंग" },
+      stationery: { en: "Stationery", hi: "स्टेशनरी" },
+      wedding: { en: "Wedding & Cards", hi: "शादी व कार्ड्स" },
+      business: { en: "Business", hi: "व्यावसायिक" },
+      digital: { en: "Digital", hi: "डिजिटल" },
+      design: { en: "Design", hi: "डिज़ाइन" },
+    },
+    sampleNotice: {
+      en: "Important Notice: Images in this portfolio are representative design samples and reference mockups for demonstration. All customer printing and graphic design orders are uniquely customized based on individual specifications.",
+      hi: "महत्वपूर्ण सूचना: इस पोर्टफोलियो में प्रदर्शित सभी चित्र केवल प्रदर्शन उद्देश्य हेतु संदर्भ व सैंपल डिज़ाइन हैं। ग्राहकों के सभी प्रिंटिंग और ग्राफिक डिज़ाइन ऑर्डर उनकी विशिष्ट आवश्यकतानुसार नए सिरे से तैयार किए जाते हैं।",
+    },
+    inquireSample: { en: "Inquire About This Design", hi: "इस डिज़ाइन के बारे में पूछें" },
+    clickToEnlarge: { en: "Click to Enlarge", hi: "बड़ा करके देखें" },
+    close: { en: "Close", hi: "बंद करें" },
+    previous: { en: "Previous", hi: "पिछला" },
+    next: { en: "Next", hi: "अगला" },
+    noResults: { en: "No matching sample designs found.", hi: "कोई मिलता-जुलता सैंपल डिज़ाइन नहीं मिला।" },
+  },
+  gallery: {
+    heading: { en: "Sample Designs & Reference Portfolio", hi: "सैंपल डिज़ाइन व संदर्भ पोर्टफोलियो" },
+    sub: {
+      en: "Explore examples of printing, stationery, and digital services we can help you create.",
+      hi: "प्रिंटिंग, स्टेशनरी और ऑनलाइन सेवाओं के डिज़ाइन उदाहरण देखें जिन्हें हम आपके लिए तैयार कर सकते हैं।",
+    },
+    viewAll: { en: "View All Samples →", hi: "सभी सैंपल देखें →" },
+    filterAll: { en: "All Samples", hi: "सभी सैंपल" },
+    searchPlaceholder: { en: "Filter samples by name or type...", hi: "नाम या प्रकार द्वारा सैंपल खोजें..." },
+    disclaimer: {
+      en: "Note: Visuals shown above are reference sample designs for demonstration purposes. We customize every design according to your specific requirements.",
+      hi: "नोट: ऊपर दिखाई गई तस्वीरें केवल प्रदर्शन उद्देश्य के लिए संदर्भ सैंपल डिज़ाइन हैं। हम आपकी आवश्यकतानुसार कस्टम डिज़ाइन बनाते हैं।",
+    },
+    inquireSample: { en: "Inquire About This Design", hi: "इस डिज़ाइन के बारे में पूछें" },
+    close: { en: "Close", hi: "बंद करें" },
+    previous: { en: "Previous", hi: "पिछला" },
+    next: { en: "Next", hi: "अगला" },
+    viewSamples: { en: "View Samples", hi: "सैंपल देखें" },
+    noSamples: { en: "No matching sample designs found.", hi: "कोई मिलता-जुलता सैंपल डिज़ाइन नहीं मिला।" },
+  },
+};
+
+Object.assign(translations, extendedTranslations);
+

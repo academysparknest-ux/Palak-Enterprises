@@ -1,12 +1,11 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React from "react";
+import { Link } from "react-router-dom";
 import {
   Printer,
   Globe,
   Briefcase,
   Gift,
   ArrowRight,
-  Search,
   Sparkles,
   Palette,
   ShieldCheck,
@@ -18,21 +17,19 @@ import { useLanguage } from "../context/LanguageContext";
 import { Hero } from "../components/Hero";
 import { ProductCard } from "../components/ProductCard";
 import { DigitalServiceCard } from "../components/DigitalServiceCard";
+import { InstantOnlineServicesSection } from "../components/InstantOnlineServicesSection";
 import { PalakDataStore } from "../lib/storage/store";
 import { business, getWhatsAppLink, getDirectionsLink } from "../config/business";
 import { cn } from "../lib/utils";
 
 interface HomePageProps {
-  onOpenRequestModal?: (serviceId?: string) => void;
+  onOpenRequestModal?: (serviceId?: string, paymentMethod?: "pay_online" | "pay_at_shop") => void;
   onSelectService?: (service: any) => void;
 }
 
-export const HomePage: React.FC<HomePageProps> = () => {
+export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const navigate = useNavigate();
-
-  const [searchQuery, setSearchQuery] = useState("");
 
   const products = PalakDataStore.getProducts();
   const popularProducts = products.filter((p) => p.isPopular || p.isFeatured).slice(0, 6);
@@ -54,7 +51,7 @@ export const HomePage: React.FC<HomePageProps> = () => {
       desc: { en: "PAN card, RTPS certificates, exam forms, scholarships & CSC services.", hi: "पैन कार्ड, जाति/आय प्रमाण, परीक्षा फॉर्म, छात्रवृत्ति व सीएससी सेवाएँ।" },
       count: "12+ Services",
       icon: Globe,
-      link: "/digital-services",
+      link: "/services/government",
       color: "bg-amber-50 text-amber-800 border-amber-200/60",
     },
     {
@@ -63,7 +60,7 @@ export const HomePage: React.FC<HomePageProps> = () => {
       desc: { en: "Office stationery, carbonless bill books, shop branding & custom web dev.", hi: "ऑफिस स्टेशनरी, बिल बुक, दुकान ब्रांडिंग एवं कस्टम वेबसाइट।" },
       count: "8+ Packages",
       icon: Briefcase,
-      link: "/business",
+      link: "/services/stationery",
       color: "bg-emerald-50 text-emerald-800 border-emerald-200/60",
     },
     {
@@ -72,91 +69,18 @@ export const HomePage: React.FC<HomePageProps> = () => {
       desc: { en: "Royal gold-foil wedding cards, Tilak, Mundan & ceremony invitations.", hi: "शाही शादी कार्ड, तिलक, मुंडन और मांगलिक आयोजनों के निमंत्रण पत्र।" },
       count: "6+ Collections",
       icon: Gift,
-      link: "/wedding-events",
+      link: "/services/wedding-invitations",
       color: "bg-rose-50 text-rose-800 border-rose-200/60",
     },
   ];
 
-  const quickPills = [
-    { label: currentLang === "hi" ? "विजिटिंग कार्ड" : "Visiting Cards", path: "/printing/visiting-cards" },
-    { label: currentLang === "hi" ? "पैन कार्ड" : "PAN Card", path: "/digital-services/pan" },
-    { label: currentLang === "hi" ? "सरकारी फॉर्म" : "Govt Forms", path: "/digital-services/govt-exam-forms" },
-    { label: currentLang === "hi" ? "फ्लेक्स बैनर" : "Flex Banners", path: "/printing/flex-banners" },
-    { label: currentLang === "hi" ? "शादी कार्ड" : "Wedding Cards", path: "/wedding-events" },
-    { label: currentLang === "hi" ? "बिल बुक" : "Bill Books", path: "/printing/bill-books" },
-  ];
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    const q = searchQuery.toLowerCase();
-    if (q.includes("pan") || q.includes("rtps") || q.includes("form")) {
-      navigate("/digital-services");
-    } else {
-      navigate(`/printing?q=${encodeURIComponent(searchQuery)}`);
-    }
-  };
-
   return (
     <div className="space-y-14 sm:space-y-20 pb-16">
       {/* 1. Hero Section */}
-      <Hero />
+      <Hero onOpenRequestModal={onOpenRequestModal} />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 space-y-16 sm:space-y-20">
-        {/* 2. Quick Service Search Bar */}
-        <section className="-mt-8 sm:-mt-12 relative z-20">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-raised">
-            <div className="text-center max-w-xl mx-auto mb-4">
-              <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                {currentLang === "hi" ? "आज आपको किस सेवा में मदद चाहिए?" : "What can we help you with today?"}
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {currentLang === "hi" ? "प्रिंटिंग उत्पाद या डिजिटल सेवा तुरंत खोजें" : "Quickly search printing products, CSC services, or government applications"}
-              </p>
-            </div>
-
-            <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 max-w-2xl mx-auto">
-              <div className="relative flex-1">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={
-                    currentLang === "hi"
-                      ? "जैसे: Visiting Card, PAN, Flex, जाति प्रमाण, Bill Book..."
-                      : "e.g. Visiting Cards, PAN Card, Flex Banner, RTPS, Bill Book..."
-                  }
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-3 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden transition-all"
-                />
-              </div>
-              <button
-                type="submit"
-                className="rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-card transition-all cursor-pointer shrink-0"
-              >
-                <span>{currentLang === "hi" ? "खोजें" : "Search"}</span>
-              </button>
-            </form>
-
-            {/* Popular quick action pills */}
-            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-center gap-2 text-xs">
-              <span className="text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
-                {currentLang === "hi" ? "त्वरित लिंक:" : "Popular:"}
-              </span>
-              {quickPills.map((pill) => (
-                <Link
-                  key={pill.path}
-                  to={pill.path}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700 hover:border-[#123B70] hover:bg-blue-50/50 hover:text-[#123B70] transition-colors"
-                >
-                  {pill.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* 3. Main 4 Service Category Cards */}
+        {/* 2. Main 4 Service Category Cards */}
         <section className="space-y-6">
           <div className="flex items-end justify-between">
             <div>
@@ -203,6 +127,9 @@ export const HomePage: React.FC<HomePageProps> = () => {
           </div>
         </section>
 
+        {/* ⚡ Instant Online Services (Self-Service 7 Cards) */}
+        <InstantOnlineServicesSection />
+
         {/* 4. Popular Printing Products Section */}
         <section className="space-y-6">
           <div className="flex items-end justify-between">
@@ -248,7 +175,7 @@ export const HomePage: React.FC<HomePageProps> = () => {
             </div>
 
             <Link
-              to="/digital-services"
+              to="/services"
               className="inline-flex items-center gap-1 rounded-xl bg-[#123B70] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0c274c] transition-colors shrink-0"
             >
               <span>{currentLang === "hi" ? "सभी डिजिटल सेवाएँ देखें" : "View All Services"}</span>

@@ -1,155 +1,236 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import React, { useState, useMemo, useRef } from "react";
+import { Sparkles, RefreshCw, Search } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
-import { ProductCard } from "../components/ProductCard";
 import { PalakDataStore } from "../lib/storage/store";
-import { getWhatsAppLink } from "../config/business";
+import { type LocalProduct, type CardOccasion, type CardStyle } from "../lib/storage/catalogData";
+import { WeddingHero } from "../components/wedding/WeddingHero";
+import { OccasionCollections } from "../components/wedding/OccasionCollections";
+import { StyleCollections } from "../components/wedding/StyleCollections";
+import { CatalogueToolbar, type FilterState } from "../components/wedding/CatalogueToolbar";
+import { CardProductCard } from "../components/wedding/CardProductCard";
+import { CardQuoteModal } from "../components/wedding/CardQuoteModal";
+import { CardSampleModal } from "../components/wedding/CardSampleModal";
+import { WhyChoosePalakCards } from "../components/wedding/WhyChoosePalakCards";
+import { WeddingFinalCTA } from "../components/wedding/WeddingFinalCTA";
+import { SEO } from "../components/SEO";
 
 export const WeddingEventsPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
-  const weddingProduct = PalakDataStore.getProductBySlug("wedding-invitations");
+  const catalogueRef = useRef<HTMLDivElement>(null);
 
-  const collections = [
-    {
-      titleEn: "Royal Gold Leaf & Screen Print Cards",
-      titleHi: "रॉयल गोल्ड लीफ व स्क्रीन प्रिंट शादी कार्ड",
-      descEn: "Traditional Sanskrit shlokas, Ganesha motifs, laser cuts, and golden foil embossing with matching envelopes.",
-      descHi: "श्री गणेशाय नमः, मांगलिक श्लोक, सुनहरे अक्षर और लेज़र कटिंग युक्त पारंपरिक शादी निमंत्रण पत्र।",
-      price: "From ₹12/card",
-      emoji: "🪔",
-    },
-    {
-      titleEn: "Tilak, Mundan & Janeu Ceremony Cards",
-      titleHi: "तिलक, मुंडन एवं जनेऊ संस्कार कार्ड",
-      descEn: "Specialized ceremonial cards for Shubha Tilak, Mundan sanskar, Upanayana, Griha Pravesh & family pujas.",
-      descHi: "शुभ तिलक, मुंडन, जनेऊ संस्कार, गृह प्रवेश और सत्यनारायण पूजा के आकर्षक निमंत्रण पत्र।",
-      price: "From ₹8/card",
-      emoji: "🙏",
-    },
-    {
-      titleEn: "Birthday & Anniversary Party Invitations",
-      titleHi: "जन्मदिन एवं वैवाहिक वर्षगांठ आमंत्रण",
-      descEn: "Vibrant photo-printed personalized birthday invitations with cartoon themes, glitter cards & digital formats.",
-      descHi: "बच्चों के जन्मदिन के लिए कार्टून थीम, फोटो प्रिंटेड और डिजिटल इनविटेशन कार्ड।",
-      price: "From ₹6/card",
-      emoji: "🎂",
-    },
-  ];
+  // Filter and search state
+  const [filters, setFilters] = useState<FilterState>({
+    searchQuery: "",
+    occasion: "all",
+    style: "all",
+    cardType: "all",
+    religion: "all",
+    priceRange: "all",
+    sortBy: "featured",
+  });
+
+  // Active modals
+  const [selectedProductForQuote, setSelectedProductForQuote] = useState<LocalProduct | null>(null);
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [selectedProductForSample, setSelectedProductForSample] = useState<LocalProduct | null>(null);
+  const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
+
+  // Scroll helper
+  const scrollToCatalogue = () => {
+    if (catalogueRef.current) {
+      catalogueRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleFilterChange = (newFilters: Partial<FilterState>) => {
+    setFilters((prev) => ({ ...prev, ...newFilters }));
+  };
+
+  const handleResetFilters = () => {
+    setFilters({
+      searchQuery: "",
+      occasion: "all",
+      style: "all",
+      cardType: "all",
+      religion: "all",
+      priceRange: "all",
+      sortBy: "featured",
+    });
+  };
+
+  const handleSelectOccasion = (occ: CardOccasion | "all") => {
+    setFilters((prev) => ({ ...prev, occasion: occ }));
+    scrollToCatalogue();
+  };
+
+  const handleSelectStyle = (st: CardStyle | "all") => {
+    setFilters((prev) => ({ ...prev, style: st }));
+    scrollToCatalogue();
+  };
+
+  const handleOpenQuoteModal = (product: LocalProduct) => {
+    setSelectedProductForQuote(product);
+    setIsQuoteModalOpen(true);
+  };
+
+  const handleOpenSampleModal = (product: LocalProduct) => {
+    setSelectedProductForSample(product);
+    setIsSampleModalOpen(true);
+  };
+
+  const handleOpenGenericCustomQuote = () => {
+    const customCard = PalakDataStore.getWeddingCardBySlug("bespoke-custom-designer-invitation") || PalakDataStore.getWeddingCards()[0];
+    setSelectedProductForQuote(customCard);
+    setIsQuoteModalOpen(true);
+  };
+
+  // Filtered Cards list
+  const filteredCards = useMemo(() => {
+    return PalakDataStore.getWeddingCards({
+      searchQuery: filters.searchQuery,
+      occasion: filters.occasion,
+      style: filters.style,
+      cardType: filters.cardType,
+      religion: filters.religion,
+      priceRange: filters.priceRange,
+      sortBy: filters.sortBy,
+    });
+  }, [filters]);
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
-      {/* Hero Banner */}
-      <div className="bg-linear-to-r from-[#123B70] via-[#1E293B] to-[#7F1D1D] text-white py-14 px-4 sm:px-6">
-        <div className="mx-auto max-w-7xl space-y-4">
-          <div className="text-xs text-slate-300">
-            <Link to="/" className="hover:underline">Home</Link> / <span className="text-amber-300">Wedding & Events</span>
+    <div className="min-h-screen bg-[#FCFBF7] text-slate-900 pb-20">
+      <SEO
+        title={{
+          en: "Royal Wedding & Invitation Card Showroom | Palak Enterprises Chakia",
+          hi: "शाही शादी एवं मांगलिक कार्ड कैटलॉग | पालक इंटरप्राइजेज चकिया",
+        }}
+        description={{
+          en: "Explore luxury Indian wedding stationery, Tilak & Mundan invitations, laser cut cards, and velvet boxes with in-house printing in Chakia, Bihar.",
+          hi: "शादी, तिलक, मुंडन, सगाई और गृह प्रवेश के 500+ सुंदर कार्ड। गोल्डन फॉयल, संस्कृत श्लोक एवं चकिया में इन-हाउस प्रिंटिंग।",
+        }}
+      />
+
+      {/* 1. Hero Section */}
+      <WeddingHero
+        onBrowseClick={scrollToCatalogue}
+        onOpenCustomQuote={handleOpenGenericCustomQuote}
+      />
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-10 space-y-12 sm:space-y-16">
+        {/* 2. Occasion Discovery Collections */}
+        <OccasionCollections
+          selectedOccasion={filters.occasion}
+          onSelectOccasion={handleSelectOccasion}
+        />
+
+        {/* 3. Style Discovery Pills */}
+        <StyleCollections
+          selectedStyle={filters.style}
+          onSelectStyle={handleSelectStyle}
+        />
+
+        {/* 4. Catalogue Toolbar & Product Grid Anchor */}
+        <div ref={catalogueRef} className="space-y-6 pt-4">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-slate-200 pb-3">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#881337] flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>{currentLang === "hi" ? "डिजिटल शोरूम कैटलॉग" : "Digital Showroom Catalogue"}</span>
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-0.5">
+                {currentLang === "hi" ? "कार्ड्स एवं निमंत्रण पत्र" : "Explore Invitation Cards"}
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500">
+              {currentLang === "hi"
+                ? "सभी कार्ड्स में नाम, तारीख और हिंदी/संस्कृत श्लोक कस्टमाइज़ किए जा सकते हैं।"
+                : "All designs include custom Sanskrit/Hindi text, gold foil and envelope options."}
+            </p>
           </div>
 
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 px-3.5 py-1 text-xs font-bold">
-            <Sparkles className="h-4 w-4" />
-            <span>Mangalik & Ceremony Printing</span>
-          </span>
+          {/* Search, Filters, Price, Sort Toolbar */}
+          <CatalogueToolbar
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onResetFilters={handleResetFilters}
+            totalCount={filteredCards.length}
+          />
 
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">
-            {currentLang === "hi" ? "शाही शादी एवं मांगलिक निमंत्रण पत्र" : "Royal Wedding & Celebration Invitation Cards"}
-          </h1>
-
-          <p className="text-xs sm:text-sm text-slate-200 max-w-2xl leading-relaxed">
-            {currentLang === "hi"
-              ? "शुभ विवाह, तिलक, मुंडन, जन्मदिन और गृह प्रवेश के लिए 500+ से अधिक सुंदर डिज़ाइनों में कार्ड प्रिंटिंग। हिंदी एवं संस्कृत श्लोक सहित।"
-              : "Exquisite designer wedding stationery, Tilak invitations, Mundan cards, gold-foil stamping, and bespoke Sanskrit shlokas for your sacred milestones."}
-          </p>
-
-          <div className="pt-2 flex flex-wrap items-center gap-3">
-            <Link
-              to="/printing/wedding-invitations"
-              className="rounded-xl bg-amber-500 hover:bg-amber-400 px-6 py-3 text-xs sm:text-sm font-extrabold text-slate-950 transition-transform hover:scale-105"
-            >
-              {currentLang === "hi" ? "शादी कार्ड कस्टमाइज़ करें" : "Configure Wedding Cards"}
-            </Link>
-            <a
-              href={getWhatsAppLink("Hello Palak, I want to see wedding card samples and designs.")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-5 py-3 text-xs sm:text-sm font-bold text-white transition-colors"
-            >
-              Request Sample Catalog on WhatsApp
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 -mt-6 space-y-12">
-        {/* Ceremonial Collections Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {collections.map((col, idx) => (
-            <div
-              key={idx}
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition-all space-y-4"
-            >
-              <div>
-                <div className="text-3xl mb-3">{col.emoji}</div>
-                <div className="inline-block rounded-full bg-rose-50 text-rose-800 border border-rose-200/60 px-2.5 py-0.5 text-[11px] font-bold mb-2">
-                  {col.price}
-                </div>
-                <h3 className="text-base font-bold text-slate-900">
-                  {currentLang === "hi" ? col.titleHi : col.titleEn}
-                </h3>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  {currentLang === "hi" ? col.descHi : col.descEn}
-                </p>
+          {/* 5. Responsive Product Grid */}
+          {filteredCards.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+              {filteredCards.map((product) => (
+                <CardProductCard
+                  key={product.id}
+                  product={product}
+                  onOpenQuoteModal={handleOpenQuoteModal}
+                  onOpenSampleModal={handleOpenSampleModal}
+                />
+              ))}
+            </div>
+          ) : (
+            /* Empty State */
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 sm:p-16 text-center space-y-4 shadow-2xs">
+              <div className="h-16 w-16 rounded-full bg-rose-50 text-[#881337] flex items-center justify-center mx-auto">
+                <Search className="h-8 w-8" />
               </div>
-
-              <Link
-                to="/printing/wedding-invitations"
-                className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline pt-2 border-t border-slate-100"
-              >
-                <span>{currentLang === "hi" ? "डिज़ाइन देखें व ऑर्डर करें →" : "View Collection & Order →"}</span>
-              </Link>
+              <h3 className="text-xl font-bold text-slate-900">
+                {currentLang === "hi"
+                  ? "चयनित फ़िल्टर के अनुसार कोई कार्ड नहीं मिला"
+                  : "No Invitation Cards Match Your Filters"}
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                {currentLang === "hi"
+                  ? "कृपया कोई अन्य श्रेणी या बजट चुनें, या अपनी विशेष पसंद के अनुसार कस्टम डिज़ाइन का अनुरोध करें।"
+                  : "Try clearing some filters or search keywords, or request a custom quotation tailored to your exact specifications."}
+              </p>
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 text-white px-5 py-2.5 text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>{currentLang === "hi" ? "सभी फ़िल्टर रीसेट करें" : "Reset All Filters"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenGenericCustomQuote}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#881337] text-white px-5 py-2.5 text-xs font-bold hover:bg-[#700f2d] transition-colors cursor-pointer"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                  <span>{currentLang === "hi" ? "कस्टम डिज़ाइन मांगें" : "Request Custom Design"}</span>
+                </button>
+              </div>
             </div>
-          ))}
+          )}
         </div>
 
-        {/* Featured Wedding Product Card */}
-        {weddingProduct && (
-          <div className="space-y-4">
-            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
-              {currentLang === "hi" ? "लोकप्रिय शादी कार्ड पैकेज" : "Featured Wedding Card Package"}
-            </h2>
-            <div className="max-w-md">
-              <ProductCard product={weddingProduct} />
-            </div>
-          </div>
-        )}
+        {/* 6. Why Choose Palak Cards Trust Section */}
+        <WhyChoosePalakCards />
 
-        {/* In-store Sample Room Reassurance */}
-        <div className="rounded-3xl border border-rose-200 bg-linear-to-br from-rose-50/70 via-white to-amber-50/50 p-6 sm:p-10 text-center space-y-4 shadow-xs">
-          <span className="text-xs font-bold uppercase tracking-wider text-rose-800">
-            Chakia Walk-in Experience
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 max-w-xl mx-auto">
-            {currentLang === "hi" ? "दुकान पर पधारकर 500+ कार्ड सैंपल देखें" : "Visit Our Store to Browse 500+ Physical Samples"}
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-600 max-w-xl mx-auto leading-relaxed">
-            {currentLang === "hi"
-              ? "हमारे चकिया स्टोर (ब्लॉक गेट के पास) पर पधारें, कार्ड का पेपर और फॉयल छूकर देखें और अपने परिवार के साथ बैठकर मनपसंद डिज़ाइन फाइनल करें।"
-              : "Feel the paper textures, inspect gold-foil finishes, and sit with our typographer to draft Sanskrit/Hindi shlokas with your family."}
-          </p>
-          <div className="pt-2 flex justify-center gap-3">
-            <a
-              href={getWhatsAppLink("Hello Palak, I am planning to visit for wedding cards.")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#123B70] px-5 py-3 text-xs sm:text-sm font-bold text-white hover:bg-[#0c274c] shadow-card transition-all"
-            >
-              <span>Book In-Store Visit</span>
-            </a>
-          </div>
-        </div>
+        {/* 7. Bottom Final CTA */}
+        <WeddingFinalCTA
+          onScrollToTop={scrollToCatalogue}
+          onOpenCustomQuote={handleOpenGenericCustomQuote}
+        />
       </div>
+
+      {/* Quote Request Modal */}
+      <CardQuoteModal
+        isOpen={isQuoteModalOpen}
+        onClose={() => setIsQuoteModalOpen(false)}
+        product={selectedProductForQuote}
+      />
+
+      {/* Sample Request Modal */}
+      <CardSampleModal
+        isOpen={isSampleModalOpen}
+        onClose={() => setIsSampleModalOpen(false)}
+        product={selectedProductForSample}
+      />
     </div>
   );
 };

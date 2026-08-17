@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgTeal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#022c22"/>
+      <stop offset="100%" stop-color="#064e3b"/>
+    </linearGradient>
+    <linearGradient id="goldFeather" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="shadowLaser" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgTeal)"/>
+  
+  <!-- Laser Cut Outer Jacket with Peacock Filigree -->
+  <g filter="url(#shadowLaser)" transform="translate(180, 80)">
+    <rect width="440" height="440" rx="16" fill="#064e3b" stroke="url(#goldFeather)" stroke-width="3"/>
+    
+    <!-- Laser Cut Filigree Lattice Simulation -->
+    <rect x="15" y="15" width="410" height="410" rx="10" fill="none" stroke="url(#goldFeather)" stroke-width="1.5" stroke-dasharray="8,6"/>
+    <circle cx="220" cy="90" r="45" fill="#022c22" stroke="url(#goldFeather)" stroke-width="2"/>
+
+    <!-- Peacock Motif Artwork -->
+    <path d="M220,60 C200,60 190,80 200,105 C210,125 230,125 240,105 C250,80 240,60 220,60 Z" fill="none" stroke="url(#goldFeather)" stroke-width="2"/>
+    <circle cx="215" cy="80" r="3" fill="#fef08a"/>
+    <path d="M220,60 C210,40 180,45 175,70" stroke="url(#goldFeather)" stroke-width="1.5" fill="none"/>
+    <path d="M220,60 C230,40 260,45 265,70" stroke="url(#goldFeather)" stroke-width="1.5" fill="none"/>
+
+    <!-- Gold Stamped Text -->
+    <text x="220" y="165" font-family="Georgia, serif" font-weight="bold" font-size="15" fill="url(#goldFeather)" text-anchor="middle" letter-spacing="3">ROYAL LASER CUT INVITATION</text>
+    <text x="220" y="190" font-family="Georgia, serif" font-size="12" fill="#a7f3d0" text-anchor="middle">PALAK PREMIUM WEDDING COLLECTION</text>
+
+    <!-- Insert Card Peeking Through -->
+    <rect x="40" y="220" width="360" height="190" rx="10" fill="#022c22" stroke="url(#goldFeather)" stroke-width="1"/>
+    <text x="220" y="270" font-family="Georgia, serif" font-style="italic" font-weight="bold" font-size="28" fill="url(#goldFeather)" text-anchor="middle">Vikram  &amp;  Neha</text>
+    <text x="220" y="300" font-family="Georgia, serif" font-size="12" fill="#d1fae5" text-anchor="middle">Together with their families invite you to their wedding</text>
+    
+    <text x="220" y="345" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff" text-anchor="middle">DECEMBER 14, 2026 • HOTEL PARADISE</text>
+    <text x="220" y="375" font-family="system-ui, sans-serif" font-size="11" fill="url(#goldFeather)" text-anchor="middle">SKU: PE-WED-002 • Intricate Laser Cut</text>
+  </g>
+</svg>

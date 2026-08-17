@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSquare } from "lucide-react";
+import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSquare, User } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { PalakDataStore } from "../lib/storage/store";
 import { getWhatsAppLink } from "../config/business";
 
@@ -10,11 +11,20 @@ export const CheckoutPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
   const { items, subtotal, total, clearCart, itemCount } = useCart();
+  const { user, isAuthenticated } = useAuth();
 
   // Form State
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerName, setCustomerName] = useState(user?.name || "");
+  const [customerPhone, setCustomerPhone] = useState(user?.phone || "");
+  const [customerEmail, setCustomerEmail] = useState(user?.email || "");
+
+  useEffect(() => {
+    if (user) {
+      setCustomerName((prev) => prev || user.name || "");
+      setCustomerPhone((prev) => prev || user.phone || "");
+      setCustomerEmail((prev) => prev || user.email || "");
+    }
+  }, [user]);
   const [fulfillmentType, setFulfillmentType] = useState<"pickup" | "delivery">("pickup");
   const [streetAddress, setStreetAddress] = useState("");
   const [landmark, setLandmark] = useState("");
@@ -151,6 +161,37 @@ export const CheckoutPage: React.FC = () => {
           <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 lg:grid-cols-[1.3fr_0.7fr] gap-8 items-start">
             {/* Left: Customer Contact & Delivery Details */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">
+              {/* Auth status banner */}
+              {isAuthenticated ? (
+                <div className="rounded-2xl bg-emerald-50 border border-emerald-200/80 p-3 text-xs flex flex-wrap items-center justify-between gap-2 text-emerald-900">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>
+                      {currentLang === "hi" ? "लॉगिन किया हुआ है:" : "Signed in as"}{" "}
+                      <strong>{user?.name}</strong> {user?.email && `(${user.email})`}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200">
+                    {user?.role || "CUSTOMER"}
+                  </span>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-blue-50 border border-blue-200/80 p-3 text-xs flex flex-wrap items-center justify-between gap-2 text-[#123B70]">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-[#123B70] shrink-0" />
+                    <span>
+                      {currentLang === "hi" ? "क्या आपका खाता है?" : "Have a Palak account?"}{" "}
+                      <Link to="/login?returnTo=/checkout" className="font-bold underline hover:text-[#0c274c]">
+                        {currentLang === "hi" ? "त्वरित चेकआउट के लिए साइन इन करें" : "Sign in for saved details"}
+                      </Link>
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    {currentLang === "hi" ? "कार्ट सुरक्षित रहेगी" : "Cart is preserved"}
+                  </span>
+                </div>
+              )}
+
               <div>
                 <h2 className="text-lg font-extrabold text-slate-900">
                   {currentLang === "hi" ? "ग्राहक विवरण एवं संपर्क" : "1. Contact & Customer Details"}

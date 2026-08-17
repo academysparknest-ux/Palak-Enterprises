@@ -1,520 +1,455 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { User, Package, Globe, LogOut, Lock, Mail, Phone, ArrowRight, CheckCircle2 } from "lucide-react";
+import {
+  User,
+  Package,
+  Globe,
+  LogOut,
+  Mail,
+  Phone,
+  ShieldCheck,
+  Building,
+  Key,
+  Printer,
+  ChevronRight,
+} from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { PalakDataStore } from "../lib/storage/store";
+import { SEO } from "../components/SEO";
 
 export const AccountPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const {
-    user,
-    isAuthenticated,
-    isStaff,
-    loginCustomer,
-    loginWithEmail,
-    signUpWithEmail,
-    logout,
-  } = useAuth();
+  const { user, isAuthenticated, isStaff, isAdmin, logout, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Login form state
-  const [authMode, setAuthMode] = useState<"customer_phone" | "customer_email" | "customer_signup" | "staff_login">("customer_phone");
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"orders" | "services" | "profile">("orders");
 
-  // Customer portal active tab
-  const [portalSection, setPortalSection] = useState<"orders" | "services" | "profile">("orders");
-
-  const handleCustomerPhoneLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!phone.trim() || phone.replace(/\D/g, "").length < 10) {
-      setError(currentLang === "hi" ? "कृपया 10 अंकों का वैध मोबाइल नंबर दर्ज करें" : "Please enter a valid 10-digit phone number");
-      return;
-    }
-    await loginCustomer(phone, name);
-  };
-
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    const res = await loginWithEmail(email, password);
-    setSubmitting(false);
-    if (res.success) {
-      if (authMode === "staff_login") {
-        navigate("/admin");
-      }
-    } else {
-      setError(res.error || "Authentication failed. Please verify your credentials.");
-    }
-  };
-
-  const handleEmailSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-    setSubmitting(true);
-    const res = await signUpWithEmail(email, password, name, phone);
-    setSubmitting(false);
-    if (res.success) {
-      setSuccessMsg(currentLang === "hi" ? "खाता सफलतापूर्वक बन गया! कृपया लॉगिन करें।" : "Account created successfully! You are now logged in.");
-    } else {
-      setError(res.error || "Could not register account. Please try again.");
-    }
-  };
-
-  // If not logged in, show Auth Screen
-  if (!isAuthenticated) {
+  // If loading session, show clean skeleton/spinner
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#F7F8FA] py-16 px-4 sm:px-6 flex items-center justify-center">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 max-w-md w-full shadow-card space-y-6">
-          <div className="text-center space-y-1">
-            <div className="h-12 w-12 rounded-full bg-blue-50 text-[#123B70] flex items-center justify-center mx-auto mb-2">
-              <User className="h-6 w-6" />
-            </div>
-            <h1 className="text-xl font-extrabold text-slate-900">
-              {currentLang === "hi" ? "ग्राहक लॉगिन / स्टाफ पोर्टल" : "Account Access & Staff Portal"}
-            </h1>
-            <p className="text-xs text-slate-500">
-              Secure authentication powered by Supabase RBAC
-            </p>
-          </div>
-
-          {/* Navigation Tabs */}
-          <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
-            <button
-              onClick={() => {
-                setAuthMode("customer_phone");
-                setError(null);
-                setSuccessMsg(null);
-              }}
-              className={`py-2 rounded-lg transition-all cursor-pointer ${
-                authMode.startsWith("customer") ? "bg-white text-[#123B70] shadow-xs" : "text-slate-600"
-              }`}
-            >
-              {currentLang === "hi" ? "ग्राहक पोर्टल" : "Customer Portal"}
-            </button>
-            <button
-              onClick={() => {
-                setAuthMode("staff_login");
-                setError(null);
-                setSuccessMsg(null);
-              }}
-              className={`py-2 rounded-lg transition-all cursor-pointer ${
-                authMode === "staff_login" ? "bg-white text-[#123B70] shadow-xs" : "text-slate-600"
-              }`}
-            >
-              {currentLang === "hi" ? "स्टाफ / ERP लॉगिन" : "Staff ERP Login"}
-            </button>
-          </div>
-
-          {error && (
-            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
-              {error}
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700 flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
-
-          {/* Customer Phone Form */}
-          {authMode === "customer_phone" && (
-            <form onSubmit={handleCustomerPhoneLogin} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  {currentLang === "hi" ? "मोबाइल नंबर *" : "Mobile Number *"}
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. 9905238015"
-                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  {currentLang === "hi" ? "आपका नाम (वैकल्पिक)" : "Your Name (Optional)"}
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Kumar Pankaj"
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-[#123B70] py-3 text-xs font-bold text-white hover:bg-[#0c274c] shadow-card transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <span>{currentLang === "hi" ? "त्वरित लॉगिन करें" : "Access My Account"}</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-
-              <div className="pt-2 text-center text-xs text-slate-500">
-                <span>Want password protection? </span>
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("customer_email")}
-                  className="font-bold text-[#123B70] hover:underline cursor-pointer"
-                >
-                  Login with Email
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Customer Email Login Form */}
-          {authMode === "customer_email" && (
-            <form onSubmit={handleEmailLogin} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Email Address *</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Password *</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-[#123B70] py-3 text-xs font-bold text-white hover:bg-[#0c274c] shadow-card transition-all cursor-pointer disabled:opacity-50"
-              >
-                <span>{submitting ? "Signing in..." : "Login with Email"}</span>
-              </button>
-
-              <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("customer_signup")}
-                  className="font-bold text-[#123B70] hover:underline cursor-pointer"
-                >
-                  Create Account
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("customer_phone")}
-                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  Use Mobile Number
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Customer Signup Form */}
-          {authMode === "customer_signup" && (
-            <form onSubmit={handleEmailSignUp} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Ramesh Kumar"
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Mobile Number</label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 9905238015"
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Password *</label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimum 6 characters"
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white hover:bg-emerald-500 shadow-card transition-all cursor-pointer disabled:opacity-50"
-              >
-                <span>{submitting ? "Creating Account..." : "Register Customer Account"}</span>
-              </button>
-
-              <div className="pt-2 text-center text-xs text-slate-500">
-                <span>Already have an account? </span>
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("customer_email")}
-                  className="font-bold text-[#123B70] hover:underline cursor-pointer"
-                >
-                  Sign In
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Staff Login Form (Supabase Auth Credentials) */}
-          {authMode === "staff_login" && (
-            <form onSubmit={handleEmailLogin} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Staff Email Address *
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="staff@palakenterprises.com"
-                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Staff Password *
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-slate-900 py-3 text-xs font-bold text-white hover:bg-slate-800 shadow-card transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                <Lock className="h-3.5 w-3.5" />
-                <span>{submitting ? "Authenticating..." : "Login to Staff ERP Dashboard"}</span>
-              </button>
-
-              <p className="text-[11px] text-slate-400 text-center mt-1">
-                Authorized staff accounts are authenticated and role-verified in Supabase.
-              </p>
-            </form>
-          )}
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-9 w-9 animate-spin rounded-full border-3 border-[#123B70] border-t-transparent" />
+          <span className="text-xs font-semibold text-slate-500">
+            {currentLang === "hi" ? "अकाउंट लोड हो रहा है..." : "Loading account..."}
+          </span>
         </div>
       </div>
     );
   }
 
-  // Customer Portal (If authenticated)
-  const customerOrders = user?.phone ? PalakDataStore.getOrdersByPhone(user.phone) : PalakDataStore.getOrders().slice(0, 3);
-  const customerServices = PalakDataStore.getServiceRequests().filter((s) => s.customerPhone.includes(user?.phone || ""));
+  // If not authenticated, show welcoming login CTA
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[calc(100vh-140px)] bg-[#F7F8FA] py-16 px-4 sm:px-6 flex items-center justify-center">
+        <SEO
+          title={{
+            en: "Customer Account | Palak Enterprises",
+            hi: "ग्राहक अकाउंट | पालक इंटरप्राइजेज",
+          }}
+          description={{
+            en: "Access your printing orders, invoices, proofs, and citizen service requests.",
+            hi: "अपने प्रिंटिंग ऑर्डर, इनवॉइस, डिज़ाइन प्रूफ और नागरिक सेवा अनुरोध देखें।",
+          }}
+        />
 
-  return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
-      {/* Header */}
-      <div className="bg-[#123B70] text-white py-10 px-4 sm:px-6">
-        <div className="mx-auto max-w-7xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="text-xs text-slate-300">
-              <Link to="/" className="hover:underline">Home</Link> / <span className="text-amber-300">Customer Account</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mt-1">
-              Welcome, {user?.name || "Customer"}
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 max-w-md w-full shadow-card text-center space-y-6">
+          <div className="h-14 w-14 rounded-2xl bg-blue-50 text-[#123B70] flex items-center justify-center mx-auto ring-8 ring-blue-50/50">
+            <User className="h-7 w-7" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              {currentLang === "hi" ? "अकाउंट में साइन इन करें" : "Sign In to Your Account"}
             </h1>
-            <p className="text-xs text-slate-300 mt-0.5">
-              Phone: {user?.phone} {isStaff && <span className="text-amber-300 font-bold ml-2">• Staff Member</span>}
+            <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+              {currentLang === "hi"
+                ? "अपने ऑर्डर, इनवॉइस और डिज़ाइन प्रूफ देखने के लिए कृपया लॉगिन करें।"
+                : "Sign in to manage your orders, check proof status, and view invoices."}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="space-y-3 pt-2">
+            <Link
+              to="/login?returnTo=/account"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] py-3 text-xs sm:text-sm font-bold text-white shadow-card transition-all"
+            >
+              <span>{currentLang === "hi" ? "लॉगिन करें" : "Sign In with Email or Google"}</span>
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+
+            <Link
+              to="/signup?returnTo=/account"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 py-3 text-xs sm:text-sm font-bold text-slate-700 transition-colors"
+            >
+              <span>{currentLang === "hi" ? "नया अकाउंट बनाएं" : "Create New Account"}</span>
+            </Link>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>{currentLang === "hi" ? "ऑर्डर बिना लॉगिन ट्रैक करें:" : "Track without login:"}</span>
+            <Link to="/track-order" className="font-bold text-[#123B70] hover:underline">
+              {currentLang === "hi" ? "ट्रैक ऑर्डर →" : "Track Order →"}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fetch relevant orders and services
+  const userPhone = user?.phone?.trim();
+  const customerOrders = userPhone
+    ? PalakDataStore.getOrdersByPhone(userPhone)
+    : PalakDataStore.getOrders().slice(0, 5);
+
+  const customerServices = userPhone
+    ? PalakDataStore.getServiceRequests().filter((s) => s.customerPhone.includes(userPhone))
+    : PalakDataStore.getServiceRequests().slice(0, 5);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/", { replace: true });
+  };
+
+  const userInitial = (user?.name || "U").charAt(0).toUpperCase();
+
+  return (
+    <div className="min-h-screen bg-[#F7F8FA] pb-20">
+      <SEO
+        title={{
+          en: `My Account (${user?.name || "Customer"}) | Palak Enterprises`,
+          hi: `मेरा अकाउंट (${user?.name || "ग्राहक"}) | पालक इंटरप्राइजेज`,
+        }}
+        description={{
+          en: "Manage your Palak Enterprises profile, orders, design requests, and CSC services.",
+          hi: "पालक इंटरप्राइजेज प्रोफाइल, ऑर्डर, डिज़ाइन रिक्वेस्ट और सीएससी सेवाओं का प्रबंधन करें।",
+        }}
+      />
+
+      {/* Header Banner */}
+      <div className="bg-[#123B70] text-white py-10 px-4 sm:px-6">
+        <div className="mx-auto max-w-7xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            {/* User Avatar */}
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.name}
+                className="h-16 w-16 rounded-2xl object-cover ring-4 ring-white/20 shadow-md shrink-0"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-2xl bg-amber-400 text-slate-950 font-black text-2xl flex items-center justify-center ring-4 ring-white/20 shadow-md shrink-0">
+                {userInitial}
+              </div>
+            )}
+
+            <div className="space-y-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight truncate">
+                  {user?.name || "Customer"}
+                </h1>
+                {isStaff ? (
+                  <span className="rounded-full bg-amber-400 text-slate-950 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                    {isAdmin ? "Admin ERP" : "Staff Member"}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 text-[10px] font-bold">
+                    {currentLang === "hi" ? "सत्यापित ग्राहक" : "Verified Customer"}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-200">
+                {user?.email && (
+                  <span className="flex items-center gap-1">
+                    <Mail className="h-3.5 w-3.5 text-amber-300" />
+                    <span>{user.email}</span>
+                  </span>
+                )}
+                {user?.phone && (
+                  <span className="flex items-center gap-1">
+                    <Phone className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>+91 {user.phone}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             {isStaff && (
               <Link
                 to="/admin"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold hover:bg-amber-400"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 px-4 py-2.5 text-xs font-black shadow-md transition-all cursor-pointer"
               >
-                <span>Open ERP Dashboard →</span>
+                <Building className="h-4 w-4" />
+                <span>{currentLang === "hi" ? "स्टाफ ERP डैशबोर्ड →" : "Staff ERP Board →"}</span>
               </Link>
             )}
+
             <button
-              onClick={logout}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-3.5 py-2 text-xs font-semibold text-white transition-colors cursor-pointer"
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2.5 text-xs font-bold text-white transition-colors cursor-pointer"
             >
               <LogOut className="h-3.5 w-3.5" />
-              <span>Logout</span>
+              <span>{currentLang === "hi" ? "लॉगआउट" : "Log Out"}</span>
             </button>
           </div>
         </div>
       </div>
 
+      {/* Main Tabs and Content */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 -mt-4 space-y-6">
         {/* Navigation Tabs */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm flex items-center gap-2 max-w-md">
+        <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xs flex items-center gap-1 max-w-lg">
           <button
-            onClick={() => setPortalSection("orders")}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              portalSection === "orders" ? "bg-[#123B70] text-white" : "text-slate-600 hover:bg-slate-50"
+            type="button"
+            onClick={() => setActiveTab("orders")}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === "orders" ? "bg-[#123B70] text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            My Orders ({customerOrders.length})
+            <Package className="h-3.5 w-3.5" />
+            <span>{currentLang === "hi" ? "प्रिंट ऑर्डर्स" : "Print Orders"}</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 text-white">
+              {customerOrders.length}
+            </span>
           </button>
+
           <button
-            onClick={() => setPortalSection("services")}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              portalSection === "services" ? "bg-[#123B70] text-white" : "text-slate-600 hover:bg-slate-50"
+            type="button"
+            onClick={() => setActiveTab("services")}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === "services" ? "bg-[#123B70] text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            Service Requests ({customerServices.length})
+            <Globe className="h-3.5 w-3.5" />
+            <span>{currentLang === "hi" ? "डिजिटल सेवाएँ" : "Services"}</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 text-white">
+              {customerServices.length}
+            </span>
           </button>
+
           <button
-            onClick={() => setPortalSection("profile")}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              portalSection === "profile" ? "bg-[#123B70] text-white" : "text-slate-600 hover:bg-slate-50"
+            type="button"
+            onClick={() => setActiveTab("profile")}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === "profile" ? "bg-[#123B70] text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            Profile Info
+            <User className="h-3.5 w-3.5" />
+            <span>{currentLang === "hi" ? "प्रोफाइल विवरण" : "Profile"}</span>
           </button>
         </div>
 
-        {/* Content */}
-        {portalSection === "orders" && (
+        {/* Tab 1: Orders */}
+        {activeTab === "orders" && (
           <div className="space-y-4">
             {customerOrders.length > 0 ? (
-              customerOrders.map((order) => (
-                <div key={order.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="text-xs font-bold text-slate-400">{order.orderCode}</div>
-                    <div className="text-sm font-bold text-slate-900 mt-0.5">
-                      {order.items.map((i) => i.productName).join(", ")}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {customerOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 transition-all"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          {order.orderCode}
+                        </span>
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] border border-blue-200">
+                          {order.orderStatus}
+                        </span>
+                      </div>
+
+                      <h3 className="text-sm font-bold text-slate-900 line-clamp-1">
+                        {order.items.map((i) => i.productName).join(", ")}
+                      </h3>
+
+                      <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                        <span>Total: <strong className="text-slate-900">₹{order.totalAmount}</strong></span>
+                        <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      Total: <span className="font-bold text-slate-800">₹{order.totalAmount}</span> • Status: <span className="text-[#123B70] font-semibold">{order.orderStatus}</span>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-500 capitalize">
+                        Payment: {order.paymentMethod.replace(/_/g, " ")}
+                      </span>
+                      <Link
+                        to={`/track-order?code=${order.orderCode}`}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline"
+                      >
+                        <span>Track Status →</span>
+                      </Link>
                     </div>
                   </div>
-
-                  <Link
-                    to={`/track-order?code=${order.orderCode}`}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline"
-                  >
-                    <span>Track Milestone Details →</span>
-                  </Link>
-                </div>
-              ))
+                ))}
+              </div>
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center space-y-2">
-                <Package className="h-10 w-10 text-slate-300 mx-auto" />
-                <h3 className="text-sm font-bold text-slate-800">No Orders Yet</h3>
-                <Link to="/printing" className="text-xs font-bold text-[#123B70] hover:underline">
-                  Browse Printing Catalog →
+              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center space-y-4">
+                <div className="h-14 w-14 rounded-2xl bg-blue-50 text-[#123B70] flex items-center justify-center mx-auto">
+                  <Printer className="h-7 w-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    {currentLang === "hi" ? "अभी तक कोई प्रिंट ऑर्डर नहीं है" : "No Print Orders Yet"}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    {currentLang === "hi"
+                      ? "दस्तावेज, फोटो, विजिटिंग कार्ड या बैनर का त्वरित ऑनलाइन ऑर्डर दें।"
+                      : "Start an instant online printing order for documents, photos, or business cards."}
+                  </p>
+                </div>
+                <Link
+                  to="/online-services"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#123B70] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0c274c]"
+                >
+                  <span>{currentLang === "hi" ? "तुरंत प्रिंट ऑर्डर करें" : "Start Online Print Job"}</span>
                 </Link>
               </div>
             )}
           </div>
         )}
 
-        {portalSection === "services" && (
+        {/* Tab 2: Digital Services */}
+        {activeTab === "services" && (
           <div className="space-y-4">
             {customerServices.length > 0 ? (
-              customerServices.map((req) => (
-                <div key={req.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="text-xs font-bold text-amber-600">{req.requestCode}</div>
-                    <div className="text-sm font-bold text-slate-900 mt-0.5">{req.serviceName}</div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      Status: <span className="font-semibold text-slate-800">{req.requestStatus}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {customerServices.map((req) => (
+                  <div
+                    key={req.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-4"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                          {req.requestCode}
+                        </span>
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {req.requestStatus}
+                        </span>
+                      </div>
+
+                      <h3 className="text-sm font-bold text-slate-900">{req.serviceName}</h3>
+                      <p className="text-xs text-slate-500">Applicant: {req.customerName}</p>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-500">
+                        {new Date(req.createdAt).toLocaleDateString()}
+                      </span>
+                      <Link
+                        to={`/track-order?code=${req.requestCode}`}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline"
+                      >
+                        <span>View Progress →</span>
+                      </Link>
                     </div>
                   </div>
-                  <Link
-                    to={`/track-order?code=${req.requestCode}`}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline"
-                  >
-                    <span>Track Request Status →</span>
-                  </Link>
-                </div>
-              ))
+                ))}
+              </div>
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center space-y-2">
-                <Globe className="h-10 w-10 text-slate-300 mx-auto" />
-                <h3 className="text-sm font-bold text-slate-800">No Digital Service Requests Found</h3>
-                <Link to="/digital-services" className="text-xs font-bold text-[#123B70] hover:underline">
-                  Explore Digital Services Directory →
+              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center space-y-4">
+                <div className="h-14 w-14 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center mx-auto">
+                  <Globe className="h-7 w-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    {currentLang === "hi" ? "कोई सक्रिय डिजिटल सेवा अनुरोध नहीं" : "No Digital Service Requests Found"}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    {currentLang === "hi"
+                      ? "पैन कार्ड, जाति/आय प्रमाण पत्र, परीक्षा फॉर्म और सरकारी योजनाओं का आवेदन करें।"
+                      : "Apply for PAN cards, RTPS certificates, scholarship forms, and government schemes."}
+                  </p>
+                </div>
+                <Link
+                  to="/services"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#123B70] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0c274c]"
+                >
+                  <span>{currentLang === "hi" ? "सभी सेवाएँ देखें" : "Explore Services Catalog"}</span>
                 </Link>
               </div>
             )}
           </div>
         )}
 
-        {portalSection === "profile" && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 max-w-lg space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Your Account Details</h3>
-            <div className="space-y-2 text-xs text-slate-600">
-              <div><span className="text-slate-400">Name:</span> <span className="font-bold text-slate-800">{user?.name}</span></div>
-              <div><span className="text-slate-400">Mobile Number:</span> <span className="font-bold text-slate-800">{user?.phone}</span></div>
-              <div><span className="text-slate-400">Primary Hub:</span> <span className="font-bold text-slate-800">Chakia Store, East Champaran, Bihar - 845412</span></div>
+        {/* Tab 3: Profile Info */}
+        {activeTab === "profile" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 space-y-5">
+              <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
+                {currentLang === "hi" ? "व्यक्तिगत व संपर्क जानकारी" : "Personal & Contact Details"}
+              </h3>
+
+              <div className="space-y-3.5 text-xs">
+                <div>
+                  <span className="text-slate-400 block font-medium">Full Name</span>
+                  <span className="text-sm font-bold text-slate-900">{user?.name || "Not provided"}</span>
+                </div>
+
+                <div>
+                  <span className="text-slate-400 block font-medium">Email Address</span>
+                  <span className="text-sm font-bold text-slate-900">{user?.email || "Not linked"}</span>
+                </div>
+
+                <div>
+                  <span className="text-slate-400 block font-medium">Mobile Number</span>
+                  <span className="text-sm font-bold text-slate-900">
+                    {user?.phone ? `+91 ${user.phone}` : "Not linked"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-slate-400 block font-medium">Account Role</span>
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    {user?.role || "CUSTOMER"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 space-y-5">
+              <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3">
+                {currentLang === "hi" ? "सुरक्षा एवं सेटिंग्स" : "Security & Settings"}
+              </h3>
+
+              <div className="space-y-4 text-xs">
+                <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200/80 space-y-2">
+                  <div className="flex items-center gap-2 text-slate-900 font-bold">
+                    <Key className="h-4 w-4 text-[#123B70]" />
+                    <span>{currentLang === "hi" ? "पासवर्ड सुरक्षा" : "Password Management"}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {currentLang === "hi"
+                      ? "पासवर्ड बदलने के लिए रीसेट लिंक अपने ईमेल पर प्राप्त करें।"
+                      : "Receive a secure recovery link at your email to update your account password."}
+                  </p>
+                  <Link
+                    to="/forgot-password"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline pt-1"
+                  >
+                    <span>{currentLang === "hi" ? "पासवर्ड रीसेट लिंक भेजें →" : "Send Password Reset Link →"}</span>
+                  </Link>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200/80 space-y-2">
+                  <div className="flex items-center gap-2 text-slate-900 font-bold">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    <span>{currentLang === "hi" ? "स्थानीय केंद्र का पता" : "Local Service Center"}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Palak Enterprises, Near Block Gate, Ward No. 7, Saniganj Mohalla, Chakia, East Champaran, Bihar – 845412 (CSC ID: 634165120013)
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

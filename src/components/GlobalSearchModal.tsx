@@ -48,14 +48,17 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   const q = query.trim().toLowerCase();
 
-  // Search Products
+  // Search Products (Printing & Wedding Invitations)
   const products = PalakDataStore.getProducts().filter((p) => {
     if (!q) return false;
     return (
       p.name.en.toLowerCase().includes(q) ||
       p.name.hi.toLowerCase().includes(q) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
       p.shortDesc.en.toLowerCase().includes(q) ||
       p.shortDesc.hi.toLowerCase().includes(q) ||
+      (p.occasion && p.occasion.toLowerCase().includes(q)) ||
+      (p.style && p.style.toLowerCase().includes(q)) ||
       p.tags.some((t) => t.toLowerCase().includes(q))
     );
   });
@@ -171,15 +174,15 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                   </div>
                 </button>
                 <button
-                  onClick={() => handleSelect("/digital-services")}
+                  onClick={() => handleSelect("/services")}
                   className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 text-left cursor-pointer"
                 >
                   <Globe className="h-4 w-4 text-[#123B70]" />
                   <div>
                     <div className="font-semibold text-slate-900">
-                      {currentLang === "hi" ? "डिजिटल सेवाएँ" : "Digital Services"}
+                      {currentLang === "hi" ? "संपूर्ण सेवा कैटलॉग" : "Services Catalog"}
                     </div>
-                    <div className="text-[11px] text-slate-400">PAN, RTPS, Exam forms</div>
+                    <div className="text-[11px] text-slate-400">PAN, RTPS, Print, Design</div>
                   </div>
                 </button>
               </div>
@@ -218,7 +221,13 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                 {products.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => handleSelect(`/printing/${item.slug}`)}
+                    onClick={() =>
+                      handleSelect(
+                        item.categoryType === "wedding" || item.categoryId === "wedding-events"
+                          ? `/wedding-events/${item.slug}`
+                          : `/printing/${item.slug}`
+                      )
+                    }
                     className="w-full text-left p-3 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
@@ -259,7 +268,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                 {services.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => handleSelect(`/digital-services/${item.slug}`)}
+                    onClick={() => handleSelect(`/services/${item.slug}`)}
                     className="w-full text-left p-3 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer"
                   >
                     <div>

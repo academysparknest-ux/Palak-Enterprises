@@ -1,115 +1,168 @@
-import React from "react";
+import { Link } from "react-router-dom";
+import * as Icons from "lucide-react";
+import { ArrowRight, Eye } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
-import type { ServiceItem } from "../config/services";
-import { galleryData } from "../config/gallery";
-import { DynamicIcon } from "./DynamicIcon";
-import { ArrowRight, Star, AlertCircle, Eye } from "lucide-react";
+import type { Service } from "../config/services";
+import { categories, ctaLabels } from "../config/services";
+import SampleImage from "./SampleImage";
+import { cn } from "../lib/utils";
 
-interface ServiceCardProps {
-  service: ServiceItem;
-  onSelectService: (service: ServiceItem) => void;
-  onViewSamples?: (serviceId: string) => void;
+function ServiceIcon({ name }: { name: string }) {
+  const Icon = (Icons as any)[name] ?? Icons.Sparkles;
+  return <Icon size={20} aria-hidden />;
 }
 
-export const ServiceCard: React.FC<ServiceCardProps> = ({
-  service,
-  onSelectService,
-  onViewSamples,
-}) => {
-  const { language } = useLanguage();
+export interface ServiceCardProps {
+  service: Service;
+  onViewSamples?: (service: Service) => void;
+  showCategoryBadge?: boolean;
+  onSelectService?: (service: Service) => void;
+}
 
-  // Find related samples for this service
-  const relatedSamples = galleryData.filter((g) =>
-    g.relatedServiceIds?.includes(service.id)
+export default function ServiceCard({
+  service,
+  onViewSamples,
+  showCategoryBadge = true,
+}: ServiceCardProps) {
+  const { lang, language } = useLanguage();
+  const currentLang = (lang || language || "en") as "en" | "hi";
+
+  const category = categories.find((c) => c.id === service.categoryId);
+  const subcategory = category?.subcategories.find(
+    (sub) => sub.id === service.subcategoryId
   );
 
+  const cta = ctaLabels[service.ctaType] || {
+    en: "View Details",
+    hi: "विवरण देखें",
+  };
+
+  const detailHref = `/services/${service.categoryId}/${service.slug}`;
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 flex flex-col justify-between p-5 group relative">
-      {/* Top Badges */}
-      <div className="absolute top-4 right-4 flex items-center space-x-1.5">
-        {service.popular && (
-          <span className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center shadow-xs">
-            <Star className="w-3 h-3 mr-1 fill-amber-500 text-amber-500" />
-            {language === "hi" ? "लोकप्रिय" : "Popular"}
-          </span>
-        )}
-      </div>
+    <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-navy/30 hover:shadow-lg">
+      {/* Top Image Preview Header */}
+      <div className="relative aspect-16/10 w-full overflow-hidden bg-slate-100 border-b border-slate-100">
+        <Link to={detailHref} className="block h-full w-full" tabIndex={-1}>
+          <SampleImage
+            src={service.image || ""}
+            alt={service.name[currentLang]}
+            title={service.name[currentLang]}
+            fallbackType={service.sampleFallbackType as any}
+            width={400}
+            height={250}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        </Link>
 
-      <div>
-        {/* Sample Image Preview if available */}
-        {relatedSamples.length > 0 && relatedSamples[0]?.imageUrl && (
-          <div className="relative mb-4 rounded-xl overflow-hidden aspect-16/10 bg-slate-900 border border-slate-100 group-hover:border-slate-300 transition-all shadow-xs">
-            <img
-              src={relatedSamples[0].imageUrl}
-              alt={relatedSamples[0].imageAlt[language]}
-              loading="lazy"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-            <div className="absolute top-2.5 left-2.5">
-              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-xs text-white border border-white/20 shadow-xs">
-                {relatedSamples[0].badge[language]}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Icon & Category Header */}
-        <div className="w-12 h-12 rounded-xl bg-slate-100 text-navy flex items-center justify-center mb-4 group-hover:bg-navy group-hover:text-white transition-colors">
-          <DynamicIcon name={service.iconName} className="w-6 h-6" />
+        {/* Badges Overlay */}
+        <div className="absolute top-2.5 right-2.5 flex flex-wrap items-center justify-end gap-1.5 pointer-events-none z-10">
+          {showCategoryBadge && category && (
+            <span
+              className={cn(
+                "rounded-full bg-white/90 backdrop-blur-xs px-2.5 py-0.5 text-[11px] font-semibold text-slate-800 shadow-xs border border-slate-200/60",
+                currentLang === "hi" && "font-hindi"
+              )}
+            >
+              {category.shortName[currentLang]}
+            </span>
+          )}
+          {service.featured && (
+            <span
+              className={cn(
+                "rounded-full bg-amber-400 px-2.5 py-0.5 text-[11px] font-bold text-navy shadow-xs",
+                currentLang === "hi" && "font-hindi"
+              )}
+            >
+              {currentLang === "hi" ? "लोकप्रिय" : "Popular"}
+            </span>
+          )}
         </div>
 
-        {/* Title */}
-        <h3 className="font-extrabold text-slate-900 text-lg leading-snug group-hover:text-navy transition-colors">
-          {service.name[language]}
-        </h3>
-
-        {/* Short Description */}
-        <p className="text-slate-600 text-sm mt-3 leading-relaxed">
-          {service.description[language]}
-        </p>
-
-        {/* Disclaimer if present */}
-        {service.disclaimer && (
-          <div className="mt-3 p-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-500 flex items-start space-x-1.5">
-            <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-            <span>{service.disclaimer[language]}</span>
-          </div>
-        )}
-
-        {/* Service-Specific Samples Badge/Link if available */}
-        {relatedSamples.length > 0 && (
-          <div className="mt-3">
-            <a
-              href="#gallery"
-              onClick={(e) => {
-                if (onViewSamples) {
-                  e.preventDefault();
-                  onViewSamples(service.id);
-                }
-              }}
-              className="inline-flex items-center space-x-1 text-xs font-bold text-navy bg-slate-100 hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-lg transition-colors"
-            >
-              <Eye className="w-3.5 h-3.5 text-navy" />
-              <span>
-                {language === "hi"
-                  ? `${relatedSamples.length} सैंपल डिज़ाइन देखें`
-                  : `View ${relatedSamples.length} Sample Designs`}
-              </span>
-            </a>
-          </div>
-        )}
+        {/* Category / Service Icon Floating Pill */}
+        <div className="absolute bottom-2.5 left-2.5 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-white/95 text-navy shadow-md backdrop-blur-xs border border-slate-200/80 transition-colors group-hover:bg-brandred group-hover:text-white">
+          <ServiceIcon name={service.icon} />
+        </div>
       </div>
 
-      {/* Card Action Button */}
-      <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-        <button
-          onClick={() => onSelectService(service)}
-          className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-navy text-slate-700 hover:text-white font-bold text-sm transition-all duration-200 flex items-center justify-center space-x-2 group-hover:bg-navy group-hover:text-white shadow-xs cursor-pointer"
-        >
-          <span>{language === "hi" ? "सेवा अनुरोध करें" : "Get Service"}</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
+      {/* Card Body */}
+      <div className="flex flex-1 flex-col justify-between p-5">
+        <div>
+          {/* Subcategory subtitle if present */}
+          {subcategory && (
+            <p
+              className={cn(
+                "text-[11px] font-bold uppercase tracking-wider text-slate-500",
+                currentLang === "hi" && "font-hindi text-xs"
+              )}
+            >
+              {subcategory.name[currentLang]}
+            </p>
+          )}
+
+          {/* English & Hindi Titles */}
+          <h3 className="mt-1 font-display text-base font-bold text-slate-900 group-hover:text-navy transition-colors">
+            <Link to={detailHref} className="focus:outline-none">
+              <span className="block">{service.name.en}</span>
+              <span
+                className={cn(
+                  "block text-sm font-semibold text-navy/80 mt-0.5",
+                  currentLang === "hi" && "font-hindi text-[0.95rem] text-brandred font-bold"
+                )}
+              >
+                {service.name.hi}
+              </span>
+            </Link>
+          </h3>
+
+          {/* 1-2 line concise description */}
+          <p
+            className={cn(
+              "mt-2 text-xs leading-relaxed text-slate-500 line-clamp-2",
+              currentLang === "hi" && "font-hindi text-[13px]"
+            )}
+          >
+            {service.shortDescription[currentLang]}
+          </p>
+        </div>
+
+        {/* Action Footer */}
+        <div className="mt-5 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          {onViewSamples && service.sampleFallbackType ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                onViewSamples(service);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-navy hover:text-white cursor-pointer",
+                currentLang === "hi" && "font-hindi"
+              )}
+            >
+              <Eye size={13} aria-hidden />
+              {currentLang === "hi" ? "सैंपल" : "Samples"}
+            </button>
+          ) : (
+            <span className="text-[11px] font-semibold text-slate-400">
+              {category?.shortName[currentLang]}
+            </span>
+          )}
+
+          <Link
+            to={detailHref}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full bg-navy/5 px-3 py-1.5 text-xs font-bold text-navy transition-all group-hover:bg-brandred group-hover:text-white",
+              currentLang === "hi" && "font-hindi"
+            )}
+          >
+            <span>{cta[currentLang]}</span>
+            <ArrowRight size={14} aria-hidden />
+          </Link>
+        </div>
       </div>
     </div>
   );
-};
+}
+
+export { ServiceCard };

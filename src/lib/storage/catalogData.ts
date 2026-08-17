@@ -22,6 +22,48 @@ export interface ProductOption {
   values: OptionValue[];
 }
 
+export type CardOccasion =
+  | "wedding"
+  | "engagement"
+  | "reception"
+  | "tilak"
+  | "mundan"
+  | "naming"
+  | "housewarming"
+  | "birthday"
+  | "baby-shower"
+  | "religious"
+  | "custom";
+
+export type CardStyle =
+  | "traditional"
+  | "royal"
+  | "floral"
+  | "modern"
+  | "minimal"
+  | "peacock"
+  | "luxury"
+  | "laser_cut"
+  | "elegant";
+
+export type CardTypeFormat =
+  | "single_sheet"
+  | "folded"
+  | "padded"
+  | "laser_cut"
+  | "box"
+  | "scroll"
+  | "acrylic"
+  | "metallic";
+
+export type CardReligion =
+  | "hindu"
+  | "muslim"
+  | "christian"
+  | "sikh"
+  | "jain"
+  | "interfaith";
+
 export interface LocalProduct {
   id: string;
   slug: string;
@@ -46,7 +88,24 @@ export interface LocalProduct {
     paperType?: string;
     printingTech?: string;
     minimumOrder?: string;
+    [key: string]: string | undefined;
   };
+  // Wedding & Ceremony Card Specific Attributes
+  sku?: string;
+  occasion?: CardOccasion;
+  style?: CardStyle;
+  cardType?: CardTypeFormat;
+  religion?: CardReligion;
+  pricePerCard?: number;
+  mrp?: number;
+  minimumQuantity?: number;
+  sampleAvailable?: boolean;
+  customizationAvailable?: boolean;
+  printingAvailable?: boolean;
+  material?: string;
+  inStock?: boolean;
+  colorTheme?: string;
+  includesEnvelope?: boolean;
 }
 
 export interface LocalService {
@@ -462,9 +521,607 @@ export const PRODUCTS: LocalProduct[] = [
       minimumOrder: "1 Pc",
     },
   },
+  // --- WEDDING & CEREMONY CARDS SHOWROOM CATALOGUE ---
+  {
+    id: "royal-gold-shloka-wedding-card",
+    slug: "royal-gold-shloka-wedding-card",
+    sku: "PE-WED-001",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Royal Gold Leaf & Sanskrit Shloka Card", hi: "रॉयल गोल्ड लीफ व संस्कृत श्लोक शादी कार्ड" },
+    shortDesc: {
+      en: "Classic gold-foil embossed wedding card with Ganesha emblem, Sanskrit shlokas, and matching envelope.",
+      hi: "श्री गणेशाय नमः, मांगलिक श्लोक, सुनहरे अक्षर और रॉयल गोल्ड लीफ एम्बॉसिंग युक्त पारंपरिक कार्ड।",
+    },
+    description: {
+      en: "An epitome of traditional Indian opulence. Features auspicious Sanskrit shlokas ('मंगळम् भगवान विष्णुः'), Lord Ganesha gold foil embossing, metallic shimmering borders, and two high-gsm inserts with an ornate envelope. Available in Royal Crimson Red, Deep Emerald, and Golden Saffron.",
+      hi: "पारंपरिक भारतीय संस्कृति एवं भव्यता का प्रतीक। भगवान गणेश की सुनहरी उभरी हुई मुद्रा, शुद्ध संस्कृत श्लोक, ग्लिटर बॉर्डर और 2 प्रिंटेड इनसर्ट व मैचिंग लिफाफे के साथ।",
+    },
+    startingPrice: 15,
+    pricePerCard: 15,
+    mrp: 24,
+    baseQuantity: 100,
+    minimumQuantity: 100,
+    unit: "Card",
+    occasion: "wedding",
+    style: "royal",
+    cardType: "folded",
+    religion: "hindu",
+    material: "350 GSM Imported Metallic Gold Board + Velvet Lamination",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Royal Maroon & Gold",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/card-royal-gold-shloka.svg",
+    galleryUrls: [
+      "/images/gallery/card-royal-gold-shloka.svg",
+      "/images/gallery/wedding-invitation-sample.svg",
+    ],
+    isFeatured: true,
+    isPopular: true,
+    isNew: true,
+    turnaroundTime: { en: "2-3 Days", hi: "2-3 दिन" },
+    tags: ["wedding card", "shloka card", "gold foil", "shaadi card", "royal", "ganesha", "शादी कार्ड", "गोल्ड फॉयल"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "100", label: { en: "100 Cards (₹15/pc)", hi: "100 कार्ड (₹15/कार्ड)" }, multiplier: 1.0, isDefault: true },
+          { key: "200", label: { en: "200 Cards (₹14/pc)", hi: "200 कार्ड (₹14/कार्ड)" }, multiplier: 1.86 },
+          { key: "300", label: { en: "300 Cards (₹13/pc)", hi: "300 कार्ड (₹13/कार्ड)" }, multiplier: 2.6 },
+          { key: "500", label: { en: "500 Cards (₹12/pc - Best Value)", hi: "500 कार्ड (₹12/कार्ड - बेस्ट)" }, multiplier: 4.0 },
+        ],
+      },
+      {
+        key: "paper_gsm",
+        name: { en: "Printing Technique", hi: "प्रिंटिंग तकनीक" },
+        values: [
+          { key: "screen_gold", label: { en: "High-Gloss Screen Print (Gold Ink)", hi: "गोल्ड इंक स्क्रीन प्रिंटिंग" }, multiplier: 1.0, isDefault: true },
+          { key: "foil_stamped", label: { en: "Hot Foil Stamping + Raised Emboss (+₹4/pc)", hi: "हॉट फॉयल स्टैम्पिंग + एम्बॉस (+₹4)" }, multiplier: 1.25 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "7.5 x 9.5 inches (19 x 24 cm)",
+      paperType: "350 GSM Heavy Imported Metallic Board",
+      printingTech: "Golden Foil Embossing & Precision Screen Print",
+      minimumOrder: "100 Cards",
+    },
+  },
+  {
+    id: "peacock-motif-laser-cut-wedding-card",
+    slug: "peacock-motif-laser-cut-wedding-card",
+    sku: "PE-WED-002",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Royal Peacock Motif Laser Cut Wedding Card", hi: "मयूर डिज़ाइन लेज़र कट शाही शादी कार्ड" },
+    shortDesc: {
+      en: "Intricate laser-cut filigree jacket with golden peacock feathers and shimmering pull-out inserts.",
+      hi: "बारीक लेज़र कटिंग युक्त मोर पंख डिज़ाइन, गोल्डन शिमर आवरण एवं सुंदर इनसर्ट कार्ड।",
+    },
+    description: {
+      en: "Mesmerizing laser-cut wedding stationery inspired by royal peacock architecture. The outer tri-fold jacket opens to reveal dual gold-leaf printed inserts tied with an optional royal tassel. A showstopper that leaves a lasting impression on your guests.",
+      hi: "रॉयल मोरपंखी नक्काशी से प्रेरित लेज़र कट इनविटेशन। तीन परतों वाला आवरण, जिसके अंदर सुनहरे अक्षरों से सजे इनसर्ट कार्ड हैं। आधुनिक एवं शाही लुक।",
+    },
+    startingPrice: 28,
+    pricePerCard: 28,
+    mrp: 42,
+    baseQuantity: 100,
+    minimumQuantity: 100,
+    unit: "Card",
+    occasion: "wedding",
+    style: "peacock",
+    cardType: "laser_cut",
+    religion: "hindu",
+    material: "300 GSM Shimmer Pearl Paper with Precision CNC Laser Cutting",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Emerald Green & Gold",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/card-peacock-laser-cut.svg",
+    galleryUrls: [
+      "/images/gallery/card-peacock-laser-cut.svg",
+      "/images/gallery/card-royal-gold-shloka.svg",
+    ],
+    isFeatured: true,
+    isPopular: true,
+    turnaroundTime: { en: "3-4 Days", hi: "3-4 दिन" },
+    tags: ["laser cut", "peacock", "royal wedding", "designer card", "लेज़र कट", "मोर डिज़ाइन"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "100", label: { en: "100 Cards (₹28/pc)", hi: "100 कार्ड (₹28/कार्ड)" }, multiplier: 1.0, isDefault: true },
+          { key: "200", label: { en: "200 Cards (₹26/pc)", hi: "200 कार्ड (₹26/कार्ड)" }, multiplier: 1.85 },
+          { key: "300", label: { en: "300 Cards (₹24/pc)", hi: "300 कार्ड (₹24/कार्ड)" }, multiplier: 2.57 },
+          { key: "500", label: { en: "500 Cards (₹22/pc)", hi: "500 कार्ड (₹22/कार्ड)" }, multiplier: 3.92 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "8.0 x 8.0 inches (20 x 20 cm square)",
+      paperType: "300 GSM Pearl Lustre Laser Board",
+      printingTech: "CNC Ultra-Fine Laser Cut + Gold Screen Print",
+      minimumOrder: "100 Cards",
+    },
+  },
+  {
+    id: "luxury-velvet-hardboard-box-card",
+    slug: "luxury-velvet-hardboard-box-card",
+    sku: "PE-WED-003",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Imperial Velvet Hardboard Box Wedding Invitation", hi: "इम्पीरियल वेलवेट हार्डबोर्ड बॉक्स शादी इनविटेशन" },
+    shortDesc: {
+      en: "Ultra-luxury rigid hardboard box with plush royal velvet lining, metallic monogram, and 3 event inserts.",
+      hi: "अल्ट्रा-लग्जरी हार्डबोर्ड बॉक्स, मखमली वेलवेट कवर, मेटल मोनोग्राम व 3 गोल्डन इनसर्ट।",
+    },
+    description: {
+      en: "Designed for grand Indian destination and luxury weddings. Constructed from 1200 GSM rigid Kappa hardboard, enveloped in plush imported velvet with electroplated gold metal initials. Accommodates 3 to 4 event cards (Haldi, Sangeet, Wedding, Reception) and dry fruit / sweet compartment.",
+      hi: "भव्य और शाही शादियों के लिए प्रीमियम बॉक्स कार्ड। मजबूत हार्डबोर्ड, इम्पोर्टेड वेलवेट, मेटल मोनोग्राम और विभिन्न कार्यक्रमों (हल्दी, संगीत, बारात, प्रीतिभोज) के अलग-अलग गोल्डन कार्ड।",
+    },
+    startingPrice: 120,
+    pricePerCard: 120,
+    mrp: 180,
+    baseQuantity: 50,
+    minimumQuantity: 50,
+    unit: "Box",
+    occasion: "wedding",
+    style: "luxury",
+    cardType: "box",
+    religion: "interfaith",
+    material: "1200 GSM Rigid Kappa Board + Imported Plush Velvet",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Royal Navy Blue / Deep Ruby & Gold",
+    includesEnvelope: false,
+    imageUrl: "/images/gallery/card-luxury-velvet-box.svg",
+    galleryUrls: [
+      "/images/gallery/card-luxury-velvet-box.svg",
+      "/images/gallery/wedding-invitation-sample.svg",
+    ],
+    isFeatured: true,
+    isPopular: true,
+    turnaroundTime: { en: "5-7 Days", hi: "5-7 दिन" },
+    tags: ["box card", "velvet card", "luxury invitation", "hardboard", "destination wedding", "बॉक्स कार्ड", "लग्जरी"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Boxes", hi: "बॉक्स संख्या" },
+        values: [
+          { key: "50", label: { en: "50 Boxes (₹120/pc)", hi: "50 बॉक्स (₹120/पीस)" }, multiplier: 1.0, isDefault: true },
+          { key: "100", label: { en: "100 Boxes (₹110/pc)", hi: "100 बॉक्स (₹110/पीस)" }, multiplier: 1.83 },
+          { key: "200", label: { en: "200 Boxes (₹98/pc)", hi: "200 बॉक्स (₹98/पीस)" }, multiplier: 3.26 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "9.0 x 7.5 x 1.5 inches (23 x 19 x 4 cm)",
+      paperType: "1200 GSM Rigid Board with Velvet Upholstery",
+      printingTech: "UV Gold Stamping + Laser Metal Emblem",
+      minimumOrder: "50 Boxes",
+    },
+  },
+  {
+    id: "traditional-tilak-utsav-card",
+    slug: "traditional-tilak-utsav-card",
+    sku: "PE-TLK-101",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Traditional Tilak & Bariksha Ceremony Card", hi: "पारंपरिक तिलक एवं बरीक्षा संस्कार निमंत्रण पत्र" },
+    shortDesc: {
+      en: "Auspicious Tilak ceremony invitation with Mangalik Kalash, coconut artwork, and gold border.",
+      hi: "शुभ तिलक, फलदान एवं बरीक्षा संस्कार के लिए मंगल कलश, नारियल व सुनहरे अक्षरों वाला कार्ड।",
+    },
+    description: {
+      en: "Exclusively crafted for sacred Shubha Tilak, Bariksha, and Sagan rituals across Bihar and Eastern UP. Printed on heavy 280 GSM art card with religious shlokas, auspicious Kalash motif, and customized groom-family details.",
+      hi: "बिहार एवं पूर्वांचल के पारंपरिक शुभ तिलक एवं बरीक्षा संस्कार हेतु विशेष कार्ड। मंगल कलश, नारियल, मंत्रोच्चार और आकर्षक सुनहरे अक्षरों में प्रिंटिंग।",
+    },
+    startingPrice: 9,
+    pricePerCard: 9,
+    mrp: 15,
+    baseQuantity: 100,
+    minimumQuantity: 100,
+    unit: "Card",
+    occasion: "tilak",
+    style: "traditional",
+    cardType: "single_sheet",
+    religion: "hindu",
+    material: "280 GSM Gloss / Metallic Art Card with Shimmer Envelope",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Deep Saffron & Golden Yellow",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/card-traditional-tilak.svg",
+    galleryUrls: [
+      "/images/gallery/card-traditional-tilak.svg",
+      "/images/gallery/wedding-invitation-sample.svg",
+    ],
+    isFeatured: true,
+    isPopular: true,
+    turnaroundTime: { en: "24-48 Hours", hi: "24-48 घंटे" },
+    tags: ["tilak", "bariksha", "sagan", "tilak card", "तिलक कार्ड", "बरीक्षा"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "100", label: { en: "100 Cards (₹9/pc)", hi: "100 कार्ड (₹9/कार्ड)" }, multiplier: 1.0, isDefault: true },
+          { key: "200", label: { en: "200 Cards (₹8/pc)", hi: "200 कार्ड (₹8/कार्ड)" }, multiplier: 1.77 },
+          { key: "300", label: { en: "300 Cards (₹7.50/pc)", hi: "300 कार्ड (₹7.50/कार्ड)" }, multiplier: 2.5 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "6.0 x 8.5 inches (15 x 21 cm)",
+      paperType: "280 GSM Heavy Art Board",
+      printingTech: "Two-color Silk Screen / Multi-color Offset",
+      minimumOrder: "100 Cards",
+    },
+  },
+  {
+    id: "shubha-mundan-sanskar-invitation",
+    slug: "shubha-mundan-sanskar-invitation",
+    sku: "PE-MDN-201",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Shubha Mundan & Chudakaran Sanskar Card", hi: "शुभ मुंडन एवं चूड़ाकरण संस्कार निमंत्रण पत्र" },
+    shortDesc: {
+      en: "Joyful celebration card for child's Mundan sanskar, Upanayana & family feast.",
+      hi: "बच्चे के मुंडन संस्कार, जनेऊ एवं प्रीतिभोज के लिए सुंदर पारंपरिक व कार्टून स्टाइल कार्ड।",
+    },
+    description: {
+      en: "Invite friends, relatives, and elders to bless your child during their first haircut (Mundan / Chudakaran) sanskar. Features baby photo printing options, traditional blessing couplets, and family lunch/dinner invitation wording.",
+      hi: "संतान के मुंडन संस्कार एवं भोज के लिए विशेष आमंत्रण पत्र। बच्चे की सुंदर फोटो प्रिंटिंग, आशीर्वाद श्लोक एवं सपरिवार प्रीतिभोज का समय व स्थान।",
+    },
+    startingPrice: 8,
+    pricePerCard: 8,
+    mrp: 14,
+    baseQuantity: 100,
+    minimumQuantity: 100,
+    unit: "Card",
+    occasion: "mundan",
+    style: "traditional",
+    cardType: "folded",
+    religion: "hindu",
+    material: "260 GSM Pearl Art Card with matching envelope",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Rose Pink / Pastel Coral & Gold",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/card-shubha-mundan.svg",
+    galleryUrls: [
+      "/images/gallery/card-shubha-mundan.svg",
+      "/images/gallery/birthday-invitation-sample.svg",
+    ],
+    isFeatured: true,
+    turnaroundTime: { en: "24-48 Hours", hi: "24-48 घंटे" },
+    tags: ["mundan", "chudakaran", "janeu", "sanskar", "मुंडन कार्ड", "जनेऊ"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "100", label: { en: "100 Cards (₹8/pc)", hi: "100 कार्ड (₹8/कार्ड)" }, multiplier: 1.0, isDefault: true },
+          { key: "200", label: { en: "200 Cards (₹7.50/pc)", hi: "200 कार्ड (₹7.50/कार्ड)" }, multiplier: 1.87 },
+          { key: "300", label: { en: "300 Cards (₹7/pc)", hi: "300 कार्ड (₹7/कार्ड)" }, multiplier: 2.62 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "5.5 x 8.0 inches (14 x 20 cm)",
+      paperType: "260 GSM Premium Matte / Gloss Card",
+      printingTech: "Multi-color High Definition Digital Offset",
+      minimumOrder: "100 Cards",
+    },
+  },
+  {
+    id: "royal-floral-engagement-invitation",
+    slug: "royal-floral-engagement-invitation",
+    sku: "PE-ENG-301",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Pastel Floral Ring Ceremony & Engagement Card", hi: "पेस्टल फ्लोरल सगाई एवं रिंग सेरेमनी इनविटेशन" },
+    shortDesc: {
+      en: "Modern floral botanical theme with interlocking gold rings and embossed calligraphy.",
+      hi: "आधुनिक फ्लोरल डिज़ाइन, सुनहरे रिंग प्रतीक एवं कैलीग्राफी युक्त सगाई निमंत्रण पत्र।",
+    },
+    description: {
+      en: "Celebrate your official promise of forever with a delicate pastel botanical card. Highlights intertwining wedding rings with metallic gold foil stamping, elegant script typography, and RSVP details.",
+      hi: "सगाई एवं अंगूठी रस्म के लिए आकर्षक पेस्टल फ्लोरल कार्ड। सुनहरी फॉयल में सगाई रिंग, आधुनिक फॉन्ट और प्रीतिभोज का विवरण।",
+    },
+    startingPrice: 18,
+    pricePerCard: 18,
+    mrp: 28,
+    baseQuantity: 100,
+    minimumQuantity: 100,
+    unit: "Card",
+    occasion: "engagement",
+    style: "floral",
+    cardType: "folded",
+    religion: "interfaith",
+    material: "300 GSM Textured Felt / Textured Linen Board",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Blush Pink, Lavender & Rose Gold",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/card-floral-engagement.svg",
+    galleryUrls: [
+      "/images/gallery/card-floral-engagement.svg",
+      "/images/gallery/wedding-invitation-sample.svg",
+    ],
+    isFeatured: true,
+    turnaroundTime: { en: "2-3 Days", hi: "2-3 दिन" },
+    tags: ["engagement", "ring ceremony", "floral card", "sagai", "सगाई कार्ड", "फ्लोरल"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "100", label: { en: "100 Cards (₹18/pc)", hi: "100 कार्ड (₹18/कार्ड)" }, multiplier: 1.0, isDefault: true },
+          { key: "200", label: { en: "200 Cards (₹16/pc)", hi: "200 कार्ड (₹16/कार्ड)" }, multiplier: 1.77 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "5.5 x 8.5 inches (14 x 22 cm)",
+      paperType: "300 GSM Textured Linen Card",
+      printingTech: "Digital Multi-Color + Rose Gold Foil",
+      minimumOrder: "100 Cards",
+    },
+  },
+  {
+    id: "luxury-frosted-acrylic-wedding-card",
+    slug: "luxury-frosted-acrylic-wedding-card",
+    sku: "PE-ACR-007",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Frosted Acrylic Glass Gold Print Wedding Card", hi: "फ्रॉस्टेड ऐक्रेलिक ग्लास गोल्ड प्रिंट शादी कार्ड" },
+    shortDesc: {
+      en: "Ultra-modern transparent 2mm frosted acrylic sheet with raised screen printed gold lettering.",
+      hi: "अल्ट्रा-मॉडर्न 2mm फ्रॉस्टेड ऐक्रेलिक ग्लास, सुनहरे अक्षरों में स्क्रीन प्रिंटिंग व वेलवेट कवर।",
+    },
+    description: {
+      en: "The contemporary trendsetter in luxury invitation stationery. Crafted from heavy shatterproof cast acrylic with smooth polished beveled edges, screen printed with rich metallic gold/white inks, and enclosed in a tailored velvet pouch or hard envelope.",
+      hi: "लग्जरी इनविटेशन की दुनिया का सबसे आधुनिक ट्रेंड। 2mm मजबूत ऐक्रेलिक ग्लास, सुनहरी और सफेद स्याही से प्रिंट, और मखमली कवर में सुरक्षित।",
+    },
+    startingPrice: 85,
+    pricePerCard: 85,
+    mrp: 140,
+    baseQuantity: 50,
+    minimumQuantity: 50,
+    unit: "Card",
+    occasion: "wedding",
+    style: "luxury",
+    cardType: "acrylic",
+    religion: "interfaith",
+    material: "2.0 mm Premium Cast Frosted Acrylic Sheet",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Frosted Glass & Metallic Gold",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/card-acrylic-glass.svg",
+    galleryUrls: [
+      "/images/gallery/card-acrylic-glass.svg",
+      "/images/gallery/card-luxury-velvet-box.svg",
+    ],
+    isFeatured: true,
+    isPopular: true,
+    turnaroundTime: { en: "4-6 Days", hi: "4-6 दिन" },
+    tags: ["acrylic", "glass card", "modern wedding", "transparent", "ऐक्रेलिक कार्ड", "लग्जरी ग्लास"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "50", label: { en: "50 Cards (₹85/pc)", hi: "50 कार्ड (₹85/कार्ड)" }, multiplier: 1.0, isDefault: true },
+          { key: "100", label: { en: "100 Cards (₹78/pc)", hi: "100 कार्ड (₹78/कार्ड)" }, multiplier: 1.83 },
+          { key: "200", label: { en: "200 Cards (₹70/pc)", hi: "200 कार्ड (₹70/कार्ड)" }, multiplier: 3.29 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "5.0 x 7.0 inches (13 x 18 cm)",
+      paperType: "2.0 mm Solid Cast Acrylic",
+      printingTech: "UV Screen Print with Liquid Gold Ink",
+      minimumOrder: "50 Cards",
+    },
+  },
+  {
+    id: "griha-pravesh-housewarming-card",
+    slug: "griha-pravesh-housewarming-card",
+    sku: "PE-GRP-501",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Shubh Griha Pravesh & Housewarming Card", hi: "शुभ गृह प्रवेश एवं वास्तु पूजन निमंत्रण पत्र" },
+    shortDesc: {
+      en: "Auspicious new home entry invitation with Kalash, Vastu Yantra, and Puja schedule.",
+      hi: "नए घर के गृह प्रवेश, वास्तु शांति एवं हवन पूजन हेतु मंगल कलश व स्वास्तिक युक्त कार्ड।",
+    },
+    description: {
+      en: "Celebrate moving into your dream home with family and well-wishers. Features sacred Vastu Puja rituals, Ganapati Vandana, Havan timing, and Bhojan (feast) schedule with a map guide to your new address.",
+      hi: "अपने नए आशियाने में गृह प्रवेश एवं वास्तु शांति के पावन अवसर पर प्रियजनों को आमंत्रित करें। पूजा, हवन एवं प्रीतिभोज का संपूर्ण कार्यक्रम।",
+    },
+    startingPrice: 10,
+    pricePerCard: 10,
+    mrp: 16,
+    baseQuantity: 50,
+    minimumQuantity: 50,
+    unit: "Card",
+    occasion: "housewarming",
+    style: "traditional",
+    cardType: "folded",
+    religion: "hindu",
+    material: "280 GSM Metallic Art Board with matching envelope",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Warm Marigold & Terracotta Gold",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/card-traditional-tilak.svg",
+    galleryUrls: [
+      "/images/gallery/card-traditional-tilak.svg",
+      "/images/gallery/wedding-invitation-sample.svg",
+    ],
+    turnaroundTime: { en: "24-48 Hours", hi: "24-48 घंटे" },
+    tags: ["housewarming", "griha pravesh", "vastu puja", "गृह प्रवेश कार्ड", "वास्तु शांति"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "50", label: { en: "50 Cards (₹10/pc)", hi: "50 कार्ड (₹10/कार्ड)" }, multiplier: 1.0, isDefault: true },
+          { key: "100", label: { en: "100 Cards (₹9/pc)", hi: "100 कार्ड (₹9/कार्ड)" }, multiplier: 1.8 },
+          { key: "200", label: { en: "200 Cards (₹8/pc)", hi: "200 कार्ड (₹8/कार्ड)" }, multiplier: 3.2 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "6.0 x 8.5 inches (15 x 21 cm)",
+      paperType: "280 GSM Metallic Shimmer Board",
+      printingTech: "Screen & Digital HD Print",
+      minimumOrder: "50 Cards",
+    },
+  },
+  {
+    id: "kids-cartoon-photo-birthday-invitation",
+    slug: "kids-cartoon-photo-birthday-invitation",
+    sku: "PE-BDY-601",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Vibrant Photo-Printed Birthday Party Invitation", hi: "रंगीन फोटो प्रिंटेड जन्मदिन आमंत्रण पत्र" },
+    shortDesc: {
+      en: "Colorful customized birthday invitation with child's photo, superhero/cartoon theme, and digital version.",
+      hi: "बच्चे की फोटो, मनपसंद कार्टून थीम, केक और गुब्बारों के साथ आकर्षक बर्थडे इनविटेशन।",
+    },
+    description: {
+      en: "Make your child’s birthday party unforgettable. High-resolution glossy photo print with customizable themes (Jungle Safari, Space, Princess, Superhero, Cocomelon) and personalized party date, venue, and dress code.",
+      hi: "बच्चे के जन्मदिन को यादगार बनाएं। चमकदार ग्लॉस पेपर पर फोटो प्रिंटिंग, जंगल सफारी, प्रिंसेस या सुपरहीरो थीम और केक कटिंग व पार्टी का समय।",
+    },
+    startingPrice: 7,
+    pricePerCard: 7,
+    mrp: 12,
+    baseQuantity: 50,
+    minimumQuantity: 50,
+    unit: "Card",
+    occasion: "birthday",
+    style: "modern",
+    cardType: "single_sheet",
+    religion: "interfaith",
+    material: "300 GSM Heavy Gloss Cardstock with Glossy Lamination",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Vibrant Multi-color / Pastel",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/birthday-invitation-sample.svg",
+    galleryUrls: [
+      "/images/gallery/birthday-invitation-sample.svg",
+      "/images/gallery/card-shubha-mundan.svg",
+    ],
+    isPopular: true,
+    turnaroundTime: { en: "Same Day / 24 Hours", hi: "उसी दिन / 24 घंटे" },
+    tags: ["birthday", "birthday card", "kids party", "photo invitation", "जन्मदिन कार्ड", "बर्थडे"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "50", label: { en: "50 Cards (₹7/pc)", hi: "50 कार्ड (₹7/कार्ड)" }, multiplier: 1.0, isDefault: true },
+          { key: "100", label: { en: "100 Cards (₹6/pc)", hi: "100 कार्ड (₹6/कार्ड)" }, multiplier: 1.71 },
+          { key: "200", label: { en: "200 Cards (₹5.50/pc)", hi: "200 कार्ड (₹5.50/कार्ड)" }, multiplier: 3.14 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "4.5 x 6.5 inches (11 x 16 cm)",
+      paperType: "300 GSM Gloss Art Board",
+      printingTech: "Full HD Digital Multi-Color Print",
+      minimumOrder: "50 Cards",
+    },
+  },
+  {
+    id: "bespoke-custom-designer-invitation",
+    slug: "bespoke-custom-designer-invitation",
+    sku: "PE-CUS-999",
+    categoryId: "wedding-events",
+    categoryType: "wedding",
+    name: { en: "Bespoke Custom Designed Wedding & Event Suite", hi: "कस्टम डिज़ाइन शादी व इवेंट इनविटेशन पैकेज" },
+    shortDesc: {
+      en: "One-on-one consultation with Palak graphic artists for personalized card concepts, box sets & wax seals.",
+      hi: "पालक ग्राफिक डिजाइनर के साथ अपनी मनपसंद थीम, वैक्स सील और कस्टम बॉक्स तैयार करवाएं।",
+    },
+    description: {
+      en: "Have a unique design in mind or want to replicate a designer style? Our graphic studio in Chakia will work directly with you to craft custom monograms, bespoke Hindi/Sanskrit shlokas, custom envelope linings, and wax seal stamps.",
+      hi: "यदि आप अपनी पसंद की कोई खास थीम या डिज़ाइन बनाना चाहते हैं, तो हमारी ग्राफिक टीम आपके साथ बैठकर मनपसंद कार्ड, वैक्स सील और बॉक्स तैयार करेगी।",
+    },
+    startingPrice: 25,
+    pricePerCard: 25,
+    mrp: 40,
+    baseQuantity: 50,
+    minimumQuantity: 50,
+    unit: "Card",
+    occasion: "custom",
+    style: "modern",
+    cardType: "folded",
+    religion: "interfaith",
+    material: "Custom Selection (Handmade Paper / Metallic / Velvet / Acrylic)",
+    inStock: true,
+    sampleAvailable: true,
+    customizationAvailable: true,
+    printingAvailable: true,
+    colorTheme: "Custom Choice",
+    includesEnvelope: true,
+    imageUrl: "/images/gallery/wedding-invitation-sample.svg",
+    galleryUrls: [
+      "/images/gallery/wedding-invitation-sample.svg",
+      "/images/gallery/card-royal-gold-shloka.svg",
+      "/images/gallery/card-luxury-velvet-box.svg",
+    ],
+    isFeatured: true,
+    turnaroundTime: { en: "3-5 Days", hi: "3-5 दिन" },
+    tags: ["custom card", "bespoke", "personalized", "wax seal", "कस्टम कार्ड", "मनपसंद डिज़ाइन"],
+    options: [
+      {
+        key: "quantity",
+        name: { en: "Quantity of Cards", hi: "कार्ड संख्या" },
+        values: [
+          { key: "50", label: { en: "50 Cards (Estimate ₹25/pc)", hi: "50 कार्ड (अनुमानित ₹25)" }, multiplier: 1.0, isDefault: true },
+          { key: "100", label: { en: "100 Cards (Estimate ₹22/pc)", hi: "100 कार्ड (अनुमानित ₹22)" }, multiplier: 1.76 },
+          { key: "200", label: { en: "200 Cards (Estimate ₹20/pc)", hi: "200 कार्ड (अनुमानित ₹20)" }, multiplier: 3.2 },
+        ],
+      },
+    ],
+    specifications: {
+      dimensions: "Customizable to any dimension",
+      paperType: "Imported Specialty Papers & Boards",
+      printingTech: "Digital, Screen, Foil, Emboss, Laser",
+      minimumOrder: "50 Cards",
+    },
+  },
+  // Backward compatibility alias for wedding-invitations route
   {
     id: "wedding-invitations",
     slug: "wedding-invitations",
+    sku: "PE-WED-000",
     categoryId: "wedding-events",
     categoryType: "wedding",
     name: { en: "Royal Wedding & Ceremony Invitation Cards", hi: "शाही शादी एवं शुभ विवाह निमंत्रण पत्र" },
@@ -477,12 +1134,18 @@ export const PRODUCTS: LocalProduct[] = [
       hi: "शुभ विवाह, तिलक, मुंडन और मांगलिक आयोजनों के लिए सुंदर हिंदी/संस्कृत श्लोक, सुनहरे अक्षरों और आकर्षक आवरण युक्त शादी कार्ड।",
     },
     startingPrice: 1200,
+    pricePerCard: 12,
     baseQuantity: 100,
-    unit: "Cards",
+    minimumQuantity: 100,
+    unit: "Cards Set",
+    occasion: "wedding",
+    style: "royal",
+    cardType: "folded",
+    religion: "hindu",
     imageUrl: "/images/gallery/wedding-invitation-sample.svg",
     galleryUrls: [
       "/images/gallery/wedding-invitation-sample.svg",
-      "/images/gallery/birthday-invitation-sample.svg",
+      "/images/gallery/card-royal-gold-shloka.svg",
     ],
     isFeatured: true,
     isPopular: true,

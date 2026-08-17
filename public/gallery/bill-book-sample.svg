@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgDesk" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="billShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgDesk)"/>
+
+  <!-- Yellow Carbon Duplicate Copy Page (Underneath) -->
+  <g filter="url(#billShadow)" transform="translate(180, 100) rotate(5)">
+    <rect width="460" height="420" fill="#fef08a" stroke="#eab308" stroke-width="2"/>
+    <text x="230" y="40" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#854d0e" text-anchor="middle">DUPLICATE COPY (CARBONLESS PAPER)</text>
+    <line x1="20" y1="55" x2="440" y2="55" stroke="#ca8a04" stroke-width="1" stroke-dasharray="4,4"/>
+  </g>
+
+  <!-- Top White Original Bill Book Sheet (Main Product) -->
+  <g filter="url(#billShadow)" transform="translate(140, 80) rotate(-2)">
+    <rect width="470" height="440" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+
+    <!-- Left Perforated Edge & Binding Cover -->
+    <rect x="0" y="0" width="28" height="440" fill="#dc2626"/>
+    <line x1="28" y1="0" x2="28" y2="440" stroke="#7f1d1d" stroke-width="2" stroke-dasharray="6,4"/>
+
+    <!-- Bill Header -->
+    <text x="240" y="35" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#475569" text-anchor="middle">CASH / CREDIT MEMO</text>
+    <text x="240" y="62" font-family="system-ui, sans-serif" font-weight="900" font-size="22" fill="#0f172a" text-anchor="middle">PALAK PRINTING PRESS</text>
+    <text x="240" y="80" font-family="system-ui, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Station Road, Near Mahavir Mandir | Mob: 9876543210</text>
+
+    <!-- Red Serial Number Box -->
+    <text x="400" y="40" font-family="monospace" font-weight="bold" font-size="16" fill="#dc2626">No. 0482</text>
+    <text x="400" y="105" font-family="system-ui, sans-serif" font-size="11" fill="#475569">Date: __/__/2026</text>
+
+    <text x="45" y="105" font-family="system-ui, sans-serif" font-size="11" fill="#475569">M/s: _______________________________</text>
+
+    <!-- Itemized Invoice Table Grid -->
+    <rect x="40" y="120" width="400" height="230" fill="none" stroke="#000000" stroke-width="1.5"/>
+    <line x1="40" y1="145" x2="440" y2="145" stroke="#000000" stroke-width="1.5"/>
+    <line x1="80" y1="120" x2="80" y2="350" stroke="#000000" stroke-width="1"/>
+    <line x1="300" y1="120" x2="300" y2="350" stroke="#000000" stroke-width="1"/>
+    <line x1="360" y1="120" x2="360" y2="350" stroke="#000000" stroke-width="1"/>
+
+    <!-- Table Headings -->
+    <text x="60" y="137" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#000" text-anchor="middle">S.N.</text>
+    <text x="190" y="137" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#000" text-anchor="middle">DESCRIPTION</text>
+    <text x="330" y="137" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#000" text-anchor="middle">QTY</text>
+    <text x="400" y="137" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#000" text-anchor="middle">AMOUNT (₹)</text>
+
+    <!-- Table Rows (Sample Handwritten style entries) -->
+    <text x="60" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" text-anchor="middle">1</text>
+    <text x="90" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b">Visiting Card Printing (Matte)</text>
+    <text x="330" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" text-anchor="middle">500</text>
+    <text x="420" y="170" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" text-anchor="end">850.00</text>
+
+    <text x="60" y="200" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" text-anchor="middle">2</text>
+    <text x="90" y="200" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b">Star Flex Banner (6x3 ft)</text>
+    <text x="330" y="200" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" text-anchor="middle">18 sqft</text>
+    <text x="420" y="200" font-family="system-ui, sans-serif" font-size="11" fill="#1e293b" text-anchor="end">720.00</text>
+
+    <!-- Total Row -->
+    <line x1="40" y1="315" x2="440" y2="315" stroke="#000000" stroke-width="1.5"/>
+    <text x="300" y="338" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#000000" text-anchor="end">TOTAL ₹</text>
+    <text x="420" y="338" font-family="system-ui, sans-serif" font-weight="900" font-size="14" fill="#dc2626" text-anchor="end">1,570.00</text>
+
+    <!-- Signature & Footer -->
+    <text x="45" y="380" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">E.&amp;O.E. Goods once sold will not be taken back.</text>
+    <line x1="320" y1="410" x2="430" y2="410" stroke="#000000" stroke-width="1"/>
+    <text x="375" y="423" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#0f172a" text-anchor="middle">For Palak Printing Press</text>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

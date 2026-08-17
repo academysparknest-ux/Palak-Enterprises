@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import type { Session, User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
+import { getOAuthRedirectUrl, getPasswordResetRedirectUrl } from "../lib/supabase/authRedirect";
 
 export interface UserProfile {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   email?: string;
+  avatarUrl?: string;
   role: "CUSTOMER" | "STAFF" | "MANAGER" | "ADMIN" | "customer" | "staff" | "admin";
   businessName?: string;
   address?: string;
@@ -13,19 +16,23 @@ export interface UserProfile {
 
 interface AuthContextType {
   user: UserProfile | null;
+  session: Session | null;
   isAuthenticated: boolean;
   isStaff: boolean;
   isAdmin: boolean;
   loading: boolean;
-  loginCustomer: (phone: string, name?: string) => Promise<boolean>;
   loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUpWithEmail: (
     email: string,
     password: string,
     fullName: string,
     phone?: string
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; requiresEmailConfirmation?: boolean; error?: string }>;
+  loginWithGoogle: (returnTo?: string) => Promise<{ success: boolean; error?: string }>;
+  resetPasswordForEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
+  updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  loginCustomer: (phone: string, name?: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,6 +40,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_STORAGE_KEY = "palak_auth_session_v2";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<UserProfile | null>(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -43,74 +51,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Sync Supabase Auth session on mount and state change
-  useEffect(() => {
-    const client = supabase;
-    if (!isSupabaseConfigured || !client) {
-      setLoading(false);
+  const extractProfileFromUser = (sbUser: User, role: UserProfile["role"] = "CUSTOMER"): UserProfile => {
+    const meta = sbUser.user_metadata || {};
+    const fullName =
+      meta.full_name ||
+      meta.name ||
+      meta.user_name ||
+      sbUser.email?.split("@")[0] ||
+      "Palak Customer";
+
+    const avatarUrl = meta.avatar_url || meta.picture || undefined;
+    const phone = meta.phone || sbUser.phone || "";
+
+    return {
+      id: sbUser.id,
+      name: fullName,
+      phone: phone,
+      email: sbUser.email,
+      avatarUrl: avatarUrl,
+      role: role,
+    };
+  };
+
+  const syncUserProfile = async (sbUser: User) => {
+    if (!isSupabaseConfigured || !supabase) {
+      const fallbackProfile = extractProfileFromUser(sbUser);
+      setUser(fallbackProfile);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackProfile));
       return;
     }
 
-    const initAuth = async () => {
-      try {
-        const { data: { session } } = await client.auth.getSession();
-        if (session?.user) {
-          await syncUserProfile(session.user.id, session.user.email);
-        }
-      } catch (err) {
-        console.warn("Auth initialization notice:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        await syncUserProfile(session.user.id, session.user.email);
-      } else if (event === "SIGNED_OUT") {
-        setUser(null);
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-      }
-    });
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, []);
-
-  const syncUserProfile = async (userId: string, email?: string) => {
-    if (!isSupabaseConfigured || !supabase) return;
     try {
-      // 1. Fetch Profile
+      // 1. Fetch Profile row if present
       const { data: profile } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", userId)
-        .single();
+        .eq("id", sbUser.id)
+        .maybeSingle();
 
-      // 2. Fetch Highest Role
+      // 2. Fetch User Roles
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", userId);
+        .eq("user_id", sbUser.id);
 
       let role: UserProfile["role"] = "CUSTOMER";
       if (roleData && roleData.length > 0) {
-        const roles = roleData.map((r) => r.role);
+        const roles = roleData.map((r) => String(r.role).toUpperCase());
         if (roles.includes("ADMIN")) role = "ADMIN";
         else if (roles.includes("MANAGER")) role = "MANAGER";
         else if (roles.includes("STAFF")) role = "STAFF";
       }
 
+      const meta = sbUser.user_metadata || {};
       const updatedProfile: UserProfile = {
-        id: userId,
-        name: profile?.full_name || email?.split("@")[0] || "Palak Customer",
-        phone: profile?.phone || "",
-        email: email || profile?.email,
+        id: sbUser.id,
+        name: profile?.full_name || meta.full_name || meta.name || sbUser.email?.split("@")[0] || "Palak Customer",
+        phone: profile?.phone || meta.phone || sbUser.phone || "",
+        email: sbUser.email || profile?.email,
+        avatarUrl: profile?.avatar_url || meta.avatar_url || meta.picture,
         role: role,
         businessName: profile?.business_name,
       };
@@ -118,31 +119,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(updatedProfile);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedProfile));
     } catch (e) {
-      console.warn("Profile sync error:", e);
+      console.warn("Profile sync notice:", e);
+      const fallbackProfile = extractProfileFromUser(sbUser);
+      setUser(fallbackProfile);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackProfile));
     }
   };
 
-  const loginCustomer = async (phone: string, name?: string): Promise<boolean> => {
-    const cleanPhone = phone.trim();
-    if (!cleanPhone) return false;
+  // Sync Supabase Auth session on mount and listen to state changes
+  useEffect(() => {
+    let isMounted = true;
+    const client = supabase;
 
-    const profile: UserProfile = {
-      id: "cust_" + cleanPhone.replace(/\D/g, ""),
-      name: name?.trim() || "Palak Customer",
-      phone: cleanPhone,
-      role: "CUSTOMER",
+    if (!isSupabaseConfigured || !client) {
+      setLoading(false);
+      return;
+    }
+
+    const initAuth = async () => {
+      try {
+        const { data: { session: currentSession } } = await client.auth.getSession();
+        if (!isMounted) return;
+
+        if (currentSession?.user) {
+          setSession(currentSession);
+          await syncUserProfile(currentSession.user);
+        } else {
+          // If no active Supabase session, clear any stale stored profile unless it's a guest
+          const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (!parsed.id?.startsWith("cust_")) {
+                setUser(null);
+                localStorage.removeItem(AUTH_STORAGE_KEY);
+              }
+            } catch {
+              localStorage.removeItem(AUTH_STORAGE_KEY);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Auth initialization notice:", err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     };
-    setUser(profile);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(profile));
-    return true;
-  };
+
+    initAuth();
+
+    const { data: authListener } = client.auth.onAuthStateChange(async (event, newSession) => {
+      if (!isMounted) return;
+
+      if (event === "SIGNED_OUT" || !newSession) {
+        setSession(null);
+        setUser(null);
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      } else if (newSession?.user) {
+        setSession(newSession);
+        await syncUserProfile(newSession.user);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, []);
 
   const loginWithEmail = async (
     email: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
     if (!isSupabaseConfigured || !supabase) {
-      return { success: false, error: "Supabase connection is not configured." };
+      return { success: false, error: "Authentication service is currently offline. Please try again later." };
     }
 
     try {
@@ -152,17 +204,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        return { success: false, error: error.message };
+        // Standardize error messages without exposing private account details
+        const msg = error.message.toLowerCase();
+        if (msg.includes("invalid login credentials") || msg.includes("invalid_grant")) {
+          return { success: false, error: "Email or password is incorrect." };
+        }
+        if (msg.includes("email not confirmed")) {
+          return { success: false, error: "Please verify your email address before signing in." };
+        }
+        return { success: false, error: error.message || "Email or password is incorrect." };
       }
 
-      if (data.user) {
-        await syncUserProfile(data.user.id, data.user.email);
+      if (data.session && data.user) {
+        setSession(data.session);
+        await syncUserProfile(data.user);
         return { success: true };
       }
 
-      return { success: false, error: "Login failed. Please try again." };
+      return { success: false, error: "Login failed. Please verify your credentials and try again." };
     } catch (err: any) {
-      return { success: false, error: err?.message || "An unexpected error occurred." };
+      return { success: false, error: err?.message || "Unable to connect. Please check your internet connection." };
     }
   };
 
@@ -171,9 +232,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string,
     fullName: string,
     phone?: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; requiresEmailConfirmation?: boolean; error?: string }> => {
     if (!isSupabaseConfigured || !supabase) {
-      return { success: false, error: "Supabase connection is not configured." };
+      return { success: false, error: "Authentication service is currently offline. Please try again later." };
     }
 
     try {
@@ -183,27 +244,131 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           data: {
             full_name: fullName.trim(),
+            name: fullName.trim(),
             phone: phone ? phone.trim() : "",
+          },
+          emailRedirectTo: getOAuthRedirectUrl("/account"),
+        },
+      });
+
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes("user already registered")) {
+          return { success: false, error: "An account with this email address already exists. Please login." };
+        }
+        if (msg.includes("password")) {
+          return { success: false, error: "Password must be at least 6 characters long." };
+        }
+        return { success: false, error: error.message || "Failed to create account." };
+      }
+
+      // If user is returned but session is null, Supabase requires email verification
+      if (data.user && !data.session) {
+        return { success: true, requiresEmailConfirmation: true };
+      }
+
+      if (data.user && data.session) {
+        setSession(data.session);
+        await syncUserProfile(data.user);
+        return { success: true, requiresEmailConfirmation: false };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || "Failed to register. Please try again." };
+    }
+  };
+
+  const loginWithGoogle = async (
+    returnTo?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, error: "Google sign-in is temporarily unavailable. Please use email and password." };
+    }
+
+    try {
+      const redirectUrl = getOAuthRedirectUrl(returnTo || "/account");
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
           },
         },
       });
 
       if (error) {
-        return { success: false, error: error.message };
+        return { success: false, error: error.message || "Google sign-in is temporarily unavailable." };
       }
 
-      if (data.user) {
-        await syncUserProfile(data.user.id, data.user.email);
+      if (data?.url) {
+        // Supabase will redirect browser to Google OAuth consent page
+        window.location.href = data.url;
         return { success: true };
       }
 
       return { success: true };
+    } catch (_err: any) {
+      return {
+        success: false,
+        error: "Google sign-in is temporarily unavailable. Please try again or use email and password.",
+      };
+    }
+  };
+
+  const resetPasswordForEmail = async (
+    email: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, error: "Password reset service is currently unavailable." };
+    }
+
+    try {
+      const redirectUrl = getPasswordResetRedirectUrl();
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: redirectUrl,
+      });
+
+      if (error) {
+        return { success: false, error: error.message || "Could not send password reset email." };
+      }
+
+      return { success: true };
     } catch (err: any) {
-      return { success: false, error: err?.message || "Failed to create account." };
+      return { success: false, error: err?.message || "An unexpected error occurred." };
+    }
+  };
+
+  const updatePassword = async (
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, error: "Password update service is currently unavailable." };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        return { success: false, error: error.message || "Failed to update password." };
+      }
+
+      if (data.user) {
+        await syncUserProfile(data.user);
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || "Failed to update password." };
     }
   };
 
   const logout = async () => {
+    setSession(null);
     setUser(null);
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -215,7 +380,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const isAuthenticated = Boolean(user);
+  const loginCustomer = async (phone: string, name?: string): Promise<boolean> => {
+    const cleanPhone = phone.trim();
+    if (!cleanPhone) return false;
+
+    const guestProfile: UserProfile = {
+      id: "cust_" + cleanPhone.replace(/\D/g, ""),
+      name: name?.trim() || "Palak Customer",
+      phone: cleanPhone,
+      role: "CUSTOMER",
+    };
+    setUser(guestProfile);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(guestProfile));
+    return true;
+  };
+
+  const isAuthenticated = Boolean(session?.user || user);
   const normalizedRole = (user?.role || "").toUpperCase();
   const isStaff = normalizedRole === "STAFF" || normalizedRole === "MANAGER" || normalizedRole === "ADMIN";
   const isAdmin = normalizedRole === "MANAGER" || normalizedRole === "ADMIN";
@@ -224,14 +404,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
+        session,
         isAuthenticated,
         isStaff,
         isAdmin,
         loading,
-        loginCustomer,
         loginWithEmail,
         signUpWithEmail,
+        loginWithGoogle,
+        resetPasswordForEmail,
+        updatePassword,
         logout,
+        loginCustomer,
       }}
     >
       {children}
@@ -247,3 +431,4 @@ export const useAuth = () => {
   return context;
 };
 
+export default AuthProvider;

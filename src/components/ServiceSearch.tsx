@@ -27,7 +27,7 @@ export const ServiceSearch: React.FC<ServiceSearchProps> = ({ isCompact = false 
     const nameHi = service.name.hi.toLowerCase();
     const descEn = service.description.en.toLowerCase();
     const descHi = service.description.hi.toLowerCase();
-    const tagsMatch = service.tags.some((tag) => tag.toLowerCase().includes(q));
+    const tagsMatch = ((service.tags || service.aliases || []) as string[]).some((tag: string) => tag.toLowerCase().includes(q));
 
     return (
       nameEn.includes(q) ||
@@ -203,7 +203,7 @@ export const ServiceSearch: React.FC<ServiceSearchProps> = ({ isCompact = false 
                     >
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 rounded-lg bg-blue-50 text-navy flex items-center justify-center group-hover:bg-navy group-hover:text-white transition-colors shrink-0">
-                          <DynamicIcon name={service.iconName} className="w-5 h-5" />
+                          <DynamicIcon name={service.icon || service.iconName || "Sparkles"} className="w-5 h-5" />
                         </div>
                         <div>
                           <h4 className="font-bold text-sm text-slate-900 group-hover:text-navy">

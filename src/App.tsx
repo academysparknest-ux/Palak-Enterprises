@@ -16,10 +16,25 @@ import { servicesData, type ServiceItem } from "./config/services";
 const HomePage = lazy(() => import("./pages/HomePage").then((m) => ({ default: m.HomePage })));
 const PrintingPage = lazy(() => import("./pages/PrintingPage").then((m) => ({ default: m.PrintingPage })));
 const ProductDetailPage = lazy(() => import("./pages/ProductDetailPage").then((m) => ({ default: m.ProductDetailPage })));
+
+// ⚡ Instant Online Services Pages
 const OnlineServicesPage = lazy(() => import("./pages/OnlineServicesPage").then((m) => ({ default: m.OnlineServicesPage })));
+const DocumentPrintingPage = lazy(() => import("./pages/online-services/DocumentPrintingPage").then((m) => ({ default: m.DocumentPrintingPage })));
+const PassportPhotoPage = lazy(() => import("./pages/online-services/PassportPhotoPage").then((m) => ({ default: m.PassportPhotoPage })));
+const VisitingCardsPage = lazy(() => import("./pages/online-services/VisitingCardsPage").then((m) => ({ default: m.VisitingCardsPage })));
+const InvitationCardsPage = lazy(() => import("./pages/online-services/InvitationCardsPage").then((m) => ({ default: m.InvitationCardsPage })));
+const IdCardsPage = lazy(() => import("./pages/online-services/IdCardsPage").then((m) => ({ default: m.IdCardsPage })));
+const PosterBannerPage = lazy(() => import("./pages/online-services/PosterBannerPage").then((m) => ({ default: m.PosterBannerPage })));
+const CustomPrintPage = lazy(() => import("./pages/online-services/CustomPrintPage").then((m) => ({ default: m.CustomPrintPage })));
+
+// Digital & CSC Citizen Services
+const DigitalServicesPage = lazy(() => import("./pages/DigitalServicesPage").then((m) => ({ default: m.DigitalServicesPage })));
 const DigitalServiceDetailPage = lazy(() => import("./pages/DigitalServiceDetailPage").then((m) => ({ default: m.DigitalServiceDetailPage })));
+
+// Other Core Pages
 const BusinessPage = lazy(() => import("./pages/BusinessPage").then((m) => ({ default: m.BusinessPage })));
 const WeddingEventsPage = lazy(() => import("./pages/WeddingEventsPage").then((m) => ({ default: m.WeddingEventsPage })));
+const WeddingCardDetailPage = lazy(() => import("./pages/WeddingCardDetailPage").then((m) => ({ default: m.WeddingCardDetailPage })));
 const DesignServicesPage = lazy(() => import("./pages/DesignServicesPage").then((m) => ({ default: m.DesignServicesPage })));
 const RequestQuotePage = lazy(() => import("./pages/RequestQuotePage").then((m) => ({ default: m.RequestQuotePage })));
 const CartPage = lazy(() => import("./pages/CartPage").then((m) => ({ default: m.CartPage })));
@@ -27,6 +42,11 @@ const CheckoutPage = lazy(() => import("./pages/CheckoutPage").then((m) => ({ de
 const TrackOrderPage = lazy(() => import("./pages/TrackOrderPage").then((m) => ({ default: m.TrackOrderPage })));
 const AccountPage = lazy(() => import("./pages/AccountPage").then((m) => ({ default: m.AccountPage })));
 const AdminPage = lazy(() => import("./pages/AdminPage").then((m) => ({ default: m.AdminPage })));
+const LoginPage = lazy(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
+const SignupPage = lazy(() => import("./pages/SignupPage").then((m) => ({ default: m.SignupPage })));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage").then((m) => ({ default: m.ResetPasswordPage })));
+const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage").then((m) => ({ default: m.AuthCallbackPage })));
 const AboutPage = lazy(() => import("./pages/AboutPage").then((m) => ({ default: m.AboutPage })));
 const ContactPage = lazy(() => import("./pages/ContactPage").then((m) => ({ default: m.ContactPage })));
 const FAQPage = lazy(() => import("./pages/FAQPage").then((m) => ({ default: m.FAQPage })));
@@ -69,19 +89,22 @@ function ScrollToTop() {
 export function AppContent() {
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [modalService, setModalService] = useState<ServiceItem | null>(null);
+  const [modalPaymentMethod, setModalPaymentMethod] = useState<"pay_online" | "pay_at_shop" | undefined>(undefined);
 
-  const handleOpenRequestModal = (serviceId?: string) => {
+  const handleOpenRequestModal = (serviceId?: string, paymentMethod?: "pay_online" | "pay_at_shop") => {
     if (serviceId) {
       const s = servicesData.find((item) => item.id === serviceId);
       setModalService(s || null);
     } else {
       setModalService(null);
     }
+    setModalPaymentMethod(paymentMethod);
     setRequestModalOpen(true);
   };
 
   const handleSelectServiceCard = (service: ServiceItem) => {
     setModalService(service);
+    setModalPaymentMethod(undefined);
     setRequestModalOpen(true);
   };
 
@@ -91,7 +114,7 @@ export function AppContent() {
       <ScrollToTop />
 
       {/* Global Header Navigation */}
-      <Header onOpenRequestModal={handleOpenRequestModal} />
+      <Header onOpenRequestModal={() => handleOpenRequestModal()} />
 
       {/* Dynamic Page Routes with Suspense */}
       <main className="flex-grow">
@@ -99,17 +122,25 @@ export function AppContent() {
           <Routes>
             <Route path="/" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
 
+            {/* ⚡ 7 Instant Online Services Routes */}
+            <Route path="/online-services" element={<OnlineServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+            <Route path="/online-services/document-printing" element={<DocumentPrintingPage />} />
+            <Route path="/online-services/passport-photo" element={<PassportPhotoPage />} />
+            <Route path="/online-services/visiting-cards" element={<VisitingCardsPage />} />
+            <Route path="/online-services/invitation-cards" element={<InvitationCardsPage />} />
+            <Route path="/online-services/id-cards" element={<IdCardsPage />} />
+            <Route path="/online-services/poster-banner" element={<PosterBannerPage />} />
+            <Route path="/online-services/custom-print" element={<CustomPrintPage />} />
+
             {/* Printing Catalog & Product Details */}
             <Route path="/printing" element={<PrintingPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
             <Route path="/printing/:slug" element={<ProductDetailPage />} />
             <Route path="/products" element={<PrintingPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
             <Route path="/products/:slug" element={<ProductDetailPage />} />
 
-            {/* Digital & Online Services */}
-            <Route path="/digital-services" element={<OnlineServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+            {/* Digital & CSC Services */}
+            <Route path="/digital-services" element={<DigitalServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
             <Route path="/digital-services/:slug" element={<DigitalServiceDetailPage />} />
-            <Route path="/online-services" element={<OnlineServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
-            <Route path="/online-services/:slug" element={<DigitalServiceDetailPage />} />
 
             {/* Business & Bulk Printing Solutions */}
             <Route path="/business" element={<BusinessPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
@@ -118,6 +149,8 @@ export function AppContent() {
 
             {/* Wedding & Ceremony Cards */}
             <Route path="/wedding-events" element={<WeddingEventsPage />} />
+            <Route path="/wedding-events/:slug" element={<WeddingCardDetailPage />} />
+            <Route path="/wedding-events/wedding-cards/:slug" element={<WeddingCardDetailPage />} />
 
             {/* Graphic Design Studio */}
             <Route path="/design-services" element={<DesignServicesPage />} />
@@ -132,8 +165,16 @@ export function AppContent() {
 
             {/* Universal Tracking */}
             <Route path="/track-order" element={<TrackOrderPage />} />
+            <Route path="/order-status" element={<TrackOrderPage />} />
 
-            {/* Customer Portal & Admin ERP */}
+            {/* Customer Portal, Authentication & Admin ERP */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signin" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/register" element={<SignupPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
             <Route path="/account" element={<AccountPage />} />
             <Route path="/account/orders" element={<AccountPage />} />
             <Route path="/account/requests" element={<AccountPage />} />
@@ -141,6 +182,7 @@ export function AppContent() {
 
             {/* Compatible Informational Pages */}
             <Route path="/services" element={<ServicesPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+            <Route path="/services/:category/:serviceSlug" element={<ServiceDetailPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
             <Route path="/services/:slug" element={<ServiceDetailPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
             <Route path="/work" element={<WorkPage onOpenRequestModal={handleOpenRequestModal} />} />
             <Route path="/about" element={<AboutPage />} />
@@ -172,6 +214,7 @@ export function AppContent() {
         isOpen={requestModalOpen}
         onClose={() => setRequestModalOpen(false)}
         selectedService={modalService}
+        initialPaymentMethod={modalPaymentMethod}
       />
     </div>
   );

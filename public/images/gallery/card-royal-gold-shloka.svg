@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgIvory" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2a0808"/>
+      <stop offset="100%" stop-color="#140202"/>
+    </linearGradient>
+    <linearGradient id="cardRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#881337"/>
+      <stop offset="50%" stop-color="#9f1239"/>
+      <stop offset="100%" stop-color="#4c0519"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="40%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgIvory)"/>
+  
+  <!-- Envelope Behind -->
+  <g filter="url(#shadow)" transform="translate(140, 70)">
+    <rect width="520" height="420" rx="16" fill="#4c0519" stroke="url(#gold)" stroke-width="2"/>
+    <path d="M0,0 L260,190 L520,0" stroke="url(#gold)" stroke-width="2" fill="none" stroke-dasharray="6,4"/>
+  </g>
+
+  <!-- Main Gold Leaf Foil Card -->
+  <g filter="url(#shadow)" transform="translate(190, 95)">
+    <rect width="420" height="410" rx="14" fill="url(#cardRed)" stroke="url(#gold)" stroke-width="3"/>
+    
+    <!-- Ornate Borders -->
+    <rect x="14" y="14" width="392" height="382" rx="10" fill="none" stroke="url(#gold)" stroke-width="1.5"/>
+    <rect x="20" y="20" width="380" height="370" rx="8" fill="none" stroke="url(#gold)" stroke-opacity="0.3" stroke-width="1"/>
+
+    <!-- Shloka & Deity Emblem -->
+    <circle cx="210" cy="70" r="26" fill="#4c0519" stroke="url(#gold)" stroke-width="2"/>
+    <text x="210" y="78" font-family="Georgia, serif" font-weight="bold" font-size="22" fill="url(#gold)" text-anchor="middle">卐 ॐ 卐</text>
+
+    <!-- Header Sanskrit -->
+    <text x="210" y="125" font-family="Georgia, serif" font-weight="bold" font-size="16" fill="url(#gold)" text-anchor="middle" letter-spacing="1">॥ श्री गणेशाय नमः ॥</text>
+    <text x="210" y="146" font-family="Georgia, serif" font-size="11" fill="#fef08a" text-anchor="middle" letter-spacing="1">मंगळम् भगवान विष्णुः मंगळम् गरुडध्वजः</text>
+
+    <line x1="60" y1="162" x2="360" y2="162" stroke="url(#gold)" stroke-width="1"/>
+
+    <!-- Names -->
+    <text x="210" y="205" font-family="Georgia, serif" font-style="italic" font-weight="bold" font-size="30" fill="url(#gold)" text-anchor="middle">Anurag  &amp;  Priyanka</text>
+    <text x="210" y="232" font-family="Georgia, serif" font-size="12" fill="#fef3c7" text-anchor="middle">Cordially invite you to celebrate their wedding</text>
+
+    <!-- Gold Foil Details Box -->
+    <rect x="45" y="255" width="330" height="90" rx="8" fill="#2a0808" fill-opacity="0.7" stroke="url(#gold)" stroke-width="1"/>
+    <text x="210" y="282" font-family="system-ui, sans-serif" font-weight="bold" font-size="13" fill="#ffffff" text-anchor="middle">DATE: 28th November 2026</text>
+    <text x="210" y="304" font-family="system-ui, sans-serif" font-size="12" fill="#fef08a" text-anchor="middle">VENUE: Royal Heritage Palace, Chakia</text>
+    <text x="210" y="326" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="url(#gold)" text-anchor="middle">Palak Printing Press • SKU: PE-WED-001</text>
+  </g>
+</svg>

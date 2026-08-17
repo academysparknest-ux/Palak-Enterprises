@@ -7,7 +7,7 @@ export interface OrderItemPayload {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  selectedOptions: Record<string, string>;
+  selectedOptions: Record<string, any>;
   selectedOptionsLabels?: Record<string, string>;
   uploadedFileName?: string;
   uploadedFileUrl?: string;
@@ -178,7 +178,131 @@ export class PalakDataStore {
   }
 
   static getProductBySlug(slug: string): LocalProduct | undefined {
-    return PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+    return PRODUCTS.find((p) => p.slug === slug || p.id === slug || (p.sku && p.sku.toLowerCase() === slug.toLowerCase()));
+  }
+
+  static getWeddingCards(filter?: {
+    searchQuery?: string;
+    occasion?: string;
+    style?: string;
+    cardType?: string;
+    religion?: string;
+    priceRange?: string;
+    sortBy?: string;
+  }): LocalProduct[] {
+    let cards = PRODUCTS.filter(
+      (p) => p.categoryType === "wedding" || p.categoryId === "wedding-events"
+    );
+
+    if (!filter) return cards;
+
+    const { searchQuery, occasion, style, cardType, religion, priceRange, sortBy } = filter;
+
+    // Search query matching: name, sku, shortDesc, tags, occasion, style, cardType
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      cards = cards.filter((c) => {
+        const nameEn = c.name.en.toLowerCase();
+        const nameHi = c.name.hi.toLowerCase();
+        const sku = (c.sku || "").toLowerCase();
+        const descEn = c.shortDesc.en.toLowerCase();
+        const descHi = c.shortDesc.hi.toLowerCase();
+        const occasionVal = (c.occasion || "").toLowerCase();
+        const styleVal = (c.style || "").toLowerCase();
+        const typeVal = (c.cardType || "").toLowerCase();
+        const tagMatch = c.tags.some((t) => t.toLowerCase().includes(q));
+
+        return (
+          nameEn.includes(q) ||
+          nameHi.includes(q) ||
+          sku.includes(q) ||
+          descEn.includes(q) ||
+          descHi.includes(q) ||
+          occasionVal.includes(q) ||
+          styleVal.includes(q) ||
+          typeVal.includes(q) ||
+          tagMatch
+        );
+      });
+    }
+
+    // Filter by Occasion
+    if (occasion && occasion !== "all") {
+      cards = cards.filter((c) => c.occasion === occasion);
+    }
+
+    // Filter by Style
+    if (style && style !== "all") {
+      cards = cards.filter((c) => c.style === style);
+    }
+
+    // Filter by Card Type
+    if (cardType && cardType !== "all") {
+      cards = cards.filter((c) => c.cardType === cardType);
+    }
+
+    // Filter by Religion
+    if (religion && religion !== "all") {
+      cards = cards.filter((c) => c.religion === religion || c.religion === "interfaith");
+    }
+
+    // Filter by Price Range
+    if (priceRange && priceRange !== "all") {
+      cards = cards.filter((c) => {
+        const p = c.pricePerCard || (c.startingPrice > 500 ? c.startingPrice / 100 : c.startingPrice);
+        switch (priceRange) {
+          case "under-20":
+            return p < 20;
+          case "20-30":
+            return p >= 20 && p <= 30;
+          case "30-50":
+            return p >= 30 && p <= 50;
+          case "50-100":
+            return p >= 50 && p <= 100;
+          case "100-plus":
+            return p > 100;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Sorting
+    if (sortBy) {
+      cards = [...cards].sort((a, b) => {
+        const priceA = a.pricePerCard || (a.startingPrice > 500 ? a.startingPrice / 100 : a.startingPrice);
+        const priceB = b.pricePerCard || (b.startingPrice > 500 ? b.startingPrice / 100 : b.startingPrice);
+
+        switch (sortBy) {
+          case "price-asc":
+            return priceA - priceB;
+          case "price-desc":
+            return priceB - priceA;
+          case "popular":
+            return (b.isPopular ? 1 : 0) - (a.isPopular ? 1 : 0);
+          case "newest":
+            return (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0);
+          case "name-asc":
+            return a.name.en.localeCompare(b.name.en);
+          case "featured":
+          default:
+            return (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0);
+        }
+      });
+    }
+
+    return cards;
+  }
+
+  static getWeddingCardBySlug(slugOrSku: string): LocalProduct | undefined {
+    const clean = slugOrSku.trim().toLowerCase();
+    const cards = this.getWeddingCards();
+    return cards.find(
+      (c) =>
+        c.slug.toLowerCase() === clean ||
+        c.id.toLowerCase() === clean ||
+        (c.sku && c.sku.toLowerCase() === clean)
+    );
   }
 
   static getDigitalServices(): LocalService[] {
@@ -191,6 +315,7 @@ export class PalakDataStore {
 
   // --- Orders ---
   static async createOrder(data: {
+    orderCode?: string;
     customerName: string;
     customerPhone: string;
     customerEmail?: string;
@@ -206,9 +331,12 @@ export class PalakDataStore {
     deliveryFee: number;
     totalAmount: number;
     paymentMethod: "pay_at_store" | "pay_after_confirmation" | "upi_online";
+    paymentStatus?: "pending" | "paid" | "partial" | "refunded";
+    orderStatus?: StoredOrder["orderStatus"];
+    staffNotes?: string;
     items: OrderItemPayload[];
   }): Promise<StoredOrder> {
-    const orderCode = generateCode("O");
+    const orderCode = data.orderCode || generateCode("O");
     const now = new Date().toISOString();
     const newOrder: StoredOrder = {
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),

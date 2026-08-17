@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="ayBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#022c22"/>
+    </linearGradient>
+    <linearGradient id="ayGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="ayShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="800" height="600" fill="url(#ayBg)"/>
+  <g filter="url(#ayShadow)" transform="translate(160, 125)">
+    <rect width="480" height="310" rx="16" fill="#ffffff" stroke="url(#ayGold)" stroke-width="3"/>
+    <!-- Top Gold Header -->
+    <rect x="0" y="0" width="480" height="55" rx="14" fill="url(#ayGold)"/>
+    <text x="240" y="24" font-family="system-ui, sans-serif" font-weight="900" font-size="14" fill="#78350f" text-anchor="middle">आयुष्मान भारत / AYUSHMAN BHARAT</text>
+    <text x="240" y="42" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#451a03" text-anchor="middle">प्रधानमंत्री जन आरोग्य योजना (PM-JAY)</text>
+    <!-- 5 Lakh Badge -->
+    <rect x="310" y="70" width="145" height="50" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="382" y="92" font-family="system-ui, sans-serif" font-weight="900" font-size="13" fill="#047857" text-anchor="middle">₹ 5 लाख तक</text>
+    <text x="382" y="108" font-family="system-ui, sans-serif" font-size="9" fill="#065f46" text-anchor="middle">मुफ़्त इलाज प्रति वर्ष</text>
+    <!-- Photo Box -->
+    <rect x="30" y="70" width="90" height="110" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <circle cx="75" cy="105" r="20" fill="#94a3b8"/>
+    <path d="M48 170 C48 140, 102 140, 102 170 Z" fill="#64748b"/>
+    <!-- Details -->
+    <text x="135" y="85" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">लाभार्थी का नाम / Name</text>
+    <text x="135" y="103" font-family="system-ui, sans-serif" font-weight="bold" font-size="14" fill="#0f172a">ANITA DEVI</text>
+    <text x="135" y="125" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">ABHA ID / PMJAY ID</text>
+    <text x="135" y="143" font-family="monospace" font-weight="bold" font-size="13" fill="#047857">91-4521-8963-7412</text>
+    <!-- Card Info -->
+    <rect x="30" y="200" width="420" height="50" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+    <text x="45" y="222" font-family="system-ui, sans-serif" font-size="11" fill="#166534">लिंग: महिला | जन्म वर्ष: 1988</text>
+    <text x="45" y="238" font-family="system-ui, sans-serif" font-size="11" fill="#166534">राज्य: बिहार (East Champaran)</text>
+    <!-- Footer -->
+    <rect x="0" y="270" width="480" height="40" rx="12" fill="#047857"/>
+    <text x="240" y="295" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff" text-anchor="middle">देश के किसी भी सूचीबद्ध अस्पताल में मान्य</text>
+  </g>
+  <rect x="30" y="30" width="220" height="32" rx="8" fill="#f59e0b"/>
+  <text x="140" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#78350f" text-anchor="middle">AYUSHMAN GOLD CARD</text>
+</svg>

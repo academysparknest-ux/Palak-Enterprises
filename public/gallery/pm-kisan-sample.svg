@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="kisanBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#022c22"/>
+    </linearGradient>
+    <filter id="kisanShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="800" height="600" fill="url(#kisanBg)"/>
+  <g filter="url(#kisanShadow)" transform="translate(160, 110)">
+    <rect width="480" height="340" rx="14" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+    <!-- Top Green Header -->
+    <rect x="0" y="0" width="480" height="60" rx="12" fill="#15803d"/>
+    <text x="240" y="28" font-family="system-ui, sans-serif" font-weight="900" font-size="14" fill="#fef08a" text-anchor="middle">कृषि विभाग, बिहार सरकार / DBT AGRICULTURE</text>
+    <text x="240" y="48" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff" text-anchor="middle">प्रधानमंत्री किसान सम्मान निधि योजना (PM-KISAN)</text>
+    <!-- Content Form -->
+    <rect x="25" y="75" width="430" height="65" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+    <text x="40" y="98" font-family="system-ui, sans-serif" font-size="11" fill="#166534">किसान पंजीकरण संख्या / Reg No:</text>
+    <text x="40" y="122" font-family="monospace" font-weight="900" font-size="16" fill="#15803d">BR-DBT-2026-889412</text>
+    <!-- Status & Details -->
+    <text x="40" y="165" font-family="system-ui, sans-serif" font-size="11" fill="#475569">किसान का नाम: <tspan font-weight="bold" fill="#0f172a">रामेश्वर महतो</tspan></text>
+    <text x="40" y="190" font-family="system-ui, sans-serif" font-size="11" fill="#475569">आधार व ई-केवाईसी: <tspan font-weight="bold" fill="#16a34a">सफलतापूर्वक सत्यापित (Active)</tspan></text>
+    <text x="40" y="215" font-family="system-ui, sans-serif" font-size="11" fill="#475569">बैंक खाता: <tspan font-weight="bold" fill="#0f172a">State Bank of India (DBT Linked)</tspan></text>
+    <text x="40" y="240" font-family="system-ui, sans-serif" font-size="11" fill="#475569">फसल बीमा: <tspan font-weight="bold" fill="#0284c7">बिहार राज्य फसल सहायता योजना 2026</tspan></text>
+    <!-- Installment status badge -->
+    <rect x="25" y="260" width="430" height="50" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="240" y="282" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#047857" text-anchor="middle">✓ ₹ 2,000/- सम्मान निधि किस्त भुगतान सफल</text>
+    <text x="240" y="298" font-family="system-ui, sans-serif" font-size="10" fill="#065f46" text-anchor="middle">Palak Enterprises, Near Block Gate, Chakia</text>
+  </g>
+  <rect x="30" y="30" width="220" height="32" rx="8" fill="#15803d"/>
+  <text x="140" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ffffff" text-anchor="middle">PM-KISAN DBT SERVICE</text>
+</svg>

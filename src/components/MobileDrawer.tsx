@@ -1,28 +1,61 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useAccessibility } from "../context/AccessibilityContext";
-import { businessConfig, business } from "../config/business";
+import { useAuth } from "../context/AuthContext";
+import { business, getWhatsAppLink, getCallLink } from "../config/business";
+import { categories } from "../config/services";
 import {
   X,
   Phone,
   MessageSquare,
   Eye,
   Globe,
+  Home,
+  Zap,
   Printer,
+  FileText,
+  Camera,
+  Heart,
   FileCheck,
-  Briefcase,
-  Gift,
-  Palette,
+  ClipboardList,
+  HeartHandshake,
+  Sprout,
+  Landmark,
+  Banknote,
+  MonitorSmartphone,
   Sparkles,
   HelpCircle,
-  Image as ImageIcon,
   Info,
   MapPin,
   Package,
   User,
+  LogIn,
+  LogOut,
+  UserPlus,
+  ChevronRight,
+  ChevronDown,
+  Layers,
+  Palette,
+  Laptop,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+
+const categoryIconMap: Record<string, any> = {
+  Printer,
+  FileText,
+  Camera,
+  Heart,
+  Sparkles,
+  FileCheck,
+  ClipboardList,
+  HeartHandshake,
+  Sprout,
+  Landmark,
+  Banknote,
+  MonitorSmartphone,
+};
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -33,16 +66,27 @@ interface MobileDrawerProps {
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   isOpen,
   onClose,
+  onOpenRequestModal,
 }) => {
   const { language, lang, setLanguage } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
   const { seniorMode, toggleSeniorMode } = useAccessibility();
+  const { user, isAuthenticated, isStaff, logout } = useAuth();
   const location = useLocation();
 
+  // Separate state for Services submenu expansion (does not close drawer)
+  const [isServicesExpanded, setIsServicesExpanded] = useState(false);
+
+  // Track pathname changes to close drawer ONLY upon actual route navigation
+  const prevPathnameRef = useRef(location.pathname);
   useEffect(() => {
-    onClose();
+    if (prevPathnameRef.current !== location.pathname) {
+      prevPathnameRef.current = location.pathname;
+      onClose();
+    }
   }, [location.pathname, onClose]);
 
+  // Handle body scroll locking & ESC key
   useEffect(() => {
     if (!isOpen) return;
 
@@ -64,19 +108,69 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const links = [
-    { to: "/", label: { en: "Home", hi: "मुख्य पृष्ठ" } },
-    { to: "/printing", label: { en: "Printing & Press", hi: "प्रिंटिंग व प्रेस" }, icon: Printer },
-    { to: "/digital-services", label: { en: "Online & CSC Services", hi: "ऑनलाइन सेवा सहायता" }, icon: FileCheck },
-    { to: "/business", label: { en: "Business Solutions", hi: "बिजनेस सॉल्यूशंस" }, icon: Briefcase },
-    { to: "/wedding-events", label: { en: "Wedding & Ceremonies", hi: "शादी कार्ड व निमंत्रण" }, icon: Gift },
-    { to: "/design-services", label: { en: "Graphic Design Studio", hi: "ग्राफिक डिज़ाइन स्टूडियो" }, icon: Palette },
-    { to: "/track-order", label: { en: "Track Order / Status", hi: "ऑर्डर ट्रैक करें" }, icon: Package },
-    { to: "/account", label: { en: "My Account / ERP", hi: "अकाउंट / स्टाफ लॉगिन" }, icon: User },
-    { to: "/work", label: { en: "Our Work Samples", hi: "हमारा काम व गैलरी" }, icon: ImageIcon },
-    { to: "/about", label: { en: "About Palak Enterprises", hi: "हमारे बारे में" }, icon: Info },
-    { to: "/faq", label: { en: "FAQs", hi: "अक्सर पूछे जाने वाले सवाल" }, icon: HelpCircle },
-    { to: "/contact", label: { en: "Contact & Location", hi: "संपर्क एवं केंद्र" }, icon: MapPin },
+  const servicesSubmenu = [
+    {
+      to: "/services",
+      label: { en: "All Services Directory", hi: "सभी 50+ सेवाएँ" },
+      icon: Layers,
+    },
+    {
+      to: "/printing",
+      label: { en: "Printing & Press", hi: "प्रिंटिंग व प्रेस" },
+      icon: Printer,
+    },
+    {
+      to: "/online-services",
+      label: { en: "Instant Online Services", hi: "तुरंत ऑनलाइन सेवाएँ" },
+      icon: Zap,
+    },
+    {
+      to: "/digital-services",
+      label: { en: "Digital & CSC Govt Services", hi: "डिजिटल व सरकारी सेवाएँ" },
+      icon: FileCheck,
+    },
+    {
+      to: "/wedding-events",
+      label: { en: "Wedding & Ceremony Cards", hi: "शादी कार्ड व निमंत्रण" },
+      icon: Heart,
+    },
+    {
+      to: "/business",
+      label: { en: "Business Solutions & Kits", hi: "बिजनेस सॉल्यूशंस" },
+      icon: Briefcase,
+    },
+    {
+      to: "/design-services",
+      label: { en: "Graphic Design Studio", hi: "ग्राफिक डिज़ाइन स्टूडियो" },
+      icon: Palette,
+    },
+    {
+      to: "/website-development",
+      label: { en: "Website Development", hi: "वेबसाइट डेवलपमेंट" },
+      icon: Laptop,
+    },
+  ];
+
+  const primaryNavLinks = [
+    { to: "/", label: { en: "Home", hi: "मुख्य पृष्ठ" }, icon: Home },
+    {
+      to: "/online-services",
+      label: { en: "Instant Online Services", hi: "तुरंत ऑनलाइन सेवाएँ" },
+      icon: Zap,
+      badge: currentLang === "hi" ? "त्वरित" : "Instant",
+    },
+    { to: "/wedding-events", label: { en: "Wedding Cards", hi: "शादी कार्ड व इवेंट" }, icon: Heart },
+    { to: "/about", label: { en: "About Us", hi: "हमारे बारे में" }, icon: Info },
+    { to: "/contact", label: { en: "Contact & Location", hi: "संपर्क एवं केंद्र पता" }, icon: MapPin },
+    { to: "/track-order", label: { en: "Track Order / Status", hi: "ऑर्डर स्थिति ट्रैक करें" }, icon: Package },
+    {
+      to: isAuthenticated ? "/account" : "/login",
+      label: isAuthenticated
+        ? { en: isStaff ? "Staff ERP Dashboard" : `Account (${user?.name?.split(" ")[0] || "User"})`, hi: isStaff ? "स्टाफ ERP डैशबोर्ड" : `अकाउंट (${user?.name?.split(" ")[0] || "यूजर"})` }
+        : { en: "Login / Sign In", hi: "लॉगिन / साइन इन" },
+      icon: isAuthenticated ? User : LogIn,
+    },
+    { to: "/faq", label: { en: "FAQs & Help", hi: "अक्सर पूछे जाने वाले सवाल" }, icon: HelpCircle },
   ];
 
   return (
@@ -86,150 +180,382 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
       aria-modal="true"
       aria-label={currentLang === "hi" ? "नेविगेशन मेनू" : "Navigation Menu"}
     >
-      {/* Backdrop */}
+      {/* Backdrop: Clicking overlay closes menu */}
       <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-fadeUp"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-8">
-        <div className="w-screen max-w-sm bg-white shadow-2xl flex flex-col justify-between overflow-hidden">
+      {/* Drawer Panel Container */}
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 pointer-events-none">
+        <div
+          className="w-screen max-w-sm bg-white shadow-2xl flex flex-col justify-between overflow-hidden pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Top Header */}
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-            <div className="flex items-center gap-2.5">
+          <div className="p-3.5 sm:p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+            <Link to="/" onClick={onClose} className="flex items-center gap-2.5">
               <img
                 src={business.logoPath}
                 alt={business.name[currentLang]}
-                className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-400/50"
+                className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-400/60 shadow-xs"
               />
               <div className="flex flex-col">
                 <span className="font-display text-sm font-bold text-[#123B70] leading-tight">
                   {business.name[currentLang]}
                 </span>
-                <span className="text-[11px] text-slate-500">{business.unit[currentLang]}</span>
+                <span className="text-[11px] text-slate-500 font-medium">{business.unit[currentLang]}</span>
               </div>
-            </div>
+            </Link>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200 focus:outline-none cursor-pointer"
-              aria-label={currentLang === "hi" ? "मेनू बंद करें" : "Close menu"}
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 focus:outline-hidden cursor-pointer"
+              aria-label={currentLang === "hi" ? "मेनू बंद करें" : "Close navigation menu"}
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Links Body */}
-          <div className="p-4 overflow-y-auto space-y-4 flex-1">
+          <div className="p-3.5 sm:p-4 overflow-y-auto space-y-3.5 flex-1">
             {/* Language & Accessibility Bar */}
-            <div className="bg-slate-100 p-3 rounded-2xl space-y-2.5">
+            <div className="bg-slate-100/90 p-2.5 rounded-2xl space-y-2 border border-slate-200/60">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-600 flex items-center">
-                  <Globe className="w-3.5 h-3.5 mr-1 text-[#123B70]" /> {currentLang === "hi" ? "भाषा" : "Language"}
+                <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                  <Globe className="w-3.5 h-3.5 text-[#123B70]" />
+                  <span>{currentLang === "hi" ? "भाषा / Language" : "Language"}</span>
                 </span>
                 <div className="flex bg-white p-0.5 rounded-xl border border-slate-200 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => setLanguage("en")}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer ${
-                      currentLang === "en" ? "bg-[#123B70] text-white" : "text-slate-700"
-                    }`}
+                    aria-pressed={currentLang === "en"}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer",
+                      currentLang === "en"
+                        ? "bg-[#123B70] text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
                   >
                     English
                   </button>
                   <button
                     type="button"
                     onClick={() => setLanguage("hi")}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-lg cursor-pointer ${
-                      currentLang === "hi" ? "bg-[#123B70] text-white font-hindi" : "text-slate-700 font-hindi"
-                    }`}
+                    aria-pressed={currentLang === "hi"}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-bold rounded-lg font-hindi transition-all cursor-pointer",
+                      currentLang === "hi"
+                        ? "bg-[#123B70] text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
                   >
                     हिन्दी
                   </button>
                 </div>
               </div>
 
+              {/* Senior citizen high contrast mode toggle */}
               <button
                 type="button"
                 onClick={toggleSeniorMode}
-                aria-pressed={seniorMode}
                 className={cn(
-                  "w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 border transition-all cursor-pointer",
+                  "w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer",
                   seniorMode
-                    ? "bg-amber-400 text-slate-950 border-amber-500 shadow-sm"
-                    : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
+                    ? "bg-amber-100 text-amber-950 border-amber-300 font-bold"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                 )}
               >
-                <Eye className={cn("w-4 h-4", seniorMode ? "text-slate-950" : "text-amber-500")} />
-                <span>
-                  {seniorMode
-                    ? (currentLang === "hi" ? "सामान्य मोड" : "Normal Mode")
-                    : (currentLang === "hi" ? "वरिष्ठ नागरिक मोड" : "Senior Citizen Mode")}
+                <span className="flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5 text-[#123B70]" />
+                  <span>{currentLang === "hi" ? "आसान मोड (बड़ा टेक्स्ट)" : "Senior Citizen Mode"}</span>
+                </span>
+                <span
+                  className={cn(
+                    "text-[10px] px-1.5 py-0.5 rounded font-bold",
+                    seniorMode ? "bg-amber-500 text-slate-950" : "bg-slate-100 text-slate-500"
+                  )}
+                >
+                  {seniorMode ? "ON" : "OFF"}
                 </span>
               </button>
             </div>
 
-            {/* Nav Links */}
-            <nav className="flex flex-col space-y-1 text-sm font-semibold text-slate-800" aria-label="Mobile Navigation">
-              {links.map((link) => {
+            {/* Navigation List */}
+            <nav className="space-y-1" aria-label="Mobile menu navigation">
+              {/* Home */}
+              <Link
+                to="/"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all",
+                  location.pathname === "/"
+                    ? "bg-[#123B70] text-white shadow-xs"
+                    : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                )}
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <Home className={cn("w-4 h-4 shrink-0", location.pathname === "/" ? "text-amber-300" : "text-slate-500")} />
+                  <span className={cn("truncate", currentLang === "hi" && "font-hindi")}>
+                    {currentLang === "hi" ? "मुख्य पृष्ठ (Home)" : "Home"}
+                  </span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+              </Link>
+
+              {/* ▾ Collapsible Services Item (Tapping expands submenu, does NOT close navbar) */}
+              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsServicesExpanded((prev) => !prev)}
+                  aria-expanded={isServicesExpanded}
+                  className="w-full flex items-center justify-between p-2.5 text-xs font-bold text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Layers className="w-4 h-4 text-[#123B70] shrink-0" />
+                    <span className={cn(currentLang === "hi" && "font-hindi")}>
+                      {currentLang === "hi" ? "सेवाएँ (Services)" : "Services"}
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                      50+
+                    </span>
+                  </div>
+
+                  <ChevronDown
+                    className={cn(
+                      "w-4 h-4 text-slate-500 transition-transform duration-200",
+                      isServicesExpanded && "rotate-180 text-amber-600"
+                    )}
+                  />
+                </button>
+
+                {/* Submenu links */}
+                {isServicesExpanded && (
+                  <div className="px-2 pb-2 pt-1 space-y-1 bg-white border-t border-slate-200/60 animate-fadeUp">
+                    {servicesSubmenu.map((sub) => {
+                      const SubIcon = sub.icon;
+                      const isSubActive = location.pathname === sub.to;
+                      return (
+                        <Link
+                          key={sub.to}
+                          to={sub.to}
+                          onClick={onClose}
+                          className={cn(
+                            "flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors",
+                            isSubActive
+                              ? "bg-[#123B70]/10 text-[#123B70] font-bold"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <SubIcon className="w-3.5 h-3.5 text-[#123B70] shrink-0" />
+                            <span className={cn(currentLang === "hi" && "font-hindi")}>
+                              {sub.label[currentLang]}
+                            </span>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Other Primary Links */}
+              {primaryNavLinks.slice(1).map((link) => {
+                const Icon = link.icon;
                 const isActive = location.pathname === link.to;
+
                 return (
                   <Link
                     key={link.to}
                     to={link.to}
                     onClick={onClose}
                     className={cn(
-                      "px-3 py-2.5 rounded-xl flex items-center justify-between transition-colors",
+                      "flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all",
                       isActive
-                        ? "bg-[#123B70] text-white"
-                        : "hover:bg-slate-100 text-slate-800",
-                      currentLang === "hi" && "font-hindi"
+                        ? "bg-[#123B70] text-white shadow-xs"
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                     )}
                   >
-                    <span>{link.label[currentLang]}</span>
-                    {link.icon && !isActive && (
-                      <link.icon className="w-4 h-4 text-slate-400" />
-                    )}
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Icon
+                        className={cn(
+                          "w-4 h-4 shrink-0",
+                          isActive ? "text-amber-300" : "text-slate-500"
+                        )}
+                      />
+                      <span className={cn("truncate", currentLang === "hi" && "font-hindi")}>
+                        {link.label[currentLang]}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {link.badge && (
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                            isActive
+                              ? "bg-white/20 text-white"
+                              : "bg-amber-100 text-amber-900 border border-amber-200"
+                          )}
+                        >
+                          {link.badge}
+                        </span>
+                      )}
+                      <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                    </div>
                   </Link>
                 );
               })}
             </nav>
 
-            {/* Primary Request Quote Action */}
-            <div className="pt-2">
-              <Link
-                to="/request-quote"
-                onClick={onClose}
-                className="w-full py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm flex items-center justify-center space-x-2 shadow-sm transition-colors"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>{currentLang === "hi" ? "कस्टम कोटेशन मांगें" : "Request Custom Quote"}</span>
-              </Link>
+            {/* Mobile Auth Quick Action Bar */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs">
+              {isAuthenticated ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {user?.avatarUrl ? (
+                      <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                        {(user?.name || "U").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{user?.email || `+91 ${user?.phone}`}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      onClose();
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 shrink-0 cursor-pointer"
+                  >
+                    <LogOut className="h-3 w-3" />
+                    <span>{currentLang === "hi" ? "लॉगआउट" : "Logout"}</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/login"
+                    onClick={onClose}
+                    className="flex-1 bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>{currentLang === "hi" ? "लॉगिन करें" : "Sign In"}</span>
+                  </Link>
+
+                  <Link
+                    to="/signup"
+                    onClick={onClose}
+                    className="flex-1 border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{currentLang === "hi" ? "खाता बनाएं" : "Sign Up"}</span>
+                  </Link>
+                </div>
+              )}
             </div>
+
+            {/* 12 Service Categories Grid Quick Access */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className={cn("text-xs font-bold text-navy flex items-center gap-1.5", currentLang === "hi" && "font-hindi")}>
+                  <Layers size={13} className="text-amber-600" />
+                  <span>{currentLang === "hi" ? "सेवा कैटलॉग हब (12)" : "12 Service Hubs"}</span>
+                </span>
+                <Link
+                  to="/services"
+                  onClick={onClose}
+                  className="text-[11px] font-bold text-[#123B70] hover:underline"
+                >
+                  {currentLang === "hi" ? "सभी देखें →" : "View All →"}
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 text-xs pt-0.5">
+                {categories.map((cat) => {
+                  const Icon = categoryIconMap[cat.icon] ?? Printer;
+                  return (
+                    <Link
+                      key={cat.id}
+                      to={`/services/${cat.slug}`}
+                      onClick={onClose}
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white p-2 text-slate-800 transition-colors hover:bg-navy hover:text-white"
+                    >
+                      <Icon size={12} className="shrink-0 text-navy" />
+                      <span className={cn("truncate font-medium text-[11px]", currentLang === "hi" && "font-hindi")}>
+                        {cat.shortName[currentLang]}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick Request & WhatsApp CTA Box */}
+            <div className="bg-gradient-to-br from-[#123B70] to-slate-900 text-white p-3.5 rounded-2xl space-y-2 shadow-xs">
+              <div className="flex items-center gap-1.5 text-amber-300 text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{currentLang === "hi" ? "तत्काल सहायता व कोटेशन" : "Instant Quote & Help"}</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-snug">
+                {currentLang === "hi"
+                  ? "व्हाट्सएप पर अपनी फाइल भेजें या सीधे केंद्र पर कॉल करें।"
+                  : "Send your files directly on WhatsApp or call our center for instant help."}
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <a
+                  href={getWhatsAppLink("Hello Palak Enterprises, I need help with services.")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </a>
+                <a
+                  href={getCallLink()}
+                  className="flex-1 bg-white/15 hover:bg-white/25 text-white text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>{currentLang === "hi" ? "कॉल करें" : "Call"}</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Quick Request Form Modal Trigger if passed */}
+            {onOpenRequestModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenRequestModal();
+                }}
+                className={cn(
+                  "w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5",
+                  currentLang === "hi" && "font-hindi"
+                )}
+              >
+                <Sparkles size={14} />
+                <span>{currentLang === "hi" ? "सेवा अनुरोध फॉर्म खोलें" : "Open Request Form"}</span>
+              </button>
+            )}
           </div>
 
-          {/* Bottom Quick Contact Bar */}
-          <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <a
-                href={`tel:${businessConfig.phoneNumbers.primary}`}
-                className="py-2 px-3 rounded-xl bg-slate-900 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>{currentLang === "hi" ? "कॉल करें" : "Call Now"}</span>
-              </a>
-
-              <a
-                href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises`}
-                target="_blank"
-                rel="noreferrer"
-                className="py-2 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>{currentLang === "hi" ? "व्हाट्सएप" : "WhatsApp"}</span>
-              </a>
-            </div>
+          {/* Bottom Footer Info */}
+          <div className="p-3 border-t border-slate-200 bg-slate-50 text-center text-[10px] text-slate-500">
+            <p className="font-semibold text-slate-700">{business.name[currentLang]}</p>
+            <p>{business.address.landmark[currentLang]}, {business.address.city[currentLang]}</p>
+            <p className="text-slate-400 mt-0.5">CSC ID: {business.registrations.cscId}</p>
           </div>
         </div>
       </div>

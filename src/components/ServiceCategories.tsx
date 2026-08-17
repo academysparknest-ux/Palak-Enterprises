@@ -32,7 +32,7 @@ export const ServiceCategories: React.FC<ServiceCategoriesProps> = ({
     const nameHi = service.name.hi.toLowerCase();
     const descEn = service.description.en.toLowerCase();
     const descHi = service.description.hi.toLowerCase();
-    const tagsMatch = service.tags.some((tag) => tag.toLowerCase().includes(q));
+    const tagsMatch = ((service.tags || service.aliases || []) as string[]).some((tag: string) => tag.toLowerCase().includes(q));
 
     const textMatch =
       nameEn.includes(q) ||
@@ -121,7 +121,7 @@ export const ServiceCategories: React.FC<ServiceCategoriesProps> = ({
                   {/* Category Banner */}
                   <div className="flex items-center space-x-3 mb-6 pb-3 border-b-2 border-slate-100">
                     <div className="w-10 h-10 rounded-xl bg-blue-900 text-white flex items-center justify-center shadow-xs">
-                      <DynamicIcon name={category.iconName} className="w-5 h-5" />
+                      <DynamicIcon name={category.icon || category.iconName || "Printer"} className="w-5 h-5" />
                     </div>
                     <div>
                       <h3 className="text-xl sm:text-2xl font-black text-slate-900">

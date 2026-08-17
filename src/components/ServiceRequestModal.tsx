@@ -9,12 +9,14 @@ interface ServiceRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedService?: ServiceItem | null;
+  initialPaymentMethod?: "pay_online" | "pay_at_shop";
 }
 
 export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
   isOpen,
   onClose,
   selectedService,
+  initialPaymentMethod,
 }) => {
   const { language, t } = useLanguage();
 
@@ -24,11 +26,20 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
   const [file, setFile] = useState<File | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [colorMode, setColorMode] = useState<"bw" | "color" | "na">("bw");
+  const [paymentPreference, setPaymentPreference] = useState<"pay_online" | "pay_at_shop">(
+    initialPaymentMethod || "pay_online"
+  );
   const [instructions, setInstructions] = useState("");
   const [preferredContact, setPreferredContact] = useState<"whatsapp" | "call">("whatsapp");
 
   const [errorMsg, setErrorMsg] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
+
+  useEffect(() => {
+    if (initialPaymentMethod) {
+      setPaymentPreference(initialPaymentMethod);
+    }
+  }, [initialPaymentMethod, isOpen]);
 
   // Lock background body scroll & support Escape key closing
   useEffect(() => {
@@ -156,6 +167,15 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 
     const sanitizedFileName = file ? sanitizeFilename(file.name) : null;
 
+    const paymentText =
+      paymentPreference === "pay_online"
+        ? language === "hi"
+          ? "ऑनलाइन भुगतान (UPI / Card) — पिकअप पर नो वेटिंग"
+          : "Pay Online (UPI / Card) — No waiting at pickup"
+        : language === "hi"
+        ? "दुकान पर भुगतान (Cash / UPI) — लेने पर भुगतान"
+        : "Pay at Shop (Cash / UPI) — Pay when you collect";
+
     let text = "";
     if (language === "hi") {
       text = `*पालक इंटरप्राइजेज - सेवा अनुरोध*
@@ -165,6 +185,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 🛠️ *सेवा:* ${serviceName}
 📄 *कॉपी की संख्या:* ${quantity}
 🎨 *प्रिंट प्रकार:* ${colorText}
+💳 *भुगतान माध्यम:* ${paymentText}
 📎 *चुनी गई फाइल:* ${sanitizedFileName ? sanitizedFileName : "कोई फाइल नहीं संलग्न"}
 📝 *अतिरिक्त निर्देश:* ${instructions || "कोई नहीं"}
 💬 *संपर्क माध्यम:* ${preferredContact === "whatsapp" ? "व्हाट्सएप" : "फोन कॉल"}`;
@@ -176,6 +197,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 🛠️ *Service:* ${serviceName}
 📄 *Copies:* ${quantity}
 🎨 *Print Type:* ${colorText}
+💳 *Payment Preference:* ${paymentText}
 📎 *Selected File:* ${sanitizedFileName ? sanitizedFileName : "None attached"}
 📝 *Instructions:* ${instructions || "None"}
 💬 *Preferred Contact:* ${preferredContact === "whatsapp" ? "WhatsApp" : "Phone Call"}`;
@@ -464,6 +486,74 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                   placeholder={t.requestForm.instructionsPlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-900 focus:outline-none"
                 />
+              </div>
+
+              {/* Payment Option Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  {language === "hi" ? "भुगतान माध्यम चुनें (Payment Preference)" : "Choose How You Want to Pay"}
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <label
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                      paymentPreference === "pay_online"
+                        ? "bg-emerald-50/80 border-emerald-500 text-emerald-950 ring-1 ring-emerald-500"
+                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentPreference"
+                      value="pay_online"
+                      checked={paymentPreference === "pay_online"}
+                      onChange={() => setPaymentPreference("pay_online")}
+                      className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <div>
+                      <div className="text-xs font-bold flex items-center gap-1.5">
+                        <span>{language === "hi" ? "ऑनलाइन भुगतान" : "Pay Online"}</span>
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-emerald-600 text-white rounded-full">
+                          {language === "hi" ? "नो वेटिंग" : "NO WAITING"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {language === "hi"
+                          ? "पिकअप पर प्रतीक्षा नहीं — तैयार मिलेगा"
+                          : "No waiting at pickup — ready before arrival"}
+                      </p>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                      paymentPreference === "pay_at_shop"
+                        ? "bg-amber-50/80 border-amber-500 text-amber-950 ring-1 ring-amber-500"
+                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="paymentPreference"
+                      value="pay_at_shop"
+                      checked={paymentPreference === "pay_at_shop"}
+                      onChange={() => setPaymentPreference("pay_at_shop")}
+                      className="mt-0.5 text-amber-600 focus:ring-amber-500"
+                    />
+                    <div>
+                      <div className="text-xs font-bold flex items-center gap-1.5">
+                        <span>{language === "hi" ? "दुकान पर भुगतान" : "Pay at Shop"}</span>
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-amber-600 text-white rounded-full">
+                          {language === "hi" ? "दुकान पर" : "AT SHOP"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {language === "hi"
+                          ? "प्रिंट तैयार रहेगा, लेने पर भुगतान करें"
+                          : "We'll prepare it. Pay when you collect."}
+                      </p>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               {/* Preferred Contact Method */}

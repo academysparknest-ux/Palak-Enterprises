@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgAcrylic" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="glassGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="40%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+    <filter id="shadowGlass" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="20" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgAcrylic)"/>
+
+  <!-- Frosted Acrylic Glass Plate Simulation -->
+  <g filter="url(#shadowGlass)" transform="translate(190, 80)">
+    <rect width="420" height="440" rx="20" fill="#ffffff" fill-opacity="0.12" stroke="url(#glassGold)" stroke-width="2" backdrop-filter="blur(16px)"/>
+    <rect x="14" y="14" width="392" height="412" rx="14" fill="none" stroke="url(#glassGold)" stroke-opacity="0.4" stroke-width="1"/>
+
+    <!-- Gold Foil Header & Monogram -->
+    <circle cx="210" cy="70" r="30" fill="#ffffff" fill-opacity="0.08" stroke="url(#glassGold)" stroke-width="2"/>
+    <text x="210" y="78" font-family="Georgia, serif" font-weight="bold" font-size="22" fill="url(#glassGold)" text-anchor="middle">R &amp; P</text>
+
+    <text x="210" y="130" font-family="Georgia, serif" font-weight="bold" font-size="15" fill="url(#glassGold)" text-anchor="middle" letter-spacing="4">FROSTED ACRYLIC INVITATION</text>
+    <text x="210" y="152" font-family="system-ui, sans-serif" font-size="11" fill="#e2e8f0" text-anchor="middle">ULTRA LUXURY TRANSPARENT UV SCREEN</text>
+
+    <line x1="60" y1="170" x2="360" y2="170" stroke="url(#glassGold)" stroke-width="1"/>
+
+    <!-- Couple Names in Gold Lettering -->
+    <text x="210" y="220" font-family="Georgia, serif" font-style="italic" font-weight="bold" font-size="32" fill="url(#glassGold)" text-anchor="middle">Rohan  &amp;  Pooja</text>
+    <text x="210" y="250" font-family="Georgia, serif" font-size="12" fill="#f8fafc" text-anchor="middle">Request the honor of your presence at their wedding</text>
+
+    <!-- Glass Details Box -->
+    <rect x="40" y="275" width="340" height="95" rx="10" fill="#000000" fill-opacity="0.3" stroke="url(#glassGold)" stroke-width="1"/>
+    <text x="210" y="305" font-family="system-ui, sans-serif" font-weight="bold" font-size="13" fill="#ffffff" text-anchor="middle">DECEMBER 10, 2026 • 7:00 PM</text>
+    <text x="210" y="328" font-family="system-ui, sans-serif" font-size="12" fill="#fef08a" text-anchor="middle">THE IMPERIAL RESORT &amp; SPA, BIHAR</text>
+    <text x="210" y="352" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="url(#glassGold)" text-anchor="middle">PALAK SIGNATURE GLASS • SKU: PE-ACR-007</text>
+  </g>
+</svg>

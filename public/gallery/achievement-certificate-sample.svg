@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgCert" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="goldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#a16207"/>
+    </linearGradient>
+    <filter id="certShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bgCert)"/>
+
+  <!-- Printed Certificate Paper (Main Subject) -->
+  <g filter="url(#certShadow)" transform="translate(110, 60) rotate(-1)">
+    <rect width="580" height="460" rx="8" fill="#fffbeb" stroke="url(#goldBorder)" stroke-width="6"/>
+    
+    <!-- Ornate Double Gold Foil Borders -->
+    <rect x="16" y="16" width="548" height="428" fill="none" stroke="url(#goldBorder)" stroke-width="2"/>
+    <rect x="22" y="22" width="536" height="416" fill="none" stroke="#ca8a04" stroke-width="1" stroke-dasharray="6,4"/>
+
+    <!-- Certificate Header -->
+    <text x="290" y="80" font-family="Georgia, serif" font-weight="900" font-size="28" fill="#78350f" text-anchor="middle" letter-spacing="3">CERTIFICATE OF ACHIEVEMENT</text>
+    <text x="290" y="105" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#ca8a04" text-anchor="middle" letter-spacing="2">THIS CERTIFICATE IS PROUDLY PRESENTED TO</text>
+
+    <line x1="120" y1="120" x2="460" y2="120" stroke="url(#goldBorder)" stroke-width="2"/>
+
+    <!-- Fictional Name Mockup -->
+    <text x="290" y="175" font-family="Georgia, serif" font-style="italic" font-weight="900" font-size="34" fill="#1e3a8a" text-anchor="middle">Rahul Kumar</text>
+    <line x1="140" y1="190" x2="440" y2="190" stroke="#b45309" stroke-width="1"/>
+
+    <!-- Citation Text -->
+    <text x="290" y="225" font-family="system-ui, sans-serif" font-size="13" fill="#334155" text-anchor="middle">for outstanding performance and securing 1st Position in the</text>
+    <text x="290" y="248" font-family="system-ui, sans-serif" font-weight="bold" font-size="15" fill="#78350f" text-anchor="middle">Annual Academic Science &amp; Technology Competition 2026</text>
+
+    <text x="290" y="280" font-family="system-ui, sans-serif" font-size="12" fill="#475569" text-anchor="middle">Given this 16th day of August, 2026</text>
+
+    <!-- Metallic Gold Embossed Seal Emblem -->
+    <g transform="translate(290, 360)">
+      <circle cx="0" cy="0" r="38" fill="url(#goldBorder)" stroke="#ffffff" stroke-width="2"/>
+      <circle cx="0" cy="0" r="32" fill="none" stroke="#78350f" stroke-width="1.5" stroke-dasharray="4,2"/>
+      <text x="0" y="-8" font-family="system-ui, sans-serif" font-weight="900" font-size="10" fill="#78350f" text-anchor="middle">EXCELLENCE</text>
+      <text x="0" y="8" font-family="system-ui, sans-serif" font-weight="bold" font-size="18" fill="#78350f" text-anchor="middle">★ 1st ★</text>
+      <text x="0" y="20" font-family="system-ui, sans-serif" font-weight="bold" font-size="8" fill="#78350f" text-anchor="middle">AWARD</text>
+
+      <!-- Ribbon Tails -->
+      <path d="M-15,35 L-25,65 L-10,58 L5,65 Z" fill="#b45309"/>
+      <path d="M15,35 L25,65 L10,58 L-5,65 Z" fill="#b45309"/>
+    </g>
+
+    <!-- Signatures -->
+    <line x1="80" y1="390" x2="200" y2="390" stroke="#000000" stroke-width="1"/>
+    <text x="140" y="405" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#0f172a" text-anchor="middle">Event Director</text>
+
+    <line x1="380" y1="390" x2="500" y2="390" stroke="#000000" stroke-width="1"/>
+    <text x="440" y="405" font-family="system-ui, sans-serif" font-weight="bold" font-size="11" fill="#0f172a" text-anchor="middle">Principal / Authority</text>
+
+    <text x="290" y="435" font-family="system-ui, sans-serif" font-weight="bold" font-size="10" fill="#a16207" text-anchor="middle">Printed by Palak Printing Press • Certificate Printing Sample</text>
+  </g>
+
+  <!-- Product Badge -->
+  <rect x="30" y="30" width="160" height="32" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="110" y="51" font-family="system-ui, sans-serif" font-weight="bold" font-size="12" fill="#38bdf8" text-anchor="middle">SAMPLE DESIGN</text>
+</svg>

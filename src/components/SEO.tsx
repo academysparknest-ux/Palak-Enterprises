@@ -2,14 +2,18 @@ import { useEffect } from "react";
 import { useLanguage } from "../context/LanguageContext";
 
 interface SEOProps {
-  title?: {
-    en: string;
-    hi: string;
-  };
-  description?: {
-    en: string;
-    hi: string;
-  };
+  title?:
+    | {
+        en: string;
+        hi: string;
+      }
+    | string;
+  description?:
+    | {
+        en: string;
+        hi: string;
+      }
+    | string;
 }
 
 export function SEO({ title, description }: SEOProps) {
@@ -28,13 +32,26 @@ export function SEO({ title, description }: SEOProps) {
         : "Palak Enterprises (Palak Printing Press) in Chakia, East Champaran, Bihar. Premium printing, instant passport photos, lamination, Aadhaar PVC, online form assistance, and website development.";
 
     const suffix = currentLang === "hi" ? "पालक इंटरप्राइजेज" : "Palak Enterprises";
-    document.title = title
-      ? (title[currentLang].includes(suffix) ? title[currentLang] : `${title[currentLang]} | ${suffix}`)
-      : defaultTitle;
+    
+    let resolvedTitle = defaultTitle;
+    if (typeof title === "string") {
+      resolvedTitle = title.includes(suffix) ? title : `${title} | ${suffix}`;
+    } else if (title && typeof title === "object") {
+      const text = title[currentLang] || title.en;
+      resolvedTitle = text.includes(suffix) ? text : `${text} | ${suffix}`;
+    }
+    document.title = resolvedTitle;
+
+    let resolvedDesc = defaultDesc;
+    if (typeof description === "string") {
+      resolvedDesc = description;
+    } else if (description && typeof description === "object") {
+      resolvedDesc = description[currentLang] || description.en;
+    }
 
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute("content", description ? description[currentLang] : defaultDesc);
+      metaDesc.setAttribute("content", resolvedDesc);
     }
   }, [title, description, currentLang]);
 
