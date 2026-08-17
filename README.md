@@ -1,32 +1,64 @@
-# React + TypeScript + Vite
+# Palak Enterprises (Palak Printing Press & Digital Services)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A modern, full-stack multi-page web platform and digital storefront for **Palak Enterprises / Palak Printing Press** (Chakia, East Champaran, Bihar).
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🌟 Key Features
 
-## React Compiler
+* **Multi-Page Printing Catalog**: Visiting cards, flex banners, pamphlets, wedding/tilak cards, bill books, and custom stationery.
+* **Online Citizen & CSC Digital Services**: Assisted workflows for PAN cards, RTPS Bihar certificates, admissions, exam applications, and pension schemes.
+* **Interactive Product Configurator**: Live pricing calculations based on quantity, paper finish, lamination, and size options.
+* **Artwork & Document Uploads**: Drag-and-drop file uploader for customer logos, rough sketches, and government verification documents.
+* **Realtime Order & Status Tracking**: Dual-mode tracking (Supabase Cloud + offline LocalStorage fallback) with milestone timeline step trackers.
+* **Palak Staff ERP Operations Dashboard**: Kanban-style queue for managing live orders, custom design proofs, and quote estimates.
+* **Bilingual Experience**: Instant seamless toggle between **English** and **हिन्दी (Hindi)** across all pages and notifications.
+* **Direct WhatsApp & Phone Integration**: Instant 1-click inquiry routing for rapid customer support.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the Oxlint configuration
+## 🛠️ Tech Stack
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+* **Frontend**: React 19, TypeScript, Vite, Tailwind CSS
+* **Routing**: React Router DOM (v7)
+* **Icons**: Lucide React
+* **Backend / Database**: Supabase (PostgreSQL with Row Level Security and Realtime status sync) + LocalStorage fallback
+* **Build & Bundle**: Vite with Oxlint
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+---
+
+## 🚀 Quick Start
+
+### 1. Clone & Install
+```bash
+git clone https://github.com/academysparknest-ux/Palak-Enterprises.git
+cd Palak-Enterprises
+npm install
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+### 2. Configure Environment (Optional)
+Copy `.env.example` to `.env` and provide your Supabase credentials:
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+### 3. Run Development Server
+```bash
+npm run dev
+```
+
+### 4. Build for Production
+```bash
+npm run build
+```
+
+---
+
+## 📍 Business Information
+* **Business Name**: Palak Enterprises (Palak Printing Press)
+* **Owner**: Kumar Pankaj
+* **Location**: Near Block Gate, Ward No. 7, Saniganj Mohalla, Chakia, East Champaran, Bihar – 845412
+* **CSC ID**: 634165120013
+* **Primary Contacts**: +91 9905238015, +91 7324964770
+
