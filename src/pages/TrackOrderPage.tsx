@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Search, Package, MessageSquare } from "lucide-react";
+import { Search, Package, MessageSquare, ShieldCheck, Loader2 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type StoredDesignRequest } from "../lib/storage/store";
+import { fetchPublicTracking, type PublicTrackingResponse } from "../lib/supabase/database";
 import { OrderTimeline } from "../components/OrderTimeline";
 import { getWhatsAppLink } from "../config/business";
 
@@ -12,24 +13,44 @@ export const TrackOrderPage: React.FC = () => {
   const [searchParams] = useSearchParams();
 
   const [queryCode, setQueryCode] = useState(searchParams.get("code") || "");
+  const [phoneVerification, setPhoneVerification] = useState("");
   const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const [orders, setOrders] = useState<StoredOrder[]>([]);
   const [services, setServices] = useState<StoredServiceRequest[]>([]);
   const [quotes, setQuotes] = useState<StoredQuoteRequest[]>([]);
   const [designs, setDesigns] = useState<StoredDesignRequest[]>([]);
+  const [rpcTrackingResult, setRpcTrackingResult] = useState<PublicTrackingResponse | null>(null);
 
-  const handleSearch = useCallback((codeToSearch?: string) => {
+  const handleSearch = useCallback(async (codeToSearch?: string) => {
     const q = (codeToSearch !== undefined ? codeToSearch : queryCode).trim();
     if (!q) return;
 
+    setLoading(true);
+    setSearched(true);
+
+    // 1. Try secure Supabase RPC tracking first
+    const rpcRes = await fetchPublicTracking(q, phoneVerification);
+    if (rpcRes.success) {
+      setRpcTrackingResult(rpcRes);
+      setOrders([]);
+      setServices([]);
+      setQuotes([]);
+      setDesigns([]);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Fallback to local store for offline or local cache
+    setRpcTrackingResult(null);
     const result = PalakDataStore.lookupAny(q);
     setOrders(result.orders);
     setServices(result.services);
     setQuotes(result.quotes);
     setDesigns(result.designs);
-    setSearched(true);
-  }, [queryCode]);
+    setLoading(false);
+  }, [queryCode, phoneVerification]);
 
   useEffect(() => {
     const initialCode = searchParams.get("code");
@@ -64,22 +85,33 @@ export const TrackOrderPage: React.FC = () => {
               e.preventDefault();
               handleSearch();
             }}
-            className="pt-4 max-w-lg mx-auto flex items-center gap-2"
+            className="pt-4 max-w-xl mx-auto flex flex-col sm:flex-row items-center gap-2"
           >
-            <div className="relative flex-1">
+            <div className="relative flex-1 w-full">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input
                 type="text"
                 required
                 value={queryCode}
                 onChange={(e) => setQueryCode(e.target.value)}
-                placeholder="e.g. PE-O-2026-1042 or 9905238015"
+                placeholder="Tracking ID (e.g. PE-O-2026-1042)"
                 className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-md pl-10 pr-4 py-3 text-xs sm:text-sm text-white placeholder-slate-300 focus:bg-white focus:text-slate-900 focus:outline-hidden transition-all shadow-inner"
               />
             </div>
+
+            <div className="w-full sm:w-44">
+              <input
+                type="tel"
+                value={phoneVerification}
+                onChange={(e) => setPhoneVerification(e.target.value)}
+                placeholder="Phone (Optional)"
+                className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-md px-3.5 py-3 text-xs sm:text-sm text-white placeholder-slate-300 focus:bg-white focus:text-slate-900 focus:outline-hidden transition-all shadow-inner"
+              />
+            </div>
+
             <button
               type="submit"
-              className="rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-3 text-xs sm:text-sm font-extrabold text-slate-950 shadow-md transition-transform hover:scale-105 cursor-pointer shrink-0"
+              className="w-full sm:w-auto rounded-xl bg-amber-500 hover:bg-amber-400 px-5 py-3 text-xs sm:text-sm font-extrabold text-slate-950 shadow-md transition-transform hover:scale-105 cursor-pointer shrink-0"
             >
               <span>{currentLang === "hi" ? "ट्रैक करें" : "Track Status"}</span>
             </button>
@@ -88,7 +120,14 @@ export const TrackOrderPage: React.FC = () => {
       </div>
 
       <div className="mx-auto max-w-4xl px-4 sm:px-6 -mt-4 space-y-8">
-        {searched && !hasAnyResults && (
+        {loading && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center space-y-3 shadow-card flex flex-col items-center justify-center">
+            <Loader2 className="h-8 w-8 text-[#123B70] animate-spin" />
+            <p className="text-xs text-slate-500 font-medium">Fetching verified tracking record from Supabase Cloud...</p>
+          </div>
+        )}
+
+        {searched && !loading && !rpcTrackingResult && !hasAnyResults && (
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center space-y-3 shadow-card animate-fadeUp">
             <Package className="h-12 w-12 text-slate-300 mx-auto" />
             <h3 className="text-base font-bold text-slate-900">
@@ -113,7 +152,57 @@ export const TrackOrderPage: React.FC = () => {
           </div>
         )}
 
-        {/* 1. Orders Results */}
+        {/* Live Cloud Database Tracking Result */}
+        {rpcTrackingResult?.record && (
+          <div className="rounded-2xl border border-emerald-200 bg-white p-6 sm:p-8 shadow-card space-y-6 animate-fadeUp">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-sm text-slate-900">
+                      {rpcTrackingResult.record.orderCode || rpcTrackingResult.record.requestCode || rpcTrackingResult.record.quoteCode}
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                      Verified Cloud Record
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    Customer: {rpcTrackingResult.record.customerName} ({rpcTrackingResult.record.customerPhoneMasked})
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Status</div>
+                <div className="text-sm font-black text-[#123B70] uppercase">
+                  {rpcTrackingResult.record.orderStatus || rpcTrackingResult.record.requestStatus || rpcTrackingResult.record.quoteStatus}
+                </div>
+              </div>
+            </div>
+
+            {/* Timeline */}
+            <OrderTimeline
+              entityType={(rpcTrackingResult.entityType as any) || "order"}
+              currentStatus={rpcTrackingResult.record.orderStatus || rpcTrackingResult.record.requestStatus || rpcTrackingResult.record.quoteStatus}
+              historyLogs={(rpcTrackingResult.timeline || []).map((tl, idx) => ({
+                id: `cloud_tl_${idx}`,
+                entityType: (rpcTrackingResult.entityType as any) || "order",
+                entityCode: rpcTrackingResult.record.orderCode || rpcTrackingResult.record.requestCode || rpcTrackingResult.record.quoteCode,
+                previousStatus: tl.previousStatus,
+                newStatus: tl.newStatus,
+                messageEn: tl.messageEn,
+                messageHi: tl.messageHi,
+                performedBy: tl.performedBy,
+                createdAt: tl.createdAt,
+              }))}
+            />
+          </div>
+        )}
+
+        {/* Local Orders Results */}
         {orders.map((order) => {
           const logs = PalakDataStore.getStatusHistory(order.orderCode);
           return (

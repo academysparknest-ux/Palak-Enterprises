@@ -245,23 +245,47 @@ export class PalakDataStore {
 
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from("orders").insert({
-          order_code: orderCode,
-          customer_name: data.customerName,
-          customer_phone: data.customerPhone,
-          customer_email: data.customerEmail,
-          fulfillment_type: data.fulfillmentType,
-          delivery_address: data.deliveryAddress,
-          order_notes: data.orderNotes,
-          subtotal_amount: data.subtotalAmount,
-          delivery_fee: data.deliveryFee,
-          total_amount: data.totalAmount,
-          payment_method: data.paymentMethod,
-          payment_status: "pending",
-          order_status: "NEW",
-        });
+        const { data: insertedOrder, error: orderErr } = await supabase
+          .from("orders")
+          .insert({
+            order_code: orderCode,
+            customer_name: data.customerName,
+            customer_phone: data.customerPhone,
+            customer_email: data.customerEmail,
+            fulfillment_type: data.fulfillmentType,
+            delivery_address: data.deliveryAddress,
+            order_notes: data.orderNotes,
+            subtotal_amount: data.subtotalAmount,
+            delivery_fee: data.deliveryFee,
+            total_amount: data.totalAmount,
+            payment_method: data.paymentMethod,
+            payment_status: "pending",
+            order_status: "NEW",
+            items: data.items,
+          })
+          .select("id")
+          .single();
+
+        if (!orderErr && insertedOrder?.id && data.items.length > 0) {
+          const itemRows = data.items.map((item) => ({
+            order_id: insertedOrder.id,
+            product_id: item.productId,
+            product_name: item.productName,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            total_price: item.totalPrice,
+            selected_options: item.selectedOptions || {},
+            selected_options_labels: item.selectedOptionsLabels || {},
+            uploaded_file_url: item.uploadedFileUrl,
+            uploaded_file_name: item.uploadedFileName,
+            design_assistance_requested: Boolean(item.designAssistanceRequested),
+            design_notes: item.designNotes,
+          }));
+
+          await supabase.from("order_items").insert(itemRows);
+        }
       } catch (err) {
-        console.warn("Supabase background sync notice:", err);
+        console.warn("Supabase order cloud sync notice:", err);
       }
     }
 
@@ -364,6 +388,28 @@ export class PalakDataStore {
     const list = getLocal<StoredServiceRequest[]>(SERVICE_REQUESTS_KEY, []);
     list.unshift(newReq);
     setLocal(SERVICE_REQUESTS_KEY, list);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from("service_requests").insert({
+          request_code: requestCode,
+          service_id: data.serviceId,
+          service_name: data.serviceName,
+          customer_name: data.customerName,
+          customer_phone: data.customerPhone,
+          customer_email: data.customerEmail,
+          preferred_contact: data.preferredContact,
+          applicant_details: data.applicantDetails,
+          uploaded_document_urls: data.uploadedDocumentUrls || [],
+          uploaded_document_names: data.uploadedDocumentNames || [],
+          additional_notes: data.additionalNotes,
+          estimated_fee: data.estimatedFee,
+          request_status: "NEW",
+        });
+      } catch (err) {
+        console.warn("Supabase service_requests sync notice:", err);
+      }
+    }
 
     this.addStatusHistory({
       entityType: "service_request",
@@ -470,6 +516,30 @@ export class PalakDataStore {
     const list = getLocal<StoredQuoteRequest[]>(QUOTE_REQUESTS_KEY, []);
     list.unshift(newQuote);
     setLocal(QUOTE_REQUESTS_KEY, list);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from("quote_requests").insert({
+          quote_code: quoteCode,
+          service_or_product_type: data.serviceOrProductType,
+          quantity: data.quantity,
+          size_specifications: data.sizeSpecifications,
+          material_preferences: data.materialPreferences,
+          required_by_date: data.requiredByDate,
+          design_status: data.designStatus,
+          reference_file_urls: data.referenceFileUrls || [],
+          reference_file_names: data.referenceFileNames || [],
+          additional_details: data.additionalDetails,
+          customer_name: data.customerName,
+          customer_phone: data.customerPhone,
+          customer_email: data.customerEmail,
+          business_name: data.businessName,
+          quote_status: "NEW",
+        });
+      } catch (err) {
+        console.warn("Supabase quote_requests sync notice:", err);
+      }
+    }
 
     this.addStatusHistory({
       entityType: "quote_request",
@@ -629,6 +699,20 @@ export class PalakDataStore {
     const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
     logs.unshift(log);
     setLocal(STATUS_HISTORY_KEY, logs);
+
+    if (isSupabaseConfigured && supabase) {
+      Promise.resolve(
+        supabase.from("status_history").insert({
+          entity_type: entry.entityType,
+          entity_code: entry.entityCode,
+          previous_status: entry.previousStatus,
+          new_status: entry.newStatus,
+          message_en: entry.messageEn,
+          message_hi: entry.messageHi,
+          performed_by: entry.performedBy || "System",
+        })
+      ).catch(() => {});
+    }
   }
 
   static getStatusHistory(entityCode: string): StatusHistoryLog[] {

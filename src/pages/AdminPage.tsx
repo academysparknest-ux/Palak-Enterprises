@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   Package,
@@ -11,36 +11,95 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type StoredDesignRequest } from "../lib/storage/store";
+import {
+  getStaffOrders,
+  getStaffServiceRequests,
+  getStaffQuoteRequests,
+  updateStaffOrderStatus,
+  updateStaffServiceStatus,
+  updateStaffQuoteStatus,
+} from "../lib/supabase/database";
 
 export const AdminPage: React.FC = () => {
   const { user, isStaff, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"orders" | "services" | "quotes" | "designs">("orders");
-  const [, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(false);
 
-  const orders = PalakDataStore.getOrders();
-  const serviceRequests = PalakDataStore.getServiceRequests();
-  const quoteRequests = PalakDataStore.getQuoteRequests();
-  const designRequests = PalakDataStore.getDesignRequests();
+  const [orders, setOrders] = useState<StoredOrder[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<StoredServiceRequest[]>([]);
+  const [quoteRequests, setQuoteRequests] = useState<StoredQuoteRequest[]>([]);
+  const [designRequests, setDesignRequests] = useState<StoredDesignRequest[]>([]);
 
-  const handleUpdateOrderStatus = (orderCode: string, newStatus: StoredOrder["orderStatus"]) => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1. Try Supabase live fetch
+      const [cloudOrders, cloudServices, cloudQuotes] = await Promise.all([
+        getStaffOrders().catch(() => []),
+        getStaffServiceRequests().catch(() => []),
+        getStaffQuoteRequests().catch(() => []),
+      ]);
+
+      if (cloudOrders.length > 0) setOrders(cloudOrders);
+      else setOrders(PalakDataStore.getOrders());
+
+      if (cloudServices.length > 0) setServiceRequests(cloudServices);
+      else setServiceRequests(PalakDataStore.getServiceRequests());
+
+      if (cloudQuotes.length > 0) setQuoteRequests(cloudQuotes);
+      else setQuoteRequests(PalakDataStore.getQuoteRequests());
+
+      setDesignRequests(PalakDataStore.getDesignRequests());
+    } catch {
+      setOrders(PalakDataStore.getOrders());
+      setServiceRequests(PalakDataStore.getServiceRequests());
+      setQuoteRequests(PalakDataStore.getQuoteRequests());
+      setDesignRequests(PalakDataStore.getDesignRequests());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isStaff) {
+      loadData();
+    }
+  }, [isStaff, loadData]);
+
+  const handleUpdateOrderStatus = async (orderCode: string, newStatus: StoredOrder["orderStatus"]) => {
+    try {
+      await updateStaffOrderStatus(orderCode, newStatus);
+    } catch (e) {
+      console.warn("Cloud update notice:", e);
+    }
     PalakDataStore.updateOrderStatus(orderCode, newStatus);
-    setRefreshKey((k) => k + 1);
+    await loadData();
   };
 
-  const handleUpdateServiceStatus = (requestCode: string, newStatus: StoredServiceRequest["requestStatus"]) => {
+  const handleUpdateServiceStatus = async (requestCode: string, newStatus: StoredServiceRequest["requestStatus"]) => {
+    try {
+      await updateStaffServiceStatus(requestCode, newStatus);
+    } catch (e) {
+      console.warn("Cloud update notice:", e);
+    }
     PalakDataStore.updateServiceRequestStatus(requestCode, newStatus);
-    setRefreshKey((k) => k + 1);
+    await loadData();
   };
 
-  const handleUpdateQuoteStatus = (quoteCode: string, newStatus: StoredQuoteRequest["quoteStatus"], amount?: number) => {
+  const handleUpdateQuoteStatus = async (quoteCode: string, newStatus: StoredQuoteRequest["quoteStatus"], amount?: number) => {
+    try {
+      await updateStaffQuoteStatus(quoteCode, newStatus, amount);
+    } catch (e) {
+      console.warn("Cloud update notice:", e);
+    }
     PalakDataStore.updateQuoteStatus(quoteCode, newStatus, amount);
-    setRefreshKey((k) => k + 1);
+    await loadData();
   };
 
   const handleUpdateDesignStatus = (designCode: string, newStatus: StoredDesignRequest["designStatus"]) => {
     PalakDataStore.updateDesignStatus(designCode, newStatus);
-    setRefreshKey((k) => k + 1);
+    setDesignRequests(PalakDataStore.getDesignRequests());
   };
 
   if (!isStaff) {
@@ -108,11 +167,12 @@ export const AdminPage: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setRefreshKey((k) => k + 1)}
-              className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
-              title="Refresh queues"
+              onClick={() => loadData()}
+              disabled={loading}
+              className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+              title="Refresh queues from Supabase"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-amber-400" : ""}`} />
             </button>
             <button
               onClick={logout}

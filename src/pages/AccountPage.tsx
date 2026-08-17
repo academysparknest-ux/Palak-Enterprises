@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { User, Package, Globe, LogOut, Lock } from "lucide-react";
+import { User, Package, Globe, LogOut, Lock, Mail, Phone, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { PalakDataStore } from "../lib/storage/store";
@@ -8,20 +8,31 @@ import { PalakDataStore } from "../lib/storage/store";
 export const AccountPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const { user, isAuthenticated, isStaff, loginCustomer, loginStaff, logout } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    isStaff,
+    loginCustomer,
+    loginWithEmail,
+    signUpWithEmail,
+    logout,
+  } = useAuth();
   const navigate = useNavigate();
 
   // Login form state
+  const [authMode, setAuthMode] = useState<"customer_phone" | "customer_email" | "customer_signup" | "staff_login">("customer_phone");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
-  const [staffPasscode, setStaffPasscode] = useState("");
-  const [activeTab, setActiveTab] = useState<"customer" | "staff">("customer");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Customer portal active tab
   const [portalSection, setPortalSection] = useState<"orders" | "services" | "profile">("orders");
 
-  const handleCustomerLogin = async (e: React.FormEvent) => {
+  const handleCustomerPhoneLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!phone.trim() || phone.replace(/\D/g, "").length < 10) {
@@ -31,14 +42,32 @@ export const AccountPage: React.FC = () => {
     await loginCustomer(phone, name);
   };
 
-  const handleStaffLogin = async (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const success = await loginStaff(staffPasscode);
-    if (success) {
-      navigate("/admin");
+    setSubmitting(true);
+    const res = await loginWithEmail(email, password);
+    setSubmitting(false);
+    if (res.success) {
+      if (authMode === "staff_login") {
+        navigate("/admin");
+      }
     } else {
-      setError(currentLang === "hi" ? "गलत पासकोड (Chakia Pincode: 845412 या palak2026 दर्ज करें)" : "Invalid staff passcode (Try 845412 or palak2026)");
+      setError(res.error || "Authentication failed. Please verify your credentials.");
+    }
+  };
+
+  const handleEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+    setSubmitting(true);
+    const res = await signUpWithEmail(email, password, name, phone);
+    setSubmitting(false);
+    if (res.success) {
+      setSuccessMsg(currentLang === "hi" ? "खाता सफलतापूर्वक बन गया! कृपया लॉगिन करें।" : "Account created successfully! You are now logged in.");
+    } else {
+      setError(res.error || "Could not register account. Please try again.");
     }
   };
 
@@ -55,30 +84,32 @@ export const AccountPage: React.FC = () => {
               {currentLang === "hi" ? "ग्राहक लॉगिन / स्टाफ पोर्टल" : "Account Access & Staff Portal"}
             </h1>
             <p className="text-xs text-slate-500">
-              Track your past orders or manage printing queue
+              Secure authentication powered by Supabase RBAC
             </p>
           </div>
 
-          {/* Toggle Tab */}
+          {/* Navigation Tabs */}
           <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
             <button
               onClick={() => {
-                setActiveTab("customer");
+                setAuthMode("customer_phone");
                 setError(null);
+                setSuccessMsg(null);
               }}
               className={`py-2 rounded-lg transition-all cursor-pointer ${
-                activeTab === "customer" ? "bg-white text-[#123B70] shadow-xs" : "text-slate-600"
+                authMode.startsWith("customer") ? "bg-white text-[#123B70] shadow-xs" : "text-slate-600"
               }`}
             >
-              {currentLang === "hi" ? "ग्राहक लॉगिन" : "Customer Login"}
+              {currentLang === "hi" ? "ग्राहक पोर्टल" : "Customer Portal"}
             </button>
             <button
               onClick={() => {
-                setActiveTab("staff");
+                setAuthMode("staff_login");
                 setError(null);
+                setSuccessMsg(null);
               }}
               className={`py-2 rounded-lg transition-all cursor-pointer ${
-                activeTab === "staff" ? "bg-white text-[#123B70] shadow-xs" : "text-slate-600"
+                authMode === "staff_login" ? "bg-white text-[#123B70] shadow-xs" : "text-slate-600"
               }`}
             >
               {currentLang === "hi" ? "स्टाफ / ERP लॉगिन" : "Staff ERP Login"}
@@ -91,20 +122,31 @@ export const AccountPage: React.FC = () => {
             </div>
           )}
 
-          {activeTab === "customer" ? (
-            <form onSubmit={handleCustomerLogin} className="space-y-3">
+          {successMsg && (
+            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-700 flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {/* Customer Phone Form */}
+          {authMode === "customer_phone" && (
+            <form onSubmit={handleCustomerPhoneLogin} className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   {currentLang === "hi" ? "मोबाइल नंबर *" : "Mobile Number *"}
                 </label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 9905238015"
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
-                />
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="e.g. 9905238015"
+                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                  />
+                </div>
               </div>
 
               <div>
@@ -122,37 +164,205 @@ export const AccountPage: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-[#123B70] py-3 text-xs font-bold text-white hover:bg-[#0c274c] shadow-card transition-all cursor-pointer"
+                className="w-full rounded-xl bg-[#123B70] py-3 text-xs font-bold text-white hover:bg-[#0c274c] shadow-card transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>{currentLang === "hi" ? "लॉगिन करें" : "Access My Account"}</span>
+                <span>{currentLang === "hi" ? "त्वरित लॉगिन करें" : "Access My Account"}</span>
+                <ArrowRight className="h-3.5 w-3.5" />
               </button>
+
+              <div className="pt-2 text-center text-xs text-slate-500">
+                <span>Want password protection? </span>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("customer_email")}
+                  className="font-bold text-[#123B70] hover:underline cursor-pointer"
+                >
+                  Login with Email
+                </button>
+              </div>
             </form>
-          ) : (
-            <form onSubmit={handleStaffLogin} className="space-y-3">
+          )}
+
+          {/* Customer Email Login Form */}
+          {authMode === "customer_email" && (
+            <form onSubmit={handleEmailLogin} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Staff Passcode / PIN *
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={staffPasscode}
-                  onChange={(e) => setStaffPasscode(e.target.value)}
-                  placeholder="Enter 845412 or palak2026"
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden font-mono"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Demo Passcode: <code className="bg-slate-100 px-1 py-0.5 rounded">845412</code> (Chakia PIN)
-                </p>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Email Address *</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Password *</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                  />
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-slate-900 py-3 text-xs font-bold text-white hover:bg-slate-800 shadow-card transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                disabled={submitting}
+                className="w-full rounded-xl bg-[#123B70] py-3 text-xs font-bold text-white hover:bg-[#0c274c] shadow-card transition-all cursor-pointer disabled:opacity-50"
+              >
+                <span>{submitting ? "Signing in..." : "Login with Email"}</span>
+              </button>
+
+              <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("customer_signup")}
+                  className="font-bold text-[#123B70] hover:underline cursor-pointer"
+                >
+                  Create Account
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("customer_phone")}
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  Use Mobile Number
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Customer Signup Form */}
+          {authMode === "customer_signup" && (
+            <form onSubmit={handleEmailSignUp} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Ramesh Kumar"
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Mobile Number</label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. 9905238015"
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Password *</label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Minimum 6 characters"
+                  className="w-full rounded-xl border border-slate-200 p-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white hover:bg-emerald-500 shadow-card transition-all cursor-pointer disabled:opacity-50"
+              >
+                <span>{submitting ? "Creating Account..." : "Register Customer Account"}</span>
+              </button>
+
+              <div className="pt-2 text-center text-xs text-slate-500">
+                <span>Already have an account? </span>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("customer_email")}
+                  className="font-bold text-[#123B70] hover:underline cursor-pointer"
+                >
+                  Sign In
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Staff Login Form (Supabase Auth Credentials) */}
+          {authMode === "staff_login" && (
+            <form onSubmit={handleEmailLogin} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Staff Email Address *
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="staff@palakenterprises.com"
+                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Staff Password *
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 focus:border-[#123B70] focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full rounded-xl bg-slate-900 py-3 text-xs font-bold text-white hover:bg-slate-800 shadow-card transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 <Lock className="h-3.5 w-3.5" />
-                <span>Login to Staff ERP Dashboard</span>
+                <span>{submitting ? "Authenticating..." : "Login to Staff ERP Dashboard"}</span>
               </button>
+
+              <p className="text-[11px] text-slate-400 text-center mt-1">
+                Authorized staff accounts are authenticated and role-verified in Supabase.
+              </p>
             </form>
           )}
         </div>

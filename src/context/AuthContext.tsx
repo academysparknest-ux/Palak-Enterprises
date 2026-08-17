@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 
 export interface UserProfile {
   id: string;
   name: string;
   phone: string;
   email?: string;
-  role: "customer" | "staff" | "admin";
+  role: "CUSTOMER" | "STAFF" | "MANAGER" | "ADMIN" | "customer" | "staff" | "admin";
   businessName?: string;
   address?: string;
 }
@@ -14,14 +15,22 @@ interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isStaff: boolean;
+  isAdmin: boolean;
+  loading: boolean;
   loginCustomer: (phone: string, name?: string) => Promise<boolean>;
-  loginStaff: (passcode: string) => Promise<boolean>;
-  logout: () => void;
+  loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    fullName: string,
+    phone?: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = "palak_auth_session_v1";
+const AUTH_STORAGE_KEY = "palak_auth_session_v2";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => {
@@ -34,13 +43,84 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  const [loading, setLoading] = useState(true);
+
+  // Sync Supabase Auth session on mount and state change
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) {
+      setLoading(false);
+      return;
     }
-  }, [user]);
+
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await client.auth.getSession();
+        if (session?.user) {
+          await syncUserProfile(session.user.id, session.user.email);
+        }
+      } catch (err) {
+        console.warn("Auth initialization notice:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await syncUserProfile(session.user.id, session.user.email);
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, []);
+
+  const syncUserProfile = async (userId: string, email?: string) => {
+    if (!isSupabaseConfigured || !supabase) return;
+    try {
+      // 1. Fetch Profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      // 2. Fetch Highest Role
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+
+      let role: UserProfile["role"] = "CUSTOMER";
+      if (roleData && roleData.length > 0) {
+        const roles = roleData.map((r) => r.role);
+        if (roles.includes("ADMIN")) role = "ADMIN";
+        else if (roles.includes("MANAGER")) role = "MANAGER";
+        else if (roles.includes("STAFF")) role = "STAFF";
+      }
+
+      const updatedProfile: UserProfile = {
+        id: userId,
+        name: profile?.full_name || email?.split("@")[0] || "Palak Customer",
+        phone: profile?.phone || "",
+        email: email || profile?.email,
+        role: role,
+        businessName: profile?.business_name,
+      };
+
+      setUser(updatedProfile);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedProfile));
+    } catch (e) {
+      console.warn("Profile sync error:", e);
+    }
+  };
 
   const loginCustomer = async (phone: string, name?: string): Promise<boolean> => {
     const cleanPhone = phone.trim();
@@ -50,38 +130,95 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: "cust_" + cleanPhone.replace(/\D/g, ""),
       name: name?.trim() || "Palak Customer",
       phone: cleanPhone,
-      role: "customer",
+      role: "CUSTOMER",
     };
     setUser(profile);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(profile));
     return true;
   };
 
-  const loginStaff = async (passcode: string): Promise<boolean> => {
-    // Standard staff passcode or default 845412 (Chakia Pincode)
-    if (passcode.trim() === "845412" || passcode.trim().toLowerCase() === "palak2026") {
-      const staffProfile: UserProfile = {
-        id: "staff_palak_admin",
-        name: "Kumar Pankaj (Palak Enterprises Admin)",
-        phone: "9905238015",
-        role: "admin",
-      };
-      setUser(staffProfile);
-      return true;
+  const loginWithEmail = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, error: "Supabase connection is not configured." };
     }
-    return false;
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        await syncUserProfile(data.user.id, data.user.email);
+        return { success: true };
+      }
+
+      return { success: false, error: "Login failed. Please try again." };
+    } catch (err: any) {
+      return { success: false, error: err?.message || "An unexpected error occurred." };
+    }
   };
 
-  const logout = () => {
+  const signUpWithEmail = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, error: "Supabase connection is not configured." };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            phone: phone ? phone.trim() : "",
+          },
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        await syncUserProfile(data.user.id, data.user.email);
+        return { success: true };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || "Failed to create account." };
+    }
+  };
+
+  const logout = async () => {
     setUser(null);
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);
+      if (isSupabaseConfigured && supabase) {
+        await supabase.auth.signOut();
+      }
     } catch (e) {
-      console.error(e);
+      console.error("Logout error:", e);
     }
   };
 
   const isAuthenticated = Boolean(user);
-  const isStaff = user?.role === "staff" || user?.role === "admin";
+  const normalizedRole = (user?.role || "").toUpperCase();
+  const isStaff = normalizedRole === "STAFF" || normalizedRole === "MANAGER" || normalizedRole === "ADMIN";
+  const isAdmin = normalizedRole === "MANAGER" || normalizedRole === "ADMIN";
 
   return (
     <AuthContext.Provider
@@ -89,8 +226,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isAuthenticated,
         isStaff,
+        isAdmin,
+        loading,
         loginCustomer,
-        loginStaff,
+        loginWithEmail,
+        signUpWithEmail,
         logout,
       }}
     >
@@ -106,3 +246,4 @@ export const useAuth = () => {
   }
   return context;
 };
+
