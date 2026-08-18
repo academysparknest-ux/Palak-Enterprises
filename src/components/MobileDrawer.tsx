@@ -129,6 +129,16 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 
   const primaryNavLinks = [
     {
+      to: "/wedding-events",
+      label: { en: "Wedding & Events", hi: "शादी व मांगलिक कार्ड" },
+      icon: Heart,
+    },
+    {
+      to: "/online-services",
+      label: { en: "Instant Online Print", hi: "तुरंत ऑनलाइन प्रिंट" },
+      icon: Zap,
+    },
+    {
       to: "/business",
       label: { en: "Business Solutions", hi: "बिजनेस प्रिंटिंग व समाधान" },
       icon: Briefcase,
@@ -318,7 +328,10 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                   <div className="px-2 pb-2 pt-1 space-y-1 bg-white border-t border-slate-200/60 animate-fadeUp">
                     {servicesSubmenu.map((sub) => {
                       const SubIcon = sub.icon;
-                      const isSubActive = location.pathname === sub.to;
+                      const isSubActive =
+                        sub.to === "/services"
+                          ? location.pathname === "/services"
+                          : location.pathname.startsWith(sub.to);
                       return (
                         <Link
                           key={sub.to}
@@ -348,7 +361,10 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               {/* Other Primary Links (All unique, no duplicate service links) */}
               {primaryNavLinks.map((link) => {
                 const Icon = link.icon;
-                const isActive = location.pathname === link.to;
+                const isActive =
+                  link.to === "/"
+                    ? location.pathname === "/"
+                    : location.pathname.startsWith(link.to);
 
                 return (
                   <Link
