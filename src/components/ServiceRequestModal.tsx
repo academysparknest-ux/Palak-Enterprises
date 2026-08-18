@@ -260,22 +260,22 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[200] overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[200] overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 md:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="request-modal-title"
     >
-      <div className="relative bg-white rounded-3xl shadow-2xl max-w-xl w-full p-6 sm:p-8 border border-slate-200 overflow-hidden my-8">
+      <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-xl w-full p-4 sm:p-6 md:p-8 border border-slate-200 overflow-hidden my-auto my-4 sm:my-8 transition-all">
         {/* Close Button */}
         <button
           onClick={() => {
             onClose();
             if (isSuccess) resetForm();
           }}
-          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-900 cursor-pointer"
+          className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 p-1.5 sm:p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-900 cursor-pointer z-10"
           aria-label={language === "hi" ? "मोडाल बंद करें" : "Close modal"}
         >
-          <X className="w-6 h-6" />
+          <X className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
 
         {isSuccess && submittedCode ? (
@@ -347,8 +347,8 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
         ) : (
           <>
             {/* Header */}
-            <div className="mb-6">
-              <h2 id="request-modal-title" className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="mb-5 sm:mb-6 pr-8 sm:pr-0">
+              <h2 id="request-modal-title" className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 {t.requestForm.title}
               </h2>
               <p className="text-slate-600 text-xs sm:text-sm mt-1">
