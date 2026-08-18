@@ -581,6 +581,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               <span>{currentLang === "hi" ? "तुरंत सेवाएँ" : "Instant Print"}</span>
             </NavLink>
 
+            {/* Wedding & Events Link */}
+            <NavLink
+              to="/wedding-events"
+              className={({ isActive }) =>
+                cn(
+                  "inline-flex items-center gap-1 px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
+                  isActive
+                    ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
+                    : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
+                )
+              }
+            >
+              <Heart className="w-3.5 h-3.5 text-rose-500" />
+              <span>{currentLang === "hi" ? "शादी कार्ड" : "Wedding & Events"}</span>
+            </NavLink>
+
             {/* Business Solutions Link */}
             <NavLink
               to="/business"
