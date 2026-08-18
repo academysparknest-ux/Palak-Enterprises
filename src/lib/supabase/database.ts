@@ -634,23 +634,37 @@ export async function getSecureSignedUrl(
   expiresIn = 60 * 60 * 24 * 7,
   options?: { download?: boolean | string }
 ): Promise<string> {
-  if (!isSupabaseConfigured || !supabase || !storagePath) return "";
+  if (!storagePath) return "";
+  // Data URLs, Blob URLs, or external URLs can be returned directly
+  if (storagePath.startsWith("data:") || storagePath.startsWith("blob:")) {
+    return storagePath;
+  }
+  if (!isSupabaseConfigured || !supabase) return storagePath;
   try {
     const cleanPath = storagePath.startsWith("customer-documents/")
       ? storagePath.replace("customer-documents/", "")
       : storagePath;
-    const { data, error } = await supabase.storage
+    const { data } = await supabase.storage
       .from("customer-documents")
       .createSignedUrl(cleanPath, expiresIn, options as any);
 
-    if (error || !data?.signedUrl) {
-      console.error("[Palak Storage] Signed URL generation failed:", error?.message || "No signedUrl returned", "Path:", cleanPath);
-      return "";
+    if (data?.signedUrl) {
+      return data.signedUrl;
     }
-    return data.signedUrl;
+
+    // Fallback to public URL if available
+    const { data: publicData } = supabase.storage
+      .from("customer-documents")
+      .getPublicUrl(cleanPath);
+
+    if (publicData?.publicUrl) {
+      return publicData.publicUrl;
+    }
+
+    return storagePath;
   } catch (err) {
     console.error("[Palak Storage] Signed URL exception:", err);
-    return "";
+    return storagePath;
   }
 }
 
@@ -658,35 +672,62 @@ export async function uploadOrderFile(
   file: File,
   orderCode: string
 ): Promise<{ url: string; storagePath: string } | null> {
-  if (!isSupabaseConfigured || !supabase) return null;
-  try {
-    const fileExt = file.name.split(".").pop() || "dat";
-    const filePath = `orders/${orderCode}/${Date.now()}.${fileExt}`;
-    const { error } = await supabase.storage
-      .from("customer-documents")
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: true,
-      });
+  if (!file) return null;
 
-    if (error) {
-      console.warn("Storage upload error:", error);
-      return null;
+  // 1. Attempt upload to Supabase Storage if configured
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const fileExt = file.name.split(".").pop() || "dat";
+      const filePath = `orders/${orderCode}/${Date.now()}.${fileExt}`;
+      const { error } = await supabase.storage
+        .from("customer-documents")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (!error) {
+        // Generate signed URL valid for 7 days
+        const { data: signedData } = await supabase.storage
+          .from("customer-documents")
+          .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+
+        const { data: publicData } = supabase.storage
+          .from("customer-documents")
+          .getPublicUrl(filePath);
+
+        return {
+          url: signedData?.signedUrl || publicData?.publicUrl || filePath,
+          storagePath: filePath,
+        };
+      } else {
+        console.warn("Storage upload error, generating offline/local data fallback:", error);
+      }
+    } catch (err) {
+      console.error("Storage upload exception, generating offline/local data fallback:", err);
     }
-
-    // Generate signed URL valid for 7 days
-    const { data: signedData } = await supabase.storage
-      .from("customer-documents")
-      .createSignedUrl(filePath, 60 * 60 * 24 * 7);
-
-    return {
-      url: signedData?.signedUrl || filePath,
-      storagePath: filePath,
-    };
-  } catch (err) {
-    console.error("Storage upload exception:", err);
-    return null;
   }
+
+  // 2. Resilient Data URL fallback (ensures file is ALWAYS accessible in Admin even offline or without storage bucket)
+  try {
+    const dataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string) || "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+
+    if (dataUrl) {
+      return {
+        url: dataUrl,
+        storagePath: `local/${file.name}`,
+      };
+    }
+  } catch (readerErr) {
+    console.error("FileReader fallback exception:", readerErr);
+  }
+
+  return null;
 }
 
 export async function getPrintPricingConfig(): Promise<PrintPricingConfig> {

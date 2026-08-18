@@ -91,33 +91,62 @@ export const AdminPage: React.FC = () => {
     setLoading(true);
     try {
       const [cloudOrders, cloudServices, cloudQuotes, pricing] = await Promise.all([
-        getStaffOrders().catch(() => []),
-        getStaffServiceRequests().catch(() => []),
-        getStaffQuoteRequests().catch(() => []),
+        getStaffOrders().catch((err) => {
+          console.warn("getStaffOrders notice:", err);
+          return [];
+        }),
+        getStaffServiceRequests().catch((err) => {
+          console.warn("getStaffServiceRequests notice:", err);
+          return [];
+        }),
+        getStaffQuoteRequests().catch((err) => {
+          console.warn("getStaffQuoteRequests notice:", err);
+          return [];
+        }),
         getPrintPricingConfig().catch(() => DEFAULT_PRINT_PRICING),
       ]);
 
-      if (cloudOrders.length > 0) {
-        setOrders(cloudOrders);
-        // Sync the detail modal with fresh data from database
-        setSelectedOrderForModal((prev) => {
-          if (!prev) return null;
-          const fresh = cloudOrders.find((o) => o.orderCode === prev.orderCode);
-          return fresh || null;
-        });
-      } else {
-        setOrders(PalakDataStore.getOrders());
-      }
+      // Merge Cloud Orders and Local Orders (deduplicated by orderCode)
+      const localOrders = PalakDataStore.getOrders();
+      const mergedOrdersMap = new Map<string, StoredOrder>();
+      localOrders.forEach((o) => mergedOrdersMap.set(o.orderCode, o));
+      cloudOrders.forEach((o) => mergedOrdersMap.set(o.orderCode, o));
+      const allOrders = Array.from(mergedOrdersMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setOrders(allOrders);
 
-      if (cloudServices.length > 0) setServiceRequests(cloudServices);
-      else setServiceRequests(PalakDataStore.getServiceRequests());
+      // Sync active detail modal with fresh data
+      setSelectedOrderForModal((prev) => {
+        if (!prev) return null;
+        const fresh = allOrders.find((o) => o.orderCode === prev.orderCode);
+        return fresh || null;
+      });
 
-      if (cloudQuotes.length > 0) setQuoteRequests(cloudQuotes);
-      else setQuoteRequests(PalakDataStore.getQuoteRequests());
+      // Merge Service Requests
+      const localServices = PalakDataStore.getServiceRequests();
+      const mergedServicesMap = new Map<string, StoredServiceRequest>();
+      localServices.forEach((s) => mergedServicesMap.set(s.requestCode, s));
+      cloudServices.forEach((s) => mergedServicesMap.set(s.requestCode, s));
+      const allServices = Array.from(mergedServicesMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setServiceRequests(allServices);
+
+      // Merge Quote Requests
+      const localQuotes = PalakDataStore.getQuoteRequests();
+      const mergedQuotesMap = new Map<string, StoredQuoteRequest>();
+      localQuotes.forEach((q) => mergedQuotesMap.set(q.quoteCode, q));
+      cloudQuotes.forEach((q) => mergedQuotesMap.set(q.quoteCode, q));
+      const allQuotes = Array.from(mergedQuotesMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setQuoteRequests(allQuotes);
 
       setDesignRequests(PalakDataStore.getDesignRequests());
       setPricingConfig(pricing);
-    } catch {
+    } catch (err) {
+      console.error("Admin loadData error:", err);
       setOrders(PalakDataStore.getOrders());
       setServiceRequests(PalakDataStore.getServiceRequests());
       setQuoteRequests(PalakDataStore.getQuoteRequests());
@@ -823,18 +852,18 @@ export const AdminPage: React.FC = () => {
                           {/* File & Instructions */}
                           <div className="rounded-xl bg-slate-50 p-3 space-y-2">
                             <span className="font-bold text-slate-700 block uppercase text-[10px] tracking-wider">
-                              Attached Customer Files {order.items?.filter((it) => it.uploadedFileName || it.uploadedFileUrl).length > 1 ? `(${order.items.filter((it) => it.uploadedFileName || it.uploadedFileUrl).length})` : ""}
+                              Attached Customer Files {order.items?.filter((it) => it.uploadedFileName || it.uploadedFileUrl || it.selectedOptions?.storagePath).length > 1 ? `(${order.items.filter((it) => it.uploadedFileName || it.uploadedFileUrl || it.selectedOptions?.storagePath).length})` : ""}
                             </span>
 
-                            {order.items?.some((it) => it.uploadedFileName || it.uploadedFileUrl) ? (
+                            {order.items?.some((it) => it.uploadedFileName || it.uploadedFileUrl || it.selectedOptions?.storagePath) ? (
                               <div className="space-y-1.5">
                                 {order.items
-                                  .filter((it) => it.uploadedFileName || it.uploadedFileUrl)
+                                  .filter((it) => it.uploadedFileName || it.uploadedFileUrl || it.selectedOptions?.storagePath)
                                   .map((it, idx) => (
                                     <AdminFileActions
                                       key={idx}
-                                      fileName={it.uploadedFileName}
-                                      fileUrl={it.uploadedFileUrl}
+                                      fileName={it.uploadedFileName || `attached-file-${idx + 1}`}
+                                      fileUrl={it.uploadedFileUrl || it.selectedOptions?.storagePath || ""}
                                       mimeType={it.selectedOptions?.mimeType}
                                       orderCode={order.orderCode}
                                       compact

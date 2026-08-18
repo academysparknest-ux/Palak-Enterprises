@@ -51,10 +51,17 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
     : "other";
 
   useEffect(() => {
-    if (!isOpen || !doc || !doc.url) {
+    if (!isOpen || !doc) {
       setResolvedUrl("");
       setLoading(false);
       setError(null);
+      return;
+    }
+
+    if (!doc.url) {
+      setResolvedUrl("");
+      setLoading(false);
+      setError("No digital file URL was found for this document attachment.");
       return;
     }
 
@@ -62,12 +69,24 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
     setLoading(true);
     setError(null);
 
+    // If it's already a Data URL or Blob URL, load it immediately without async network calls
+    if (doc.url.startsWith("data:") || doc.url.startsWith("blob:")) {
+      setResolvedUrl(doc.url);
+      setLoading(false);
+      return;
+    }
+
     // Resolve inline browser-accessible signed URL (download: false)
     resolveDocumentUrl(doc.url, false, doc.name)
       .then((url) => {
         if (!isMounted) return;
         if (!url) {
-          setError("Unable to preview this PDF. Please try again or contact support.");
+          // If resolving failed, fallback to raw url if it exists
+          if (doc.url) {
+            setResolvedUrl(doc.url);
+          } else {
+            setError("Unable to preview this document. The storage path could not be resolved.");
+          }
         } else {
           setResolvedUrl(url);
         }
@@ -75,7 +94,11 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
       .catch((err) => {
         if (!isMounted) return;
         console.error("Failed to resolve document preview:", err);
-        setError("Unable to preview this PDF. Please try again or contact support.");
+        if (doc.url) {
+          setResolvedUrl(doc.url);
+        } else {
+          setError("Unable to preview this document. Please try again or download directly.");
+        }
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -248,7 +271,18 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
               </div>
               <h4 className="text-sm font-bold text-slate-900">Preview Unavailable</h4>
               <p className="text-xs text-slate-600 leading-relaxed">{error}</p>
-              <div className="pt-2">
+              <div className="pt-2 flex flex-wrap justify-center gap-2">
+                {resolvedUrl && (
+                  <a
+                    href={resolvedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold hover:bg-[#0c274c]"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    <span>Open in New Tab</span>
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={onClose}
@@ -259,15 +293,19 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
               </div>
             </div>
           ) : category === "pdf" ? (
-            <div className="w-full h-full rounded-xl overflow-hidden bg-white shadow-inner border border-slate-300 flex flex-col">
-              <iframe
-                ref={iframeRef}
-                src={`${resolvedUrl}#toolbar=1&navpanes=0`}
-                title={doc.name}
-                className="w-full flex-1 border-0"
-                onLoad={() => setLoading(false)}
-                onError={() => setError("Unable to preview this PDF. Please try again or contact support.")}
-              />
+            <div className="w-full h-full rounded-xl overflow-hidden bg-white shadow-inner border border-slate-300 flex flex-col relative">
+              {resolvedUrl ? (
+                <iframe
+                  ref={iframeRef}
+                  src={resolvedUrl.startsWith("data:") ? resolvedUrl : `${resolvedUrl}#toolbar=1&navpanes=0`}
+                  title={doc.name}
+                  className="w-full flex-1 border-0"
+                  onLoad={() => setLoading(false)}
+                  onError={() => setError("Unable to preview this PDF inline. Please use 'Open in New Tab'.")}
+                />
+              ) : (
+                <div className="p-8 text-center text-xs text-slate-400">PDF URL not loaded.</div>
+              )}
             </div>
           ) : category === "image" ? (
             <div className="w-full h-full rounded-xl overflow-auto bg-slate-950/90 p-4 flex items-center justify-center shadow-inner">
@@ -275,6 +313,7 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
                 src={resolvedUrl}
                 alt={doc.name}
                 className="max-h-full max-w-full object-contain rounded-lg shadow-lg"
+                onError={() => setError("Unable to load image. Please download the image file directly.")}
               />
             </div>
           ) : (
