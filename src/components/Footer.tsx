@@ -200,12 +200,20 @@ export function Footer(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-2 border-t border-slate-800 px-4 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-3 border-t border-slate-800 px-4 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
         <p>
           © {year} {business.name[currentLang]} ({business.unit[currentLang]}). {currentLang === "hi" ? "सर्वाधिकार सुरक्षित।" : "All rights reserved."}
         </p>
-        <p>
-          {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]}
+        <p className="flex items-center gap-1">
+          <span>Designed &amp; Developed by</span>
+          <a
+            href="https://www.ekaagratechnologies.site/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-amber-400 hover:text-amber-300 font-semibold underline underline-offset-2 transition-colors"
+          >
+            Ekaagra Technologies
+          </a>
         </p>
       </div>
     </footer>
