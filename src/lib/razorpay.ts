@@ -89,6 +89,39 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
     },
     theme: {
       color: "#123B70",
+      hide_topbar: false,
+    },
+    config: {
+      display: {
+        blocks: {
+          upi: {
+            name: "Pay via UPI / QR",
+            instruments: [
+              {
+                method: "upi",
+              },
+            ],
+          },
+          other: {
+            name: "Other Payment Modes",
+            instruments: [
+              {
+                method: "card",
+              },
+              {
+                method: "netbanking",
+              },
+              {
+                method: "wallet",
+              },
+            ],
+          },
+        },
+        sequence: ["block.upi", "block.other"],
+        preferences: {
+          show_default_blocks: true,
+        },
+      },
     },
     modal: {
       ondismiss: function () {
