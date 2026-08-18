@@ -441,6 +441,8 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
     : null;
 
   if (compact) {
+    const hasValidFile = Boolean(url && url.trim().length > 0);
+
     return (
       <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200 text-xs shadow-2xs">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -454,11 +456,21 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
           <span className="truncate font-semibold max-w-[130px] sm:max-w-[180px] text-slate-800 text-[11px]" title={name}>
             {name}
           </span>
+          {hasValidFile ? (
+            <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              ✓ Attached
+            </span>
+          ) : (
+            <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+              ⚠️ Missing URL
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* PDF Action Set */}
-          {category === "pdf" && (
+          {!hasValidFile ? (
+            <span className="text-[10px] text-slate-400 italic">No stream</span>
+          ) : category === "pdf" ? (
             <>
               <button
                 type="button"
@@ -480,10 +492,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
                 <span>{isPrinting ? "..." : "Print"}</span>
               </button>
             </>
-          )}
-
-          {/* Image Action Set */}
-          {category === "image" && (
+          ) : category === "image" ? (
             <>
               <button
                 type="button"
@@ -515,10 +524,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
                 <span>{isPrinting ? "..." : "Print"}</span>
               </button>
             </>
-          )}
-
-          {/* DOC/DOCX / Other Action Set */}
-          {category !== "pdf" && category !== "image" && (
+          ) : (
             <button
               type="button"
               onClick={handleDirectDownload}
