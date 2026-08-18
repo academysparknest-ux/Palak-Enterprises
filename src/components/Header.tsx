@@ -210,13 +210,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               {/* Exact 3001 Mega Menu Dropdown */}
               {servicesMenuOpen && (
                 <div
-                  className="absolute left-1/2 top-full -translate-x-1/2 mt-2 w-[880px] max-w-[95vw] rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-fadeUp z-50 text-slate-800"
+                  className="absolute left-1/2 top-full -translate-x-1/2 mt-2 w-[calc(100vw-2rem)] sm:w-[600px] md:w-[760px] lg:w-[880px] max-w-[95vw] max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 lg:p-6 shadow-2xl animate-fadeUp z-50 text-slate-800"
                   onMouseEnter={handleMouseEnter}
                   onMouseLeave={handleMouseLeave}
                 >
 
-                  {/* 3 Columns / 6 Groups Grid */}
-                  <div className="grid grid-cols-3 gap-6 py-2">
+                  {/* Responsive Grid: 1 col on mobile, 2 on tablet, 3 on desktop */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 py-2">
                     {/* Group 1: Printing & Stationery */}
                     <div className="space-y-4">
                       <div>
