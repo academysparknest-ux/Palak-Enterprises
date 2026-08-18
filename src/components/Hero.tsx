@@ -4,12 +4,14 @@ import {
   ArrowRight,
   Search,
   ShieldCheck,
+  CheckCircle2,
   Sparkles,
   CreditCard,
   FileUp,
   Zap,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
+import { AnimatedBrandHeadline } from "./AnimatedBrandHeadline";
 
 interface HeroProps {
   onOpenRequestModal?: (serviceId?: string, paymentMethod?: "pay_online" | "pay_at_shop") => void;
@@ -54,74 +56,94 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
               <span>
                 {currentLang === "hi"
-                  ? "चकिया, बिहार का भरोसेमंद डिजिटल प्रिंटिंग केंद्र"
-                  : "Trusted Local Digital Printing Platform in Chakia"}
+                  ? "चकिया, बिहार का भरोसेमंद प्रिंटिंग एवं सीएससी केंद्र"
+                  : "Trusted Local Printing & CSC Hub in Chakia, Bihar"}
               </span>
             </div>
 
             {/* Brand Heading */}
             <div>
-              <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] xl:text-5xl font-black tracking-tight leading-tight text-white">
-                Palak Enterprises
-              </h1>
+              <AnimatedBrandHeadline
+                items={
+                  currentLang === "hi"
+                    ? [
+                        { prefix: "पलक प्रिंटिंग ", highlight: "प्रेस", full: "पलक प्रिंटिंग प्रेस" },
+                        { prefix: "पलक ", highlight: "एंटरप्राइजेज", full: "पलक एंटरप्राइजेज" },
+                      ]
+                    : [
+                        { prefix: "Palak Printing ", highlight: "Press", full: "Palak Printing Press" },
+                        { prefix: "Palak ", highlight: "Enterprises", full: "Palak Enterprises" },
+                      ]
+                }
+                isHindi={currentLang === "hi"}
+                className="text-3xl sm:text-4xl lg:text-[2.65rem] xl:text-5xl font-black tracking-tight leading-tight"
+              />
             </div>
 
             {/* Brand Tagline */}
-            <p className="text-xl sm:text-2xl font-black text-amber-400 tracking-tight">
-              {currentLang === "hi" ? "प्रिंट। अपलोड। कलेक्ट।" : "Print. Upload. Collect."}
+            <p className="text-base sm:text-lg font-bold text-slate-200 tracking-tight">
+              {currentLang === "hi" ? (
+                <>
+                  प्रिंट। आवेदन। निर्माण। <span className="text-amber-400 font-extrabold">काम पूरा।</span>
+                </>
+              ) : (
+                <>
+                  Print. Apply. Create. <span className="text-amber-400 font-extrabold">Get It Done.</span>
+                </>
+              )}
             </p>
 
-            {/* Supporting Text */}
-            <p className="text-xs sm:text-sm md:text-base text-slate-200 font-normal leading-relaxed max-w-xl">
-              {currentLang === "hi"
-                ? "चकिया में तेज़ प्रिंटिंग एवं डिजिटल सेवाएँ। अपने दस्तावेज़ अपलोड करें, ऑर्डर दें और तैयार होने पर दुकान से प्राप्त करें।"
-                : "Fast printing and digital services in Chakia. Upload your documents, place your order, and collect when it's ready."}
-            </p>
+            {/* Main Online Printing Message Banner */}
+            <div className="rounded-xl bg-amber-400/10 border border-amber-400/30 p-3.5 sm:p-4 backdrop-blur-xs shadow-inner space-y-1">
+              <div className="flex items-center gap-1.5 text-amber-300 font-bold text-base sm:text-lg tracking-tight">
+                <Zap className="h-4 w-4 fill-amber-300 text-amber-300 shrink-0" aria-hidden="true" />
+                <h2>
+                  {currentLang === "hi"
+                    ? "⚡ ऑनलाइन प्रिंट। लाइन से बचें।"
+                    : "⚡ Print Online. Skip the Queue."}
+                </h2>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-200 font-medium leading-normal">
+                {currentLang === "hi"
+                  ? "अपनी फाइल अपलोड करें, विकल्प चुनें और तैयार प्रिंट प्राप्त करें।"
+                  : "Upload your file, choose your options and collect your ready print."}
+              </p>
+            </div>
 
             {/* Action Buttons Row */}
-            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-1">
-              {/* Primary CTA: Upload & Print */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (onOpenRequestModal) {
-                    onOpenRequestModal(undefined, "pay_online");
-                  }
-                }}
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-0.5">
+              {/* Primary CTA: PRINT ONLINE */}
+              <Link
+                to="/online-services"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 px-5 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-black text-slate-950 shadow-md shadow-amber-400/20 ring-1 ring-amber-300/60 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0"
-                aria-label={currentLang === "hi" ? "दस्तावेज अपलोड और प्रिंट करें" : "Upload and Print Documents"}
+                aria-label={currentLang === "hi" ? "ऑनलाइन प्रिंट ऑर्डर करें" : "Print Online"}
               >
-                <Zap className="h-4 w-4 fill-slate-950 text-slate-950 shrink-0" />
-                <span>{currentLang === "hi" ? "अपलोड व प्रिंट" : "Upload & Print"}</span>
-              </button>
+                <span>{currentLang === "hi" ? "🖨️ ऑनलाइन प्रिंट" : "🖨️ PRINT ONLINE"}</span>
+              </Link>
 
-              {/* Secondary CTA: Explore Services */}
+              {/* Secondary CTA: START A SERVICE */}
               <Link
                 to="/services"
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/30 px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-bold text-white transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] cursor-pointer backdrop-blur-xs shrink-0"
               >
-                <span>{currentLang === "hi" ? "सेवाएँ देखें" : "Explore Services"}</span>
+                <span>{currentLang === "hi" ? "सेवा शुरू करें" : "START A SERVICE"}</span>
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </div>
 
-            {/* Compact Trust Strip */}
-            <div className="pt-3.5 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-200">
-              <div className="flex items-center gap-1.5 bg-white/5 py-1.5 px-2 rounded-lg border border-white/10">
-                <span className="text-amber-400 font-bold">⚡</span>
-                <span className="font-semibold truncate">{currentLang === "hi" ? "त्वरित सेवा" : "Quick Service"}</span>
+            {/* 3 Short Trust Indicators */}
+            <div className="pt-3 border-t border-white/15 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-[13px] text-slate-200">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                <span className="font-semibold">{currentLang === "hi" ? "ऑनलाइन प्रिंट ऑर्डरिंग" : "Online Print Ordering"}</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-white/5 py-1.5 px-2 rounded-lg border border-white/10">
-                <span className="text-sky-300 font-bold">📄</span>
-                <span className="font-semibold truncate">{currentLang === "hi" ? "अपलोड दस्तावेज़" : "Upload Documents"}</span>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                <span className="font-semibold">{currentLang === "hi" ? "पिकअप के लिए तैयार" : "Ready for Pickup"}</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-white/5 py-1.5 px-2 rounded-lg border border-white/10">
-                <span className="text-emerald-400 font-bold">💳</span>
-                <span className="font-semibold truncate">{currentLang === "hi" ? "ऑनलाइन भुगतान" : "Online Payment"}</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white/5 py-1.5 px-2 rounded-lg border border-white/10">
-                <span className="text-amber-300 font-bold">🏪</span>
-                <span className="font-semibold truncate">{currentLang === "hi" ? "शॉप पिकअप" : "Shop Pickup"}</span>
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                <span className="font-semibold">{currentLang === "hi" ? "ऑनलाइन या दुकान पर भुगतान" : "Pay Online or at Shop"}</span>
               </div>
             </div>
           </div>
@@ -169,7 +191,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
                 </div>
                 <div className="flex items-center justify-center gap-1">
                   <span className="h-4 w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">3</span>
-                  <span className="truncate">{currentLang === "hi" ? "भुगतान" : "Pay"}</span>
+                  <span className="truncate">{currentLang === "hi" ? "प्रिंट" : "Print"}</span>
                 </div>
                 <div className="flex items-center justify-center gap-1">
                   <span className="h-4 w-4 rounded-full bg-emerald-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">4</span>

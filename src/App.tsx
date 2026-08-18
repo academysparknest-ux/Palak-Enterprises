@@ -91,22 +91,19 @@ function ScrollToTop() {
 export function AppContent() {
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [modalService, setModalService] = useState<ServiceItem | null>(null);
-  const [modalPaymentMethod, setModalPaymentMethod] = useState<"pay_online" | "pay_at_shop" | undefined>(undefined);
 
-  const handleOpenRequestModal = (serviceId?: string, paymentMethod?: "pay_online" | "pay_at_shop") => {
+  const handleOpenRequestModal = (serviceId?: string) => {
     if (serviceId) {
       const s = servicesData.find((item) => item.id === serviceId);
       setModalService(s || null);
     } else {
       setModalService(null);
     }
-    setModalPaymentMethod(paymentMethod);
     setRequestModalOpen(true);
   };
 
   const handleSelectServiceCard = (service: ServiceItem) => {
     setModalService(service);
-    setModalPaymentMethod(undefined);
     setRequestModalOpen(true);
   };
 
@@ -218,7 +215,6 @@ export function AppContent() {
         isOpen={requestModalOpen}
         onClose={() => setRequestModalOpen(false)}
         selectedService={modalService}
-        initialPaymentMethod={modalPaymentMethod}
       />
     </div>
   );

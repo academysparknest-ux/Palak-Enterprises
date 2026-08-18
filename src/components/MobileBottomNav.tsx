@@ -55,22 +55,23 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestM
           <span className="text-[10px] leading-none font-medium">{currentLang === "hi" ? "सेवाएँ" : "Services"}</span>
         </Link>
 
-        {/* Center Primary Action: Request Quote */}
+        {/* Center Primary Action: Instant Document Print */}
         <Link
-          to="/request-quote"
-          onClick={() => {
-            if (onOpenRequestModal && location.pathname !== "/request-quote") {
+          to="/online-services/document-printing"
+          onClick={(e) => {
+            if (onOpenRequestModal) {
+              e.preventDefault();
               onOpenRequestModal();
             }
           }}
           className="flex flex-col items-center justify-center py-0.5 px-2 min-w-[58px] text-[#123B70] font-bold transition-transform active:scale-95 group"
-          aria-label={currentLang === "hi" ? "कोटेशन अनुरोध" : "Request a Quote"}
+          aria-label={currentLang === "hi" ? "प्रिंट ऑर्डर" : "Print Order"}
         >
           <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-md mb-0.5 -mt-3.5 border-2 border-white group-hover:bg-amber-400 transition-colors ring-2 ring-amber-300/50">
             <Sparkles className="w-5 h-5" />
           </div>
           <span className="text-[10px] font-bold text-[#123B70] leading-none">
-            {currentLang === "hi" ? "कोटेशन" : "Quote"}
+            {currentLang === "hi" ? "प्रिंट" : "Print"}
           </span>
         </Link>
 

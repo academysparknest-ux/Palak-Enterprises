@@ -7,21 +7,18 @@ import { getWhatsAppLink } from "../config/business";
 import { PalakDataStore } from "../lib/storage/store";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { uploadOrderFile } from "../lib/supabase/database";
-import { initiateRazorpayPayment } from "../lib/razorpay";
 import { X, Upload, CheckCircle2, MessageSquare, Phone, Send, AlertTriangle, ShieldCheck, Eye } from "lucide-react";
 
 interface ServiceRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedService?: ServiceItem | null;
-  initialPaymentMethod?: "pay_online" | "pay_at_shop";
 }
 
 export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
   isOpen,
   onClose,
   selectedService,
-  initialPaymentMethod,
 }) => {
   const { language, t } = useLanguage();
 
@@ -31,9 +28,6 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
   const [file, setFile] = useState<File | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [colorMode, setColorMode] = useState<"bw" | "color" | "na">("bw");
-  const [paymentPreference, setPaymentPreference] = useState<"pay_online" | "pay_at_shop">(
-    initialPaymentMethod || "pay_online"
-  );
   const [instructions, setInstructions] = useState("");
   const [preferredContact, setPreferredContact] = useState<"whatsapp" | "call">("whatsapp");
 
@@ -41,12 +35,6 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (initialPaymentMethod) {
-      setPaymentPreference(initialPaymentMethod);
-    }
-  }, [initialPaymentMethod, isOpen]);
 
   // Lock background body scroll & support Escape key closing
   useEffect(() => {
@@ -145,8 +133,6 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
     return true;
   };
 
-
-
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
@@ -177,106 +163,68 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
       }
 
       const estimatedFee = (currentSelectedService as any)?.price?.startingFrom || 0;
+      const finalInstructions = instructions.trim() || undefined;
 
-      const processRequestSave = async (razorpayPaymentId?: string) => {
-        const finalInstructions = razorpayPaymentId
-          ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
-          : (instructions.trim() || undefined);
-
-        // 1. Sync to local store fallback
-        try {
-          PalakDataStore.createServiceRequest({
-            requestCode,
-            serviceId: currentSelectedService?.id || "general-service",
-            serviceName,
-            customerName: name.trim(),
-            customerPhone: phone.trim(),
-            preferredContact: preferredContact === "call" ? "phone" : "whatsapp",
-            applicantDetails: {
-              quantity: String(quantity),
-              colorMode,
-              paymentPreference,
-              paymentId: razorpayPaymentId || "",
-              serviceSlug: currentSelectedService?.slug || "",
-            },
-            uploadedDocumentUrls: fileUrl ? [fileUrl] : [],
-            uploadedDocumentNames: fileName ? [fileName] : [],
-            additionalNotes: finalInstructions,
-            estimatedFee,
-            requestStatus: "NEW",
-          });
-        } catch (err) {
-          console.warn("Local fallback note:", err);
-        }
-
-        // 2. Persist to Supabase Database
-        if (isSupabaseConfigured && supabase) {
-          const { error: dbErr } = await supabase.from("service_requests").insert({
-            request_code: requestCode,
-            service_id: currentSelectedService?.id || "general-service",
-            service_name: serviceName,
-            customer_name: name.trim(),
-            customer_phone: phone.trim(),
-            preferred_contact: preferredContact === "call" ? "phone" : "whatsapp",
-            applicant_details: {
-              quantity: String(quantity),
-              colorMode,
-              paymentPreference,
-              paymentId: razorpayPaymentId,
-            },
-            uploaded_document_urls: fileUrl ? [fileUrl] : [],
-            additional_notes: finalInstructions || null,
-            estimatedFee,
-            request_status: "NEW",
-          });
-
-          if (dbErr) {
-            console.warn("Supabase service request insert notice:", dbErr);
-          } else {
-            await supabase.from("status_history").insert({
-              entity_type: "service_request",
-              entity_code: requestCode,
-              new_status: "NEW",
-              message_en: `Service request received for ${serviceName}.${razorpayPaymentId ? " Online payment confirmed." : ""}`,
-              message_hi: `${serviceName} के लिए सेवा अनुरोध प्राप्त हुआ।${razorpayPaymentId ? " ऑनलाइन भुगतान सफल रहा।" : ""}`,
-              performed_by: "Online Customer",
-            });
-          }
-        }
-
-        setSubmittedCode(requestCode);
-        setIsSuccess(true);
-        setIsSubmitting(false);
-      };
-
-      if (paymentPreference === "pay_online" && estimatedFee > 0) {
-        await initiateRazorpayPayment({
-          amount: estimatedFee,
-          name: "Palak Enterprises",
-          description: `Service Request: ${serviceName}`,
-          prefill: {
-            name: name.trim(),
-            contact: phone.trim(),
+      // 1. Sync to local store fallback
+      try {
+        PalakDataStore.createServiceRequest({
+          requestCode,
+          serviceId: currentSelectedService?.id || "general-service",
+          serviceName,
+          customerName: name.trim(),
+          customerPhone: phone.trim(),
+          preferredContact: preferredContact === "call" ? "phone" : "whatsapp",
+          applicantDetails: {
+            quantity: String(quantity),
+            colorMode,
+            serviceSlug: currentSelectedService?.slug || "",
           },
-          onSuccess: async (paymentId) => {
-            await processRequestSave(paymentId);
-          },
-          onDismiss: () => {
-            setIsSubmitting(false);
-          },
-          onError: (err) => {
-            setErrorMsg(
-              err?.description ||
-                (language === "hi"
-                  ? "ऑनलाइन भुगतान रद्द हुआ। आप पुनः प्रयास कर सकते हैं या 'दस्तावेज भेजें (दुकान पर भुगतान)' चुन सकते हैं।"
-                  : "Online payment was cancelled. You can retry or choose 'Send Document (Pay on Pickup)'.")
-            );
-            setIsSubmitting(false);
-          },
+          uploadedDocumentUrls: fileUrl ? [fileUrl] : [],
+          uploadedDocumentNames: fileName ? [fileName] : [],
+          additionalNotes: finalInstructions,
+          estimatedFee,
+          requestStatus: "NEW",
         });
-      } else {
-        await processRequestSave();
+      } catch (err) {
+        console.warn("Local fallback note:", err);
       }
+
+      // 2. Persist to Supabase Database
+      if (isSupabaseConfigured && supabase) {
+        const { error: dbErr } = await supabase.from("service_requests").insert({
+          request_code: requestCode,
+          service_id: currentSelectedService?.id || "general-service",
+          service_name: serviceName,
+          customer_name: name.trim(),
+          customer_phone: phone.trim(),
+          preferred_contact: preferredContact === "call" ? "phone" : "whatsapp",
+          applicant_details: {
+            quantity: String(quantity),
+            colorMode,
+          },
+          uploaded_document_urls: fileUrl ? [fileUrl] : [],
+          additional_notes: finalInstructions || null,
+          estimatedFee,
+          request_status: "NEW",
+        });
+
+        if (dbErr) {
+          console.warn("Supabase service request insert notice:", dbErr);
+        } else {
+          await supabase.from("status_history").insert({
+            entity_type: "service_request",
+            entity_code: requestCode,
+            new_status: "NEW",
+            message_en: `Service request received for ${serviceName}.`,
+            message_hi: `${serviceName} के लिए सेवा अनुरोध प्राप्त हुआ।`,
+            performed_by: "Online Customer",
+          });
+        }
+      }
+
+      setSubmittedCode(requestCode);
+      setIsSuccess(true);
+      setIsSubmitting(false);
     } catch (err: any) {
       console.error("Service request error:", err);
       setErrorMsg(err.message || "Failed to submit request. Please try again.");
@@ -642,74 +590,6 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                   placeholder={t.requestForm.instructionsPlaceholder}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-900 focus:outline-none"
                 />
-              </div>
-
-              {/* Payment Option Selection */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  {language === "hi" ? "भुगतान माध्यम चुनें (Payment Preference)" : "Choose How You Want to Pay"}
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <label
-                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
-                      paymentPreference === "pay_online"
-                        ? "bg-emerald-50/80 border-emerald-500 text-emerald-950 ring-1 ring-emerald-500 shadow-xs"
-                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentPreference"
-                      value="pay_online"
-                      checked={paymentPreference === "pay_online"}
-                      onChange={() => setPaymentPreference("pay_online")}
-                      className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <div>
-                      <div className="text-xs font-bold flex items-center gap-1.5">
-                        <span>{language === "hi" ? "ऑनलाइन भुगतान" : "Pay Online (UPI / QR)"}</span>
-                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-emerald-600 text-white rounded-full">
-                          {language === "hi" ? "0 इंतज़ार • लाइन से बचें" : "SKIP QUEUE"}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
-                        {language === "hi"
-                          ? "दुकान पर बिना लाइन लगे पहले से तैयार व पैक प्रिंट तुरंत प्राप्त करें"
-                          : "Pre-printed & packed in advance. No line or file-sending wait at shop"}
-                      </p>
-                    </div>
-                  </label>
-
-                  <label
-                    className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
-                      paymentPreference === "pay_at_shop"
-                        ? "bg-amber-50/80 border-amber-500 text-amber-950 ring-1 ring-amber-500 shadow-xs"
-                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentPreference"
-                      value="pay_at_shop"
-                      checked={paymentPreference === "pay_at_shop"}
-                      onChange={() => setPaymentPreference("pay_at_shop")}
-                      className="mt-0.5 text-amber-600 focus:ring-amber-500"
-                    />
-                    <div>
-                      <div className="text-xs font-bold flex items-center gap-1.5">
-                        <span>{language === "hi" ? "दस्तावेज भेजें (दुकान पर भुगतान)" : "Send Document (Pay on Pickup)"}</span>
-                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-amber-600 text-white rounded-full">
-                          {language === "hi" ? "पिकअप पर भुगतान" : "PAY ON PICKUP"}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
-                        {language === "hi"
-                          ? "दुकान आने से पहले दस्तावेज भेजें। हम प्रिंट तैयार करेंगे और आप लेने पर भुगतान करें।"
-                          : "Send your file now. We'll prepare your print. Pay when you collect it."}
-                      </p>
-                    </div>
-                  </label>
-                </div>
               </div>
 
               {/* Preferred Contact Method */}

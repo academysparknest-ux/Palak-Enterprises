@@ -131,8 +131,8 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
           : "Need pamphlets, bill books, brochures or stickers? Submit custom specifications for quick quote.",
       icon: Printer,
       path: "/online-services/custom-print",
-      badge: currentLang === "hi" ? "कस्टम कोटेशन" : "Custom Quote",
-      actionText: t.instantOnlineServices?.requestQuote || (currentLang === "hi" ? "कोटेशन मांगें →" : "Request Quote →"),
+      badge: currentLang === "hi" ? "कस्टम ऑर्डर" : "Custom Order",
+      actionText: t.instantOnlineServices?.requestQuote || (currentLang === "hi" ? "विवरण देखें →" : "Order Details →"),
       isComingSoon: false,
       color: "bg-cyan-50 text-cyan-900 border-cyan-200/80",
       accent: "border-cyan-500",
@@ -205,10 +205,10 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
             <div className="rounded-xl bg-white/10 p-3 border border-white/15 backdrop-blur-xs space-y-1">
               <div className="flex items-center gap-1.5 text-amber-300 font-black text-xs">
                 <span className="h-5 w-5 rounded-md bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[10px]">03</span>
-                <span>{currentLang === "hi" ? "भुगतान (Pay)" : "03 — Pay"}</span>
+                <span>{currentLang === "hi" ? "तैयारी (Prepare)" : "03 — Prepare"}</span>
               </div>
               <p className="text-[11px] text-slate-200">
-                {currentLang === "hi" ? "ऑनलाइन भुगतान करें या दुकान पर भुगतान चुनें" : "Pay online or choose payment at the shop."}
+                {currentLang === "hi" ? "हम आपका प्रिंट व फाइल तुरंत तैयार करेंगे" : "We prepare your print order accurately."}
               </p>
             </div>
 

@@ -440,7 +440,9 @@ export const CustomPrintPage: React.FC = () => {
                 disabled={submitting}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] disabled:opacity-50 py-3.5 px-4 text-xs sm:text-sm font-extrabold text-white shadow-card transition-all cursor-pointer"
               >
-                {submitting ? "Submitting Request..." : "Request Quote →"}
+                {submitting
+                  ? (currentLang === "hi" ? "अनुरोध भेजा जा रहा है..." : "Submitting Details...")
+                  : (currentLang === "hi" ? "ऑर्डर विवरण भेजें →" : "Submit Order Details →")}
               </button>
             </div>
           </div>

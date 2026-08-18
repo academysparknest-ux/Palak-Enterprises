@@ -23,7 +23,7 @@ import { business, getWhatsAppLink, getDirectionsLink } from "../config/business
 import { cn } from "../lib/utils";
 
 interface HomePageProps {
-  onOpenRequestModal?: (serviceId?: string, paymentMethod?: "pay_online" | "pay_at_shop") => void;
+  onOpenRequestModal?: (serviceId?: string) => void;
   onSelectService?: (service: any) => void;
 }
 

@@ -677,16 +677,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               </span>
             </Link>
 
-            {/* Primary CTA: Upload & Print */}
-            <button
-              type="button"
-              onClick={() => onOpenRequestModal?.()}
-              className="hidden md:inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold px-3.5 py-1.5 text-xs shadow-xs transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0"
-            >
-              <Zap className="h-3.5 w-3.5 fill-slate-950 text-slate-950" />
-              <span>{currentLang === "hi" ? "अपलोड व प्रिंट" : "Upload & Print"}</span>
-            </button>
-
             {/* Mobile Drawer Hamburger Button */}
             <button
               type="button"

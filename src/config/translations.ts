@@ -347,7 +347,7 @@ export const translations: Record<Language, Translations> = {
       promise: "Online order submit karein, order ready hone par shop se collect karein.",
       subtext: "File upload karein, printing options select karein, finishing add karein aur order submit karein. Palak Enterprises aapka order ready karega, taaki aap bina line mein wait kiye collect kar saken.",
       startNow: "Start Now →",
-      requestQuote: "Request Quote →",
+      requestQuote: "Order Details →",
       comingSoon: "Coming Soon",
       services: {
         document: {
@@ -547,7 +547,7 @@ export const translations: Record<Language, Translations> = {
       promise: "ऑनलाइन ऑर्डर सबमिट करें, ऑर्डर रेडी होने पर दुकान से कलेक्ट करें।",
       subtext: "फ़ाइल अपलोड करें, प्रिंटिंग ऑप्शंस चुनें, फ़िनिशिंग जोड़ें और ऑर्डर सबमिट करें। पालक इंटरप्राइजेज आपका ऑर्डर तैयार रखेगा ताकि आप बिना लाइन में प्रतीक्षा किए कलेक्ट कर सकें।",
       startNow: "शुरू करें →",
-      requestQuote: "कोटेशन मांगें →",
+      requestQuote: "विवरण देखें →",
       comingSoon: "जल्द आ रहा है",
       services: {
         document: {

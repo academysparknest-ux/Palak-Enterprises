@@ -132,7 +132,7 @@ Please provide pricing for customized printing with Sanskrit/Hindi text and avai
           </div>
         </div>
 
-        {/* Action Buttons: Request Quote & WhatsApp */}
+        {/* Action Buttons: Details & WhatsApp */}
         <div className="grid grid-cols-2 gap-2 pt-1">
           <button
             type="button"
@@ -140,7 +140,7 @@ Please provide pricing for customized printing with Sanskrit/Hindi text and avai
             className="inline-flex items-center justify-center gap-1 rounded-xl bg-[#881337] hover:bg-[#700f2d] text-white py-2 px-2 text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
             <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-            <span>{currentLang === "hi" ? "कोटेशन लें" : "Get Quote"}</span>
+            <span>{currentLang === "hi" ? "ऑर्डर पूछताछ" : "Inquire Now"}</span>
           </button>
 
           <a
