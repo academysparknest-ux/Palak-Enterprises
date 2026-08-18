@@ -238,7 +238,12 @@ export const PosterBannerPage: React.FC = () => {
             setSubmitting(false);
           },
           onError: (err) => {
-            setSubmitError(err?.description || "Online payment was cancelled. You can retry or choose 'Pay at Shop Counter'.");
+            setSubmitError(
+              err?.description ||
+                (currentLang === "hi"
+                  ? "ऑनलाइन भुगतान रद्द हुआ। आप पुनः प्रयास कर सकते हैं या 'दस्तावेज भेजें (दुकान पर भुगतान)' चुन सकते हैं।"
+                  : "Online payment was cancelled. You can retry or choose 'Send Document (Pay on Pickup)'.")
+            );
             setSubmitting(false);
           },
         });
@@ -564,16 +569,16 @@ export const PosterBannerPage: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "दुकान पर भुगतान (Pay at Shop)" : "Pay at Shop Counter"}
+                        {currentLang === "hi" ? "दस्तावेज भेजें (दुकान पर भुगतान)" : "Send Document (Pay on Pickup)"}
                       </span>
                       <span className="rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.2">
-                        Cash / UPI
+                        PAY ON PICKUP
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                       {currentLang === "hi"
-                        ? "ऑर्डर अभी दर्ज करें। दुकान (ब्लॉक गेट, चकिया) पहुँचकर काउंटर पर भुगतान कर प्रिंट प्राप्त करें।"
-                        : "Order is registered now. Pay at the shop counter when you arrive for collection."}
+                        ? "डिजाइन अभी भेजें। हम प्रिंट तैयार रखेंगे और आप दुकान पर लेने के समय भुगतान करें।"
+                        : "Send your file now. We'll prepare your print in advance, and you can pay when you collect it."}
                     </p>
                   </div>
                 </label>
@@ -637,8 +642,8 @@ export const PosterBannerPage: React.FC = () => {
                   <span>
                     {isStandardPricing
                       ? currentLang === "hi"
-                        ? `ऑर्डर सबमिट करें (${paymentMethod === "pay_online" ? "Pay Online" : "Pay at Shop"}) →`
-                        : `Submit Print Order (${paymentMethod === "pay_online" ? "Pay Online" : "Pay at Shop"}) →`
+                        ? `ऑर्डर सबमिट करें (${paymentMethod === "pay_online" ? "Pay Online" : "Send Document"}) →`
+                        : `Submit Print Order (${paymentMethod === "pay_online" ? "Pay Online" : "Send Document"}) →`
                       : "Request Custom Quote →"}
                   </span>
                 )}
