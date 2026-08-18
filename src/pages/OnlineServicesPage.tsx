@@ -171,8 +171,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       step: "3",
       title: "Pay",
       titleHi: "3. पेमेंट चुनें",
-      desc: "Choose Pay Online or Pay at Shop.",
-      descHi: "ऑनलाइन भुगतान या दुकान पर भुगतान चुनें।",
+      desc: "Choose Pay Online or Send Document (Pay on Pickup).",
+      descHi: "ऑनलाइन भुगतान या दस्तावेज भेजें (पिकअप पर भुगतान) चुनें।",
       icon: PayIcon,
     },
     {

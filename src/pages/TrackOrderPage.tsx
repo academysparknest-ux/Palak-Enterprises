@@ -193,10 +193,29 @@ export const TrackOrderPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="text-left sm:text-right">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Status</div>
-                <div className="text-sm font-black text-[#123B70] uppercase">
-                  {rpcTrackingResult.record.orderStatus || rpcTrackingResult.record.requestStatus || rpcTrackingResult.record.quoteStatus}
+              <div className="flex flex-wrap items-center gap-2 text-left sm:text-right">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-left">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Order Status</div>
+                  <div className="text-xs font-black text-[#123B70] uppercase">
+                    {rpcTrackingResult.record.orderStatus || rpcTrackingResult.record.requestStatus || rpcTrackingResult.record.quoteStatus || "NEW"}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-left">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Payment</div>
+                  <div className={`text-xs font-black uppercase ${
+                    rpcTrackingResult.record.paymentStatus === "confirmed" || rpcTrackingResult.record.paymentStatus === "paid"
+                      ? "text-emerald-700"
+                      : "text-amber-700"
+                  }`}>
+                    {rpcTrackingResult.record.paymentMethod === "upi_online" || rpcTrackingResult.record.paymentMethod === "pay_online"
+                      ? (rpcTrackingResult.record.paymentStatus === "confirmed" || rpcTrackingResult.record.paymentStatus === "paid"
+                          ? "PAID ONLINE"
+                          : "ONLINE — PENDING")
+                      : (rpcTrackingResult.record.paymentStatus === "confirmed" || rpcTrackingResult.record.paymentStatus === "paid"
+                          ? "PAY AT SHOP — PAID"
+                          : "PAY AT SHOP — PENDING")}
+                  </div>
                 </div>
               </div>
             </div>
@@ -223,6 +242,9 @@ export const TrackOrderPage: React.FC = () => {
         {/* Local Orders Results */}
         {orders.map((order) => {
           const logs = PalakDataStore.getStatusHistory(order.orderCode);
+          const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
+          const isOnline = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online";
+
           return (
             <div
               key={order.id}
@@ -241,10 +263,25 @@ export const TrackOrderPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-blue-50 text-[#123B70] border border-blue-200/60 px-3 py-1 text-xs font-bold">
-                    {order.orderStatus.replace(/_/g, " ")}
-                  </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1 text-left">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Order Status</div>
+                    <div className="text-xs font-black text-[#123B70] uppercase">
+                      {order.orderStatus.replace(/_/g, " ")}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1 text-left">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Payment</div>
+                    <div className={`text-xs font-black uppercase ${
+                      isPaid ? "text-emerald-700" : "text-amber-700"
+                    }`}>
+                      {isOnline
+                        ? (isPaid ? "PAID ONLINE" : "ONLINE — PENDING")
+                        : (isPaid ? "PAY AT SHOP — PAID" : "PAY AT SHOP — PENDING")}
+                    </div>
+                  </div>
+
                   <a
                     href={getWhatsAppLink(`Inquiry regarding Order ${order.orderCode}`)}
                     target="_blank"

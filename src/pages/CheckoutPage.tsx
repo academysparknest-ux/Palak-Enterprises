@@ -134,7 +134,12 @@ export const CheckoutPage: React.FC = () => {
             setIsSubmitting(false);
           },
           onError: (err) => {
-            setError(err?.description || "Payment was cancelled or failed. You can try again or choose 'Pay at Shop Counter'.");
+            setError(
+              err?.description ||
+                (currentLang === "hi"
+                  ? "भुगतान रद्द हुआ। आप पुनः प्रयास कर सकते हैं या 'दुकान पर भुगतान (Pay on Pickup)' चुन सकते हैं।"
+                  : "Payment was cancelled or failed. You can try again or choose 'Pay on Pickup'.")
+            );
             setIsSubmitting(false);
           },
         });
@@ -226,7 +231,9 @@ export const CheckoutPage: React.FC = () => {
                     ? "bg-emerald-100 text-emerald-800"
                     : "bg-amber-100 text-amber-800"
                 }`}>
-                  {placedOrder.paymentStatus === "paid" ? "✓ Paid Online (Express Zero Wait)" : "⏳ Pay at Shop"}
+                  {placedOrder.paymentStatus === "paid"
+                    ? (currentLang === "hi" ? "✓ ऑनलाइन भुगतान (0 इंतज़ार)" : "✓ Paid Online (Express Zero Wait)")
+                    : (currentLang === "hi" ? "⏳ दुकान पर भुगतान (बाकी)" : "⏳ Pay at Shop (Pending)")}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
@@ -508,16 +515,16 @@ export const CheckoutPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <span className="font-black text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
                         <Building className="h-4 w-4 text-[#123B70]" />
-                        <span>{currentLang === "hi" ? "दुकान काउंटर पर भुगतान" : "Pay at Shop Counter"}</span>
+                        <span>{currentLang === "hi" ? "दुकान पर भुगतान (Pay on Pickup)" : "Pay on Pickup (Pay at Shop)"}</span>
                       </span>
                       <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
-                        {currentLang === "hi" ? "काउंटर पर" : "Cash / UPI"}
+                        PAY ON PICKUP
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
                       {currentLang === "hi"
                         ? "ऑर्डर अभी सबमिट करें और दुकान पहुँचने पर काउंटर पर नकद या UPI द्वारा भुगतान करें।"
-                        : "Submit order now and pay at the shop counter when you arrive to collect."}
+                        : "Submit order now and pay when you collect your prints at our Chakia shop."}
                     </p>
                   </button>
                 </div>

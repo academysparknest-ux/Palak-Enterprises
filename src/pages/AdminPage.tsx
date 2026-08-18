@@ -15,6 +15,7 @@ import {
   Settings,
   Save,
   Printer,
+  FileUp,
   Eye,
   X,
   CreditCard,
@@ -856,7 +857,9 @@ export const AdminPage: React.FC = () => {
                     const firstItem = order.items[0];
                     const options = firstItem?.selectedOptions || {};
                     const finishing = (options.finishing || {}) as Record<string, boolean>;
-                    const isPaid = order.paymentStatus === "confirmed";
+                    const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
+                    const isOnlineOrder = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online";
+                    const isSendDocOrder = order.paymentMethod === "pay_at_shop" || order.paymentMethod === "pay_at_store" || !isOnlineOrder;
 
                     return (
                       <div
@@ -866,16 +869,24 @@ export const AdminPage: React.FC = () => {
                         {/* Top Header Row */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                           <div className="flex items-center gap-3">
-                            <div className="h-11 w-11 rounded-xl bg-blue-50 text-[#123B70] flex items-center justify-center font-bold">
-                              <Printer className="h-5 w-5" />
+                            <div className={`h-11 w-11 rounded-xl flex items-center justify-center font-bold ${
+                              isSendDocOrder
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : "bg-blue-50 text-[#123B70] border border-blue-200"
+                            }`}>
+                              {isSendDocOrder ? <FileUp className="h-5 w-5" /> : <Printer className="h-5 w-5" />}
                             </div>
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-mono font-black text-sm sm:text-base text-[#123B70]">
                                   {order.orderCode}
                                 </span>
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                                  {options.documentType || firstItem?.productName || "Print Job"}
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                                  isSendDocOrder
+                                    ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                    : "bg-blue-100 text-blue-900 border border-blue-200"
+                                }`}>
+                                  {isSendDocOrder ? "📄 Send Document" : `🖨 ${options.documentType || firstItem?.productName || "Print Job"}`}
                                 </span>
                                 {isToday(order.createdAt) && (
                                   <span className="rounded-full bg-blue-100 text-blue-800 text-[9px] font-extrabold px-2 py-0.2">
@@ -910,7 +921,11 @@ export const AdminPage: React.FC = () => {
                               )}
                             >
                               <CreditCard className="h-3 w-3" />
-                              <span>{isPaid ? "Paid Online" : "Pay at Shop (Pending)"}</span>
+                              <span>
+                                {isOnlineOrder
+                                  ? (isPaid ? "Paid Online" : "Payment: Online (Pending)")
+                                  : (isPaid ? "Pay at Shop — Paid" : "Payment: Pay at Shop — Pending")}
+                              </span>
                             </button>
 
                             <span className="text-sm font-black text-slate-900 px-1">
@@ -2067,7 +2082,7 @@ export const AdminPage: React.FC = () => {
                 <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Payment Details</span>
                 <div className="space-y-1 text-xs">
                   <div><strong>Total Amount:</strong> <span className="text-base font-black text-slate-900">₹{selectedOrderForModal.totalAmount}</span></div>
-                  <div><strong>Method:</strong> {selectedOrderForModal.paymentMethod === "upi_online" ? "UPI / Online Payment" : "Pay at Shop (Counter)"}</div>
+                  <div><strong>Method:</strong> {selectedOrderForModal.paymentMethod === "upi_online" || selectedOrderForModal.paymentMethod === "pay_online" ? "UPI / Online Payment" : "Send Document (Pay at Shop Counter)"}</div>
                   <div className="flex items-center gap-2 pt-1">
                     <strong>Status:</strong>
                     <span className={cn(
