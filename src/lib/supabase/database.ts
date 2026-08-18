@@ -7,7 +7,7 @@ import {
   type LocalService,
   type LocalCategory,
 } from "../storage/catalogData";
-import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest } from "../storage/store";
+import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type OrderItemPayload } from "../storage/store";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 
 export interface PrintOrderPayload {
@@ -263,30 +263,55 @@ export async function getStaffOrders(): Promise<StoredOrder[]> {
   if (!isSupabaseConfigured || !supabase) return [];
   const { data, error } = await supabase
     .from("orders")
-    .select("*")
+    .select("*, order_items(*)")
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return (data || []).map((o) => ({
-    id: o.id,
-    orderCode: o.order_code,
-    customerName: o.customer_name,
-    customerPhone: o.customer_phone,
-    customerEmail: o.customer_email,
-    fulfillmentType: o.fulfillment_type,
-    deliveryAddress: o.delivery_address,
-    orderNotes: o.order_notes,
-    subtotalAmount: Number(o.subtotal_amount) || 0,
-    deliveryFee: Number(o.delivery_fee) || 0,
-    totalAmount: Number(o.total_amount) || 0,
-    paymentMethod: o.payment_method,
-    paymentStatus: o.payment_status,
-    orderStatus: o.order_status,
-    items: o.items || [],
-    staffNotes: o.staff_notes,
-    createdAt: o.created_at,
-    updatedAt: o.updated_at,
-  }));
+  if (error) {
+    console.warn("getStaffOrders query notice:", error.message || error);
+    throw error;
+  }
+
+  return (data || []).map((o: any) => {
+    let orderItems: OrderItemPayload[] = [];
+    if (Array.isArray(o.items) && o.items.length > 0) {
+      orderItems = o.items;
+    } else if (Array.isArray(o.order_items) && o.order_items.length > 0) {
+      orderItems = o.order_items.map((it: any) => ({
+        productId: it.product_id || "service",
+        productName: it.product_name,
+        quantity: Number(it.quantity) || 1,
+        unitPrice: Number(it.unit_price) || 0,
+        totalPrice: Number(it.total_price) || 0,
+        selectedOptions: it.selected_options || {},
+        selectedOptionsLabels: it.selected_options_labels || {},
+        uploadedFileName: it.uploaded_file_name,
+        uploadedFileUrl: it.uploaded_file_url,
+        designAssistanceRequested: Boolean(it.design_assistance_requested),
+        designNotes: it.design_notes,
+      }));
+    }
+
+    return {
+      id: o.id,
+      orderCode: o.order_code,
+      customerName: o.customer_name,
+      customerPhone: o.customer_phone,
+      customerEmail: o.customer_email,
+      fulfillmentType: o.fulfillment_type || "pickup",
+      deliveryAddress: o.delivery_address,
+      orderNotes: o.order_notes,
+      subtotalAmount: Number(o.subtotal_amount) || 0,
+      deliveryFee: Number(o.delivery_fee) || 0,
+      totalAmount: Number(o.total_amount) || 0,
+      paymentMethod: o.payment_method || "pay_at_store",
+      paymentStatus: o.payment_status || "pending",
+      orderStatus: o.order_status || "NEW",
+      items: orderItems,
+      staffNotes: o.staff_notes,
+      createdAt: o.created_at,
+      updatedAt: o.updated_at,
+    };
+  });
 }
 
 export async function getStaffServiceRequests(): Promise<StoredServiceRequest[]> {
@@ -775,11 +800,13 @@ export async function submitPrintOrder(
   // Normalize payment method and status
   const paymentMethod =
     payload.paymentMethod === "upi_online" || payload.paymentMethod === "pay_online"
-      ? "pay_online"
-      : "pay_at_shop";
+      ? "upi_online"
+      : payload.paymentMethod === "pay_after_confirmation"
+      ? "pay_after_confirmation"
+      : "pay_at_store";
   const paymentStatus =
     payload.paymentStatus === "confirmed" || payload.paymentStatus === "paid"
-      ? "paid"
+      ? "confirmed"
       : "pending";
 
   const orderItem = {

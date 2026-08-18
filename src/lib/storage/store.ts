@@ -380,21 +380,39 @@ export class PalakDataStore {
 
     if (isSupabaseConfigured && supabase) {
       try {
+        const normalizedPaymentMethod =
+          data.paymentMethod === "upi_online" || data.paymentMethod === "pay_online"
+            ? "upi_online"
+            : data.paymentMethod === "pay_after_confirmation"
+            ? "pay_after_confirmation"
+            : "pay_at_store";
+
+        const currentPaymentStatus = String(data.paymentStatus || "").toLowerCase();
+        const normalizedPaymentStatus =
+          currentPaymentStatus === "confirmed" || currentPaymentStatus === "paid"
+            ? "confirmed"
+            : currentPaymentStatus === "refunded"
+            ? "refunded"
+            : currentPaymentStatus === "failed"
+            ? "failed"
+            : "pending";
+
         const orderInsertPayload: any = {
           order_code: orderCode,
           customer_name: data.customerName,
           customer_phone: data.customerPhone,
           customer_email: data.customerEmail || null,
-          fulfillment_type: data.fulfillmentType,
+          fulfillment_type: data.fulfillmentType || "pickup",
           delivery_address: data.deliveryAddress || null,
           order_notes: data.orderNotes || null,
-          subtotal_amount: data.subtotalAmount,
-          delivery_fee: data.deliveryFee,
-          total_amount: data.totalAmount,
-          payment_method: data.paymentMethod,
-          payment_status: data.paymentStatus || "pending",
+          subtotal_amount: data.subtotalAmount || 0,
+          delivery_fee: data.deliveryFee || 0,
+          total_amount: data.totalAmount || 0,
+          payment_method: normalizedPaymentMethod,
+          payment_status: normalizedPaymentStatus,
           order_status: data.orderStatus || "NEW",
-          items: data.items,
+          items: data.items || [],
+          staff_notes: data.staffNotes || null,
         };
 
         if (data.userId) {
@@ -407,7 +425,9 @@ export class PalakDataStore {
           .select("id")
           .single();
 
-        if (!orderErr && insertedOrder?.id && data.items.length > 0) {
+        if (orderErr) {
+          console.warn("[Palak Cloud] Order insert error:", orderErr.message || orderErr);
+        } else if (insertedOrder?.id && data.items.length > 0) {
           const itemRows = data.items.map((item) => ({
             order_id: insertedOrder.id,
             product_id: item.productId,
