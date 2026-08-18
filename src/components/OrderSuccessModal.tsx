@@ -135,14 +135,18 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
 
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5 sm:p-3 space-y-1">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              {currentLang === "hi" ? "भुगतान माध्यम एवं स्थिति" : "Payment Method"}
+              {currentLang === "hi" ? "भुगतान माध्यम एवं स्थिति" : "Payment Details"}
             </span>
-            <span className="font-bold text-emerald-900 flex items-center justify-between gap-1.5 text-xs sm:text-sm">
-              <span>{isOnlinePayment ? "Pay Online" : "Pay at Shop"}</span>
-              <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-md bg-white border border-emerald-300">
-                {isPaid ? "Paid" : "Pending"}
+            <div className="flex items-center justify-between gap-1.5 text-xs sm:text-sm">
+              <span className="font-bold text-emerald-900 truncate">
+                {isOnlinePayment
+                  ? (currentLang === "hi" ? "ऑनलाइन भुगतान" : "Paid Online")
+                  : (currentLang === "hi" ? "दस्तावेज भेजा • दुकान पर भुगतान" : "Send Document (Pay at Shop)")}
               </span>
-            </span>
+              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-white border border-emerald-300 shrink-0 uppercase">
+                {isPaid ? (currentLang === "hi" ? "भुगतान पूर्ण" : "Paid") : (currentLang === "hi" ? "बाकी (Pending)" : "Pending")}
+              </span>
+            </div>
           </div>
         </div>
 

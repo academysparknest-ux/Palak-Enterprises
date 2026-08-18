@@ -7,7 +7,7 @@ import {
   CheckCircle2,
   Sparkles,
   CreditCard,
-  Store,
+  FileUp,
   Zap,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
@@ -170,28 +170,28 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
               {/* Main Heading & Single Supporting Sentence */}
               <div>
                 <h3 className="text-base sm:text-lg font-black text-white tracking-tight">
-                  {currentLang === "hi" ? "अपलोड • चुनें • प्राप्त करें" : "Upload • Choose • Collect"}
+                  {currentLang === "hi" ? "भेजें • चुनें • प्राप्त करें" : "Send • Choose • Collect"}
                 </h3>
                 <p className="text-xs text-slate-200 mt-0.5 leading-snug">
                   {currentLang === "hi"
-                    ? "दुकान आने से पहले अपनी फाइल भेजें। हम आपके पिकअप के लिए प्रिंट तैयार रखेंगे।"
-                    : "Send your file before visiting the shop. We'll prepare your print for pickup."}
+                    ? "दुकान आने से पहले अपना दस्तावेज भेजें। हम आपका प्रिंट तैयार रखेंगे ताकि आपको कम इंतजार करना पड़े।"
+                    : "Send your document before visiting the shop. We'll prepare your print so you spend less time waiting."}
                 </p>
               </div>
 
-              {/* Process Steps (1 Upload → 2 Customize → 3 Prepare → 4 Collect) */}
+              {/* Process Steps (1 Send → 2 Choose → 3 Print → 4 Collect) */}
               <div className="grid grid-cols-4 items-center gap-1 py-1.5 px-2 rounded-lg bg-slate-950/40 border border-white/10 text-[10px] text-slate-300 font-semibold text-center">
                 <div className="flex items-center justify-center gap-1">
                   <span className="h-4 w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">1</span>
-                  <span className="truncate">{currentLang === "hi" ? "अपलोड" : "Upload"}</span>
+                  <span className="truncate">{currentLang === "hi" ? "भेजें" : "Send"}</span>
                 </div>
                 <div className="flex items-center justify-center gap-1">
                   <span className="h-4 w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">2</span>
-                  <span className="truncate">{currentLang === "hi" ? "अनुकूलन" : "Customize"}</span>
+                  <span className="truncate">{currentLang === "hi" ? "चुनें" : "Choose"}</span>
                 </div>
                 <div className="flex items-center justify-center gap-1">
                   <span className="h-4 w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">3</span>
-                  <span className="truncate">{currentLang === "hi" ? "तैयारी" : "Prepare"}</span>
+                  <span className="truncate">{currentLang === "hi" ? "प्रिंट" : "Print"}</span>
                 </div>
                 <div className="flex items-center justify-center gap-1">
                   <span className="h-4 w-4 rounded-full bg-emerald-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">4</span>
@@ -202,7 +202,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
               {/* Payment Option Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 
-                {/* Card 1: 🟢 PAY ONLINE */}
+                {/* Card 1: 💳 PAY ONLINE */}
                 <div className="rounded-xl bg-slate-900/80 border border-emerald-500/40 p-3 transition-all duration-200 hover:border-emerald-400 hover:bg-slate-900 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
@@ -215,12 +215,15 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
                     </div>
 
                     <div className="text-xs sm:text-sm font-extrabold text-white">
-                      {currentLang === "hi" ? "🟢 ऑनलाइन भुगतान" : "🟢 PAY ONLINE"}
+                      {currentLang === "hi" ? "💳 ऑनलाइन भुगतान" : "💳 PAY ONLINE"}
                     </div>
-                    <p className="text-[11px] text-slate-300 mt-1 leading-snug">
+                    <p className="text-[11px] font-semibold text-emerald-300 mt-0.5 leading-tight">
+                      {currentLang === "hi" ? "अभी भुगतान करें और लाइन से बचें।" : "Pay now & skip the queue."}
+                    </p>
+                    <p className="text-[10px] text-slate-300 mt-1 leading-snug">
                       {currentLang === "hi"
-                        ? "अभी भुगतान करें और तैयार होने पर प्राप्त करें।"
-                        : "Pay now and collect when ready."}
+                        ? "दस्तावेज अपलोड करें, विकल्प चुनें, ऑनलाइन भुगतान करें और तैयार प्रिंट पाएं।"
+                        : "Upload your document, choose your printing options, pay online, and collect your ready print."}
                     </p>
                   </div>
 
@@ -241,12 +244,12 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
                   </div>
                 </div>
 
-                {/* Card 2: 🟡 PAY AT SHOP */}
+                {/* Card 2: 📄 SEND DOCUMENT */}
                 <div className="rounded-xl bg-slate-900/80 border border-amber-400/40 p-3 transition-all duration-200 hover:border-amber-400 hover:bg-slate-900 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="h-7 w-7 rounded-md bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300">
-                        <Store className="h-3.5 w-3.5" aria-hidden="true" />
+                        <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
                       </div>
                       <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 tracking-wider">
                         {currentLang === "hi" ? "पिकअप पर भुगतान" : "PAY ON PICKUP"}
@@ -254,12 +257,15 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
                     </div>
 
                     <div className="text-xs sm:text-sm font-extrabold text-white">
-                      {currentLang === "hi" ? "🟡 दुकान पर भुगतान" : "🟡 PAY AT SHOP"}
+                      {currentLang === "hi" ? "📄 दस्तावेज भेजें" : "📄 SEND DOCUMENT"}
                     </div>
-                    <p className="text-[11px] text-slate-300 mt-1 leading-snug">
+                    <p className="text-[11px] font-semibold text-amber-300 mt-0.5 leading-tight">
+                      {currentLang === "hi" ? "फाइल अभी भेजें और दुकान पर भुगतान करें।" : "Send your file now & pay at the shop."}
+                    </p>
+                    <p className="text-[10px] text-slate-300 mt-1 leading-snug">
                       {currentLang === "hi"
-                        ? "अभी ऑर्डर करें और लेने पर भुगतान करें।"
-                        : "Order now and pay when you collect."}
+                        ? "दुकान आने से पहले दस्तावेज व आवश्यकताएं भेजें। हम तैयार करेंगे, भुगतान लेने पर करें।"
+                        : "Upload your document and printing requirements before visiting. We'll prepare it, and you can pay when you collect it."}
                     </p>
                   </div>
 
@@ -274,7 +280,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal }) => {
                       }}
                       className="inline-flex items-center gap-1 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors group cursor-pointer"
                     >
-                      <span>{currentLang === "hi" ? "शुरू करें" : "Start"}</span>
+                      <span>{currentLang === "hi" ? "फाइल भेजें" : "Send File"}</span>
                       <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
                     </Link>
                   </div>

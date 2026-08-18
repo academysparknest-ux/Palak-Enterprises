@@ -402,22 +402,26 @@ export const AdminPage: React.FC = () => {
   const unpaidOrdersCount = orders.filter((o) => o.paymentStatus === "pending" || !o.paymentStatus).length;
 
   // Payments & Revenue Financial Analytics
-  const isPaidOrder = (o: StoredOrder) => o.paymentStatus === "confirmed" || o.paymentStatus === "paid";
-  const paidOrders = orders.filter(isPaidOrder);
-  const totalRevenueCollected = paidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  const onlinePaidOrders = paidOrders.filter((o) => o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online");
-  const onlineRevenueCollected = onlinePaidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  const unpaidOrdersList = orders.filter((o) => o.paymentStatus === "pending" || !o.paymentStatus);
-  const pendingReceivablesAmount = unpaidOrdersList.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  const todayPaidOrders = paidOrders.filter((o) => isToday(o.createdAt));
-  const todayRevenue = todayPaidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  const avgTicketValue = paidOrders.length > 0 ? Math.round(totalRevenueCollected / paidOrders.length) : 0;
-
   const extractRazorpayId = (notes?: string): string | null => {
     if (!notes) return null;
     const match = notes.match(/\[Razorpay ID:\s*([a-zA-Z0-9_]+)\]/i) || notes.match(/(pay_[a-zA-Z0-9_]+)/i);
     return match ? match[1] : null;
   };
+
+  const isPaidOrder = (o: StoredOrder) =>
+    o.paymentStatus === "confirmed" ||
+    o.paymentStatus === "paid" ||
+    (Boolean(extractRazorpayId(o.orderNotes)) && (o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online"));
+
+  const paidOrders = orders.filter(isPaidOrder);
+  const totalRevenueCollected = paidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  const onlinePaidOrders = paidOrders.filter((o) => o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online");
+  const onlineRevenueCollected = onlinePaidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  const unpaidOrdersList = orders.filter((o) => !isPaidOrder(o));
+  const pendingReceivablesAmount = unpaidOrdersList.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  const todayPaidOrders = paidOrders.filter((o) => isToday(o.createdAt));
+  const todayRevenue = todayPaidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  const avgTicketValue = paidOrders.length > 0 ? Math.round(totalRevenueCollected / paidOrders.length) : 0;
 
   const isWithinPastDays = (dateStr: string, days: number) => {
     const d = new Date(dateStr).getTime();
@@ -440,7 +444,7 @@ export const AdminPage: React.FC = () => {
     if (paymentStatusFilter === "PAID") {
       matchesStatus = isPaid;
     } else if (paymentStatusFilter === "PENDING") {
-      matchesStatus = o.paymentStatus === "pending" || !o.paymentStatus;
+      matchesStatus = !isPaid;
     } else if (paymentStatusFilter === "FAILED") {
       matchesStatus = o.paymentStatus === "failed" || o.paymentStatus === "refunded";
     }

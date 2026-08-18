@@ -265,7 +265,12 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
             setIsSubmitting(false);
           },
           onError: (err) => {
-            setErrorMsg(err?.description || "Online payment was cancelled. You can retry or choose 'Pay at Shop'.");
+            setErrorMsg(
+              err?.description ||
+                (language === "hi"
+                  ? "ऑनलाइन भुगतान रद्द हुआ। आप पुनः प्रयास कर सकते हैं या 'दस्तावेज भेजें (दुकान पर भुगतान)' चुन सकते हैं।"
+                  : "Online payment was cancelled. You can retry or choose 'Send Document (Pay on Pickup)'.")
+            );
             setIsSubmitting(false);
           },
         });
@@ -514,12 +519,14 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
               {/* Document Upload */}
               <div>
                 <label htmlFor="req-file-input" className="block text-xs font-bold text-slate-700 mb-1">
-                  {t.requestForm.fileLabel}
+                  {file
+                    ? (language === "hi" ? "चयनित दस्तावेज (Document Selected):" : "Document Selected:")
+                    : t.requestForm.fileLabel}
                 </label>
                 {file ? (
                   <div className="flex items-center justify-between gap-3 p-3 bg-blue-50/80 rounded-xl border border-blue-200">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-base shrink-0">📎</span>
+                      <span className="text-base shrink-0">📄</span>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-navy truncate">
                           {sanitizeFilename(file.name)}
@@ -529,19 +536,34 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFile(null);
-                        const input = document.getElementById("req-file-input") as HTMLInputElement;
-                        if (input) input.value = "";
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-brandred text-xs font-bold transition-colors shrink-0 cursor-pointer"
-                      aria-label={language === "hi" ? "फाइल हटाएं" : "Remove file"}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>{language === "hi" ? "हटाएं" : "Remove"}</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <label
+                        htmlFor="req-file-input-change"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                      >
+                        <span>{language === "hi" ? "फाइल बदलें" : "Change File"}</span>
+                        <input
+                          id="req-file-input-change"
+                          type="file"
+                          onChange={handleFileChange}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          className="sr-only"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFile(null);
+                          const input = document.getElementById("req-file-input") as HTMLInputElement;
+                          if (input) input.value = "";
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors cursor-pointer"
+                        aria-label={language === "hi" ? "फाइल हटाएं" : "Remove file"}
+                        title={language === "hi" ? "फाइल हटाएं" : "Remove file"}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 bg-slate-50 hover:bg-slate-100 transition-colors text-center cursor-pointer relative">
@@ -667,15 +689,15 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                     />
                     <div>
                       <div className="text-xs font-bold flex items-center gap-1.5">
-                        <span>{language === "hi" ? "दुकान पर भुगतान" : "Pay at Shop Counter"}</span>
+                        <span>{language === "hi" ? "दस्तावेज भेजें (दुकान पर भुगतान)" : "Send Document (Pay on Pickup)"}</span>
                         <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-amber-600 text-white rounded-full">
-                          {language === "hi" ? "दुकान पर" : "AT SHOP"}
+                          {language === "hi" ? "पिकअप पर भुगतान" : "PAY ON PICKUP"}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
                         {language === "hi"
-                          ? "दुकान (ब्लॉक गेट, चकिया) पहुँचकर काउंटर पर भुगतान करें"
-                          : "Collect and pay at the shop counter (Near Block Gate, Chakia)"}
+                          ? "दुकान आने से पहले दस्तावेज भेजें। हम प्रिंट तैयार करेंगे और आप लेने पर भुगतान करें।"
+                          : "Send your file now. We'll prepare your print. Pay when you collect it."}
                       </p>
                     </div>
                   </label>
