@@ -7,6 +7,7 @@ import { getWhatsAppLink } from "../config/business";
 import { PalakDataStore } from "../lib/storage/store";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { uploadOrderFile } from "../lib/supabase/database";
+import { initiateRazorpayPayment } from "../lib/razorpay";
 import { X, Upload, CheckCircle2, MessageSquare, Phone, Send, AlertTriangle, ShieldCheck, Eye } from "lucide-react";
 
 interface ServiceRequestModalProps {
@@ -177,71 +178,103 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 
       const estimatedFee = (currentSelectedService as any)?.price?.startingFrom || 0;
 
-      // 1. Sync to local store fallback
-      try {
-        PalakDataStore.createServiceRequest({
-          requestCode,
-          serviceId: currentSelectedService?.id || "general-service",
-          serviceName,
-          customerName: name.trim(),
-          customerPhone: phone.trim(),
-          preferredContact: preferredContact === "call" ? "phone" : "whatsapp",
-          applicantDetails: {
-            quantity: String(quantity),
-            colorMode,
-            paymentPreference,
-            serviceSlug: currentSelectedService?.slug || "",
-          },
-          uploadedDocumentUrls: fileUrl ? [fileUrl] : [],
-          uploadedDocumentNames: fileName ? [fileName] : [],
-          additionalNotes: instructions.trim() || undefined,
-          estimatedFee,
-          requestStatus: "NEW",
-        });
-      } catch (err) {
-        console.warn("Local fallback note:", err);
-      }
+      const processRequestSave = async (razorpayPaymentId?: string) => {
+        const finalInstructions = razorpayPaymentId
+          ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
+          : (instructions.trim() || undefined);
 
-      // 2. Persist to Supabase Database
-      if (isSupabaseConfigured && supabase) {
-        const { error: dbErr } = await supabase.from("service_requests").insert({
-          request_code: requestCode,
-          service_id: currentSelectedService?.id || "general-service",
-          service_name: serviceName,
-          customer_name: name.trim(),
-          customer_phone: phone.trim(),
-          preferred_contact: preferredContact === "call" ? "phone" : "whatsapp",
-          applicant_details: {
-            quantity: String(quantity),
-            colorMode,
-            paymentPreference,
-          },
-          uploaded_document_urls: fileUrl ? [fileUrl] : [],
-          additional_notes: instructions.trim() || null,
-          estimatedFee,
-          request_status: "NEW",
-        });
-
-        if (dbErr) {
-          console.warn("Supabase service request insert notice:", dbErr);
-        } else {
-          await supabase.from("status_history").insert({
-            entity_type: "service_request",
-            entity_code: requestCode,
-            new_status: "NEW",
-            message_en: `Service request received for ${serviceName}.`,
-            message_hi: `${serviceName} के लिए सेवा अनुरोध प्राप्त हुआ।`,
-            performed_by: "Online Customer",
+        // 1. Sync to local store fallback
+        try {
+          PalakDataStore.createServiceRequest({
+            requestCode,
+            serviceId: currentSelectedService?.id || "general-service",
+            serviceName,
+            customerName: name.trim(),
+            customerPhone: phone.trim(),
+            preferredContact: preferredContact === "call" ? "phone" : "whatsapp",
+            applicantDetails: {
+              quantity: String(quantity),
+              colorMode,
+              paymentPreference,
+              paymentId: razorpayPaymentId || "",
+              serviceSlug: currentSelectedService?.slug || "",
+            },
+            uploadedDocumentUrls: fileUrl ? [fileUrl] : [],
+            uploadedDocumentNames: fileName ? [fileName] : [],
+            additionalNotes: finalInstructions,
+            estimatedFee,
+            requestStatus: "NEW",
           });
+        } catch (err) {
+          console.warn("Local fallback note:", err);
         }
-      }
 
-      setSubmittedCode(requestCode);
-      setIsSuccess(true);
+        // 2. Persist to Supabase Database
+        if (isSupabaseConfigured && supabase) {
+          const { error: dbErr } = await supabase.from("service_requests").insert({
+            request_code: requestCode,
+            service_id: currentSelectedService?.id || "general-service",
+            service_name: serviceName,
+            customer_name: name.trim(),
+            customer_phone: phone.trim(),
+            preferred_contact: preferredContact === "call" ? "phone" : "whatsapp",
+            applicant_details: {
+              quantity: String(quantity),
+              colorMode,
+              paymentPreference,
+              paymentId: razorpayPaymentId,
+            },
+            uploaded_document_urls: fileUrl ? [fileUrl] : [],
+            additional_notes: finalInstructions || null,
+            estimatedFee,
+            request_status: "NEW",
+          });
+
+          if (dbErr) {
+            console.warn("Supabase service request insert notice:", dbErr);
+          } else {
+            await supabase.from("status_history").insert({
+              entity_type: "service_request",
+              entity_code: requestCode,
+              new_status: "NEW",
+              message_en: `Service request received for ${serviceName}.${razorpayPaymentId ? " Online payment confirmed." : ""}`,
+              message_hi: `${serviceName} के लिए सेवा अनुरोध प्राप्त हुआ।${razorpayPaymentId ? " ऑनलाइन भुगतान सफल रहा।" : ""}`,
+              performed_by: "Online Customer",
+            });
+          }
+        }
+
+        setSubmittedCode(requestCode);
+        setIsSuccess(true);
+        setIsSubmitting(false);
+      };
+
+      if (paymentPreference === "pay_online" && estimatedFee > 0) {
+        await initiateRazorpayPayment({
+          amount: estimatedFee,
+          name: "Palak Enterprises",
+          description: `Service Request: ${serviceName}`,
+          prefill: {
+            name: name.trim(),
+            contact: phone.trim(),
+          },
+          onSuccess: async (paymentId) => {
+            await processRequestSave(paymentId);
+          },
+          onDismiss: () => {
+            setIsSubmitting(false);
+          },
+          onError: (err) => {
+            setErrorMsg(err?.description || "Online payment was cancelled. You can retry or choose 'Pay at Shop'.");
+            setIsSubmitting(false);
+          },
+        });
+      } else {
+        await processRequestSave();
+      }
     } catch (err: any) {
       console.error("Service request error:", err);
       setErrorMsg(err.message || "Failed to submit request. Please try again.");
-    } finally {
       setIsSubmitting(false);
     }
   };

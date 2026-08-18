@@ -27,6 +27,7 @@ import {
   submitPrintOrder,
   uploadOrderFile,
 } from "../../lib/supabase/database";
+import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { cn } from "../../lib/utils";
 
@@ -397,70 +398,101 @@ export const DocumentPrintingPage: React.FC = () => {
         Copies: `${copies}`,
       };
 
-      // 3. Submit Print Order
-      const res = await submitPrintOrder({
-        serviceId: "document-printing",
-        serviceName: "Document Printing",
-        documentType: getDocTypeLabel(),
-        customerName: customerName.trim(),
-        customerPhone: cleanPhone,
-        customerWhatsApp: customerWhatsApp.trim() || undefined,
-        customerEmail: customerEmail.trim() || undefined,
-        instructions: instructions.trim() || undefined,
-        userId: user?.id,
-        paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
-        paymentStatus: "pending",
-        pricingSnapshot: {
-          unitPrice: priceResult.unitPrice,
-          subtotal: priceResult.subtotal,
-          totalAmount: priceResult.total,
-          breakdown: priceResult.breakdown,
-        },
-        options: {
-          paperSize,
-          colorMode,
-          sides,
-          orientation,
-          copies,
-          pageRangeType,
-          customPageRange,
-          pagesToPrint: priceResult.pagesToPrint,
-        },
-        optionsLabels: specifications,
-        finishingOptions: {
-          spiralBinding,
-          combBinding,
-          lamination,
-          stapling,
-        },
-        file: {
-          name: combinedFileName,
-          size: totalSizeBytes,
-          url: primaryFile.url,
-          storagePath: primaryFile.storagePath,
-          pageCount: priceResult.pagesToPrint,
-          mimeType: uploadedFiles[0]?.file?.type || "application/pdf",
-        },
-      });
+      // 3. Helper to create order
+      const processOrderCreation = async (razorpayPaymentId?: string) => {
+        const orderNotesWithPayment = razorpayPaymentId
+          ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
+          : (instructions.trim() || undefined);
 
-      if (res.success) {
-        setSuccessData({
-          isOpen: true,
-          orderCode: res.orderCode,
-          totalAmount: priceResult.total,
-          docType: getDocTypeLabel(),
-          specifications,
-          finishingSelected: finishingList,
-          paymentMethod,
-          paymentStatus: "pending",
+        const res = await submitPrintOrder({
+          serviceId: "document-printing",
+          serviceName: "Document Printing",
+          documentType: getDocTypeLabel(),
+          customerName: customerName.trim(),
+          customerPhone: cleanPhone,
+          customerWhatsApp: customerWhatsApp.trim() || undefined,
+          customerEmail: customerEmail.trim() || undefined,
+          instructions: orderNotesWithPayment,
+          userId: user?.id,
+          paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
+          paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          pricingSnapshot: {
+            unitPrice: priceResult.unitPrice,
+            subtotal: priceResult.subtotal,
+            totalAmount: priceResult.total,
+            breakdown: priceResult.breakdown,
+          },
+          options: {
+            paperSize,
+            colorMode,
+            sides,
+            orientation,
+            copies,
+            pageRangeType,
+            customPageRange,
+            pagesToPrint: priceResult.pagesToPrint,
+          },
+          optionsLabels: specifications,
+          finishingOptions: {
+            spiralBinding,
+            combBinding,
+            lamination,
+            stapling,
+          },
+          file: {
+            name: combinedFileName,
+            size: totalSizeBytes,
+            url: primaryFile.url,
+            storagePath: primaryFile.storagePath,
+            pageCount: priceResult.pagesToPrint,
+            mimeType: uploadedFiles[0]?.file?.type || "application/pdf",
+          },
+        });
+
+        if (res.success) {
+          setSuccessData({
+            isOpen: true,
+            orderCode: res.orderCode,
+            totalAmount: priceResult.total,
+            docType: getDocTypeLabel(),
+            specifications,
+            finishingSelected: finishingList,
+            paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_shop",
+            paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          });
+        } else {
+          setSubmitError(res.error || "Failed to submit order. Please try again.");
+        }
+        setSubmitting(false);
+      };
+
+      if (paymentMethod === "pay_online") {
+        await initiateRazorpayPayment({
+          amount: priceResult.total,
+          name: "Palak Enterprises",
+          description: `Document Print Order (${priceResult.pagesToPrint * copies} pages)`,
+          prefill: {
+            name: customerName.trim(),
+            email: customerEmail.trim(),
+            contact: cleanPhone,
+          },
+          onSuccess: async (paymentId) => {
+            await processOrderCreation(paymentId);
+          },
+          onDismiss: () => {
+            setSubmitting(false);
+          },
+          onError: (err) => {
+            setSubmitError(err?.description || "Online payment was cancelled. You can retry or choose 'Pay at Shop Counter'.");
+            setSubmitting(false);
+          },
         });
       } else {
-        setSubmitError(res.error || "Failed to submit order. Please try again.");
+        await processOrderCreation();
       }
     } catch (err: any) {
       console.error("Order submission exception:", err);
       setSubmitError(err.message || "An unexpected error occurred.");
-    } finally {
       setSubmitting(false);
     }
   };

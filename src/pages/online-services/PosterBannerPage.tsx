@@ -11,6 +11,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
+import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { cn } from "../../lib/utils";
 
@@ -167,56 +168,86 @@ export const PosterBannerPage: React.FC = () => {
         QuoteType: isStandardPricing ? "Direct Order" : "Custom Quote Request",
       };
 
-      const res = await submitPrintOrder({
-        serviceId: "poster-banner",
-        serviceName: "Poster & Banner Printing",
-        documentType: `Poster / Banner (${sizeObj.label})`,
-        customerName: customerName.trim(),
-        customerPhone: cleanPhone,
-        instructions: instructions.trim() || undefined,
-        userId: user?.id,
-        paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
-        paymentStatus: "pending",
-        pricingSnapshot: {
-          unitPrice,
-          subtotal: totalAmount,
-          totalAmount,
-          breakdown: { isStandardPricing, unitPrice, quantity },
-        },
-        options: {
-          size: selectedSize,
-          customSizeText: selectedSize === "custom" ? customSizeText : undefined,
-          material: selectedMaterial,
-          finish,
-          quantity,
-          isStandardPricing,
-        },
-        optionsLabels: specifications,
-        file: {
-          name: uploadedFile.name,
-          size: uploadedFile.size,
-          url: fileUrl,
-          storagePath,
-          mimeType: uploadedFile.file.type,
-        },
-      });
+      const processPosterOrder = async (razorpayPaymentId?: string) => {
+        const orderNotesWithPayment = razorpayPaymentId
+          ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
+          : (instructions.trim() || undefined);
 
-      if (res.success) {
-        setSuccessData({
-          isOpen: true,
-          orderCode: res.orderCode,
-          totalAmount,
-          specifications,
-          paymentMethod,
-          paymentStatus: "pending",
+        const res = await submitPrintOrder({
+          serviceId: "poster-banner",
+          serviceName: "Poster & Banner Printing",
+          documentType: `Poster / Banner (${sizeObj.label})`,
+          customerName: customerName.trim(),
+          customerPhone: cleanPhone,
+          instructions: orderNotesWithPayment,
+          userId: user?.id,
+          paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
+          paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          pricingSnapshot: {
+            unitPrice,
+            subtotal: totalAmount,
+            totalAmount,
+            breakdown: { isStandardPricing, unitPrice, quantity },
+          },
+          options: {
+            size: selectedSize,
+            customSizeText: selectedSize === "custom" ? customSizeText : undefined,
+            material: selectedMaterial,
+            finish,
+            quantity,
+            isStandardPricing,
+          },
+          optionsLabels: specifications,
+          file: {
+            name: uploadedFile.name,
+            size: uploadedFile.size,
+            url: fileUrl,
+            storagePath,
+            mimeType: uploadedFile.file.type,
+          },
+        });
+
+        if (res.success) {
+          setSuccessData({
+            isOpen: true,
+            orderCode: res.orderCode,
+            totalAmount,
+            specifications,
+            paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_shop",
+            paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          });
+        } else {
+          setSubmitError(res.error || "Failed to submit request.");
+        }
+        setSubmitting(false);
+      };
+
+      if (paymentMethod === "pay_online" && isStandardPricing && totalAmount > 0) {
+        await initiateRazorpayPayment({
+          amount: totalAmount,
+          name: "Palak Enterprises",
+          description: `Poster/Banner Order (${sizeObj.label})`,
+          prefill: {
+            name: customerName.trim(),
+            contact: cleanPhone,
+          },
+          onSuccess: async (paymentId) => {
+            await processPosterOrder(paymentId);
+          },
+          onDismiss: () => {
+            setSubmitting(false);
+          },
+          onError: (err) => {
+            setSubmitError(err?.description || "Online payment was cancelled. You can retry or choose 'Pay at Shop Counter'.");
+            setSubmitting(false);
+          },
         });
       } else {
-        setSubmitError(res.error || "Failed to submit request.");
+        await processPosterOrder();
       }
     } catch (err: any) {
       console.error("Poster order exception:", err);
       setSubmitError(err.message || "An unexpected error occurred.");
-    } finally {
       setSubmitting(false);
     }
   };

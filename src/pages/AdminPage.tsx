@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Package,
   Globe,
@@ -19,6 +19,15 @@ import {
   X,
   CreditCard,
   History,
+  TrendingUp,
+  Wallet,
+  Receipt,
+  Download,
+  ExternalLink,
+  Copy,
+  Check,
+  Filter,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -56,9 +65,19 @@ import { cn } from "../lib/utils";
 
 export const AdminPage: React.FC = () => {
   const { user, isStaff, logout } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get("tab") as any) || "orders";
 
-  const [activeTab, setActiveTab] = useState<"orders" | "pricing" | "services" | "quotes" | "designs">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "payments" | "pricing" | "services" | "quotes" | "designs">(
+    ["orders", "payments", "pricing", "services", "quotes", "designs"].includes(initialTab) ? initialTab : "orders"
+  );
   const [loading, setLoading] = useState(false);
+
+  // Sync tab with URL search parameter if user navigates
+  const handleSelectTab = (tab: "orders" | "payments" | "pricing" | "services" | "quotes" | "designs") => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   const [orders, setOrders] = useState<StoredOrder[]>([]);
   const [serviceRequests, setServiceRequests] = useState<StoredServiceRequest[]>([]);
@@ -72,6 +91,13 @@ export const AdminPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [quickFilter, setQuickFilter] = useState<"ALL" | "TODAY" | "NEW" | "IN_PRODUCTION" | "READY_FOR_PICKUP" | "COMPLETED" | "UNPAID">("ALL");
+
+  // Search & Filter for Payments Dashboard
+  const [paymentSearchQuery, setPaymentSearchQuery] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<"ALL" | "PAID" | "PENDING" | "FAILED">("ALL");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<"ALL" | "ONLINE" | "SHOP">("ALL");
+  const [paymentDateFilter, setPaymentDateFilter] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL");
+  const [copiedPaymentId, setCopiedPaymentId] = useState<string | null>(null);
 
   // Selected Order Drawer / Modal State
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<StoredOrder | null>(null);
@@ -375,6 +401,106 @@ export const AdminPage: React.FC = () => {
   const completedOrdersCount = orders.filter((o) => o.orderStatus === "COMPLETED").length;
   const unpaidOrdersCount = orders.filter((o) => o.paymentStatus === "pending" || !o.paymentStatus).length;
 
+  // Payments & Revenue Financial Analytics
+  const isPaidOrder = (o: StoredOrder) => o.paymentStatus === "confirmed" || o.paymentStatus === "paid";
+  const paidOrders = orders.filter(isPaidOrder);
+  const totalRevenueCollected = paidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  const onlinePaidOrders = paidOrders.filter((o) => o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online");
+  const onlineRevenueCollected = onlinePaidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  const unpaidOrdersList = orders.filter((o) => o.paymentStatus === "pending" || !o.paymentStatus);
+  const pendingReceivablesAmount = unpaidOrdersList.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  const todayPaidOrders = paidOrders.filter((o) => isToday(o.createdAt));
+  const todayRevenue = todayPaidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+  const avgTicketValue = paidOrders.length > 0 ? Math.round(totalRevenueCollected / paidOrders.length) : 0;
+
+  const extractRazorpayId = (notes?: string): string | null => {
+    if (!notes) return null;
+    const match = notes.match(/\[Razorpay ID:\s*([a-zA-Z0-9_]+)\]/i) || notes.match(/(pay_[a-zA-Z0-9_]+)/i);
+    return match ? match[1] : null;
+  };
+
+  const isWithinPastDays = (dateStr: string, days: number) => {
+    const d = new Date(dateStr).getTime();
+    const now = Date.now();
+    return now - d <= days * 24 * 60 * 60 * 1000;
+  };
+
+  const filteredPaymentOrders = orders.filter((o) => {
+    const q = paymentSearchQuery.toLowerCase().trim();
+    const rzpId = (extractRazorpayId(o.orderNotes) || "").toLowerCase();
+    const matchesSearch =
+      !q ||
+      o.orderCode.toLowerCase().includes(q) ||
+      o.customerName.toLowerCase().includes(q) ||
+      o.customerPhone.includes(q) ||
+      rzpId.includes(q);
+
+    let matchesStatus = true;
+    const isPaid = isPaidOrder(o);
+    if (paymentStatusFilter === "PAID") {
+      matchesStatus = isPaid;
+    } else if (paymentStatusFilter === "PENDING") {
+      matchesStatus = o.paymentStatus === "pending" || !o.paymentStatus;
+    } else if (paymentStatusFilter === "FAILED") {
+      matchesStatus = o.paymentStatus === "failed" || o.paymentStatus === "refunded";
+    }
+
+    let matchesMethod = true;
+    const isOnline = o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online";
+    if (paymentMethodFilter === "ONLINE") {
+      matchesMethod = isOnline;
+    } else if (paymentMethodFilter === "SHOP") {
+      matchesMethod = !isOnline;
+    }
+
+    let matchesDate = true;
+    if (paymentDateFilter === "TODAY") {
+      matchesDate = isToday(o.createdAt);
+    } else if (paymentDateFilter === "WEEK") {
+      matchesDate = isWithinPastDays(o.createdAt, 7);
+    } else if (paymentDateFilter === "MONTH") {
+      matchesDate = isWithinPastDays(o.createdAt, 30);
+    }
+
+    return matchesSearch && matchesStatus && matchesMethod && matchesDate;
+  });
+
+  const exportPaymentsCSV = () => {
+    const headers = [
+      "Order Code",
+      "Date & Time",
+      "Customer Name",
+      "Customer Phone",
+      "Service / Items",
+      "Total Amount (INR)",
+      "Payment Method",
+      "Payment Status",
+      "Razorpay Payment ID",
+    ];
+    const rows = filteredPaymentOrders.map((o) => [
+      o.orderCode,
+      new Date(o.createdAt).toLocaleString("en-IN"),
+      `"${(o.customerName || "").replace(/"/g, '""')}"`,
+      `"${o.customerPhone || ""}"`,
+      `"${(o.items?.map((i) => i.productName).join("; ") || "Print Job").replace(/"/g, '""')}"`,
+      o.totalAmount,
+      o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online"
+        ? "Online (Razorpay UPI/Cards)"
+        : "Pay at Shop Counter",
+      isPaidOrder(o) ? "PAID" : "PENDING",
+      extractRazorpayId(o.orderNotes) || "N/A",
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `palak_payments_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Filtered Orders
   const filteredOrders = orders.filter((o) => {
     const q = searchQuery.toLowerCase().trim();
@@ -444,9 +570,9 @@ export const AdminPage: React.FC = () => {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-6 space-y-6">
         {/* KPI Counter Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <button
-            onClick={() => setActiveTab("orders")}
+            onClick={() => handleSelectTab("orders")}
             className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
               activeTab === "orders" ? "bg-white border-[#123B70] shadow-md ring-2 ring-[#123B70]/20" : "bg-white/80 border-slate-200 hover:bg-white"
             }`}
@@ -456,10 +582,27 @@ export const AdminPage: React.FC = () => {
               <Package className="h-4 w-4 text-[#123B70]" />
             </div>
             <div className="text-2xl font-black text-slate-900 mt-1">{orders.length}</div>
+            <div className="text-[11px] text-amber-600 font-semibold mt-1">{newOrdersCount} pending review</div>
           </button>
 
           <button
-            onClick={() => setActiveTab("pricing")}
+            onClick={() => handleSelectTab("payments")}
+            className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+              activeTab === "payments" ? "bg-white border-emerald-600 shadow-md ring-2 ring-emerald-600/20" : "bg-white/80 border-slate-200 hover:bg-white"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">Payments & Revenue</span>
+              <Wallet className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="text-2xl font-black text-emerald-700 mt-1">₹{totalRevenueCollected.toLocaleString("en-IN")}</div>
+            <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+              ₹{onlineRevenueCollected.toLocaleString("en-IN")} Online • ₹{pendingReceivablesAmount.toLocaleString("en-IN")} Pending
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleSelectTab("pricing")}
             className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
               activeTab === "pricing" ? "bg-white border-blue-600 shadow-md ring-2 ring-blue-600/20" : "bg-white/80 border-slate-200 hover:bg-white"
             }`}
@@ -468,11 +611,12 @@ export const AdminPage: React.FC = () => {
               <span className="text-xs font-bold text-slate-500">Print Pricing</span>
               <Settings className="h-4 w-4 text-blue-600" />
             </div>
-            <div className="text-xs font-bold text-emerald-600 mt-2">Active Rates</div>
+            <div className="text-2xl font-black text-slate-900 mt-1">Engine</div>
+            <div className="text-[11px] text-blue-600 font-semibold mt-1">Active Rates</div>
           </button>
 
           <button
-            onClick={() => setActiveTab("services")}
+            onClick={() => handleSelectTab("services")}
             className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
               activeTab === "services" ? "bg-white border-amber-500 shadow-md ring-2 ring-amber-500/20" : "bg-white/80 border-slate-200 hover:bg-white"
             }`}
@@ -482,23 +626,25 @@ export const AdminPage: React.FC = () => {
               <Globe className="h-4 w-4 text-amber-600" />
             </div>
             <div className="text-2xl font-black text-slate-900 mt-1">{serviceRequests.length}</div>
+            <div className="text-[11px] text-amber-600 font-semibold mt-1">Citizen Requests</div>
           </button>
 
           <button
-            onClick={() => setActiveTab("quotes")}
+            onClick={() => handleSelectTab("quotes")}
             className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-              activeTab === "quotes" ? "bg-white border-emerald-600 shadow-md ring-2 ring-emerald-600/20" : "bg-white/80 border-slate-200 hover:bg-white"
+              activeTab === "quotes" ? "bg-white border-teal-600 shadow-md ring-2 ring-teal-600/20" : "bg-white/80 border-slate-200 hover:bg-white"
             }`}
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500">Quote Inquiries</span>
-              <FileText className="h-4 w-4 text-emerald-600" />
+              <FileText className="h-4 w-4 text-teal-600" />
             </div>
             <div className="text-2xl font-black text-slate-900 mt-1">{quoteRequests.length}</div>
+            <div className="text-[11px] text-teal-600 font-semibold mt-1">Custom Orders</div>
           </button>
 
           <button
-            onClick={() => setActiveTab("designs")}
+            onClick={() => handleSelectTab("designs")}
             className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
               activeTab === "designs" ? "bg-white border-purple-600 shadow-md ring-2 ring-purple-600/20" : "bg-white/80 border-slate-200 hover:bg-white"
             }`}
@@ -508,6 +654,7 @@ export const AdminPage: React.FC = () => {
               <Palette className="h-4 w-4 text-purple-600" />
             </div>
             <div className="text-2xl font-black text-slate-900 mt-1">{designRequests.length}</div>
+            <div className="text-[11px] text-purple-600 font-semibold mt-1">Proofs & Layouts</div>
           </button>
         </div>
 
@@ -891,6 +1038,461 @@ export const AdminPage: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Payments & Revenue Dashboard */}
+        {activeTab === "payments" && (
+          <div className="space-y-6 animate-fadeUp">
+            {/* Financial Overview Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {/* Total Revenue Collected */}
+              <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/40 p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">Total Collected</span>
+                  <div className="h-8 w-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-950 mt-2">
+                  ₹{totalRevenueCollected.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-emerald-700 font-semibold mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>{paidOrders.length} Paid Order{paidOrders.length === 1 ? "" : "s"}</span>
+                </div>
+              </div>
+
+              {/* Online Razorpay Payments */}
+              <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/90 via-white to-blue-50/40 p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#123B70]">Online (Razorpay)</span>
+                  <div className="h-8 w-8 rounded-xl bg-[#123B70] text-white flex items-center justify-center shadow-xs">
+                    <CreditCard className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
+                  ₹{onlineRevenueCollected.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-blue-700 font-semibold mt-1">
+                  {onlinePaidOrders.length} Online ({paidOrders.length ? Math.round((onlinePaidOrders.length / paidOrders.length) * 100) : 0}% of revenue)
+                </div>
+              </div>
+
+              {/* Pending Receivables (Pay at Shop) */}
+              <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/90 via-white to-amber-50/40 p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-800">Pending at Shop</span>
+                  <div className="h-8 w-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-amber-950 mt-2">
+                  ₹{pendingReceivablesAmount.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-amber-700 font-semibold mt-1">
+                  {unpaidOrdersList.length} Orders to collect at counter
+                </div>
+              </div>
+
+              {/* Today's Collections */}
+              <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50/90 via-white to-purple-50/40 p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-purple-800">Today's Revenue</span>
+                  <div className="h-8 w-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                    <Receipt className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-purple-950 mt-2">
+                  ₹{todayRevenue.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-purple-700 font-semibold mt-1">
+                  {todayPaidOrders.length} Paid Order{todayPaidOrders.length === 1 ? "" : "s"} Today
+                </div>
+              </div>
+
+              {/* Average Order Value */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Avg Ticket Value</span>
+                  <div className="h-8 w-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+                    <Wallet className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
+                  ₹{avgTicketValue.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-slate-500 font-semibold mt-1">
+                  Per paid transaction
+                </div>
+              </div>
+            </div>
+
+            {/* Gateway Configuration & Quick Status Banner */}
+            <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-900 via-[#123B70] to-indigo-950 text-white p-5 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>Razorpay Payment Gateway Active</span>
+                    </span>
+                    <span className="rounded-full bg-amber-400/20 border border-amber-300/30 px-2 py-0.5 text-[10px] font-black text-amber-300 uppercase tracking-wide">
+                      Test Mode
+                    </span>
+                  </div>
+                  <h3 className="text-base font-extrabold text-white">
+                    Razorpay Online Payments & Counter Collections Ledger
+                  </h3>
+                  <p className="text-xs text-blue-200/90 leading-relaxed max-w-2xl">
+                    Online orders processed through UPI, QR codes, debit/credit cards, and netbanking are tagged with official Razorpay Payment IDs. In-store collections can be marked as Paid with one click.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <a
+                    href="https://dashboard.razorpay.com/app/payments"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-xs"
+                  >
+                    <span>Razorpay Dashboard</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                  <button
+                    onClick={() => loadData()}
+                    disabled={loading}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-xs cursor-pointer"
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                    <span>Refresh Ledger</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter, Search & Export Toolbar */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                {/* Search Bar */}
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={paymentSearchQuery}
+                    onChange={(e) => setPaymentSearchQuery(e.target.value)}
+                    placeholder="Search by Order ID, Customer Name, Phone, or Razorpay ID (pay_xxx)..."
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:border-[#123B70] focus:outline-hidden"
+                  />
+                  {paymentSearchQuery && (
+                    <button
+                      onClick={() => setPaymentSearchQuery("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* Export CSV Button */}
+                <button
+                  onClick={exportPaymentsCSV}
+                  disabled={filteredPaymentOrders.length === 0}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
+                >
+                  <Download className="h-4 w-4 text-slate-600" />
+                  <span>Export CSV ({filteredPaymentOrders.length})</span>
+                </button>
+              </div>
+
+              {/* Filter Pills */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                {/* Status Filters */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-500 mr-1 flex items-center gap-1">
+                    <Filter className="h-3 w-3" />
+                    <span>Status:</span>
+                  </span>
+
+                  <button
+                    onClick={() => setPaymentStatusFilter("ALL")}
+                    className={cn(
+                      "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                      paymentStatusFilter === "ALL"
+                        ? "bg-[#123B70] text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    )}
+                  >
+                    All ({orders.length})
+                  </button>
+
+                  <button
+                    onClick={() => setPaymentStatusFilter("PAID")}
+                    className={cn(
+                      "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                      paymentStatusFilter === "PAID"
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60"
+                    )}
+                  >
+                    ✓ Paid ({paidOrders.length})
+                  </button>
+
+                  <button
+                    onClick={() => setPaymentStatusFilter("PENDING")}
+                    className={cn(
+                      "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                      paymentStatusFilter === "PENDING"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/60"
+                    )}
+                  >
+                    ⏳ Pending ({unpaidOrdersList.length})
+                  </button>
+                </div>
+
+                {/* Method & Timeframe Filters */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] font-bold text-slate-500 mr-1">Method:</span>
+                    <select
+                      value={paymentMethodFilter}
+                      onChange={(e) => setPaymentMethodFilter(e.target.value as any)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-hidden"
+                    >
+                      <option value="ALL">All Methods</option>
+                      <option value="ONLINE">⚡ Online (Razorpay / UPI)</option>
+                      <option value="SHOP">🏪 Pay at Shop Counter</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] font-bold text-slate-500 mr-1">Time:</span>
+                    <select
+                      value={paymentDateFilter}
+                      onChange={(e) => setPaymentDateFilter(e.target.value as any)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-hidden"
+                    >
+                      <option value="ALL">All Time</option>
+                      <option value="TODAY">Today</option>
+                      <option value="WEEK">Past 7 Days</option>
+                      <option value="MONTH">Past 30 Days</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Transactions Ledger Table */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Payment Transactions Ledger ({filteredPaymentOrders.length})
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Filtered Total: <strong className="text-emerald-700">₹{filteredPaymentOrders.filter(isPaidOrder).reduce((s, o) => s + Number(o.totalAmount || 0), 0).toLocaleString("en-IN")}</strong> paid &amp; <strong className="text-amber-700">₹{filteredPaymentOrders.filter((o) => !isPaidOrder(o)).reduce((s, o) => s + Number(o.totalAmount || 0), 0).toLocaleString("en-IN")}</strong> pending
+                  </p>
+                </div>
+              </div>
+
+              {filteredPaymentOrders.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-700 divide-y divide-slate-100">
+                    <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Order Code</th>
+                        <th className="px-4 py-3">Date & Time</th>
+                        <th className="px-4 py-3">Customer</th>
+                        <th className="px-4 py-3">Service / Items</th>
+                        <th className="px-4 py-3">Amount</th>
+                        <th className="px-4 py-3">Payment Method</th>
+                        <th className="px-4 py-3">Razorpay ID</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredPaymentOrders.map((order) => {
+                        const isPaid = isPaidOrder(order);
+                        const isOnline = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online";
+                        const rzpId = extractRazorpayId(order.orderNotes);
+                        const serviceTitle = order.items?.[0]?.productName || "Printing Job";
+
+                        return (
+                          <tr key={order.id || order.orderCode} className="hover:bg-slate-50/80 transition-colors">
+                            {/* Order Code */}
+                            <td className="px-4 py-3.5 font-mono font-bold text-[#123B70]">
+                              <button
+                                onClick={() => handleOpenOrderModal(order)}
+                                className="hover:underline cursor-pointer"
+                                title="Click to view full order details"
+                              >
+                                {order.orderCode}
+                              </button>
+                            </td>
+
+                            {/* Date */}
+                            <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap">
+                              <div className="font-medium text-slate-900">
+                                {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {new Date(order.createdAt).toLocaleTimeString("en-IN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </td>
+
+                            {/* Customer */}
+                            <td className="px-4 py-3.5">
+                              <div className="font-bold text-slate-900 truncate max-w-[140px]">
+                                {order.customerName}
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-mono">
+                                {order.customerPhone}
+                              </div>
+                            </td>
+
+                            {/* Service / Items */}
+                            <td className="px-4 py-3.5 max-w-[180px]">
+                              <div className="font-semibold text-slate-800 truncate" title={serviceTitle}>
+                                {serviceTitle}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {order.items?.length || 1} item(s) • {order.fulfillmentType === "delivery" ? "Delivery" : "Store Pickup"}
+                              </div>
+                            </td>
+
+                            {/* Amount */}
+                            <td className="px-4 py-3.5 font-black text-slate-900 text-sm whitespace-nowrap">
+                              ₹{order.totalAmount}
+                            </td>
+
+                            {/* Payment Method Badge */}
+                            <td className="px-4 py-3.5 whitespace-nowrap">
+                              {isOnline ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <CreditCard className="h-3 w-3 text-emerald-600" />
+                                  <span>Online (Razorpay)</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  <span>🏪 Pay at Shop</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Razorpay Reference ID */}
+                            <td className="px-4 py-3.5 whitespace-nowrap">
+                              {rzpId ? (
+                                <div className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold text-slate-700 border border-slate-200">
+                                  <span className="truncate max-w-[110px]">{rzpId}</span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(rzpId);
+                                      setCopiedPaymentId(rzpId);
+                                      setTimeout(() => setCopiedPaymentId(null), 2000);
+                                    }}
+                                    className="p-0.5 hover:text-slate-900 cursor-pointer"
+                                    title="Copy Razorpay ID"
+                                  >
+                                    {copiedPaymentId === rzpId ? (
+                                      <Check className="h-3 w-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="h-3 w-3 text-slate-500" />
+                                    )}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 italic">
+                                  {isOnline ? "Simulated" : "In-store Counter"}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Payment Status Badge */}
+                            <td className="px-4 py-3.5 whitespace-nowrap">
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wide",
+                                  isPaid
+                                    ? "bg-emerald-500 text-white"
+                                    : "bg-amber-100 text-amber-900 border border-amber-300"
+                                )}
+                              >
+                                {isPaid ? (
+                                  <>
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    <span>Paid</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="h-3 w-3 text-amber-700" />
+                                    <span>Pending</span>
+                                  </>
+                                )}
+                              </span>
+                            </td>
+
+                            {/* Action Buttons */}
+                            <td className="px-4 py-3.5 text-right whitespace-nowrap space-x-1.5">
+                              {/* Toggle Payment Button */}
+                              <button
+                                onClick={() => handleTogglePaymentStatus(order)}
+                                disabled={updatingPayment}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer disabled:opacity-50",
+                                  isPaid
+                                    ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                                    : "border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                                )}
+                                title={isPaid ? "Mark as Unpaid / Pending" : "Mark as Paid at Store Counter"}
+                              >
+                                {isPaid ? "Mark Unpaid" : "Mark Paid ✓"}
+                              </button>
+
+                              {/* WhatsApp Notice / Receipt */}
+                              <a
+                                href={getWhatsAppLink(
+                                  `Hello ${order.customerName},\n\nRegarding your Palak Enterprises Order *${order.orderCode}* (₹${order.totalAmount}):\nPayment Status: *${isPaid ? "PAID" : "PENDING (Pay at Counter)"}*.\n\nThank you!`
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 inline-flex rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-colors"
+                                title="Send WhatsApp Receipt"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                              </a>
+
+                              {/* View Details Modal */}
+                              <button
+                                onClick={() => handleOpenOrderModal(order)}
+                                className="p-1.5 inline-flex rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                                title="View full order details"
+                              >
+                                <Eye className="h-3.5 w-3.5 text-[#123B70]" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-16 text-xs text-slate-400 space-y-2">
+                  <Receipt className="h-10 w-10 text-slate-300 mx-auto" />
+                  <p className="font-semibold text-slate-600">No payment records found matching your filter criteria.</p>
+                  <p className="text-[11px] text-slate-400">Try adjusting your search term or clearing the status/method filter.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

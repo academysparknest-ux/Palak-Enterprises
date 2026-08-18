@@ -13,7 +13,12 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
-import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
+import {
+  getPrintPricingConfig,
+  submitPrintOrder,
+  uploadOrderFile,
+} from "../../lib/supabase/database";
+import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { cn } from "../../lib/utils";
 
@@ -164,54 +169,84 @@ export const PassportPhotoPage: React.FC = () => {
         Quantity: `${copies} sheet(s) (${layoutObj.photosCount * copies} total photos)`,
       };
 
-      const res = await submitPrintOrder({
-        serviceId: "passport-photo",
-        serviceName: "Passport Photo Printing",
-        documentType: "Passport Photo Sheet",
-        customerName: customerName.trim(),
-        customerPhone: cleanPhone,
-        instructions: instructions.trim() || undefined,
-        userId: user?.id,
-        paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
-        paymentStatus: "pending",
-        pricingSnapshot: {
-          unitPrice,
-          subtotal: totalAmount,
-          totalAmount,
-          breakdown: { baseRate: unitPrice, copies },
-        },
-        options: {
-          layout: selectedLayout,
-          paperFinish,
-          copies,
-          totalPhotos: layoutObj.photosCount * copies,
-        },
-        optionsLabels: specifications,
-        file: {
-          name: uploadedFile.name,
-          size: uploadedFile.size,
-          url: fileUrl,
-          storagePath,
-          mimeType: uploadedFile.file.type,
-        },
-      });
+      const processPhotoOrder = async (razorpayPaymentId?: string) => {
+        const orderNotesWithPayment = razorpayPaymentId
+          ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
+          : (instructions.trim() || undefined);
 
-      if (res.success) {
-        setSuccessData({
-          isOpen: true,
-          orderCode: res.orderCode,
-          totalAmount,
-          specifications,
-          paymentMethod,
-          paymentStatus: "pending",
+        const res = await submitPrintOrder({
+          serviceId: "passport-photo",
+          serviceName: "Passport Photo Printing",
+          documentType: "Passport Photo Sheet",
+          customerName: customerName.trim(),
+          customerPhone: cleanPhone,
+          instructions: orderNotesWithPayment,
+          userId: user?.id,
+          paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
+          paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          pricingSnapshot: {
+            unitPrice,
+            subtotal: totalAmount,
+            totalAmount,
+            breakdown: { baseRate: unitPrice, copies },
+          },
+          options: {
+            layout: selectedLayout,
+            paperFinish,
+            copies,
+            totalPhotos: layoutObj.photosCount * copies,
+          },
+          optionsLabels: specifications,
+          file: {
+            name: uploadedFile.name,
+            size: uploadedFile.size,
+            url: fileUrl,
+            storagePath,
+            mimeType: uploadedFile.file.type,
+          },
+        });
+
+        if (res.success) {
+          setSuccessData({
+            isOpen: true,
+            orderCode: res.orderCode,
+            totalAmount,
+            specifications,
+            paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_shop",
+            paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          });
+        } else {
+          setSubmitError(res.error || "Failed to submit order.");
+        }
+        setSubmitting(false);
+      };
+
+      if (paymentMethod === "pay_online") {
+        await initiateRazorpayPayment({
+          amount: totalAmount,
+          name: "Palak Enterprises",
+          description: `Passport Photo Order (${layoutObj.photosCount * copies} photos)`,
+          prefill: {
+            name: customerName.trim(),
+            contact: cleanPhone,
+          },
+          onSuccess: async (paymentId) => {
+            await processPhotoOrder(paymentId);
+          },
+          onDismiss: () => {
+            setSubmitting(false);
+          },
+          onError: (err) => {
+            setSubmitError(err?.description || "Online payment was cancelled. You can retry or choose 'Pay at Shop Counter'.");
+            setSubmitting(false);
+          },
         });
       } else {
-        setSubmitError(res.error || "Failed to submit order.");
+        await processPhotoOrder();
       }
     } catch (err: any) {
       console.error("Photo order exception:", err);
       setSubmitError(err.message || "An unexpected error occurred.");
-    } finally {
       setSubmitting(false);
     }
   };

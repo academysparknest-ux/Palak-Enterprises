@@ -12,6 +12,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
+import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { cn } from "../../lib/utils";
 
@@ -150,61 +151,91 @@ export const IdCardsPage: React.FC = () => {
         Quantity: `${quantity} ID Card(s)`,
       };
 
-      const res = await submitPrintOrder({
-        serviceId: "id-cards",
-        serviceName: "ID Card Printing",
-        documentType: `PVC ID Card (${organization})`,
-        customerName: customerName.trim(),
-        customerPhone: cleanPhone,
-        instructions: instructions.trim() || undefined,
-        userId: user?.id,
-        paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
-        paymentStatus: "pending",
-        pricingSnapshot: {
-          unitPrice,
-          subtotal: totalAmount,
-          totalAmount,
-          breakdown: { baseCardRate, lanyardRate, quantity },
-        },
-        options: {
-          holderName,
-          idNumber,
-          designation,
-          organization,
-          bloodGroup,
-          emergencyPhone,
-          address,
-          validity,
-          cardSides,
-          includeLanyard,
-          quantity,
-        },
-        optionsLabels: specifications,
-        file: uploadedPhoto ? {
-          name: uploadedPhoto.name,
-          size: uploadedPhoto.size,
-          url: fileUrl,
-          storagePath,
-          mimeType: uploadedPhoto.file.type,
-        } : undefined,
-      });
+      const processIdCardOrder = async (razorpayPaymentId?: string) => {
+        const orderNotesWithPayment = razorpayPaymentId
+          ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
+          : (instructions.trim() || undefined);
 
-      if (res.success) {
-        setSuccessData({
-          isOpen: true,
-          orderCode: res.orderCode,
-          totalAmount,
-          specifications,
-          paymentMethod,
-          paymentStatus: "pending",
+        const res = await submitPrintOrder({
+          serviceId: "id-cards",
+          serviceName: "ID Card Printing",
+          documentType: `PVC ID Card (${organization})`,
+          customerName: customerName.trim(),
+          customerPhone: cleanPhone,
+          instructions: orderNotesWithPayment,
+          userId: user?.id,
+          paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
+          paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          pricingSnapshot: {
+            unitPrice,
+            subtotal: totalAmount,
+            totalAmount,
+            breakdown: { baseCardRate, lanyardRate, quantity },
+          },
+          options: {
+            holderName,
+            idNumber,
+            designation,
+            organization,
+            bloodGroup,
+            emergencyPhone,
+            address,
+            validity,
+            cardSides,
+            includeLanyard,
+            quantity,
+          },
+          optionsLabels: specifications,
+          file: uploadedPhoto ? {
+            name: uploadedPhoto.name,
+            size: uploadedPhoto.size,
+            url: fileUrl,
+            storagePath,
+            mimeType: uploadedPhoto.file.type,
+          } : undefined,
+        });
+
+        if (res.success) {
+          setSuccessData({
+            isOpen: true,
+            orderCode: res.orderCode,
+            totalAmount,
+            specifications,
+            paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_shop",
+            paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          });
+        } else {
+          setSubmitError(res.error || "Failed to submit order.");
+        }
+        setSubmitting(false);
+      };
+
+      if (paymentMethod === "pay_online") {
+        await initiateRazorpayPayment({
+          amount: totalAmount,
+          name: "Palak Enterprises",
+          description: `ID Cards Order (${quantity} cards - ${organization})`,
+          prefill: {
+            name: customerName.trim(),
+            contact: cleanPhone,
+          },
+          onSuccess: async (paymentId) => {
+            await processIdCardOrder(paymentId);
+          },
+          onDismiss: () => {
+            setSubmitting(false);
+          },
+          onError: (err) => {
+            setSubmitError(err?.description || "Online payment was cancelled. You can retry or choose 'Pay at Shop Counter'.");
+            setSubmitting(false);
+          },
         });
       } else {
-        setSubmitError(res.error || "Failed to submit order.");
+        await processIdCardOrder();
       }
     } catch (err: any) {
       console.error("ID Card order exception:", err);
       setSubmitError(err.message || "An unexpected error occurred.");
-    } finally {
       setSubmitting(false);
     }
   };

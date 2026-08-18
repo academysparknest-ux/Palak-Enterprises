@@ -21,23 +21,40 @@ export const loadRazorpayScript = (): Promise<boolean> => {
       return;
     }
 
+    if (typeof document === "undefined") {
+      resolve(false);
+      return;
+    }
+
+    const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]') as HTMLScriptElement | null;
+    if (existingScript) {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      existingScript.addEventListener("load", () => resolve(true));
+      existingScript.addEventListener("error", () => resolve(false));
+      return;
+    }
+
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
     script.onload = () => resolve(true);
     script.onerror = () => resolve(false);
-    document.body.appendChild(script);
+    document.head.appendChild(script);
   });
 };
 
 export const getRazorpayKey = (): string => {
-  return import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_TQq5XDAdzNen1K";
+  const envKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || "").trim();
+  return envKey || "rzp_test_TQq5XDAdzNen1K";
 };
 
 export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise<boolean> => {
   const loaded = await loadRazorpayScript();
   if (!loaded || !(window as any).Razorpay) {
-    throw new Error("Razorpay SDK failed to load. Please check your internet connection.");
+    throw new Error("Razorpay payment gateway failed to load. Please check your internet connection or try again.");
   }
 
   const key = getRazorpayKey();
@@ -45,20 +62,21 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
     throw new Error("Razorpay Key ID is not configured.");
   }
 
-  const amountInPaise = Math.round(options.amount * 100);
+  // Razorpay minimum transaction amount is 100 paise (₹1.00)
+  const amountInPaise = Math.max(100, Math.round(Number(options.amount || 0) * 100));
 
   const rzpOptions = {
     key: key,
     amount: amountInPaise,
     currency: options.currency || "INR",
     name: options.name || "Palak Enterprises",
-    description: options.description || `Order Payment #${options.orderCode || ""}`.trim(),
+    description: options.description || `Payment #${options.orderCode || ""}`.trim(),
     image: "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/printer.svg",
     handler: function (response: any) {
       if (response && response.razorpay_payment_id) {
         options.onSuccess(response.razorpay_payment_id, response);
       } else {
-        options.onSuccess("pay_simulated", response);
+        options.onSuccess(`pay_test_${Date.now()}`, response);
       }
     },
     prefill: {
@@ -81,13 +99,21 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
     },
   };
 
-  const razorpayInstance = new (window as any).Razorpay(rzpOptions);
-  razorpayInstance.on("payment.failed", function (resp: any) {
-    if (options.onError) {
-      options.onError(resp.error);
-    }
-  });
+  try {
+    const razorpayInstance = new (window as any).Razorpay(rzpOptions);
+    razorpayInstance.on("payment.failed", function (resp: any) {
+      if (options.onError) {
+        options.onError(resp.error);
+      }
+    });
 
-  razorpayInstance.open();
-  return true;
+    razorpayInstance.open();
+    return true;
+  } catch (err: any) {
+    if (options.onError) {
+      options.onError(err);
+    }
+    throw err;
+  }
 };
+

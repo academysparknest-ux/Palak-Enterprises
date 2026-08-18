@@ -13,6 +13,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
+import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { cn } from "../../lib/utils";
 
@@ -185,66 +186,96 @@ export const VisitingCardsPage: React.FC = () => {
         Finish: finish.toUpperCase() + " Lamination",
       };
 
-      const res = await submitPrintOrder({
-        serviceId: "visiting-cards",
-        serviceName: "Visiting Card Printing",
-        documentType: mode === "template" ? `Card Template (${cardCompany})` : "Custom Card Design",
-        customerName: customerName.trim(),
-        customerPhone: cleanPhone,
-        instructions: instructions.trim() || undefined,
-        userId: user?.id,
-        paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
-        paymentStatus: "pending",
-        pricingSnapshot: {
-          unitPrice: totalPrice,
-          subtotal: totalPrice,
-          totalAmount: totalPrice,
-          breakdown: { baseRate: totalPrice, quantity },
-        },
-        options: {
-          mode,
-          sides,
-          quantity,
-          paperType,
-          finish,
-          templateData: mode === "template" ? {
-            name: cardName,
-            designation: cardDesignation,
-            company: cardCompany,
-            tagline: cardTagline,
-            mobile: cardMobile,
-            whatsapp: cardWhatsApp,
-            email: cardEmail,
-            address: cardAddress,
-            website: cardWebsite,
-          } : undefined,
-        },
-        optionsLabels: specifications,
-        file: uploadedFile ? {
-          name: uploadedFile.name,
-          size: uploadedFile.size,
-          url: fileUrl,
-          storagePath,
-          mimeType: uploadedFile.file.type,
-        } : undefined,
-      });
+      const processCardOrder = async (razorpayPaymentId?: string) => {
+        const orderNotesWithPayment = razorpayPaymentId
+          ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
+          : (instructions.trim() || undefined);
 
-      if (res.success) {
-        setSuccessData({
-          isOpen: true,
-          orderCode: res.orderCode,
-          totalAmount: totalPrice,
-          specifications,
-          paymentMethod,
-          paymentStatus: "pending",
+        const res = await submitPrintOrder({
+          serviceId: "visiting-cards",
+          serviceName: "Visiting Card Printing",
+          documentType: mode === "template" ? `Card Template (${cardCompany})` : "Custom Card Design",
+          customerName: customerName.trim(),
+          customerPhone: cleanPhone,
+          instructions: orderNotesWithPayment,
+          userId: user?.id,
+          paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
+          paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          pricingSnapshot: {
+            unitPrice: totalPrice,
+            subtotal: totalPrice,
+            totalAmount: totalPrice,
+            breakdown: { baseRate: totalPrice, quantity },
+          },
+          options: {
+            mode,
+            sides,
+            quantity,
+            paperType,
+            finish,
+            templateData: mode === "template" ? {
+              name: cardName,
+              designation: cardDesignation,
+              company: cardCompany,
+              tagline: cardTagline,
+              mobile: cardMobile,
+              whatsapp: cardWhatsApp,
+              email: cardEmail,
+              address: cardAddress,
+              website: cardWebsite,
+            } : undefined,
+          },
+          optionsLabels: specifications,
+          file: uploadedFile ? {
+            name: uploadedFile.name,
+            size: uploadedFile.size,
+            url: fileUrl,
+            storagePath,
+            mimeType: uploadedFile.file.type,
+          } : undefined,
+        });
+
+        if (res.success) {
+          setSuccessData({
+            isOpen: true,
+            orderCode: res.orderCode,
+            totalAmount: totalPrice,
+            specifications,
+            paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_shop",
+            paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+          });
+        } else {
+          setSubmitError(res.error || "Failed to submit order.");
+        }
+        setSubmitting(false);
+      };
+
+      if (paymentMethod === "pay_online") {
+        await initiateRazorpayPayment({
+          amount: totalPrice,
+          name: "Palak Enterprises",
+          description: `Visiting Cards Order (${quantity} cards)`,
+          prefill: {
+            name: customerName.trim(),
+            contact: cleanPhone,
+          },
+          onSuccess: async (paymentId) => {
+            await processCardOrder(paymentId);
+          },
+          onDismiss: () => {
+            setSubmitting(false);
+          },
+          onError: (err) => {
+            setSubmitError(err?.description || "Online payment was cancelled. You can retry or choose 'Pay at Shop Counter'.");
+            setSubmitting(false);
+          },
         });
       } else {
-        setSubmitError(res.error || "Failed to submit order.");
+        await processCardOrder();
       }
     } catch (err: any) {
       console.error("Visiting card exception:", err);
       setSubmitError(err.message || "An unexpected error occurred.");
-    } finally {
       setSubmitting(false);
     }
   };
