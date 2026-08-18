@@ -265,30 +265,30 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
       aria-modal="true"
       aria-labelledby="request-modal-title"
     >
-      <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-xl w-full p-4 sm:p-6 md:p-8 border border-slate-200 overflow-hidden my-auto my-4 sm:my-8 transition-all">
+      <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-xl lg:max-w-2xl xl:max-w-3xl w-full p-4 sm:p-6 md:p-8 lg:p-10 border border-slate-200/90 overflow-hidden my-auto my-4 sm:my-8 transition-all">
         {/* Close Button */}
         <button
           onClick={() => {
             onClose();
             if (isSuccess) resetForm();
           }}
-          className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 p-1.5 sm:p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-900 cursor-pointer z-10"
+          className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 lg:top-6 lg:right-6 p-1.5 sm:p-2 lg:p-2.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-[#123B70] cursor-pointer z-10"
           aria-label={language === "hi" ? "मोडाल बंद करें" : "Close modal"}
         >
           <X className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
 
         {isSuccess && submittedCode ? (
-          <div className="py-6 text-center space-y-5 animate-fadeUp">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto ring-8 ring-emerald-50">
-              <CheckCircle2 className="w-9 h-9" />
+          <div className="py-6 sm:py-8 text-center space-y-5 lg:space-y-6 animate-fadeUp">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto ring-8 ring-emerald-50">
+              <CheckCircle2 className="w-9 h-9 sm:w-11 sm:h-11" />
             </div>
 
-            <div className="space-y-1">
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+            <div className="space-y-1.5">
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 {language === "hi" ? "✓ अनुरोध सफलतापूर्वक प्राप्त हुआ!" : "✓ Request Submitted Successfully!"}
               </h3>
-              <p className="text-slate-600 max-w-md mx-auto text-xs sm:text-sm">
+              <p className="text-slate-600 max-w-md lg:max-w-lg mx-auto text-xs sm:text-sm lg:text-base">
                 {language === "hi"
                   ? "आपका सेवा अनुरोध हमारे एडमिन पोर्टल पर दर्ज हो गया है। हमारी टीम जल्द ही इस पर काम शुरू करेगी।"
                   : "Your service request is submitted directly to our CSC Operations Portal. You can track progress in real-time."}
@@ -296,24 +296,24 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
             </div>
 
             {/* Request Code Box */}
-            <div className="rounded-2xl border-2 border-dashed border-[#123B70]/30 bg-blue-50/50 p-4 max-w-sm mx-auto space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+            <div className="rounded-2xl border-2 border-dashed border-[#123B70]/30 bg-blue-50/50 p-4 lg:p-5 max-w-sm lg:max-w-md mx-auto space-y-1">
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 block">
                 {language === "hi" ? "आपका ट्रैकिंग रेफरेंस कोड" : "Your Tracking Reference ID"}
               </span>
-              <span className="text-xl font-mono font-black text-[#123B70] tracking-wide block">
+              <span className="text-xl sm:text-2xl font-mono font-black text-[#123B70] tracking-wide block">
                 {submittedCode}
               </span>
             </div>
 
             {/* Actions */}
-            <div className="space-y-3 pt-2 max-w-md mx-auto">
+            <div className="space-y-3 pt-2 max-w-md lg:max-w-lg mx-auto">
               <Link
                 to={`/order-status?code=${submittedCode}`}
                 onClick={() => {
                   onClose();
                   resetForm();
                 }}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-card transition-all"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-5 py-3 text-xs sm:text-sm lg:text-base font-bold text-white shadow-card transition-all"
               >
                 <span>{language === "hi" ? "अनुरोध लाइव ट्रैक करें" : "Track Request Status"}</span>
               </Link>
@@ -324,7 +324,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                   onClose();
                   resetForm();
                 }}
-                className="w-full py-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
+                className="w-full py-2.5 sm:py-3 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-xs sm:text-sm font-bold text-slate-700 transition-colors cursor-pointer"
               >
                 {language === "hi" ? "बंद करें / अन्य सेवा चुनें" : "Close"}
               </button>
@@ -336,9 +336,9 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-emerald-700 hover:underline"
                 >
-                  <MessageSquare className="w-3.5 h-3.5" />
+                  <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span>{language === "hi" ? "व्हाट्सएप पर सहायता चाहिए?" : "Need assistance on WhatsApp?"}</span>
                 </a>
               </div>
@@ -347,11 +347,11 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
         ) : (
           <>
             {/* Header */}
-            <div className="mb-5 sm:mb-6 pr-8 sm:pr-0">
-              <h2 id="request-modal-title" className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <div className="mb-5 sm:mb-6 lg:mb-8 pr-8 sm:pr-0">
+              <h2 id="request-modal-title" className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
                 {t.requestForm.title}
               </h2>
-              <p className="text-slate-600 text-xs sm:text-sm mt-1">
+              <p className="text-slate-600 text-xs sm:text-sm lg:text-base mt-1">
                 {t.requestForm.subtitle}
               </p>
             </div>
