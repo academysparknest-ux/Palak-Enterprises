@@ -104,8 +104,8 @@ export const businessConfig: BusinessConfig = {
       hi: "वार्ड नं. 7, सनिगंज मोहल्ला, ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार - 845412",
     },
   },
-  googleMapsUrl: "https://maps.google.com/?q=Chakia+East+Champaran+Bihar+Block+Gate",
-  mapEmbedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d14300.0!2d85.04!3d26.42!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39ed45b9b8b8b8b8%3A0x0!2zQ2hha2lhLCBCaWhhciA4NDU0MTI!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin",
+  googleMapsUrl: "https://goo.gl/maps/UjhUTivNEjdN9Est7",
+  mapEmbedUrl: "https://www.google.com/maps?q=26.413807,85.052013&z=17&output=embed",
   openingHours: {
     en: "Monday - Saturday: 8:00 AM - 8:00 PM | Sunday: 9:00 AM - 5:00 PM",
     hi: "सोमवार - शनिवार: सुबह 8:00 से शाम 8:00 बजे | रविवार: सुबह 9:00 से शाम 5:00 बजे",
@@ -130,6 +130,8 @@ export interface BusinessInfo {
     udyamNo: string;
   };
   mapsQuery: string;
+  googleMapsUrl: string;
+  mapEmbedUrl: string;
   social: {
     facebook: string;
     instagram: string;
@@ -175,7 +177,9 @@ export const business: BusinessInfo = {
     cscId: "634165120013",
     udyamNo: "UDYAM-BR-11-0061705",
   },
-  mapsQuery: "Palak Enterprises Palak Printing Press Chakia East Champaran Bihar 845412",
+  mapsQuery: "26.413807,85.052013",
+  googleMapsUrl: "https://goo.gl/maps/UjhUTivNEjdN9Est7",
+  mapEmbedUrl: "https://www.google.com/maps?q=26.413807,85.052013&z=17&output=embed",
   social: {
     facebook: "",
     instagram: "",
@@ -194,7 +198,7 @@ export function getCallLink(phone: string = business.primaryPhone) {
 }
 
 export function getDirectionsLink() {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+  return business.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     business.mapsQuery
   )}`;
 }

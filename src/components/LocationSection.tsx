@@ -194,9 +194,7 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ isHomePage = t
             <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-card h-[260px] sm:h-[300px] lg:h-[340px]">
               <iframe
                 title={currentLang === "hi" ? "पालक इंटरप्राइजेज गूगल मैप्स लोकेशन" : "Palak Enterprises location map"}
-                src={`https://www.google.com/maps?q=${encodeURIComponent(
-                  business.mapsQuery
-                )}&output=embed`}
+                src={business.mapEmbedUrl}
                 className="h-full w-full border-0"
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"

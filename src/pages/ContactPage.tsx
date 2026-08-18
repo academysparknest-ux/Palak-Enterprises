@@ -404,9 +404,7 @@ export const ContactPage: React.FC = () => {
               <div className="overflow-hidden rounded-xl border border-line h-[280px]">
                 <iframe
                   title="Palak Enterprises Google Map"
-                  src={`https://www.google.com/maps?q=${encodeURIComponent(
-                    business.mapsQuery
-                  )}&output=embed`}
+                  src={business.mapEmbedUrl}
                   className="h-full w-full border-0"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
