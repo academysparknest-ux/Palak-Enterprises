@@ -298,26 +298,34 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[200] overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 md:p-6"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="request-modal-title"
+      onClick={() => {
+        onClose();
+        if (isSuccess) resetForm();
+      }}
     >
-      <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-xl lg:max-w-2xl xl:max-w-3xl w-full p-4 sm:p-6 md:p-8 lg:p-10 border border-slate-200/90 overflow-hidden my-auto my-4 sm:my-8 transition-all">
+      <div
+        className="relative flex flex-col max-h-[92vh] sm:max-h-[88vh] max-w-xl lg:max-w-2xl xl:max-w-3xl w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden my-auto transition-all animate-fadeUp"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close Button */}
         <button
+          type="button"
           onClick={() => {
             onClose();
             if (isSuccess) resetForm();
           }}
-          className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 lg:top-6 lg:right-6 p-1.5 sm:p-2 lg:p-2.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-[#123B70] cursor-pointer z-10"
+          className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 lg:top-6 lg:right-6 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-[#123B70] cursor-pointer z-20"
           aria-label={language === "hi" ? "मोडाल बंद करें" : "Close modal"}
         >
           <X className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
 
         {isSuccess && submittedCode ? (
-          <div className="py-6 sm:py-8 text-center space-y-5 lg:space-y-6 animate-fadeUp">
+          <div className="overflow-y-auto p-5 sm:p-6 md:p-8 lg:p-10 py-6 sm:py-8 text-center space-y-5 lg:space-y-6">
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto ring-8 ring-emerald-50">
               <CheckCircle2 className="w-9 h-9 sm:w-11 sm:h-11" />
             </div>
@@ -383,9 +391,9 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
             </div>
           </div>
         ) : (
-          <>
+          <div className="overflow-y-auto overscroll-contain p-4 sm:p-6 md:p-8 lg:p-10">
             {/* Header */}
-            <div className="mb-5 sm:mb-6 lg:mb-8 pr-8 sm:pr-0">
+            <div className="mb-5 sm:mb-6 lg:mb-8 pr-10 sm:pr-0">
               <h2 id="request-modal-title" className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
                 {t.requestForm.title}
               </h2>
@@ -756,7 +764,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
                 </button>
               </div>
             </form>
-          </>
+          </div>
         )}
       </div>
     </div>

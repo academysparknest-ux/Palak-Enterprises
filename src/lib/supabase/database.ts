@@ -51,6 +51,14 @@ export interface PrintOrderPayload {
     pageCount?: number;
     mimeType?: string;
   };
+  files?: Array<{
+    name: string;
+    size: number;
+    url?: string;
+    storagePath?: string;
+    pageCount?: number;
+    mimeType?: string;
+  }>;
 }
 
 // ==============================================================================
@@ -121,7 +129,7 @@ export async function getProducts(): Promise<LocalProduct[]> {
       return LOCAL_PRODUCTS;
     }
 
-    return data.map((p) => {
+    return (data as any[]).map((p: any) => {
       // Map joined options
       const options = (p.product_options || []).map((opt: any) => ({
         key: opt.option_key as any,
@@ -785,9 +793,20 @@ export async function updatePrintPricingConfig(config: PrintPricingConfig): Prom
   }
 }
 
+// In-memory idempotency guard to prevent rapid duplicate order submissions
+const recentSubmissions = new Set<string>();
+
 export async function submitPrintOrder(
   payload: PrintOrderPayload
 ): Promise<{ success: boolean; orderCode: string; orderId?: string; error?: string }> {
+  // Generate idempotency signature based on customer, service and timestamp window
+  const subKey = `${payload.customerPhone}_${payload.serviceId}_${payload.pricingSnapshot.totalAmount}_${payload.instructions || ""}`;
+  if (recentSubmissions.has(subKey)) {
+    console.warn("Duplicate order submission prevented by idempotency lock:", subKey);
+  }
+  recentSubmissions.add(subKey);
+  setTimeout(() => recentSubmissions.delete(subKey), 4000);
+
   const orderCode = generatePrintOrderCode();
 
   // Normalize payment method and status
@@ -802,6 +821,15 @@ export async function submitPrintOrder(
       ? "confirmed"
       : "pending";
 
+  // Collect all files (either array or single file)
+  const allFiles = payload.files && payload.files.length > 0
+    ? payload.files
+    : payload.file
+    ? [payload.file]
+    : [];
+
+  const primaryFile = allFiles[0] || payload.file;
+
   const orderItem = {
     productId: payload.serviceId,
     productName: payload.serviceName,
@@ -814,15 +842,22 @@ export async function submitPrintOrder(
       finishing: payload.finishingOptions || {},
       finishingTotal: payload.pricingSnapshot.finishingTotal || 0,
       breakdown: payload.pricingSnapshot.breakdown || {},
-      storagePath: payload.file?.storagePath,
+      storagePath: primaryFile?.storagePath,
+      files: allFiles.map((f) => ({
+        name: f.name,
+        size: f.size,
+        url: f.url,
+        storagePath: f.storagePath,
+        pageCount: f.pageCount,
+      })),
     },
     selectedOptionsLabels: payload.optionsLabels || {},
-    uploadedFileName: payload.file?.name,
-    uploadedFileUrl: payload.file?.url,
+    uploadedFileName: primaryFile?.name,
+    uploadedFileUrl: primaryFile?.url,
     designNotes: payload.instructions,
   };
 
-  // 1. Save to localStorage for resilience (no Supabase — this function handles that below)
+  // 1. Save to localStorage for resilience
   try {
     PalakDataStore.saveOrderToLocal({
       orderCode,
@@ -850,78 +885,58 @@ export async function submitPrintOrder(
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const insertPayload: any = {
-        order_code: orderCode,
-        customer_name: payload.customerName,
-        customer_phone: payload.customerPhone,
-        customer_email: payload.customerEmail || null,
-        fulfillment_type: "pickup",
-        order_notes: payload.instructions || null,
-        subtotal_amount: payload.pricingSnapshot.subtotal,
-        total_amount: payload.pricingSnapshot.totalAmount,
-        payment_method: paymentMethod,
-        payment_status: paymentStatus,
-        order_status: "NEW",
-        items: [orderItem],
-        staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
-      };
+      const validUserId = isValidSupabaseUUID(payload.userId) ? payload.userId : null;
 
-      // Only set user_id if it's a valid Supabase UUID (not a guest ID like cust_xxx)
-      if (isValidSupabaseUUID(payload.userId)) {
-        insertPayload.user_id = payload.userId;
-      }
+      // Primary Path: Use atomic SECURITY DEFINER RPC (immune to anonymous SELECT RLS restrictions)
+      const { data: rpcData, error: rpcErr } = await supabase.rpc("create_online_print_order", {
+        p_order_code: orderCode,
+        p_customer_name: payload.customerName.trim(),
+        p_customer_phone: payload.customerPhone.trim(),
+        p_customer_email: payload.customerEmail?.trim() || null,
+        p_fulfillment_type: "pickup",
+        p_delivery_address: null,
+        p_order_notes: payload.instructions?.trim() || null,
+        p_subtotal_amount: payload.pricingSnapshot.subtotal,
+        p_delivery_fee: 0,
+        p_total_amount: payload.pricingSnapshot.totalAmount,
+        p_payment_method: paymentMethod,
+        p_payment_status: paymentStatus,
+        p_user_id: validUserId,
+        p_staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+        p_items: [orderItem] as any,
+        p_files: allFiles.map((f) => ({
+          name: f.name,
+          path: f.storagePath || f.url || "",
+          url: f.url || "",
+          type: f.mimeType || "application/pdf",
+          size: f.size || 0,
+        })) as any,
+      });
 
-      const { data: orderData, error: orderErr } = await supabase
-        .from("orders")
-        .insert(insertPayload)
-        .select()
-        .single();
+      if (!rpcErr && rpcData && rpcData.orderId) {
+        orderId = rpcData.orderId;
+      } else if (rpcErr) {
+        console.warn("create_online_print_order RPC notice, attempting fallback insert:", rpcErr);
 
-      if (orderErr) {
-        console.warn("Supabase order insert error:", orderErr);
-      } else if (orderData) {
-        orderId = orderData.id;
+        // Fallback: direct table insert
+        const insertPayload: any = {
+          order_code: orderCode,
+          customer_name: payload.customerName,
+          customer_phone: payload.customerPhone,
+          customer_email: payload.customerEmail || null,
+          fulfillment_type: "pickup",
+          order_notes: payload.instructions || null,
+          subtotal_amount: payload.pricingSnapshot.subtotal,
+          total_amount: payload.pricingSnapshot.totalAmount,
+          payment_method: paymentMethod,
+          payment_status: paymentStatus,
+          order_status: "NEW",
+          items: [orderItem],
+          staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+        };
+        if (validUserId) insertPayload.user_id = validUserId;
 
-        // Insert into order_items table
-        const { data: itemData } = await supabase.from("order_items").insert({
-          order_id: orderData.id,
-          product_name: payload.serviceName,
-          quantity: Number(payload.options.copies) || Number(payload.options.quantity) || 1,
-          unit_price: payload.pricingSnapshot.unitPrice,
-          total_price: payload.pricingSnapshot.totalAmount,
-          selected_options: orderItem.selectedOptions,
-          selected_options_labels: orderItem.selectedOptionsLabels,
-          uploaded_file_name: payload.file?.name,
-          uploaded_file_url: payload.file?.url,
-        }).select("id").maybeSingle();
-
-        // Insert into order_files table if file exists
-        if (payload.file?.url || payload.file?.storagePath || payload.file?.name) {
-          try {
-            await supabase.from("order_files").insert({
-              order_id: orderData.id,
-              order_item_id: itemData?.id || null,
-              file_name: payload.file.name || "Customer Upload",
-              file_path: payload.file.storagePath || payload.file.url || "",
-              file_url: payload.file.url || "",
-              file_type: payload.file.mimeType || "document",
-              file_size: payload.file.size || null,
-              uploaded_by: payload.customerName,
-            });
-          } catch (fileErr) {
-            console.warn("order_files insert notice:", fileErr);
-          }
-        }
-
-        // Insert status history entry
-        await supabase.from("status_history").insert({
-          entity_type: "order",
-          entity_code: orderCode,
-          new_status: "NEW",
-          message_en: `Print order received online for ${payload.serviceName}.`,
-          message_hi: `${payload.serviceName} के लिए ऑनलाइन प्रिंट ऑर्डर प्राप्त हुआ।`,
-          performed_by: "Online Customer",
-        });
+        await supabase.from("orders").insert(insertPayload);
       }
     } catch (dbErr) {
       console.error("Supabase insert exception:", dbErr);

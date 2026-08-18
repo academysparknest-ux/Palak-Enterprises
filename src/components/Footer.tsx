@@ -71,74 +71,69 @@ export function Footer(): React.JSX.Element {
           </div>
         </div>
 
-        {/* Column 2: Printing & Products */}
+        {/* Column 2: Services */}
         <div className="space-y-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-            {currentLang === "hi" ? "प्रिंटिंग कैटलॉग" : "Printing Store"}
+            {currentLang === "hi" ? "सेवाएँ" : "Services"}
           </h4>
           <ul className="space-y-2 text-xs">
             <li>
+              <Link to="/online-services" className="hover:text-white text-amber-300 font-semibold transition-colors">
+                ⚡ {currentLang === "hi" ? "त्वरित सेवा" : "Quick Service"}
+              </Link>
+            </li>
+            <li>
               <Link to="/printing" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "सभी प्रिंटिंग उत्पाद" : "All Printing Products"}
-              </Link>
-            </li>
-            <li>
-              <Link to="/printing/visiting-cards" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "विजिटिंग कार्ड" : "Visiting Cards"}
-              </Link>
-            </li>
-            <li>
-              <Link to="/printing/flex-banners" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "फ्लेक्स बैनर" : "Flex Banners"}
-              </Link>
-            </li>
-            <li>
-              <Link to="/printing/pamphlets-flyers" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "पम्पलेट व हैंडबिल" : "Pamphlets & Flyers"}
+                {currentLang === "hi" ? "प्रिंटिंग प्रेस कैटलॉग" : "Printing & Press"}
               </Link>
             </li>
             <li>
               <Link to="/wedding-events" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "शाही शादी कार्ड" : "Wedding & Event Cards"}
+                {currentLang === "hi" ? "शादी एवं मांगलिक कार्ड" : "Wedding & Events"}
               </Link>
             </li>
             <li>
-              <Link to="/design-services" className="hover:text-white transition-colors text-amber-300 font-semibold">
-                {currentLang === "hi" ? "ग्राफिक डिज़ाइन स्टूडियो" : "Design Studio Help"}
+              <Link to="/business" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "बिजनेस प्रिंटिंग" : "Business Printing"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/design-services" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "ग्राफिक डिज़ाइन स्टूडियो" : "Design Studio"}
+              </Link>
+            </li>
+            <li>
+              <Link to="/digital-services" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "सरकारी एवं डिजिटल सेवाएँ" : "Govt & CSC Services"}
               </Link>
             </li>
           </ul>
         </div>
 
-        {/* Column 3: Digital & Online Services */}
+        {/* Column 3: Customer Portal */}
         <div className="space-y-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-            {currentLang === "hi" ? "डिजिटल सेवाएँ" : "Digital & CSC"}
+            {currentLang === "hi" ? "ग्राहक सुविधाएँ" : "Customer"}
           </h4>
           <ul className="space-y-2 text-xs">
             <li>
-              <Link to="/services" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "संपूर्ण सेवा कैटलॉग" : "All Services Catalog"}
+              <Link to="/track-order" className="hover:text-white text-emerald-400 font-bold transition-colors">
+                📦 {currentLang === "hi" ? "ऑर्डर ट्रैक करें" : "Track Order"}
               </Link>
             </li>
             <li>
-              <Link to="/services/government/pan-card-application-correction" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "पैन कार्ड आवेदन" : "PAN Card Services"}
+              <Link to="/account/orders" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "मेरे ऑर्डर्स" : "My Orders"}
               </Link>
             </li>
             <li>
-              <Link to="/services/government/caste-income-residence-assistance" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "जाति/आय/निवास (RTPS)" : "RTPS Certificates"}
+              <Link to="/login" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "लॉगिन / साइन अप" : "Customer Login"}
               </Link>
             </li>
             <li>
-              <Link to="/services/online-services/job-forms-application-filling" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "सरकारी फॉर्म सहायता" : "Govt Exam Form Filling"}
-              </Link>
-            </li>
-            <li>
-              <Link to="/business" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "व्यावसायिक समाधान" : "Business Printing Kit"}
+              <Link to="/faq" className="hover:text-white transition-colors">
+                {currentLang === "hi" ? "अक्सर पूछे जाने वाले सवाल" : "FAQs & Help"}
               </Link>
             </li>
             <li>
@@ -149,22 +144,12 @@ export function Footer(): React.JSX.Element {
           </ul>
         </div>
 
-        {/* Column 4: Quick Links & Legal */}
+        {/* Column 4: Company & Legal */}
         <div className="space-y-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-            {currentLang === "hi" ? "ग्राहक सहायता एवं नीतियां" : "Support & Legal"}
+            {currentLang === "hi" ? "कंपनी एवं नीतियां" : "Company & Legal"}
           </h4>
           <ul className="space-y-2 text-xs">
-            <li>
-              <Link to="/track-order" className="hover:text-white text-emerald-400 font-bold transition-colors">
-                📦 {currentLang === "hi" ? "ऑर्डर / स्थिति ट्रैक करें" : "Track Order / Status"}
-              </Link>
-            </li>
-            <li>
-              <Link to="/account" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "ग्राहक अकाउंट" : "Customer Portal"}
-              </Link>
-            </li>
             <li>
               <Link to="/about" className="hover:text-white transition-colors">
                 {currentLang === "hi" ? "हमारे बारे में" : "About Us"}
@@ -172,27 +157,22 @@ export function Footer(): React.JSX.Element {
             </li>
             <li>
               <Link to="/contact" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "संपर्क एवं स्टोर का पता" : "Contact & Location"}
-              </Link>
-            </li>
-            <li>
-              <Link to="/faq" className="hover:text-white transition-colors">
-                {currentLang === "hi" ? "अक्सर पूछे जाने वाले सवाल" : "Frequently Asked Questions"}
+                {currentLang === "hi" ? "संपर्क एवं स्टोर पता" : "Contact & Location"}
               </Link>
             </li>
             <li>
               <Link to="/privacy" className="hover:text-white text-slate-400 transition-colors">
-                Privacy Policy
+                {currentLang === "hi" ? "गोपनीयता नीति" : "Privacy Policy"}
               </Link>
             </li>
             <li>
               <Link to="/terms" className="hover:text-white text-slate-400 transition-colors">
-                Terms of Service
+                {currentLang === "hi" ? "नियम एवं शर्तें" : "Terms & Conditions"}
               </Link>
             </li>
             <li>
               <Link to="/refund-policy" className="hover:text-white text-slate-400 transition-colors">
-                Refund & Reprint Policy
+                {currentLang === "hi" ? "रिफंड एवं रीप्रिंट नीति" : "Refund Policy"}
               </Link>
             </li>
           </ul>

@@ -104,10 +104,18 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
         if (isMounted) setLoading(false);
       });
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, doc]);
+  }, [isOpen, doc, onClose]);
 
   if (!isOpen || !doc) return null;
 

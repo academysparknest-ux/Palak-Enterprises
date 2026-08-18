@@ -9,6 +9,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
+import { OrderAuthGate } from "../../components/OrderAuthGate";
 
 const CUSTOM_PRODUCT_TYPES = [
   "Pamphlet / Handbill",
@@ -101,6 +102,15 @@ export const CustomPrintPage: React.FC = () => {
   const handleSubmitQuote = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+
+    if (!user) {
+      setSubmitError(
+        currentLang === "hi"
+          ? "ऑनलाइन प्रिंटिंग ऑर्डर के लिए अकाउंट आवश्यक है। कृपया नीचे दिए गए फॉर्म से तुरंत अकाउंट बनाएं या लॉगिन करें।"
+          : "An account is required to place an instant online print order. Please create an account or sign in below."
+      );
+      return;
+    }
 
     if (!customerName.trim()) {
       setSubmitError(currentLang === "hi" ? "कृपया अपना नाम दर्ज करें।" : "Please enter your name.");
@@ -377,51 +387,16 @@ export const CustomPrintPage: React.FC = () => {
               </div>
             </section>
 
-            {/* Step 3: Contact Details */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
-              <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
-                  3
-                </span>
-                <span>Contact Details</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Your Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="e.g. Ramesh Kumar"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs focus:bg-white focus:border-[#123B70] focus:outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Mobile Number *</label>
-                  <input
-                    type="tel"
-                    required
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="e.g. 9905238015"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs focus:bg-white focus:border-[#123B70] focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Special Instructions</label>
-                <textarea
-                  rows={2}
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="Mention delivery deadline or other custom preferences..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs focus:bg-white focus:border-[#123B70] focus:outline-hidden"
-                />
-              </div>
-            </section>
+            {/* Step 3: Customer Account & Contact Details */}
+            <OrderAuthGate
+              stepNumber={3}
+              customerName={customerName}
+              setCustomerName={setCustomerName}
+              customerPhone={customerPhone}
+              setCustomerPhone={setCustomerPhone}
+              instructions={instructions}
+              setInstructions={setInstructions}
+            />
           </div>
 
           {/* Right 1 Column */}

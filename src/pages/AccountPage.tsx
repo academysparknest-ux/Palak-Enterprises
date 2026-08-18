@@ -174,15 +174,15 @@ export const AccountPage: React.FC = () => {
     if (!isAuthenticated || !userId || !supabase) return;
 
     const channel = supabase
-      .channel("customer-orders-realtime")
+      .channel(`customer-orders-${userId}`)
       .on(
         "postgres_changes" as any,
-        { event: "UPDATE", schema: "public", table: "orders", filter: `user_id=eq.${userId}` },
+        { event: "*", schema: "public", table: "orders", filter: `user_id=eq.${userId}` },
         async () => {
           // Refresh the customer's orders from database
           try {
             const fresh = await getUserOrders(userId);
-            if (fresh && fresh.length > 0) {
+            if (fresh) {
               setCustomerOrders(fresh);
             }
           } catch (e) {

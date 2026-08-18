@@ -100,8 +100,9 @@ export const AdminPage: React.FC = () => {
   const [paymentDateFilter, setPaymentDateFilter] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL");
   const [copiedPaymentId, setCopiedPaymentId] = useState<string | null>(null);
 
-  // Selected Order Drawer / Modal State
-  const [selectedOrderForModal, setSelectedOrderForModal] = useState<StoredOrder | null>(null);
+  // Selected Order Drawer / Modal State (Derived dynamically to eliminate stale snapshots)
+  const [selectedOrderCode, setSelectedOrderCode] = useState<string | null>(null);
+  const selectedOrderForModal = orders.find((o) => o.orderCode === selectedOrderCode) || null;
   const [orderHistoryTimeline, setOrderHistoryTimeline] = useState<any[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
   const [staffNoteInput, setStaffNoteInput] = useState("");
@@ -142,13 +143,6 @@ export const AdminPage: React.FC = () => {
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       setOrders(allOrders);
-
-      // Sync active detail modal with fresh data
-      setSelectedOrderForModal((prev) => {
-        if (!prev) return null;
-        const fresh = allOrders.find((o) => o.orderCode === prev.orderCode);
-        return fresh || null;
-      });
 
       // Merge Service Requests
       const localServices = PalakDataStore.getServiceRequests();
@@ -227,7 +221,7 @@ export const AdminPage: React.FC = () => {
 
   // Open Order Drawer & Load Timeline
   const handleOpenOrderModal = async (order: StoredOrder) => {
-    setSelectedOrderForModal(order);
+    setSelectedOrderCode(order.orderCode);
     setStaffNoteInput(order.staffNotes || "");
     setLoadingTimeline(true);
     try {
@@ -246,17 +240,13 @@ export const AdminPage: React.FC = () => {
     setUpdatingStatus(orderCode);
     try {
       await updateStaffOrderStatus(orderCode, newStatus);
-      // Only update local store + UI after confirmed cloud success
+      // Update local store + UI
       PalakDataStore.updateOrderStatus(orderCode, newStatus);
       await loadData();
-      if (selectedOrderForModal && selectedOrderForModal.orderCode === orderCode) {
-        setSelectedOrderForModal((prev) => prev ? { ...prev, orderStatus: newStatus } : null);
-        const history = await getOrderStatusHistory(orderCode);
-        setOrderHistoryTimeline(history);
-      }
+      const history = await getOrderStatusHistory(orderCode);
+      setOrderHistoryTimeline(history);
     } catch (e) {
       console.error("Status update failed — database not updated:", e);
-      // Do NOT update local state or UI on failure
     } finally {
       setUpdatingStatus(null);
     }
@@ -270,11 +260,8 @@ export const AdminPage: React.FC = () => {
       await updateStaffOrderPaymentStatus(order.orderCode, nextStatus);
       PalakDataStore.updateOrderPaymentStatus(order.orderCode, nextStatus);
       await loadData();
-      if (selectedOrderForModal && selectedOrderForModal.orderCode === order.orderCode) {
-        setSelectedOrderForModal((prev) => prev ? { ...prev, paymentStatus: nextStatus } : null);
-        const history = await getOrderStatusHistory(order.orderCode);
-        setOrderHistoryTimeline(history);
-      }
+      const history = await getOrderStatusHistory(order.orderCode);
+      setOrderHistoryTimeline(history);
     } catch (e) {
       console.error("Payment status update error:", e);
     } finally {
@@ -289,11 +276,8 @@ export const AdminPage: React.FC = () => {
       await addStaffOrderNote(orderCode, staffNoteInput.trim());
       PalakDataStore.addStaffOrderNote(orderCode, staffNoteInput.trim());
       await loadData();
-      if (selectedOrderForModal && selectedOrderForModal.orderCode === orderCode) {
-        setSelectedOrderForModal((prev) => prev ? { ...prev, staffNotes: staffNoteInput.trim() } : null);
-        const history = await getOrderStatusHistory(orderCode);
-        setOrderHistoryTimeline(history);
-      }
+      const history = await getOrderStatusHistory(orderCode);
+      setOrderHistoryTimeline(history);
     } catch (e) {
       console.error("Save note error:", e);
     } finally {
@@ -2042,8 +2026,10 @@ export const AdminPage: React.FC = () => {
               </div>
 
               <button
-                onClick={() => setSelectedOrderForModal(null)}
+                type="button"
+                onClick={() => setSelectedOrderCode(null)}
                 className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
+                aria-label="Close Order Details Modal"
               >
                 <X className="h-5 w-5" />
               </button>

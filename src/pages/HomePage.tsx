@@ -80,7 +80,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
       <Hero onOpenRequestModal={onOpenRequestModal} />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 space-y-16 sm:space-y-20">
-        {/* 2. Main 4 Service Category Cards */}
+        {/* 2. ⚡ Quick Service (Primary Feature) */}
+        <InstantOnlineServicesSection />
+
+        {/* 3. Main 4 Service Category Cards */}
         <section className="space-y-6">
           <div className="flex items-end justify-between">
             <div>
@@ -126,9 +129,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
             })}
           </div>
         </section>
-
-        {/* ⚡ Instant Online Services (Self-Service 7 Cards) */}
-        <InstantOnlineServicesSection />
 
         {/* 4. Popular Printing Products Section */}
         <section className="space-y-6">

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
+import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { getWhatsAppLink } from "../../config/business";
 import { PalakDataStore } from "../../lib/storage/store";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
@@ -57,6 +58,15 @@ export const InvitationCardsPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+
+    if (!user) {
+      setSubmitError(
+        currentLang === "hi"
+          ? "ऑनलाइन प्रिंटिंग ऑर्डर के लिए अकाउंट आवश्यक है। कृपया नीचे दिए गए फॉर्म से तुरंत अकाउंट बनाएं या लॉगिन करें।"
+          : "An account is required to place an instant online print order. Please create an account or sign in below."
+      );
+      return;
+    }
 
     if (!customerName.trim()) {
       setSubmitError(currentLang === "hi" ? "कृपया अपना नाम दर्ज करें।" : "Please enter your name.");
@@ -337,49 +347,16 @@ export const InvitationCardsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Step 4: Contact Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-800">
-                  {currentLang === "hi" ? "आपका नाम *" : "Your Full Name *"}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="e.g. Rajesh Kumar"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-800">
-                  {currentLang === "hi" ? "मोबाइल नंबर *" : "Mobile Number *"}
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="e.g. 9905238015"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-slate-800">
-                {currentLang === "hi" ? "अतिरिक्त निर्देश या वर/वधू का नाम" : "Groom/Bride Names or Special Notes"}
-              </label>
-              <textarea
-                rows={2}
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                placeholder="Mention specific text, language (Hindi / English / Sanskrit), or sample requests..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
-              />
-            </div>
+            {/* Step 4: Customer Account & Contact Details */}
+            <OrderAuthGate
+              stepNumber={4}
+              customerName={customerName}
+              setCustomerName={setCustomerName}
+              customerPhone={customerPhone}
+              setCustomerPhone={setCustomerPhone}
+              instructions={instructions}
+              setInstructions={setInstructions}
+            />
 
             {submitError && (
               <div className="rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700 border border-rose-200">

@@ -565,7 +565,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               )}
             </div>
 
-            {/* Instant Online Services Link (Separate Fast Workflow) */}
+            {/* Instant Online / Quick Service */}
             <NavLink
               to="/online-services"
               className={({ isActive }) =>
@@ -578,7 +578,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               }
             >
               <Zap className="w-3.5 h-3.5 text-amber-500" />
-              <span>{currentLang === "hi" ? "तुरंत सेवाएँ" : "Instant Print"}</span>
+              <span>{currentLang === "hi" ? "त्वरित सेवा" : "Quick Service"}</span>
             </NavLink>
 
             {/* Wedding & Events Link */}
@@ -597,34 +597,20 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               <span>{currentLang === "hi" ? "शादी कार्ड" : "Wedding & Events"}</span>
             </NavLink>
 
-            {/* Business Solutions Link */}
+            {/* Track Order Link */}
             <NavLink
-              to="/business"
+              to="/track-order"
               className={({ isActive }) =>
                 cn(
-                  "px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
+                  "inline-flex items-center gap-1 px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
                   isActive
                     ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
                     : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
                 )
               }
             >
-              {currentLang === "hi" ? "बिजनेस प्रिंटिंग" : "Business Solutions"}
-            </NavLink>
-
-            {/* About Link */}
-            <NavLink
-              to="/about"
-              className={({ isActive }) =>
-                cn(
-                  "px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
-                  isActive
-                    ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
-                    : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
-                )
-              }
-            >
-              {currentLang === "hi" ? "हमारे बारे में" : "About"}
+              <Package className="w-3.5 h-3.5 text-amber-500" />
+              <span>{currentLang === "hi" ? "ट्रैक ऑर्डर" : "Track Order"}</span>
             </NavLink>
 
             {/* Contact Link */}
@@ -649,15 +635,15 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
             <button
               type="button"
               onClick={() => setSearchModalOpen(true)}
-              className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-slate-50/90 px-2 sm:px-3 py-1.5 text-xs text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 transition-all cursor-pointer shadow-2xs"
+              className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-slate-50/90 px-2 sm:px-2.5 py-1.5 text-xs text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 transition-all cursor-pointer shadow-2xs"
               title="Search services & products (Ctrl+K)"
               aria-label="Search catalog and services"
             >
               <Search className="h-4 w-4 text-slate-500 shrink-0" />
-              <span className="hidden sm:inline font-medium">
+              <span className="hidden xl:inline font-medium">
                 {currentLang === "hi" ? "खोजें..." : "Search..."}
               </span>
-              <kbd className="hidden md:inline-block rounded border border-slate-200 bg-white px-1.5 py-0.2 text-[10px] text-slate-400 font-mono">
+              <kbd className="hidden 2xl:inline-block rounded border border-slate-200 bg-white px-1.5 py-0.2 text-[10px] text-slate-400 font-mono">
                 ⌘K
               </kbd>
             </button>
@@ -690,6 +676,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
                   : (currentLang === "hi" ? "लॉगिन" : "Login")}
               </span>
             </Link>
+
+            {/* Primary CTA: Upload & Print */}
+            <button
+              type="button"
+              onClick={() => onOpenRequestModal?.()}
+              className="hidden md:inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold px-3.5 py-1.5 text-xs shadow-xs transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0"
+            >
+              <Zap className="h-3.5 w-3.5 fill-slate-950 text-slate-950" />
+              <span>{currentLang === "hi" ? "अपलोड व प्रिंट" : "Upload & Print"}</span>
+            </button>
 
             {/* Mobile Drawer Hamburger Button */}
             <button

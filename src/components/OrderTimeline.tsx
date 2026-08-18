@@ -19,27 +19,28 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({
   const currentLang = (lang || language || "en") as "en" | "hi";
 
   const orderSteps = [
-    { key: "NEW", labelEn: "Order Received", labelHi: "ऑर्डर प्राप्त" },
-    { key: "UNDER_REVIEW", labelEn: "Under Review", labelHi: "फाइल जांच" },
-    { key: "CONFIRMED", labelEn: "Price Confirmed", labelHi: "मूल्य कन्फर्म" },
-    { key: "IN_PRODUCTION", labelEn: "Printing", labelHi: "प्रिंटिंग जारी" },
-    { key: "FINISHING", labelEn: "Finishing", labelHi: "फिनिशिंग / बाइंडिंग" },
-    { key: "READY_FOR_PICKUP", labelEn: "Ready for Pickup", labelHi: "दुकान पर तैयार" },
-    { key: "COMPLETED", labelEn: "Completed", labelHi: "पूर्ण" },
+    { key: "SUBMITTED", aliases: ["NEW", "SUBMITTED", "PENDING"], labelEn: "Submitted", labelHi: "ऑर्डर दर्ज" },
+    { key: "CONFIRMED", aliases: ["CONFIRMED", "UNDER_REVIEW", "PAYMENT_PENDING", "PAYMENT_CONFIRMED"], labelEn: "Confirmed", labelHi: "कन्फर्म" },
+    { key: "PRINTING", aliases: ["PRINTING", "IN_PRODUCTION", "FINISHING"], labelEn: "Printing", labelHi: "प्रिंटिंग जारी" },
+    { key: "READY", aliases: ["READY", "READY_FOR_PICKUP"], labelEn: "Ready", labelHi: "दुकान पर तैयार" },
+    { key: "COMPLETED", aliases: ["COMPLETED", "DELIVERED"], labelEn: "Completed", labelHi: "पूर्ण" },
   ];
 
   const serviceSteps = [
-    { key: "NEW", labelEn: "Request Received", labelHi: "अनुरोध प्राप्त" },
-    { key: "DOCUMENTS_VERIFIED", labelEn: "Docs Verified", labelHi: "दस्तावेज जांच" },
-    { key: "IN_PROCESSING", labelEn: "Portal Draft", labelHi: "पोर्टल ड्राफ्ट" },
-    { key: "SUBMITTED_TO_PORTAL", labelEn: "Submitted", labelHi: "सरकारी पोर्टल सबमिट" },
-    { key: "COMPLETED", labelEn: "Delivered", labelHi: "सफलतापूर्वक पूर्ण" },
+    { key: "SUBMITTED", aliases: ["NEW", "SUBMITTED", "PENDING"], labelEn: "Submitted", labelHi: "अनुरोध प्राप्त" },
+    { key: "VERIFIED", aliases: ["DOCUMENTS_VERIFIED", "UNDER_REVIEW"], labelEn: "Docs Verified", labelHi: "दस्तावेज जांच" },
+    { key: "PROCESSING", aliases: ["IN_PROCESSING", "PORTAL_DRAFT"], labelEn: "Processing", labelHi: "प्रक्रिया जारी" },
+    { key: "SUBMITTED_PORTAL", aliases: ["SUBMITTED_TO_PORTAL"], labelEn: "Portal Submitted", labelHi: "सरकारी पोर्टल" },
+    { key: "COMPLETED", aliases: ["COMPLETED", "DELIVERED"], labelEn: "Completed", labelHi: "पूर्ण" },
   ];
 
   const steps = entityType === "service_request" ? serviceSteps : orderSteps;
 
-  const currentIdx = steps.findIndex((s) => s.key === currentStatus);
-  const activeStepIndex = currentIdx >= 0 ? currentIdx : 0;
+  const normalizedStatus = (currentStatus || "SUBMITTED").toUpperCase();
+  let activeStepIndex = steps.findIndex(
+    (s) => s.key === normalizedStatus || s.aliases.includes(normalizedStatus)
+  );
+  if (activeStepIndex < 0) activeStepIndex = 0;
 
   const formatDate = (isoStr: string) => {
     try {
