@@ -10,6 +10,12 @@ import {
 import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type OrderItemPayload } from "../storage/store";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 
+/** Returns true only for valid UUID strings that can be stored in Supabase user_id columns */
+function isValidSupabaseUUID(id?: string): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export interface PrintOrderPayload {
   serviceId: "document-printing" | "passport-photo" | "visiting-cards" | "id-cards" | "poster-banner" | "custom-print" | "invitation-cards" | string;
   serviceName: string;
@@ -656,7 +662,7 @@ export function generatePrintOrderCode(): string {
 
 export async function getSecureSignedUrl(
   storagePath: string,
-  expiresIn = 60 * 60 * 24 * 7,
+  expiresIn = 3600, // 1 hour short-lived signed access for active print/view session
   options?: { download?: boolean | string }
 ): Promise<string> {
   if (!storagePath) return "";
@@ -669,21 +675,12 @@ export async function getSecureSignedUrl(
     const cleanPath = storagePath.startsWith("customer-documents/")
       ? storagePath.replace("customer-documents/", "")
       : storagePath;
-    const { data } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from("customer-documents")
       .createSignedUrl(cleanPath, expiresIn, options as any);
 
-    if (data?.signedUrl) {
+    if (!error && data?.signedUrl) {
       return data.signedUrl;
-    }
-
-    // Fallback to public URL if available
-    const { data: publicData } = supabase.storage
-      .from("customer-documents")
-      .getPublicUrl(cleanPath);
-
-    if (publicData?.publicUrl) {
-      return publicData.publicUrl;
     }
 
     return storagePath;
@@ -712,17 +709,13 @@ export async function uploadOrderFile(
         });
 
       if (!error) {
-        // Generate signed URL valid for 7 days
+        // Generate short-lived signed URL (1 hour)
         const { data: signedData } = await supabase.storage
           .from("customer-documents")
-          .createSignedUrl(filePath, 60 * 60 * 24 * 7);
-
-        const { data: publicData } = supabase.storage
-          .from("customer-documents")
-          .getPublicUrl(filePath);
+          .createSignedUrl(filePath, 3600);
 
         return {
-          url: signedData?.signedUrl || publicData?.publicUrl || filePath,
+          url: signedData?.signedUrl || filePath,
           storagePath: filePath,
         };
       } else {
@@ -829,9 +822,9 @@ export async function submitPrintOrder(
     designNotes: payload.instructions,
   };
 
-  // 1. Sync with local store for resilience
+  // 1. Save to localStorage for resilience (no Supabase — this function handles that below)
   try {
-    PalakDataStore.createOrder({
+    PalakDataStore.saveOrderToLocal({
       orderCode,
       userId: payload.userId,
       customerName: payload.customerName,
@@ -873,7 +866,8 @@ export async function submitPrintOrder(
         staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
       };
 
-      if (payload.userId) {
+      // Only set user_id if it's a valid Supabase UUID (not a guest ID like cust_xxx)
+      if (isValidSupabaseUUID(payload.userId)) {
         insertPayload.user_id = payload.userId;
       }
 
@@ -910,7 +904,8 @@ export async function submitPrintOrder(
               file_name: payload.file.name || "Customer Upload",
               file_path: payload.file.storagePath || payload.file.url || "",
               file_url: payload.file.url || "",
-              file_type: "document",
+              file_type: payload.file.mimeType || "document",
+              file_size: payload.file.size || null,
               uploaded_by: payload.customerName,
             });
           } catch (fileErr) {

@@ -171,6 +171,12 @@ function generateCode(prefix: string): string {
   return `PE-${prefix}-${year}-${rand}`;
 }
 
+/** Returns true only for valid UUID strings that can be stored in Supabase user_id columns */
+function isValidSupabaseUUID(id?: string): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export class PalakDataStore {
   // --- Catalog access ---
   static getCategories(): LocalCategory[] {
@@ -318,6 +324,67 @@ export class PalakDataStore {
   }
 
   // --- Orders ---
+
+  /**
+   * Save an order to localStorage only (no Supabase sync).
+   * Used by submitPrintOrder which manages its own authoritative Supabase insert.
+   */
+  static saveOrderToLocal(data: {
+    orderCode: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string;
+    fulfillmentType: "pickup" | "delivery";
+    deliveryAddress?: { street: string; landmark?: string; city: string; pincode: string };
+    orderNotes?: string;
+    subtotalAmount: number;
+    deliveryFee: number;
+    totalAmount: number;
+    paymentMethod: string;
+    paymentStatus: string;
+    orderStatus: string;
+    userId?: string;
+    staffNotes?: string;
+    items: OrderItemPayload[];
+  }): StoredOrder {
+    const now = new Date().toISOString();
+    const newOrder: StoredOrder = {
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      orderCode: data.orderCode,
+      userId: data.userId,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      customerEmail: data.customerEmail,
+      fulfillmentType: data.fulfillmentType,
+      deliveryAddress: data.deliveryAddress,
+      orderNotes: data.orderNotes,
+      subtotalAmount: data.subtotalAmount,
+      deliveryFee: data.deliveryFee,
+      totalAmount: data.totalAmount,
+      paymentMethod: data.paymentMethod as any,
+      paymentStatus: (data.paymentStatus as any) || "pending",
+      orderStatus: (data.orderStatus as any) || "NEW",
+      items: data.items,
+      staffNotes: data.staffNotes,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const list = getLocal<StoredOrder[]>(ORDERS_KEY, []);
+    list.unshift(newOrder);
+    setLocal(ORDERS_KEY, list);
+
+    this.addStatusHistory({
+      entityType: "order",
+      entityCode: data.orderCode,
+      newStatus: "NEW",
+      messageEn: "Order placed successfully. Palak team is reviewing specifications.",
+      messageHi: "ऑर्डर सफलतापूर्वक दर्ज हुआ। पालक टीम विवरण की समीक्षा कर रही है।",
+      performedBy: "Customer",
+    });
+
+    return newOrder;
+  }
   static async createOrder(data: {
     orderCode?: string;
     customerName: string;
@@ -415,7 +482,8 @@ export class PalakDataStore {
           staff_notes: data.staffNotes || null,
         };
 
-        if (data.userId) {
+        // Only set user_id if it's a valid Supabase UUID (not a guest ID like cust_xxx)
+        if (isValidSupabaseUUID(data.userId)) {
           orderInsertPayload.user_id = data.userId;
         }
 
@@ -447,13 +515,14 @@ export class PalakDataStore {
 
           // If file uploaded, record in order_files table
           for (const item of data.items) {
-            if (item.uploadedFileUrl || item.uploadedFileName) {
+            if (item.uploadedFileUrl || item.uploadedFileName || item.selectedOptions?.storagePath) {
+              const storagePath = item.selectedOptions?.storagePath || item.uploadedFileUrl || "";
               await supabase.from("order_files").insert({
                 order_id: insertedOrder.id,
                 file_name: item.uploadedFileName || "Document",
-                file_path: item.uploadedFileUrl || "",
+                file_path: storagePath,
                 file_url: item.uploadedFileUrl || "",
-                file_type: "document",
+                file_type: (item.selectedOptions as any)?.mimeType || "document",
                 uploaded_by: data.customerName,
               });
             }

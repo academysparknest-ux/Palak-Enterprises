@@ -475,11 +475,11 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
               <button
                 type="button"
                 onClick={handleOpen}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold transition-colors cursor-pointer"
-                title="Open PDF Preview"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold transition-colors cursor-pointer"
+                title="Open PDF in secure viewer for proofing & printing"
               >
                 <Eye className="h-3 w-3" />
-                <span>Open PDF</span>
+                <span>Open & Print</span>
               </button>
               <button
                 type="button"
@@ -497,11 +497,11 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
               <button
                 type="button"
                 onClick={handleOpen}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition-colors cursor-pointer"
-                title="Open Image Preview"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition-colors cursor-pointer"
+                title="Preview image and prepare for printing"
               >
                 <Eye className="h-3 w-3" />
-                <span>Open</span>
+                <span>Preview & Print</span>
               </button>
               <button
                 type="button"
@@ -572,7 +572,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
             {formattedSize && <span>{formattedSize}</span>}
             {category === "pdf" ? (
-              <span className="text-red-600 font-medium">Inline Preview & Direct Print</span>
+              <span className="text-red-600 font-medium">Secure Stream • Inline Print Workflow</span>
             ) : (
               <span>Customer Uploaded File</span>
             )}
@@ -581,22 +581,24 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 shrink-0">
-        {/* PDF Workflow */}
+        {/* PDF Workflow: Strict No-Download Enforcement */}
         {category === "pdf" && (
           <>
             <button
               type="button"
               onClick={handleOpen}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              title="Open secure PDF viewer for inspection and direct printing"
             >
               <Eye className="h-3.5 w-3.5" />
-              <span>Open PDF</span>
+              <span>Open & Print</span>
             </button>
             <button
               type="button"
               onClick={handleDirectPrint}
               disabled={isPrinting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              title="Send directly to printer without downloading"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>{isPrinting ? "Printing..." : "Print"}</span>
@@ -610,16 +612,18 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
             <button
               type="button"
               onClick={handleOpen}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              title="Open image preview and print dialog"
             >
               <Eye className="h-3.5 w-3.5" />
-              <span>Open</span>
+              <span>Preview & Print</span>
             </button>
             <button
               type="button"
               onClick={handleDirectDownload}
               disabled={isDownloading}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              title="Download original image file"
             >
               <Download className="h-3.5 w-3.5" />
               <span>{isDownloading ? "..." : "Download"}</span>
@@ -629,6 +633,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
               onClick={handleDirectPrint}
               disabled={isPrinting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              title="Print image directly"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>{isPrinting ? "..." : "Print"}</span>
