@@ -62,7 +62,7 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({
       <div className="relative">
         <div className="hidden sm:block absolute top-4 left-6 right-6 h-0.5 bg-slate-200" />
         <div
-          className="hidden sm:block absolute top-4 left-6 h-0.5 bg-[#123B70] transition-all duration-500"
+          className="hidden sm:block absolute top-4 left-6 h-0.5 bg-[#123B70] transition-all duration-700 ease-out"
           style={{
             width: `${Math.min(100, (activeStepIndex / (steps.length - 1)) * 100)}%`,
           }}
@@ -83,20 +83,20 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({
               <div
                 key={step.key}
                 className={cn(
-                  "relative flex flex-col items-center text-center p-2 rounded-xl sm:bg-transparent",
+                  "relative flex flex-col items-center text-center p-2 rounded-xl sm:bg-transparent transition-all",
                   isCurrent && "bg-blue-50/60 sm:bg-transparent"
                 )}
               >
                 <div
                   className={cn(
                     "relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all shadow-xs",
-                    isCompleted && "bg-emerald-600 text-white",
-                    isCurrent && "bg-[#123B70] text-white ring-4 ring-blue-100 animate-pulse",
+                    isCompleted && "bg-emerald-600 text-white shadow-emerald-700/20",
+                    isCurrent && "bg-[#123B70] text-white ring-4 ring-blue-200/80 animate-pulseSoft shadow-md",
                     isPending && "bg-slate-100 text-slate-400 border border-slate-200"
                   )}
                 >
                   {isCompleted ? (
-                    <CheckCircle2 className="h-4 w-4" />
+                    <CheckCircle2 className="h-4 w-4 animate-popIn" />
                   ) : isCurrent ? (
                     <Clock className="h-4 w-4" />
                   ) : (

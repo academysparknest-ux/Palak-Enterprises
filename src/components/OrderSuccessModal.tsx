@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { business, getWhatsAppLink } from "../config/business";
+import { cn } from "../lib/utils";
 
 export interface OrderSuccessModalProps {
   isOpen: boolean;
@@ -67,19 +68,23 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
 
   const isOnlinePayment = paymentMethod === "upi_online" || paymentMethod === "pay_online";
   const isPaid = paymentStatus === "confirmed" || paymentStatus === "paid";
+  const isPriority = isOnlinePayment && isPaid;
 
   // Optional WhatsApp support query (never contains private storage URLs)
-  const waSupportMsg = `Hello Palak Enterprises,\n\nI have a question regarding my order.\n\nOrder ID: ${orderCode}\nService: ${serviceName}\nCustomer: ${customerName} (${customerPhone})\n\nThank you!`;
+  const waSupportMsg = `Hello Palak Enterprises,\n\nI have a question regarding my order.\n\nOrder ID: ${orderCode}\nService: ${serviceName}\nQueue: ${isPriority ? "Priority (Paid Online)" : "Normal (Send Document)"}\nCustomer: ${customerName} (${customerPhone})\n\nThank you!`;
   const waLink = getWhatsAppLink(waSupportMsg);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-4 md:p-6 flex min-h-full items-center justify-center animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 my-auto transition-all">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-4 md:p-6 flex min-h-full items-center justify-center animate-fadeIn">
+      <div
+        className="relative w-full max-w-lg rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 my-auto transition-all"
+        style={{ animation: "scaleIn 300ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
+      >
         {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+          className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active-press transition-colors cursor-pointer"
           aria-label="Close dialog"
         >
           <X className="h-5 w-5" />
@@ -87,19 +92,56 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
 
         {/* Success Icon Header */}
         <div className="text-center space-y-1.5 sm:space-y-2 pt-1 sm:pt-0">
-          <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto ring-4 sm:ring-8 ring-emerald-50">
+          <div className={cn(
+            "h-12 w-12 sm:h-16 sm:w-16 rounded-full flex items-center justify-center mx-auto ring-4 sm:ring-8 animate-popIn",
+            isPriority ? "bg-amber-100 text-amber-600 ring-amber-50" : "bg-blue-100 text-blue-600 ring-blue-50"
+          )}>
             <CheckCircle2 className="h-7 w-7 sm:h-9 sm:w-9" />
           </div>
 
           <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
-            {currentLang === "hi" ? "✓ ऑर्डर सफलतापूर्वक दर्ज हुआ!" : "✓ Order Submitted Successfully!"}
+            {isPriority
+              ? (currentLang === "hi" ? "🎉 भुगतान सफल! (Priority Print)" : "🎉 Payment Successful!")
+              : (currentLang === "hi" ? "📄 दस्तावेज सफलतापूर्वक भेजा गया" : "📄 Document Sent Successfully")}
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
-            {currentLang === "hi"
-              ? "आपका ऑर्डर पालक एंटरप्राइजेज एडमिन पोर्टल पर प्राप्त हो गया है। तैयार होने पर आपको सूचित किया जाएगा।"
-              : "Your order is registered in our production queue. We'll prepare your order and update its status when it is ready for pickup."}
+            {isPriority
+              ? (currentLang === "hi"
+                  ? "आपका ऑर्डर PRIORITY PRINTING QUEUE में है। आपको सामान्य कतार में प्रतीक्षा नहीं करनी होगी। हम आपके दस्तावेज पहले तैयार करेंगे। दुकान पहुँचकर तैयार प्रिंट प्राप्त करें।"
+                  : "Your order is in the PRIORITY PRINTING QUEUE. You don't need to wait in the normal queue. We'll prepare your documents first. Come to the shop and collect your ready prints.")
+              : (currentLang === "hi"
+                  ? "आपके दस्तावेज सामान्य कतार में प्राप्त हो गए हैं। दुकान काउंटर पर आपकी मौजूदगी/सत्यापन होते ही प्रिंट शुरू कर दिया जाएगा और आप काउंटर पर भुगतान करेंगे।"
+                  : "Your documents have been received in the normal queue. Printing starts once your arrival/availability is confirmed at the shop counter, and you pay at pickup.")}
           </p>
+        </div>
+
+        {/* Queue Classification Alert Banner */}
+        <div className={cn(
+          "rounded-xl p-3 border text-xs flex items-center justify-between gap-3",
+          isPriority
+            ? "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300 text-amber-950"
+            : "bg-gradient-to-r from-slate-50 to-blue-50 border-slate-300 text-slate-900"
+        )}>
+          <div className="flex items-center gap-2">
+            <span className="text-base">{isPriority ? "🔥" : "📄"}</span>
+            <div>
+              <span className="font-extrabold uppercase tracking-wide block text-[11px]">
+                {isPriority ? "PRIORITY PRINTING QUEUE" : "NORMAL PRINTING QUEUE"}
+              </span>
+              <span className="text-[10px] text-slate-600">
+                {isPriority
+                  ? (currentLang === "hi" ? "प्राथमिकता क्रम: पहले प्रिंट होगा" : "Express processing: printed ahead of normal queue")
+                  : (currentLang === "hi" ? "सामान्य क्रम: पहले आओ, पहले पाओ" : "Standard processing: first come, first served")}
+              </span>
+            </div>
+          </div>
+          <span className={cn(
+            "text-[9px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 border",
+            isPriority ? "bg-amber-400 text-slate-950 border-amber-500" : "bg-slate-200 text-slate-800 border-slate-300"
+          )}>
+            {isPriority ? "PRIORITY" : "NORMAL"}
+          </span>
         </div>
 
         {/* Order ID Banner */}

@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" width="100%" height="100%">
+  <defs>
+    <linearGradient id="erpBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#031B3A"/>
+      <stop offset="50%" stop-color="#092852"/>
+      <stop offset="100%" stop-color="#021226"/>
+    </linearGradient>
+    <linearGradient id="goldText" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F4C542"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="750" fill="url(#erpBg)"/>
+
+  <!-- Top Header -->
+  <g transform="translate(60, 30)">
+    <circle cx="28" cy="28" r="26" fill="#0f2b52" stroke="#F4C542" stroke-width="2"/>
+    <text x="28" y="36" font-size="20" text-anchor="middle">🎓</text>
+    <text x="68" y="24" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="20" fill="#ffffff" letter-spacing="0.5">ROSHANI PUBLIC SCHOOL</text>
+    <text x="68" y="44" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" fill="#F4C542" font-weight="800" letter-spacing="1.5">SCHOOL MANAGEMENT ERP SYSTEM</text>
+  </g>
+
+  <!-- Left Main Content -->
+  <g transform="translate(60, 140)">
+    <text x="0" y="50" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="46" fill="#ffffff" letter-spacing="-1">
+      One School.
+    </text>
+    <text x="0" y="105" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="46" fill="url(#goldText)" letter-spacing="-1">
+      One Platform.
+    </text>
+
+    <rect x="0" y="125" width="60" height="3" rx="1.5" fill="#F4C542"/>
+
+    <text x="0" y="165" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" fill="#cbd5e1" font-weight="400">
+      Manage academics, students, attendance, fees, examinations and communication
+    </text>
+    <text x="0" y="190" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" fill="#cbd5e1" font-weight="400">
+      from one unified, cloud-secured enterprise dashboard.
+    </text>
+
+    <!-- Feature Grid 6 Modules -->
+    <g transform="translate(0, 230)">
+      <g transform="translate(0, 0)">
+        <rect width="180" height="85" rx="12" fill="#031B3A" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.2"/>
+        <text x="15" y="32" font-size="18">👨‍🎓</text>
+        <text x="45" y="32" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="13" fill="#ffffff">Students</text>
+        <text x="15" y="55" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" fill="#94a3b8">Profiles, Enrollment &amp; ID</text>
+      </g>
+
+      <g transform="translate(195, 0)">
+        <rect width="180" height="85" rx="12" fill="#031B3A" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.2"/>
+        <text x="15" y="32" font-size="18">📅</text>
+        <text x="45" y="32" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="13" fill="#ffffff">Attendance</text>
+        <text x="15" y="55" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" fill="#94a3b8">Daily SMS &amp; Biometric Sync</text>
+      </g>
+
+      <g transform="translate(390, 0)">
+        <rect width="180" height="85" rx="12" fill="#031B3A" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.2"/>
+        <text x="15" y="32" font-size="18">💳</text>
+        <text x="45" y="32" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="13" fill="#ffffff">Fee Collections</text>
+        <text x="15" y="55" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" fill="#94a3b8">Online UPI &amp; Receipts</text>
+      </g>
+
+      <g transform="translate(0, 100)">
+        <rect width="180" height="85" rx="12" fill="#031B3A" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.2"/>
+        <text x="15" y="32" font-size="18">📊</text>
+        <text x="45" y="32" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="13" fill="#ffffff">Examinations</text>
+        <text x="15" y="55" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" fill="#94a3b8">Report Cards &amp; Grading</text>
+      </g>
+
+      <g transform="translate(195, 100)">
+        <rect width="180" height="85" rx="12" fill="#031B3A" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.2"/>
+        <text x="15" y="32" font-size="18">📢</text>
+        <text x="45" y="32" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="13" fill="#ffffff">Notices &amp; SMS</text>
+        <text x="15" y="55" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" fill="#94a3b8">Instant Parent Alerts</text>
+      </g>
+
+      <g transform="translate(390, 100)">
+        <rect width="180" height="85" rx="12" fill="#031B3A" fill-opacity="0.8" stroke="#ffffff" stroke-opacity="0.2"/>
+        <text x="15" y="32" font-size="18">🔒</text>
+        <text x="45" y="32" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="13" fill="#ffffff">Role Security</text>
+        <text x="15" y="55" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" fill="#94a3b8">6 Distinct Portal Roles</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Right Login Card Mockup -->
+  <g transform="translate(740, 100)">
+    <rect width="400" height="580" rx="20" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    
+    <!-- Login Header Banner -->
+    <path d="M0 20 C0 8.954 8.954 0 20 0 L380 0 C391.046 0 400 8.954 400 20 L400 110 L0 110 Z" fill="#0f2440"/>
+    <rect y="106" width="400" height="4" fill="#B91C5C"/>
+    
+    <circle cx="200" cy="45" r="22" fill="#ffffff"/>
+    <text x="200" y="52" font-size="16" text-anchor="middle">🎓</text>
+    <text x="200" y="85" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="17" fill="#ffffff" text-anchor="middle">Welcome Back</text>
+    <text x="200" y="100" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" fill="#cbd5e1" text-anchor="middle">Sign in to your school account</text>
+
+    <!-- Form Inputs -->
+    <g transform="translate(30, 135)">
+      <text x="0" y="15" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="800" fill="#334155">Admin Email / Passcode</text>
+      <rect y="25" width="340" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+      <text x="15" y="50" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#0f172a" font-weight="600">admin@roshanipublicschool.com</text>
+
+      <text x="0" y="95" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="800" fill="#334155">Password</text>
+      <rect y="105" width="340" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+      <text x="15" y="130" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" fill="#64748b">••••••••••••</text>
+
+      <!-- Submit Button -->
+      <rect y="165" width="340" height="44" rx="8" fill="#B91C5C"/>
+      <text x="170" y="192" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="13" fill="#ffffff" text-anchor="middle">Sign In to Portal →</text>
+
+      <!-- Quick Demo Logins -->
+      <line x1="0" y1="235" x2="340" y2="235" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="0" y="255" font-family="monospace" font-size="10" font-weight="800" fill="#475569">⚡ QUICK 1-CLICK DEMO ROLES</text>
+
+      <g transform="translate(0, 270)">
+        <rect width="105" height="34" rx="6" fill="#e0e7ff" stroke="#c7d2fe"/>
+        <text x="52" y="21" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="11" fill="#3730a3" text-anchor="middle">👑 Admin</text>
+
+        <rect x="115" y="0" width="105" height="34" rx="6" fill="#f3e8ff" stroke="#e9d5ff"/>
+        <text x="167" y="21" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="11" fill="#6b21a8" text-anchor="middle">🏛️ Principal</text>
+
+        <rect x="230" y="0" width="105" height="34" rx="6" fill="#dcfce7" stroke="#bbf7d0"/>
+        <text x="282" y="21" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="11" fill="#166534" text-anchor="middle">👩‍🏫 Teacher</text>
+      </g>
+
+      <g transform="translate(0, 315)">
+        <rect width="105" height="34" rx="6" fill="#fef3c7" stroke="#fde68a"/>
+        <text x="52" y="21" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="11" fill="#92400e" text-anchor="middle">💼 Accountant</text>
+
+        <rect x="115" y="0" width="105" height="34" rx="6" fill="#dbeafe" stroke="#bfdbfe"/>
+        <text x="167" y="21" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="11" fill="#1e40af" text-anchor="middle">👨‍👩‍👧 Parent</text>
+
+        <rect x="230" y="0" width="105" height="34" rx="6" fill="#ffe4e6" stroke="#fecdd3"/>
+        <text x="282" y="21" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="11" fill="#9f1239" text-anchor="middle">🎒 Student</text>
+      </g>
+    </g>
+  </g>
+</svg>

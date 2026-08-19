@@ -117,16 +117,19 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
       )}
 
       {selectedFile ? (
-        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+        <div
+          className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 transition-all duration-300"
+          style={{ animation: "scaleIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
+        >
           <div className="flex items-center gap-3 min-w-0">
             {selectedFile.url && selectedFile.url.startsWith("data:image/") ? (
               <img
                 src={selectedFile.url}
                 alt="Preview"
-                className="h-10 w-10 rounded-lg object-cover border border-emerald-200 shrink-0"
+                className="h-10 w-10 rounded-lg object-cover border border-emerald-200 shrink-0 shadow-2xs"
               />
             ) : (
-              <div className="h-10 w-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+              <div className="h-10 w-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
                 <File className="h-5 w-5" />
               </div>
             )}
@@ -135,7 +138,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
                 {selectedFile.name}
               </p>
               <p className="text-[11px] text-emerald-700 flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 animate-popIn shrink-0" />
                 <span>{formatFileSize(selectedFile.size)} • Ready for printing</span>
               </p>
             </div>
@@ -144,7 +147,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           <button
             type="button"
             onClick={handleRemove}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-emerald-100 hover:text-rose-600 transition-colors ml-2 cursor-pointer"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-emerald-100 hover:text-rose-600 active-press transition-colors ml-2 cursor-pointer"
             title="Remove file"
           >
             <X className="h-4 w-4" />
@@ -157,11 +160,11 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           onDragLeave={handleDragLeave}
           onClick={() => inputRef.current?.click()}
           className={cn(
-            "relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition-all cursor-pointer",
+            "relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition-all duration-200 cursor-pointer active-press group",
             isDragging
-              ? "border-[#123B70] bg-blue-50/50"
-              : "border-slate-300 hover:border-[#123B70] hover:bg-slate-50/80",
-            error && "border-rose-300 bg-rose-50/30"
+              ? "border-[#123B70] bg-blue-50/70 scale-[1.01] shadow-md ring-2 ring-blue-400/20"
+              : "border-slate-300 hover:border-[#123B70] hover:bg-slate-50/80 hover:shadow-xs",
+            error && "border-rose-300 bg-rose-50/30 animate-shake-once"
           )}
         >
           <input
@@ -176,7 +179,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
             }}
           />
 
-          <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-[#123B70] mb-2">
+          <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-[#123B70] mb-2 group-hover:-translate-y-0.5 transition-transform duration-200">
             <UploadCloud className="h-5 w-5" />
           </div>
 
@@ -194,7 +197,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
             <div className="w-full max-w-xs mt-3">
               <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
                 <div
-                  className="h-full bg-[#123B70] transition-all duration-150"
+                  className="h-full bg-[#123B70] transition-all duration-150 rounded-full"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
@@ -205,8 +208,8 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
       )}
 
       {error && (
-        <p className="flex items-center gap-1 text-[11px] font-medium text-rose-600">
-          <AlertCircle className="h-3.5 w-3.5" />
+        <p className="flex items-center gap-1 text-[11px] font-medium text-rose-600 animate-shake-once">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           <span>{error}</span>
         </p>
       )}

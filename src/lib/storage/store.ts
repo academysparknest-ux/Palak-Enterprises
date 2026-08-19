@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "../supabase/client";
 import { PRODUCTS, DIGITAL_SERVICES, CATEGORIES, type LocalProduct, type LocalService, type LocalCategory } from "./catalogData";
+import { getQueueClassification, type QueueType, type QueuePriority } from "../queue";
 
 export interface OrderItemPayload {
   productId: string;
@@ -53,6 +54,12 @@ export interface StoredOrder {
   staffNotes?: string;
   createdAt: string;
   updatedAt: string;
+  // Explicit Queue fields
+  queueType?: QueueType;
+  queuePriority?: QueuePriority;
+  queuePosition?: number;
+  submittedAt?: string;
+  priorityAt?: string;
 }
 
 export interface StoredServiceRequest {
@@ -346,8 +353,23 @@ export class PalakDataStore {
     userId?: string;
     staffNotes?: string;
     items: OrderItemPayload[];
+    queueType?: QueueType;
+    queuePriority?: QueuePriority;
+    submittedAt?: string;
+    priorityAt?: string;
   }): StoredOrder {
     const now = new Date().toISOString();
+    const queueMeta = getQueueClassification({
+      queueType: data.queueType,
+      queuePriority: data.queuePriority,
+      submittedAt: data.submittedAt || now,
+      priorityAt: data.priorityAt,
+      paymentMethod: data.paymentMethod as any,
+      paymentStatus: data.paymentStatus as any,
+      orderNotes: data.orderNotes,
+      createdAt: now,
+    });
+
     const newOrder: StoredOrder = {
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
       orderCode: data.orderCode,
@@ -368,6 +390,10 @@ export class PalakDataStore {
       staffNotes: data.staffNotes,
       createdAt: now,
       updatedAt: now,
+      queueType: queueMeta.queueType,
+      queuePriority: queueMeta.queuePriority,
+      submittedAt: queueMeta.submittedAt,
+      priorityAt: queueMeta.priorityAt,
     };
 
     const list = getLocal<StoredOrder[]>(ORDERS_KEY, []);
@@ -407,9 +433,24 @@ export class PalakDataStore {
     userId?: string;
     staffNotes?: string;
     items: OrderItemPayload[];
+    queueType?: QueueType;
+    queuePriority?: QueuePriority;
+    submittedAt?: string;
+    priorityAt?: string;
   }): Promise<StoredOrder> {
     const orderCode = data.orderCode || generateCode("O");
     const now = new Date().toISOString();
+    const queueMeta = getQueueClassification({
+      queueType: data.queueType,
+      queuePriority: data.queuePriority,
+      submittedAt: data.submittedAt || now,
+      priorityAt: data.priorityAt,
+      paymentMethod: data.paymentMethod,
+      paymentStatus: data.paymentStatus as any,
+      orderNotes: data.orderNotes,
+      createdAt: now,
+    });
+
     const newOrder: StoredOrder = {
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
       orderCode,
@@ -430,6 +471,10 @@ export class PalakDataStore {
       staffNotes: data.staffNotes,
       createdAt: now,
       updatedAt: now,
+      queueType: queueMeta.queueType,
+      queuePriority: queueMeta.queuePriority,
+      submittedAt: queueMeta.submittedAt,
+      priorityAt: queueMeta.priorityAt,
     };
 
     const list = getLocal<StoredOrder[]>(ORDERS_KEY, []);
@@ -537,7 +582,17 @@ export class PalakDataStore {
   }
 
   static getOrders(): StoredOrder[] {
-    return getLocal<StoredOrder[]>(ORDERS_KEY, []);
+    const raw = getLocal<StoredOrder[]>(ORDERS_KEY, []);
+    return raw.map((o) => {
+      const qMeta = getQueueClassification(o);
+      return {
+        ...o,
+        queueType: o.queueType || qMeta.queueType,
+        queuePriority: o.queuePriority || qMeta.queuePriority,
+        submittedAt: o.submittedAt || qMeta.submittedAt,
+        priorityAt: o.priorityAt || qMeta.priorityAt,
+      };
+    });
   }
 
   static getOrderByCode(code: string): StoredOrder | undefined {
@@ -1027,25 +1082,29 @@ export class PalakDataStore {
     const numericQ = q.replace(/\D/g, "");
 
     const orders = this.getOrders().filter((o) => {
-      if (o.orderCode.toUpperCase() === q) return true;
+      const code = o.orderCode.toUpperCase();
+      if (code === q || (q.length >= 3 && code.includes(q))) return true;
       if (numericQ.length >= 6 && o.customerPhone.replace(/\D/g, "").includes(numericQ)) return true;
       return false;
     });
 
     const services = this.getServiceRequests().filter((s) => {
-      if (s.requestCode.toUpperCase() === q) return true;
+      const code = s.requestCode.toUpperCase();
+      if (code === q || (q.length >= 3 && code.includes(q))) return true;
       if (numericQ.length >= 6 && s.customerPhone.replace(/\D/g, "").includes(numericQ)) return true;
       return false;
     });
 
     const quotes = this.getQuoteRequests().filter((quote) => {
-      if (quote.quoteCode.toUpperCase() === q) return true;
+      const code = quote.quoteCode.toUpperCase();
+      if (code === q || (q.length >= 3 && code.includes(q))) return true;
       if (numericQ.length >= 6 && quote.customerPhone.replace(/\D/g, "").includes(numericQ)) return true;
       return false;
     });
 
     const designs = this.getDesignRequests().filter((d) => {
-      if (d.designCode.toUpperCase() === q) return true;
+      const code = d.designCode.toUpperCase();
+      if (code === q || (q.length >= 3 && code.includes(q))) return true;
       if (numericQ.length >= 6 && d.customerPhone.replace(/\D/g, "").includes(numericQ)) return true;
       return false;
     });

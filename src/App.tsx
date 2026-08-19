@@ -11,6 +11,7 @@ import { FloatingActions } from "./components/FloatingActions";
 import { ServiceRequestModal } from "./components/ServiceRequestModal";
 import { StructuredData } from "./components/StructuredData";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { PageTransition } from "./components/ui/motion/PageTransition";
 import { lazyWithRetry } from "./lib/lazyWithRetry";
 import { servicesData, type ServiceItem } from "./config/services";
 
@@ -119,84 +120,85 @@ export function AppContent() {
       <main className="flex-grow">
         <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+            <PageTransition>
+              <Routes>
+                <Route path="/" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
 
-              {/* ⚡ 7 Instant Online Services Routes */}
-              <Route path="/online-services" element={<OnlineServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
-              <Route path="/online-services/document-printing" element={<DocumentPrintingPage />} />
-              <Route path="/online-services/passport-photo" element={<PassportPhotoPage />} />
-              <Route path="/online-services/visiting-cards" element={<VisitingCardsPage />} />
-              <Route path="/online-services/invitation-cards" element={<InvitationCardsPage />} />
-              <Route path="/online-services/id-cards" element={<IdCardsPage />} />
-              <Route path="/online-services/poster-banner" element={<PosterBannerPage />} />
-              <Route path="/online-services/custom-print" element={<CustomPrintPage />} />
+                {/* ⚡ 7 Instant Online Services Routes */}
+                <Route path="/online-services" element={<OnlineServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+                <Route path="/online-services/document-printing" element={<DocumentPrintingPage />} />
+                <Route path="/online-services/passport-photo" element={<PassportPhotoPage />} />
+                <Route path="/online-services/visiting-cards" element={<VisitingCardsPage />} />
+                <Route path="/online-services/invitation-cards" element={<InvitationCardsPage />} />
+                <Route path="/online-services/id-cards" element={<IdCardsPage />} />
+                <Route path="/online-services/poster-banner" element={<PosterBannerPage />} />
+                <Route path="/online-services/custom-print" element={<CustomPrintPage />} />
 
-              {/* Printing Catalog & Product Details */}
-              <Route path="/printing" element={<PrintingPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
-              <Route path="/printing/:slug" element={<ProductDetailPage />} />
-              <Route path="/products" element={<PrintingPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
-              <Route path="/products/:slug" element={<ProductDetailPage />} />
+                {/* Printing Catalog & Product Details */}
+                <Route path="/printing" element={<PrintingPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+                <Route path="/printing/:slug" element={<ProductDetailPage />} />
+                <Route path="/products" element={<PrintingPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+                <Route path="/products/:slug" element={<ProductDetailPage />} />
 
-              {/* Digital & CSC Services */}
-              <Route path="/digital-services" element={<DigitalServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
-              <Route path="/digital-services/:slug" element={<DigitalServiceDetailPage />} />
+                {/* Digital & CSC Services */}
+                <Route path="/digital-services" element={<DigitalServicesPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+                <Route path="/digital-services/:slug" element={<DigitalServiceDetailPage />} />
 
-              {/* Business & Bulk Printing Solutions */}
-              <Route path="/business" element={<BusinessPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
-              <Route path="/business/:slug" element={<BusinessPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
-              <Route path="/website-development" element={<WebsiteDevPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+                {/* Business & Bulk Printing Solutions */}
+                <Route path="/business" element={<BusinessPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+                <Route path="/business/:slug" element={<BusinessPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
+                <Route path="/website-development" element={<WebsiteDevPage onOpenRequestModal={() => handleOpenRequestModal()} />} />
 
-              {/* Wedding & Ceremony Cards */}
-              <Route path="/wedding-events" element={<WeddingEventsPage />} />
-              <Route path="/wedding-events/:slug" element={<WeddingCardDetailPage />} />
-              <Route path="/wedding-events/wedding-cards/:slug" element={<WeddingCardDetailPage />} />
+                {/* Wedding & Ceremony Cards */}
+                <Route path="/wedding-events" element={<WeddingEventsPage />} />
+                <Route path="/wedding-events/:slug" element={<WeddingCardDetailPage />} />
+                <Route path="/wedding-events/wedding-cards/:slug" element={<WeddingCardDetailPage />} />
 
-              {/* Graphic Design Studio */}
-              <Route path="/design-services" element={<DesignServicesPage />} />
+                {/* Graphic Design Studio */}
+                <Route path="/design-services" element={<DesignServicesPage />} />
 
-              {/* Quote Requests */}
-              <Route path="/request-quote" element={<RequestQuotePage />} />
-              <Route path="/request" element={<RequestQuotePage />} />
+                {/* Quote Requests */}
+                <Route path="/request-quote" element={<RequestQuotePage />} />
+                <Route path="/request" element={<RequestQuotePage />} />
 
-              {/* Shopping Cart & Checkout */}
-              <Route path="/cart" element={<CartPage />} />
-              <Route path="/checkout" element={<CheckoutPage />} />
+                {/* Shopping Cart & Checkout */}
+                <Route path="/cart" element={<CartPage />} />
+                <Route path="/checkout" element={<CheckoutPage />} />
 
-              {/* Universal Tracking */}
-              <Route path="/track-order" element={<TrackOrderPage />} />
-              <Route path="/order-status" element={<TrackOrderPage />} />
+                {/* Universal Tracking */}
+                <Route path="/track-order" element={<TrackOrderPage />} />
+                <Route path="/order-status" element={<TrackOrderPage />} />
 
-              {/* Customer Portal, Authentication & Admin ERP */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signin" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/register" element={<SignupPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/auth/callback" element={<AuthCallbackPage />} />
-              <Route path="/account" element={<AccountPage />} />
-              <Route path="/account/orders" element={<AccountPage />} />
-              <Route path="/account/requests" element={<AccountPage />} />
-              <Route path="/admin" element={<AdminPage />} />
+                {/* Customer Portal, Authentication & Admin ERP */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signin" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/register" element={<SignupPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                <Route path="/account" element={<AccountPage />} />
+                <Route path="/account/orders" element={<AccountPage />} />
+                <Route path="/account/requests" element={<AccountPage />} />
+                <Route path="/admin" element={<AdminPage />} />
 
-              {/* Compatible Informational Pages */}
-              <Route path="/services" element={<ServicesPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
-              <Route path="/services/:category/:serviceSlug" element={<ServiceDetailPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
-              <Route path="/services/:slug" element={<ServiceDetailPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
-              <Route path="/work" element={<WorkPage onOpenRequestModal={handleOpenRequestModal} />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/contact" element={<ContactPage />} />
-              <Route path="/faq" element={<FAQPage />} />
+                {/* Information, Brand & Policy Pages */}
+                <Route path="/services" element={<ServicesPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+                <Route path="/services/:slug" element={<ServiceDetailPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+                <Route path="/work" element={<WorkPage onOpenRequestModal={handleOpenRequestModal} />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/faq" element={<FAQPage />} />
 
-              {/* Legal & Policy Pages */}
-              <Route path="/privacy" element={<PrivacyPage />} />
-              <Route path="/terms" element={<TermsPage />} />
-              <Route path="/refund-policy" element={<RefundPolicyPage />} />
+                {/* Legal & Policy Pages */}
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route path="/refund-policy" element={<RefundPolicyPage />} />
 
-              {/* Catch-all fallback */}
-              <Route path="*" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
-            </Routes>
+                {/* Catch-all fallback */}
+                <Route path="*" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+              </Routes>
+            </PageTransition>
           </Suspense>
         </ErrorBoundary>
       </main>

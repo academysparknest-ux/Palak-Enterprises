@@ -4,6 +4,7 @@ import { ShoppingCart, Sparkles, Check, MessageSquare } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
 import { FileUploadZone } from "./FileUploadZone";
+import { AnimatedPrice } from "./ui/motion/AnimatedPrice";
 import { getWhatsAppLink } from "../config/business";
 import type { LocalProduct, ProductOption } from "../lib/storage/catalogData";
 import { cn } from "../lib/utils";
@@ -128,9 +129,10 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({ produc
           </span>
         </div>
         <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-3xl font-extrabold text-slate-900">
-            ₹{calculatedPricing.total}
-          </span>
+          <AnimatedPrice
+            value={calculatedPricing.total}
+            className="text-3xl font-extrabold text-slate-900"
+          />
           <span className="text-xs text-slate-500">
             ({calculatedPricing.qtyNum} {product.unit} @ ₹{calculatedPricing.unitPrice}/{product.unit})
           </span>

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" width="100%" height="100%">
+  <defs>
+    <linearGradient id="palakBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2b52"/>
+      <stop offset="60%" stop-color="#123B70"/>
+      <stop offset="100%" stop-color="#091d38"/>
+    </linearGradient>
+    <linearGradient id="goldAcc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="750" fill="url(#palakBg)"/>
+
+  <!-- Top bar -->
+  <rect width="1200" height="65" fill="#0c274c"/>
+  <text x="60" y="40" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="20" fill="#ffffff">PALAK <tspan fill="#f59e0b">ENTERPRISES</tspan></text>
+  <text x="320" y="38" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#93c5fd">Printing Press &amp; Digital CSC Hub • Chakia</text>
+
+  <!-- Hero Content -->
+  <g transform="translate(60, 110)">
+    <rect x="0" y="0" width="220" height="24" rx="12" fill="#d97706" fill-opacity="0.3"/>
+    <text x="110" y="16" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" font-weight="700" fill="#fbbf24" text-anchor="middle">PRIORITY PRINTING &amp; CSC</text>
+
+    <text x="0" y="65" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="38" fill="#ffffff">High-Definition Commercial Printing</text>
+    <text x="0" y="110" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="38" fill="url(#goldAcc)">&amp; Citizen Digital Assistance</text>
+
+    <text x="0" y="155" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="15" fill="#cbd5e1">Bilingual online storefront with instant document upload and real-time live order tracking.</text>
+  </g>
+
+  <!-- Feature Grid -->
+  <g transform="translate(60, 320)">
+    <rect width="340" height="360" rx="16" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.15"/>
+    <text x="25" y="40" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="18" fill="#ffffff">🖨️ Printing Press Catalog</text>
+    <text x="25" y="70" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" fill="#94a3b8">Visiting cards, flex banners, bill books, and wedding cards with live price configurator.</text>
+
+    <rect x="380" y="0" width="340" height="360" rx="16" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.15"/>
+    <text x="405" y="40" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="18" fill="#ffffff">🏛️ Government CSC Services</text>
+    <text x="405" y="70" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" fill="#94a3b8">PAN card, RTPS certificates, scholarship forms, and online citizen schemes.</text>
+
+    <rect x="760" y="0" width="340" height="360" rx="16" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.15"/>
+    <text x="785" y="40" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="18" fill="#ffffff">⚡ Instant Document Print</text>
+    <text x="785" y="70" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" fill="#94a3b8">Upload PDF/JPG, choose priority queue, and pick up ready prints in Chakia shop.</text>
+  </g>
+</svg>

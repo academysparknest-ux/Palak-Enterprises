@@ -1307,8 +1307,8 @@ export const DocumentPrintingPage: React.FC = () => {
                       </div>
                       <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                         {currentLang === "hi"
-                          ? "दस्तावेज अभी भेजें। हम आपका प्रिंट तैयार रखेंगे और आप दुकान पर लेने के समय भुगतान करें।"
-                          : "Send your file now. We'll prepare your print in advance, and you can pay when you collect it."}
+                          ? "दस्तावेज अभी भेजें ताकि समय बचे। दुकान काउंटर पर आपकी मौजूदगी सत्यापित होते ही प्रिंट शुरू होगा और आप काउंटर पर भुगतान करेंगे।"
+                          : "Send your files in advance. Printing begins once your arrival/availability is verified at the counter, and you pay at pickup."}
                       </p>
                     </div>
                   </label>

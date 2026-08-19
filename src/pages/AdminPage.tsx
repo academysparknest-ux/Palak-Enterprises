@@ -63,6 +63,14 @@ import {
   type DocumentItem,
 } from "../components/AdminDocumentViewer";
 import { cn } from "../lib/utils";
+import {
+  sortPrintingQueue,
+  calculateQueueStats,
+  getQueueClassification,
+  isOrderInActivePrintingQueue,
+  extractRazorpayId,
+  isOrderPaidOnline,
+} from "../lib/queue";
 
 export const AdminPage: React.FC = () => {
   const { user, isStaff, logout } = useAuth();
@@ -91,7 +99,7 @@ export const AdminPage: React.FC = () => {
   // Search & Filter for Orders
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [quickFilter, setQuickFilter] = useState<"ALL" | "TODAY" | "NEW" | "IN_PRODUCTION" | "READY_FOR_PICKUP" | "COMPLETED" | "UNPAID">("ALL");
+  const [quickFilter, setQuickFilter] = useState<"ALL" | "PRIORITY" | "NORMAL" | "TODAY" | "NEW" | "IN_PRODUCTION" | "READY_FOR_PICKUP" | "COMPLETED" | "UNPAID">("ALL");
 
   // Search & Filter for Payments Dashboard
   const [paymentSearchQuery, setPaymentSearchQuery] = useState("");
@@ -377,7 +385,10 @@ export const AdminPage: React.FC = () => {
     );
   };
 
-  // KPI calculations
+  // KPI calculations & Queue Engine Analytics
+  const queueStats = calculateQueueStats(orders);
+  const priorityOrdersCount = queueStats.priorityActiveCount;
+  const normalOrdersCount = queueStats.normalActiveCount;
   const totalOrdersCount = orders.length;
   const todayOrdersCount = orders.filter((o) => isToday(o.createdAt)).length;
   const newOrdersCount = orders.filter((o) => o.orderStatus === "NEW" || o.orderStatus === "UNDER_REVIEW").length;
@@ -387,16 +398,7 @@ export const AdminPage: React.FC = () => {
   const unpaidOrdersCount = orders.filter((o) => o.paymentStatus === "pending" || !o.paymentStatus).length;
 
   // Payments & Revenue Financial Analytics
-  const extractRazorpayId = (notes?: string): string | null => {
-    if (!notes) return null;
-    const match = notes.match(/\[Razorpay ID:\s*([a-zA-Z0-9_]+)\]/i) || notes.match(/(pay_[a-zA-Z0-9_]+)/i);
-    return match ? match[1] : null;
-  };
-
-  const isPaidOrder = (o: StoredOrder) =>
-    o.paymentStatus === "confirmed" ||
-    o.paymentStatus === "paid" ||
-    (Boolean(extractRazorpayId(o.orderNotes)) && (o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online"));
+  const isPaidOrder = (o: StoredOrder) => isOrderPaidOnline(o);
 
   const paidOrders = orders.filter(isPaidOrder);
   const totalRevenueCollected = paidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
@@ -490,33 +492,43 @@ export const AdminPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // Filtered Orders
-  const filteredOrders = orders.filter((o) => {
-    const q = searchQuery.toLowerCase().trim();
-    const matchesQuery =
-      !q ||
-      o.orderCode.toLowerCase().includes(q) ||
-      o.customerName.toLowerCase().includes(q) ||
-      o.customerPhone.includes(q);
+  // Filtered & Deterministically Sorted Orders (Priority FIFO first, then Normal FIFO)
+  const filteredOrders = React.useMemo(() => {
+    const matched = orders.filter((o) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesQuery =
+        !q ||
+        o.orderCode.toLowerCase().includes(q) ||
+        o.customerName.toLowerCase().includes(q) ||
+        o.customerPhone.includes(q);
 
-    let matchesQuick = true;
-    if (quickFilter === "TODAY") {
-      matchesQuick = isToday(o.createdAt);
-    } else if (quickFilter === "NEW") {
-      matchesQuick = o.orderStatus === "NEW" || o.orderStatus === "UNDER_REVIEW";
-    } else if (quickFilter === "IN_PRODUCTION") {
-      matchesQuick = o.orderStatus === "IN_PRODUCTION";
-    } else if (quickFilter === "READY_FOR_PICKUP") {
-      matchesQuick = o.orderStatus === "READY_FOR_PICKUP";
-    } else if (quickFilter === "COMPLETED") {
-      matchesQuick = o.orderStatus === "COMPLETED";
-    } else if (quickFilter === "UNPAID") {
-      matchesQuick = o.paymentStatus === "pending" || !o.paymentStatus;
-    }
+      const qMeta = getQueueClassification(o);
 
-    const matchesStatus = statusFilter === "ALL" || o.orderStatus === statusFilter;
-    return matchesQuery && matchesQuick && matchesStatus;
-  });
+      let matchesQuick = true;
+      if (quickFilter === "TODAY") {
+        matchesQuick = isToday(o.createdAt);
+      } else if (quickFilter === "PRIORITY") {
+        matchesQuick = qMeta.queuePriority === 1 && isOrderInActivePrintingQueue(o.orderStatus);
+      } else if (quickFilter === "NORMAL") {
+        matchesQuick = qMeta.queuePriority === 2 && isOrderInActivePrintingQueue(o.orderStatus);
+      } else if (quickFilter === "NEW") {
+        matchesQuick = o.orderStatus === "NEW" || o.orderStatus === "UNDER_REVIEW";
+      } else if (quickFilter === "IN_PRODUCTION") {
+        matchesQuick = o.orderStatus === "IN_PRODUCTION";
+      } else if (quickFilter === "READY_FOR_PICKUP") {
+        matchesQuick = o.orderStatus === "READY_FOR_PICKUP";
+      } else if (quickFilter === "COMPLETED") {
+        matchesQuick = o.orderStatus === "COMPLETED";
+      } else if (quickFilter === "UNPAID") {
+        matchesQuick = o.paymentStatus === "pending" || !o.paymentStatus;
+      }
+
+      const matchesStatus = statusFilter === "ALL" || o.orderStatus === statusFilter;
+      return matchesQuery && matchesQuick && matchesStatus;
+    });
+
+    return sortPrintingQueue(matched);
+  }, [orders, searchQuery, quickFilter, statusFilter]);
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] pb-20">
@@ -680,7 +692,7 @@ export const AdminPage: React.FC = () => {
             )}
 
             {/* Quick Filter Summary Counters Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2.5">
               <button
                 onClick={() => {
                   setQuickFilter("ALL");
@@ -695,6 +707,44 @@ export const AdminPage: React.FC = () => {
               >
                 <div className="text-[10px] font-bold uppercase text-slate-500">Total Orders</div>
                 <div className="text-xl font-black text-slate-900 mt-0.5">{totalOrdersCount}</div>
+              </button>
+
+              {/* Priority Queue Quick Filter */}
+              <button
+                onClick={() => {
+                  setQuickFilter("PRIORITY");
+                  setStatusFilter("ALL");
+                }}
+                className={cn(
+                  "p-3 rounded-2xl border text-left transition-all cursor-pointer",
+                  quickFilter === "PRIORITY"
+                    ? "bg-amber-50 border-amber-500 shadow-sm ring-2 ring-amber-500/30"
+                    : "bg-white/80 border-slate-200 hover:bg-white"
+                )}
+              >
+                <div className="text-[10px] font-black uppercase text-amber-700 flex items-center gap-1">
+                  <span>🔥 Priority</span>
+                </div>
+                <div className="text-xl font-black text-amber-950 mt-0.5">{priorityOrdersCount}</div>
+              </button>
+
+              {/* Normal Queue Quick Filter */}
+              <button
+                onClick={() => {
+                  setQuickFilter("NORMAL");
+                  setStatusFilter("ALL");
+                }}
+                className={cn(
+                  "p-3 rounded-2xl border text-left transition-all cursor-pointer",
+                  quickFilter === "NORMAL"
+                    ? "bg-slate-100 border-slate-600 shadow-sm ring-2 ring-slate-600/30"
+                    : "bg-white/80 border-slate-200 hover:bg-white"
+                )}
+              >
+                <div className="text-[10px] font-black uppercase text-slate-700 flex items-center gap-1">
+                  <span>📄 Normal</span>
+                </div>
+                <div className="text-xl font-black text-slate-800 mt-0.5">{normalOrdersCount}</div>
               </button>
 
               <button
@@ -794,6 +844,24 @@ export const AdminPage: React.FC = () => {
               </button>
             </div>
 
+            {/* Printing Queue Visual Roadmap Summary Bar */}
+            <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-[#123B70] to-slate-900 p-4 text-white shadow-md space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+                <div className="flex items-center gap-2 font-black text-sm uppercase tracking-wider text-amber-300">
+                  <Printer className="h-4 w-4 text-amber-400" />
+                  <span>Printing Queue Dispatch Hierarchy (Priority FIFO → Normal FIFO)</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-300">
+                  <span>🔥 Priority Active: <strong className="text-amber-300 font-black">{priorityOrdersCount}</strong></span>
+                  <span>•</span>
+                  <span>📄 Normal Active: <strong className="text-white font-black">{normalOrdersCount}</strong></span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-200 leading-relaxed">
+                <strong>Rule:</strong> Paid-online orders jump ahead to Priority Queue (FIFO by payment time; printed immediately). Send Document orders wait in Normal Queue; print starts when customer availability is verified at counter (FIFO by submission time).
+              </p>
+            </div>
+
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
@@ -801,7 +869,7 @@ export const AdminPage: React.FC = () => {
                     Instant Online Print Orders Queue
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Received through Supabase database • Showing {filteredOrders.length} order(s)
+                    Received through Supabase database • Showing {filteredOrders.length} order(s) sorted by Priority & FIFO
                   </p>
                 </div>
 
@@ -841,37 +909,59 @@ export const AdminPage: React.FC = () => {
                     const firstItem = order.items[0];
                     const options = firstItem?.selectedOptions || {};
                     const finishing = (options.finishing || {}) as Record<string, boolean>;
+                    const qMeta = getQueueClassification(order);
+                    const isPriority = qMeta.queuePriority === 1;
+                    const positionInfo = queueStats.positionsMap.get(order.orderCode);
                     const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
                     const isOnlineOrder = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online";
-                    const isSendDocOrder = order.paymentMethod === "pay_at_shop" || order.paymentMethod === "pay_at_store" || !isOnlineOrder;
 
                     return (
                       <div
                         key={order.id}
-                        className="rounded-2xl border border-slate-200 p-5 space-y-4 hover:border-slate-300 transition-all bg-white shadow-xs"
+                        className={cn(
+                          "rounded-2xl border p-5 space-y-4 transition-all bg-white shadow-xs",
+                          isPriority
+                            ? "border-amber-400/80 ring-1 ring-amber-400/30 hover:border-amber-500"
+                            : "border-slate-200 hover:border-slate-300"
+                        )}
                       >
                         {/* Top Header Row */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                           <div className="flex items-center gap-3">
                             <div className={`h-11 w-11 rounded-xl flex items-center justify-center font-bold ${
-                              isSendDocOrder
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                : "bg-blue-50 text-[#123B70] border border-blue-200"
+                              isPriority
+                                ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                : "bg-slate-100 text-slate-700 border border-slate-200"
                             }`}>
-                              {isSendDocOrder ? <FileUp className="h-5 w-5" /> : <Printer className="h-5 w-5" />}
+                              {isPriority ? <Printer className="h-5 w-5 text-amber-700" /> : <FileUp className="h-5 w-5 text-slate-600" />}
                             </div>
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-mono font-black text-sm sm:text-base text-[#123B70]">
                                   {order.orderCode}
                                 </span>
-                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                                  isSendDocOrder
-                                    ? "bg-amber-100 text-amber-900 border border-amber-300"
-                                    : "bg-blue-100 text-blue-900 border border-blue-200"
-                                }`}>
-                                  {isSendDocOrder ? "📄 Send Document" : `🖨 ${options.documentType || firstItem?.productName || "Print Job"}`}
+
+                                {/* Prominent Queue Badges */}
+                                {isPriority ? (
+                                  <span className="flex items-center gap-1 rounded-full bg-amber-400/20 text-amber-950 border border-amber-400/60 px-2.5 py-0.5 text-[10px] font-black shadow-xs">
+                                    <span>🔥 PRIORITY</span>
+                                    <span>•</span>
+                                    <span>💳 PAID ONLINE</span>
+                                    {positionInfo && <span className="bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-md font-black">#{positionInfo.positionInQueue}</span>}
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 rounded-full bg-slate-100 text-slate-800 border border-slate-300 px-2.5 py-0.5 text-[10px] font-extrabold">
+                                    <span>📄 NORMAL</span>
+                                    <span>•</span>
+                                    <span>💰 PAY AT SHOP</span>
+                                    {positionInfo && <span className="bg-slate-200 text-slate-900 px-1.5 py-0.2 rounded-md font-bold">#{positionInfo.positionInQueue}</span>}
+                                  </span>
+                                )}
+
+                                <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-blue-50 text-blue-900 border border-blue-200">
+                                  {options.documentType || firstItem?.productName || "Print Job"}
                                 </span>
+
                                 {isToday(order.createdAt) && (
                                   <span className="rounded-full bg-blue-100 text-blue-800 text-[9px] font-extrabold px-2 py-0.2">
                                     TODAY
@@ -907,8 +997,8 @@ export const AdminPage: React.FC = () => {
                               <CreditCard className="h-3 w-3" />
                               <span>
                                 {isOnlineOrder
-                                  ? (isPaid ? "Paid Online" : "Payment: Online (Pending)")
-                                  : (isPaid ? "Pay at Shop — Paid" : "Payment: Pay at Shop — Pending")}
+                                  ? (isPaid ? "Paid Online (Payment Confirmed)" : "Online (Payment Pending)")
+                                  : (isPaid ? "Pay at Shop — Paid" : "Send Document (Payment Pending at Counter)")}
                               </span>
                             </button>
 
@@ -2092,6 +2182,49 @@ export const AdminPage: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Queue & Dispatch Metadata Card */}
+            {(() => {
+              const modalQMeta = getQueueClassification(selectedOrderForModal);
+              const isModalPriority = modalQMeta.queuePriority === 1;
+              const modalQPos = queueStats.positionsMap.get(selectedOrderForModal.orderCode);
+              return (
+                <div className={cn(
+                  "rounded-2xl border p-4 space-y-2",
+                  isModalPriority ? "bg-amber-500/10 border-amber-400/60" : "bg-slate-50 border-slate-200"
+                )}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Printing Queue Dispatch Status</span>
+                    <span className={cn(
+                      "text-[10px] font-black uppercase px-2 py-0.5 rounded-full border",
+                      isModalPriority ? "bg-amber-400 text-slate-950 border-amber-500" : "bg-slate-200 text-slate-800 border-slate-300"
+                    )}>
+                      {isModalPriority ? "🔥 Priority Queue (Level 1)" : "📄 Normal Queue (Level 2)"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-500 block text-[11px]">Queue Position:</span>
+                      <strong className="text-slate-900 font-black">
+                        {modalQPos ? `#${modalQPos.positionInQueue} in ${isModalPriority ? "Priority" : "Normal"} Queue` : "Completed / Ready"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[11px]">Submitted At:</span>
+                      <span className="text-slate-700 font-mono text-[11px]">
+                        {new Date(selectedOrderForModal.submittedAt || selectedOrderForModal.createdAt).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[11px]">Payment Verified At:</span>
+                      <span className="text-slate-700 font-mono text-[11px]">
+                        {selectedOrderForModal.priorityAt ? new Date(selectedOrderForModal.priorityAt).toLocaleString("en-IN") : "N/A (Pending at Counter)"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Print Specification & Options */}
             {selectedOrderForModal.items.map((item, idx) => {

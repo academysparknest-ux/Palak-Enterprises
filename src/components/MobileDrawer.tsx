@@ -182,7 +182,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
       {/* Drawer Panel Container */}
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 pointer-events-none">
         <div
-          className="w-screen max-w-sm bg-white shadow-2xl flex flex-col justify-between overflow-hidden pointer-events-auto"
+          className="w-screen max-w-sm bg-white shadow-2xl flex flex-col justify-between overflow-hidden pointer-events-auto transition-transform duration-300 ease-out"
+          style={{ animation: "scaleIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Top Header */}
@@ -203,7 +204,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 focus:outline-hidden cursor-pointer"
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 active-press focus:outline-hidden cursor-pointer"
               aria-label={currentLang === "hi" ? "मेनू बंद करें" : "Close navigation menu"}
             >
               <X className="w-5 h-5" />
@@ -238,35 +239,36 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                     onClick={() => setLanguage("hi")}
                     aria-pressed={currentLang === "hi"}
                     className={cn(
-                      "px-2.5 py-1 text-xs font-bold rounded-lg font-hindi transition-all cursor-pointer",
+                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer font-hindi",
                       currentLang === "hi"
                         ? "bg-[#123B70] text-white shadow-xs"
                         : "text-slate-600 hover:text-slate-900"
                     )}
                   >
-                    हिन्दी
+                    हिंदी
                   </button>
                 </div>
               </div>
 
-              {/* Senior citizen high contrast mode toggle */}
+              {/* Senior Citizen / High Contrast Mode Toggle */}
               <button
                 type="button"
                 onClick={toggleSeniorMode}
                 className={cn(
-                  "w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer",
+                  "w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer",
                   seniorMode
-                    ? "bg-amber-100 text-amber-950 border-amber-300 font-bold"
-                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    ? "bg-amber-100/80 text-amber-950 border border-amber-300"
+                    : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
                 )}
+                aria-pressed={seniorMode}
               >
-                <span className="flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5 text-[#123B70]" />
-                  <span>{currentLang === "hi" ? "आसान मोड (बड़ा टेक्स्ट)" : "Senior Citizen Mode"}</span>
-                </span>
+                <div className="flex items-center gap-2">
+                  <Eye className={cn("w-4 h-4", seniorMode ? "text-amber-700" : "text-slate-500")} />
+                  <span>{currentLang === "hi" ? "बड़ा फॉन्ट / Senior Mode" : "Senior / Large Text Mode"}</span>
+                </div>
                 <span
                   className={cn(
-                    "text-[10px] px-1.5 py-0.5 rounded font-bold",
+                    "text-[10px] font-extrabold px-1.5 py-0.5 rounded-md",
                     seniorMode ? "bg-amber-500 text-slate-950" : "bg-slate-100 text-slate-500"
                   )}
                 >
@@ -282,11 +284,12 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 to="/"
                 onClick={onClose}
                 className={cn(
-                  "flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all",
+                  "flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all active-press",
                   location.pathname === "/"
                     ? "bg-[#123B70] text-white shadow-xs"
                     : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                 )}
+                style={{ animation: "fadeUp 300ms cubic-bezier(0.22, 1, 0.36, 1) both 0ms" }}
               >
                 <div className="flex items-center gap-2.5 truncate">
                   <Home className={cn("w-4 h-4 shrink-0", location.pathname === "/" ? "text-amber-300" : "text-slate-500")} />
@@ -298,7 +301,10 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               </Link>
 
               {/* ▾ Collapsible Services Item (Tapping expands submenu, does NOT close drawer) */}
-              <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 overflow-hidden">
+              <div
+                className="rounded-xl border border-slate-200/80 bg-slate-50/60 overflow-hidden"
+                style={{ animation: "fadeUp 300ms cubic-bezier(0.22, 1, 0.36, 1) both 40ms" }}
+              >
                 <button
                   type="button"
                   onClick={() => setIsServicesExpanded((prev) => !prev)}
@@ -359,7 +365,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
               </div>
 
               {/* Other Primary Links (All unique, no duplicate service links) */}
-              {primaryNavLinks.map((link) => {
+              {primaryNavLinks.map((link, idx) => {
                 const Icon = link.icon;
                 const isActive =
                   link.to === "/"
@@ -372,11 +378,12 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                     to={link.to}
                     onClick={onClose}
                     className={cn(
-                      "flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all",
+                      "flex items-center justify-between p-2.5 rounded-xl text-xs font-bold transition-all active-press",
                       isActive
                         ? "bg-[#123B70] text-white shadow-xs"
                         : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                     )}
+                    style={{ animation: `fadeUp 300ms cubic-bezier(0.22, 1, 0.36, 1) both ${(idx + 2) * 35}ms` }}
                   >
                     <div className="flex items-center gap-2.5 truncate">
                       <Icon

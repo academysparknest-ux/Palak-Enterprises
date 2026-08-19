@@ -9,6 +9,7 @@ import {
 } from "../storage/catalogData";
 import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type OrderItemPayload } from "../storage/store";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
+import { getQueueClassification, type QueueType, type QueuePriority } from "../queue";
 
 /** Returns true only for valid UUID strings that can be stored in Supabase user_id columns */
 function isValidSupabaseUUID(id?: string): boolean {
@@ -28,6 +29,10 @@ export interface PrintOrderPayload {
   userId?: string;
   paymentMethod?: "pay_at_store" | "pay_at_shop" | "pay_after_confirmation" | "upi_online" | "pay_online";
   paymentStatus?: "pending" | "confirmed" | "paid" | "refunded";
+  queueType?: QueueType;
+  queuePriority?: QueuePriority;
+  submittedAt?: string;
+  priorityAt?: string;
   pricingSnapshot: {
     unitPrice: number;
     subtotal: number;
@@ -305,6 +310,17 @@ export async function getStaffOrders(): Promise<StoredOrder[]> {
       }));
     }
 
+    const queueMeta = getQueueClassification({
+      queueType: o.queue_type || o.queueType,
+      queuePriority: o.queue_priority || o.queuePriority,
+      submittedAt: o.submitted_at || o.submittedAt || o.created_at,
+      priorityAt: o.priority_at || o.priorityAt,
+      paymentMethod: o.payment_method || o.paymentMethod,
+      paymentStatus: o.payment_status || o.paymentStatus,
+      orderNotes: o.order_notes || o.orderNotes,
+      createdAt: o.created_at,
+    });
+
     return {
       id: o.id,
       orderCode: o.order_code,
@@ -324,6 +340,10 @@ export async function getStaffOrders(): Promise<StoredOrder[]> {
       staffNotes: o.staff_notes,
       createdAt: o.created_at,
       updatedAt: o.updated_at,
+      queueType: queueMeta.queueType,
+      queuePriority: queueMeta.queuePriority,
+      submittedAt: queueMeta.submittedAt,
+      priorityAt: queueMeta.priorityAt,
     };
   });
 }
@@ -857,6 +877,18 @@ export async function submitPrintOrder(
     designNotes: payload.instructions,
   };
 
+  const now = new Date().toISOString();
+  const queueMeta = getQueueClassification({
+    queueType: payload.queueType,
+    queuePriority: payload.queuePriority,
+    submittedAt: payload.submittedAt || now,
+    priorityAt: payload.priorityAt || (paymentStatus === "confirmed" ? now : undefined),
+    paymentMethod,
+    paymentStatus,
+    orderNotes: payload.instructions,
+    createdAt: now,
+  });
+
   // 1. Save to localStorage for resilience
   try {
     PalakDataStore.saveOrderToLocal({
@@ -875,6 +907,10 @@ export async function submitPrintOrder(
       orderStatus: "NEW",
       items: [orderItem],
       staffNotes: `Online Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+      queueType: queueMeta.queueType,
+      queuePriority: queueMeta.queuePriority,
+      submittedAt: queueMeta.submittedAt,
+      priorityAt: queueMeta.priorityAt,
     });
   } catch (e) {
     console.warn("Local store fallback sync notice:", e);
@@ -933,6 +969,10 @@ export async function submitPrintOrder(
           order_status: "NEW",
           items: [orderItem],
           staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+          queue_type: queueMeta.queueType,
+          queue_priority: queueMeta.queuePriority,
+          submitted_at: queueMeta.submittedAt,
+          priority_at: queueMeta.priorityAt || null,
         };
         if (validUserId) insertPayload.user_id = validUserId;
 

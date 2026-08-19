@@ -13,17 +13,18 @@ export const FloatingActions: React.FC = () => {
         href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises`}
         target="_blank"
         rel="noreferrer"
-        className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shadow-lg transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+        className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-105 active-press focus:outline-none focus:ring-2 focus:ring-emerald-400 relative group"
         title={language === "hi" ? "व्हाट्सएप पर संपर्क करें" : "Chat on WhatsApp"}
         aria-label={language === "hi" ? "व्हाट्सएप पर चैट करें" : "Chat on WhatsApp"}
       >
+        <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-25 group-hover:animate-ping pointer-events-none" />
         <MessageSquare className="w-5 h-5 fill-white" />
       </a>
 
       {/* Floating Call Button */}
       <a
         href={`tel:${businessConfig.phoneNumbers.primary}`}
-        className="w-12 h-12 rounded-full bg-[#123B70] hover:bg-[#0c274c] text-white flex items-center justify-center shadow-lg transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        className="w-12 h-12 rounded-full bg-[#123B70] hover:bg-[#0c274c] text-white flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-105 active-press focus:outline-none focus:ring-2 focus:ring-blue-400"
         title={language === "hi" ? "पालक इंटरप्राइजेज को कॉल करें" : "Call Palak Enterprises"}
         aria-label={language === "hi" ? "अभी कॉल करें" : "Call Now"}
       >

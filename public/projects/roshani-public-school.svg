@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" width="100%" height="100%">
+  <defs>
+    <linearGradient id="rpsSky" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2b52"/>
+      <stop offset="60%" stop-color="#1b4d89"/>
+      <stop offset="100%" stop-color="#2c6cb0"/>
+    </linearGradient>
+    <linearGradient id="goldBanner" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f8fafc"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky Background -->
+  <rect width="1200" height="750" fill="url(#rpsSky)"/>
+
+  <!-- Top Announcement Bar -->
+  <rect width="1200" height="40" fill="#091a33"/>
+  <text x="60" y="25" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#fcd34d" font-weight="700">📢 ADMISSIONS OPEN 2026-27: Nursery to Class XII (Science, Commerce &amp; Arts)</text>
+  <text x="1140" y="25" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" fill="#93c5fd" font-weight="600" text-anchor="end">📞 +91 94724 05097 | CBSE Affiliation No: 330943</text>
+
+  <!-- Main Navigation Bar -->
+  <rect y="40" width="1200" height="75" fill="#ffffff"/>
+  <line x1="0" y1="115" x2="1200" y2="115" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- School Logo & Name -->
+  <g transform="translate(60, 52)">
+    <circle cx="25" cy="25" r="24" fill="#0f2b52" stroke="#f59e0b" stroke-width="2"/>
+    <text x="25" y="32" font-size="18" text-anchor="middle" fill="#fcd34d">🏛️</text>
+    <text x="60" y="24" font-family="'Times New Roman', serif" font-weight="900" font-size="20" fill="#0f2b52" letter-spacing="0.5">ROSHANI PUBLIC SCHOOL</text>
+    <text x="60" y="42" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" fill="#64748b" font-weight="700">Turkauliya, East Champaran, Bihar (Affiliation No: 330943)</text>
+  </g>
+
+  <!-- Nav Links -->
+  <g transform="translate(620, 83)" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="700" fill="#334155">
+    <text x="0" y="0" fill="#0f2b52">HOME</text>
+    <text x="70" y="0">ABOUT US</text>
+    <text x="160" y="0">ACADEMICS</text>
+    <text x="260" y="0">FACILITIES</text>
+    <text x="360" y="0">GALLERY</text>
+  </g>
+
+  <!-- Admission CTA -->
+  <g transform="translate(1040, 58)">
+    <rect width="100" height="38" rx="8" fill="#f59e0b"/>
+    <text x="50" y="24" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="12" fill="#0f2b52" text-anchor="middle">ENROLL NOW</text>
+  </g>
+
+  <!-- Hero Content Area -->
+  <g transform="translate(60, 150)">
+    <rect x="0" y="0" width="220" height="26" rx="13" fill="#ffffff" fill-opacity="0.15" stroke="#ffffff" stroke-opacity="0.3"/>
+    <text x="110" y="17" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="800" fill="#fcd34d" text-anchor="middle">★ EAST CHAMPARAN'S TOP CBSE SCHOOL</text>
+
+    <text x="0" y="70" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="44" fill="#ffffff" letter-spacing="-1">
+      Shaping Bright Futures with
+    </text>
+    <text x="0" y="125" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="44" fill="#fcd34d" letter-spacing="-1">
+      Excellence, Values &amp; Innovation
+    </text>
+
+    <text x="0" y="170" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16" fill="#e2e8f0" font-weight="400">
+      Nursery to Class 12th • Modern Science &amp; Computer Labs • Smart Classrooms • Holistic Sports
+    </text>
+
+    <g transform="translate(0, 205)">
+      <rect width="180" height="46" rx="10" fill="#f59e0b"/>
+      <text x="90" y="28" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="14" fill="#0f2b52" text-anchor="middle">Apply for Admission →</text>
+
+      <rect x="200" y="0" width="160" height="46" rx="10" fill="#ffffff" fill-opacity="0.15" stroke="#ffffff" stroke-width="1.5"/>
+      <text x="280" y="28" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="14" fill="#ffffff" text-anchor="middle">View Prospectus</text>
+    </g>
+  </g>
+
+  <!-- Right Visual Building Banner Card -->
+  <g transform="translate(740, 150)">
+    <rect width="400" height="250" rx="16" fill="#ffffff" fill-opacity="0.1" stroke="#ffffff" stroke-opacity="0.25"/>
+    <rect x="15" y="15" width="370" height="150" rx="10" fill="#091a33"/>
+    <text x="200" y="80" font-size="48" text-anchor="middle">🏫</text>
+    <text x="200" y="125" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="15" fill="#fcd34d" text-anchor="middle">Grand Campus &amp; Smart Infrastructure</text>
+
+    <g transform="translate(15, 180)">
+      <rect width="115" height="50" rx="8" fill="#ffffff" fill-opacity="0.15"/>
+      <text x="57" y="22" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="16" fill="#ffffff" text-anchor="middle">25+ Yrs</text>
+      <text x="57" y="38" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="9" fill="#93c5fd" text-anchor="middle">Educational Legacy</text>
+
+      <rect x="127" y="0" width="115" height="50" rx="8" fill="#ffffff" fill-opacity="0.15"/>
+      <text x="184" y="22" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="16" fill="#ffffff" text-anchor="middle">100%</text>
+      <text x="184" y="38" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="9" fill="#93c5fd" text-anchor="middle">CBSE Pass Rate</text>
+
+      <rect x="255" y="0" width="115" height="50" rx="8" fill="#ffffff" fill-opacity="0.15"/>
+      <text x="312" y="22" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" font-size="16" fill="#ffffff" text-anchor="middle">1500+</text>
+      <text x="312" y="38" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="9" fill="#93c5fd" text-anchor="middle">Happy Students</text>
+    </g>
+  </g>
+
+  <!-- 3 Bottom Pillars -->
+  <g transform="translate(60, 440)">
+    <rect width="340" height="260" rx="14" fill="url(#cardGrad)" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="25" y="45" font-size="24">🔬</text>
+    <text x="65" y="45" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="17" fill="#0f2b52">Advanced Laboratories</text>
+    <text x="25" y="80" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#64748b" width="290">
+      Fully equipped Physics, Chemistry, Biology and Computer AI Labs for experiential learning.
+    </text>
+    <rect x="25" y="200" width="120" height="32" rx="6" fill="#0f2b52"/>
+    <text x="85" y="220" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="11" fill="#ffffff" text-anchor="middle">Explore Labs →</text>
+
+    <g transform="translate(370, 0)">
+      <rect width="340" height="260" rx="14" fill="url(#cardGrad)" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="25" y="45" font-size="24">📚</text>
+      <text x="65" y="45" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="17" fill="#0f2b52">Digital Library &amp; Arts</text>
+      <text x="25" y="80" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#64748b">
+        Extensive collection of 10,000+ books, journals, multimedia knowledge centers, and music studios.
+      </text>
+      <rect x="25" y="200" width="120" height="32" rx="6" fill="#0f2b52"/>
+      <text x="85" y="220" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="11" fill="#ffffff" text-anchor="middle">View Library →</text>
+    </g>
+
+    <g transform="translate(740, 0)">
+      <rect width="340" height="260" rx="14" fill="url(#cardGrad)" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="25" y="45" font-size="24">🏆</text>
+      <text x="65" y="45" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="800" font-size="17" fill="#0f2b52">Sports &amp; Fitness Hub</text>
+      <text x="25" y="80" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" fill="#64748b">
+        Cricket ground, basketball court, badminton arenas, and certified physical trainers.
+      </text>
+      <rect x="25" y="200" width="120" height="32" rx="6" fill="#0f2b52"/>
+      <text x="85" y="220" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="700" font-size="11" fill="#ffffff" text-anchor="middle">Sports Arena →</text>
+    </g>
+  </g>
+</svg>

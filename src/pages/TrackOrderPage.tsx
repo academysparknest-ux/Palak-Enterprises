@@ -6,11 +6,12 @@ import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type Store
 import { fetchPublicTracking, type PublicTrackingResponse } from "../lib/supabase/database";
 import { OrderTimeline } from "../components/OrderTimeline";
 import { getWhatsAppLink } from "../config/business";
+import { getSingleOrderQueueInfo } from "../lib/queue";
 
 export const TrackOrderPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [queryCode, setQueryCode] = useState(searchParams.get("code") || "");
   const [phoneVerification, setPhoneVerification] = useState("");
@@ -26,6 +27,12 @@ export const TrackOrderPage: React.FC = () => {
   const handleSearch = useCallback(async (codeToSearch?: string) => {
     const q = (codeToSearch !== undefined ? codeToSearch : queryCode).trim();
     if (!q) return;
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("code", q);
+      return next;
+    }, { replace: true });
 
     setLoading(true);
     setSearched(true);
@@ -50,7 +57,7 @@ export const TrackOrderPage: React.FC = () => {
     setQuotes(result.quotes);
     setDesigns(result.designs);
     setLoading(false);
-  }, [queryCode, phoneVerification]);
+  }, [queryCode, phoneVerification, setSearchParams]);
 
   useEffect(() => {
     const initialCode = searchParams.get("code");
@@ -220,6 +227,49 @@ export const TrackOrderPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Queue Priority Banner */}
+            {rpcTrackingResult.entityType === "order" && (() => {
+              const qInfo = getSingleOrderQueueInfo(rpcTrackingResult.record, PalakDataStore.getOrders());
+              const isPriority = qInfo.queueType === "priority";
+              return (
+                <div className={`rounded-2xl p-4 border space-y-1.5 ${
+                  isPriority
+                    ? "bg-amber-500/10 border-amber-500/30 text-amber-950"
+                    : "bg-slate-100 border-slate-200 text-slate-800"
+                }`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{isPriority ? "🔥" : "📄"}</span>
+                      <div>
+                        <span className="font-black text-xs uppercase tracking-wide block">
+                          {isPriority ? "🔥 Priority Printing Queue" : "📄 Normal Printing Queue"}
+                        </span>
+                        <span className="text-[11px] text-slate-600">
+                          {isPriority ? "💳 Payment Confirmed" : "💰 Payment at Shop Counter"}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-black px-3 py-1 rounded-full border ${
+                      isPriority
+                        ? "bg-amber-400 text-slate-950 border-amber-500 shadow-xs"
+                        : "bg-white text-slate-700 border-slate-300 shadow-xs"
+                    }`}>
+                      {isPriority ? `Priority Position: #${qInfo.positionInQueue}` : `Normal Queue Position: #${qInfo.positionInQueue}`}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed pt-0.5">
+                    {isPriority
+                      ? (currentLang === "hi"
+                          ? "आपके ऑर्डर को प्रिंटिंग कतार में प्राथमिकता दी गई है। आपको सामान्य लाइन में इंतज़ार नहीं करना होगा।"
+                          : "Your order has priority in the printing queue. Orders are prepared first without waiting in normal queue.")
+                      : (currentLang === "hi"
+                          ? "आपका ऑर्डर सामान्य कतार में है। दुकान काउंटर पर आपकी मौजूदगी सत्यापित होते ही प्रिंट शुरू होगा और आप काउंटर पर भुगतान करेंगे।"
+                          : "Your order is in the normal queue. Printing starts once your presence/availability is verified at the counter, and you pay upon pickup.")}
+                  </p>
+                </div>
+              );
+            })()}
+
             {/* Timeline */}
             <OrderTimeline
               entityType={(rpcTrackingResult.entityType as any) || "order"}
@@ -244,6 +294,8 @@ export const TrackOrderPage: React.FC = () => {
           const logs = PalakDataStore.getStatusHistory(order.orderCode);
           const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
           const isOnline = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online";
+          const qInfo = getSingleOrderQueueInfo(order, PalakDataStore.getOrders());
+          const isPriority = qInfo.queueType === "priority";
 
           return (
             <div
@@ -292,6 +344,43 @@ export const TrackOrderPage: React.FC = () => {
                     <MessageSquare className="h-4 w-4" />
                   </a>
                 </div>
+              </div>
+
+              {/* Queue Priority Banner */}
+              <div className={`rounded-2xl p-4 border space-y-1.5 ${
+                isPriority
+                  ? "bg-amber-500/10 border-amber-500/30 text-amber-950"
+                  : "bg-slate-100 border-slate-200 text-slate-800"
+              }`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{isPriority ? "🔥" : "📄"}</span>
+                    <div>
+                      <span className="font-black text-xs uppercase tracking-wide block">
+                        {isPriority ? "🔥 Priority Printing Queue" : "📄 Normal Printing Queue"}
+                      </span>
+                      <span className="text-[11px] text-slate-600">
+                        {isPriority ? "💳 Payment Confirmed" : "💰 Payment at Shop Counter"}
+                      </span>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-black px-3 py-1 rounded-full border ${
+                    isPriority
+                      ? "bg-amber-400 text-slate-950 border-amber-500 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-300 shadow-xs"
+                  }`}>
+                    {isPriority ? `Priority Position: #${qInfo.positionInQueue}` : `Normal Queue Position: #${qInfo.positionInQueue}`}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed pt-0.5">
+                  {isPriority
+                    ? (currentLang === "hi"
+                        ? "आपके ऑर्डर को प्रिंटिंग कतार में प्राथमिकता दी गई है। आपको सामान्य लाइन में इंतज़ार नहीं करना होगा।"
+                        : "Your order has priority in the printing queue. Orders are prepared first without waiting in normal queue.")
+                    : (currentLang === "hi"
+                        ? "आपका ऑर्डर सामान्य कतार में है। दुकान काउंटर पर आपकी मौजूदगी सत्यापित होते ही प्रिंट शुरू होगा और आप काउंटर पर भुगतान करेंगे।"
+                        : "Your order is in the normal queue. Printing starts once your presence/availability is verified at the counter, and you pay upon pickup.")}
+                </p>
               </div>
 
               {/* Progress Milestones */}

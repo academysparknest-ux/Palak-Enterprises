@@ -31,13 +31,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestM
         <Link
           to="/"
           className={cn(
-            "flex flex-col items-center justify-center py-1 px-2 min-w-[56px] transition-colors rounded-lg",
+            "flex flex-col items-center justify-center py-1 px-2.5 min-w-[56px] transition-all duration-200 rounded-xl active-press",
             location.pathname === "/"
-              ? "text-[#123B70] font-bold"
+              ? "text-[#123B70] font-bold bg-[#123B70]/8"
               : "text-slate-500 hover:text-[#123B70]"
           )}
         >
-          <Home className={cn("w-5 h-5 mb-0.5", location.pathname === "/" && "text-[#123B70]")} />
+          <Home className={cn("w-5 h-5 mb-0.5 transition-transform duration-200", location.pathname === "/" && "text-[#123B70] scale-105")} />
           <span className="text-[10px] leading-none font-medium">{currentLang === "hi" ? "होम" : "Home"}</span>
         </Link>
 
@@ -45,13 +45,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestM
         <Link
           to="/services"
           className={cn(
-            "flex flex-col items-center justify-center py-1 px-2 min-w-[56px] transition-colors rounded-lg",
+            "flex flex-col items-center justify-center py-1 px-2.5 min-w-[56px] transition-all duration-200 rounded-xl active-press",
             isServicesActive
-              ? "text-[#123B70] font-bold"
+              ? "text-[#123B70] font-bold bg-[#123B70]/8"
               : "text-slate-500 hover:text-[#123B70]"
           )}
         >
-          <Layers className={cn("w-5 h-5 mb-0.5", isServicesActive && "text-[#123B70]")} />
+          <Layers className={cn("w-5 h-5 mb-0.5 transition-transform duration-200", isServicesActive && "text-[#123B70] scale-105")} />
           <span className="text-[10px] leading-none font-medium">{currentLang === "hi" ? "सेवाएँ" : "Services"}</span>
         </Link>
 
@@ -64,10 +64,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestM
               onOpenRequestModal();
             }
           }}
-          className="flex flex-col items-center justify-center py-0.5 px-2 min-w-[58px] text-[#123B70] font-bold transition-transform active:scale-95 group"
+          className="flex flex-col items-center justify-center py-0.5 px-2 min-w-[58px] text-[#123B70] font-bold transition-transform active-press group"
           aria-label={currentLang === "hi" ? "प्रिंट ऑर्डर" : "Print Order"}
         >
-          <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-md mb-0.5 -mt-3.5 border-2 border-white group-hover:bg-amber-400 transition-colors ring-2 ring-amber-300/50">
+          <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-md mb-0.5 -mt-3.5 border-2 border-white group-hover:bg-amber-400 group-hover:scale-105 transition-all ring-2 ring-amber-300/50">
             <Sparkles className="w-5 h-5" />
           </div>
           <span className="text-[10px] font-bold text-[#123B70] leading-none">
@@ -78,7 +78,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestM
         {/* Call */}
         <a
           href={`tel:${businessConfig.phoneNumbers.primary}`}
-          className="flex flex-col items-center justify-center py-1 px-2 min-w-[56px] text-slate-600 hover:text-[#123B70] transition-colors rounded-lg"
+          className="flex flex-col items-center justify-center py-1 px-2.5 min-w-[56px] text-slate-600 hover:text-[#123B70] transition-all rounded-xl active-press"
           aria-label={currentLang === "hi" ? "कॉल करें" : "Call Now"}
         >
           <Phone className="w-5 h-5 mb-0.5 text-[#123B70]" />
@@ -90,7 +90,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestM
           href={`https://wa.me/${businessConfig.whatsappNumber}?text=Hello%20Palak%20Enterprises`}
           target="_blank"
           rel="noreferrer"
-          className="flex flex-col items-center justify-center py-1 px-2 min-w-[56px] text-emerald-600 hover:text-emerald-700 transition-colors rounded-lg"
+          className="flex flex-col items-center justify-center py-1 px-2.5 min-w-[56px] text-emerald-600 hover:text-emerald-700 transition-all rounded-xl active-press"
           aria-label={currentLang === "hi" ? "व्हाट्सएप चैट" : "WhatsApp Chat"}
         >
           <MessageSquare className="w-5 h-5 mb-0.5" />

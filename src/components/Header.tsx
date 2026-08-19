@@ -111,7 +111,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
                 <span>{business.address.city[currentLang]}</span>
               </span>
               <span className="text-slate-400">•</span>
-              <span className="flex items-center gap-1 text-slate-300">
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-pulse-ring absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
                 <Clock className="w-3 h-3 text-amber-300" />
                 <span>{businessConfig.openingHours[currentLang]}</span>
               </span>

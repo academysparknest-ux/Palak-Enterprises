@@ -34,7 +34,7 @@ Please provide pricing for customized printing with Sanskrit/Hindi text and avai
   const waUrl = getWhatsAppLink(waMsg);
 
   return (
-    <div className="group relative rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-xs hover:shadow-xl hover:border-amber-300 transition-all duration-300 flex flex-col justify-between">
+    <div className="group relative rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-xs hover:shadow-xl hover:border-amber-300 transition-all duration-300 flex flex-col justify-between gold-foil-sheen interactive-card">
       {/* Top Media Viewport */}
       <div>
         <div className="relative aspect-4/3 w-full rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 overflow-hidden border border-slate-100 flex items-center justify-center p-2">
@@ -43,7 +43,7 @@ Please provide pricing for customized printing with Sanskrit/Hindi text and avai
             src={product.imageUrl}
             alt={product.name[currentLang]}
             loading="lazy"
-            className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-500"
+            className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-500 will-change-transform"
           />
 
           {/* Top Badges */}
