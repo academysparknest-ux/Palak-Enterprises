@@ -13,7 +13,6 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
-  Bell,
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -22,14 +21,12 @@ interface AdminSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   newOrdersCount?: number;
-  unreadNotificationsCount?: number;
 }
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isOpen,
   onClose,
   newOrdersCount = 0,
-  unreadNotificationsCount = 0,
 }) => {
   const location = useLocation();
   const [isWebsiteMgmtOpen, setIsWebsiteMgmtOpen] = useState(
@@ -62,11 +59,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { name: 'Activity Log', path: '/admin/website/activity' },
   ];
 
-  const bottomItems = [
+  const bottomItems: { name: string; path: string; icon: React.ComponentType<{ className?: string }>; badge?: number }[] = [
     { name: 'Service Requests', path: '/admin/services-requests', icon: FileText },
     { name: 'Quote Inquiries', path: '/admin/quotes', icon: MessageSquare },
     { name: 'Design Studio', path: '/admin/designs', icon: Palette },
-    { name: 'Notifications', path: '/admin/orders', icon: Bell, badge: unreadNotificationsCount },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 

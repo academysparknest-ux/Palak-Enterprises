@@ -1,15 +1,33 @@
+/**
+ * React hook for consuming real-time order events in Admin components.
+ *
+ * This hook is a thin wrapper around the singleton RealtimeOrdersManager.
+ * All event deduplication, local DOM event handling, and cross-tab sync
+ * are handled internally by the manager — components just provide callbacks.
+ *
+ * Usage:
+ *   useRealtimeOrders({
+ *     onNewOrder: (order) => { ... },
+ *     onOrderUpdated: (order) => { ... },
+ *     onOrderDeleted: (payload) => { ... },
+ *   });
+ */
+
 import { useEffect, useRef } from "react";
 import { realtimeOrdersManager, type RealtimeOrderCallbacks } from "../lib/realtime/realtimeOrdersManager";
 import { type StoredOrder } from "../lib/storage/store";
-import { mapOrderRowToStoredOrder } from "../lib/supabase/database";
 
 export function useRealtimeOrders(callbacks: RealtimeOrderCallbacks) {
   const callbacksRef = useRef<RealtimeOrderCallbacks>(callbacks);
   callbacksRef.current = callbacks;
 
   useEffect(() => {
-    // 1. Subscribe to the singleton Supabase Realtime manager
-    const unsubscribeSupabase = realtimeOrdersManager.subscribe({
+    // Subscribe to the singleton manager — it handles:
+    //   • Supabase Realtime postgres_changes (INSERT/UPDATE/DELETE)
+    //   • Local DOM events (palak:new-order, palak:order-updated, palak:order-deleted)
+    //   • Cross-tab BroadcastChannel events
+    //   • Deduplication across all sources
+    const unsubscribe = realtimeOrdersManager.subscribe({
       onNewOrder: (order: StoredOrder) => {
         callbacksRef.current.onNewOrder?.(order);
       },
@@ -21,58 +39,6 @@ export function useRealtimeOrders(callbacks: RealtimeOrderCallbacks) {
       },
     });
 
-    // 2. Also listen for local / cross-tab broadcast events
-    const onLocalNewOrder = (e: CustomEvent) => {
-      if (e.detail && e.detail.source !== "supabase_realtime") {
-        const mapped = mapOrderRowToStoredOrder({
-          id: e.detail.id,
-          order_code: e.detail.orderCode,
-          customer_name: e.detail.customerName,
-          customer_phone: e.detail.customerPhone,
-          total_amount: e.detail.totalAmount,
-          order_status: e.detail.orderStatus,
-          payment_status: e.detail.paymentStatus,
-          payment_method: e.detail.paymentMethod,
-          items: e.detail.items,
-          created_at: e.detail.createdAt,
-        });
-        callbacksRef.current.onNewOrder?.(mapped);
-      }
-    };
-
-    const onLocalOrderUpdated = (e: CustomEvent) => {
-      if (e.detail && e.detail.source !== "supabase_realtime") {
-        const mapped = mapOrderRowToStoredOrder({
-          id: e.detail.id,
-          order_code: e.detail.orderCode,
-          customer_name: e.detail.customerName,
-          customer_phone: e.detail.customerPhone,
-          total_amount: e.detail.totalAmount,
-          order_status: e.detail.orderStatus,
-          payment_status: e.detail.paymentStatus,
-          payment_method: e.detail.paymentMethod,
-          items: e.detail.items,
-          created_at: e.detail.createdAt,
-        });
-        callbacksRef.current.onOrderUpdated?.(mapped);
-      }
-    };
-
-    const onLocalOrderDeleted = (e: CustomEvent) => {
-      if (e.detail) {
-        callbacksRef.current.onOrderDeleted?.(e.detail);
-      }
-    };
-
-    window.addEventListener("palak:new-order" as any, onLocalNewOrder);
-    window.addEventListener("palak:order-updated" as any, onLocalOrderUpdated);
-    window.addEventListener("palak:order-deleted" as any, onLocalOrderDeleted);
-
-    return () => {
-      unsubscribeSupabase();
-      window.removeEventListener("palak:new-order" as any, onLocalNewOrder);
-      window.removeEventListener("palak:order-updated" as any, onLocalOrderUpdated);
-      window.removeEventListener("palak:order-deleted" as any, onLocalOrderDeleted);
-    };
+    return unsubscribe;
   }, []);
 }

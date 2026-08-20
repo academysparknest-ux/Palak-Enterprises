@@ -18,7 +18,7 @@ import { useAuth } from "../../context/AuthContext";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
 import { cn } from "../../lib/utils";
 import { notificationSound } from "../../lib/audio/notificationSound";
-import { isOrderEventDuplicate, extractServiceNameFromItems } from "../../lib/realtime/adminOrderEvents";
+import { extractServiceNameFromItems } from "../../lib/realtime/adminOrderEvents";
 import { useRealtimeOrders } from "../../hooks/useRealtimeOrders";
 import type { StoredOrder } from "../../lib/storage/store";
 
@@ -189,14 +189,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
   // Process an incoming new order notification
   const handleIncomingNewOrder = useCallback((orderData: StoredOrder) => {
     if (!orderData || !orderData.orderCode) return;
-    const code = orderData.orderCode;
-
-    // Check if this exact event was already processed
-    const isDup = isOrderEventDuplicate(code);
+    const code = orderData.orderCode.trim().toUpperCase();
 
     const notif: AdminNotification = {
       id: orderData.id || crypto.randomUUID(),
-      orderCode: code,
+      orderCode: orderData.orderCode,
       customerName: orderData.customerName || "Customer",
       customerPhone: orderData.customerPhone || "",
       serviceName: extractServiceNameFromItems(orderData.items),
@@ -208,16 +205,16 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
     };
 
     setNotifications((prev) => {
-      const exists = prev.some((n) => n.orderCode === code);
+      const exists = prev.some((n) => (n.orderCode || '').trim().toUpperCase() === code);
       if (exists) {
-        return prev.map((n) => n.orderCode === code ? { ...n, ...notif, isRead: n.isRead } : n);
+        return prev.map((n) => (n.orderCode || '').trim().toUpperCase() === code ? { ...n, ...notif, isRead: n.isRead } : n);
       }
       const updated = [notif, ...prev].slice(0, 50);
       saveNotifications(updated);
       return updated;
     });
 
-    if (!isDup && !seenRef.current.has(code)) {
+    if (!seenRef.current.has(code)) {
       notificationSound.playNewOrderChime(code);
       setRinging(true);
       setTimeout(() => setRinging(false), 2500);
@@ -450,7 +447,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
           100% { transform: rotate(0deg); }
         }
         .animate-notification-ring {
-          animation: notification-ring 0.8s ease-in-out;
+          animation: notification-ring 0.8s ease-in-out 3;
         }
       `}</style>
     </div>

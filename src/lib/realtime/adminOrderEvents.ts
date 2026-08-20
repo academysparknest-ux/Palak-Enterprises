@@ -29,9 +29,12 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
     orderBroadcastChannel = new BroadcastChannel('palak_admin_order_channel');
     orderBroadcastChannel.onmessage = (event) => {
       if (event.data && event.data.type === 'NEW_ORDER') {
-        dispatchNewOrderLocally(event.data.payload, false);
+        // Tag as broadcast so the manager can distinguish and deduplicate
+        const payload = { ...event.data.payload, source: event.data.payload?.source || 'broadcast' };
+        dispatchNewOrderLocally(payload, false);
       } else if (event.data && event.data.type === 'ORDER_UPDATED') {
-        dispatchOrderUpdatedLocally(event.data.payload, false);
+        const payload = { ...event.data.payload, source: event.data.payload?.source || 'broadcast' };
+        dispatchOrderUpdatedLocally(payload, false);
       } else if (event.data && event.data.type === 'ORDER_DELETED') {
         dispatchOrderDeletedLocally(event.data.payload, false);
       }

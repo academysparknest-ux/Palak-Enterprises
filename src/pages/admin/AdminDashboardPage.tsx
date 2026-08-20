@@ -416,12 +416,17 @@ export const AdminDashboardPage: React.FC = () => {
   useEffect(() => {
     fetchDashboardData();
 
-    // 1. Listen for admin refresh events from top bar
+    // 1. Listen for admin refresh events from top bar + realtime reconnect
     const handleAdminRefresh = () => {
       setRefreshing(true);
       fetchDashboardData();
     };
+    const handleRealtimeReconnect = () => {
+      console.debug("[Dashboard] Realtime reconnected — syncing dashboard...");
+      fetchDashboardData();
+    };
     window.addEventListener('admin-refresh', handleAdminRefresh);
+    window.addEventListener('palak:realtime-reconnected', handleRealtimeReconnect);
 
     // 2. Supabase Realtime stream for service requests & quote requests
     let channel: any = null;
@@ -466,6 +471,7 @@ export const AdminDashboardPage: React.FC = () => {
     return () => {
       isActive = false;
       window.removeEventListener('admin-refresh', handleAdminRefresh);
+      window.removeEventListener('palak:realtime-reconnected', handleRealtimeReconnect);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (channel && supabase) {
         supabase.removeChannel(channel);

@@ -55,6 +55,18 @@ export const AdminLayout: React.FC = () => {
     },
   });
 
+  // Re-sync sidebar badge on realtime reconnect
+  useEffect(() => {
+    const handleReconnect = () => {
+      console.debug("[AdminLayout] Realtime reconnected — syncing badge count...");
+      fetchNewOrdersCount();
+    };
+    window.addEventListener("palak:realtime-reconnected", handleReconnect);
+    return () => {
+      window.removeEventListener("palak:realtime-reconnected", handleReconnect);
+    };
+  }, [fetchNewOrdersCount]);
+
   const handleRefresh = useCallback(async () => {
     setDataLoading(true);
     await fetchNewOrdersCount();

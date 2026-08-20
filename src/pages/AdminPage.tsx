@@ -379,14 +379,20 @@ export const AdminPage: React.FC = () => {
     onOrderDeleted: handleRealtimeOrderDeleted,
   });
 
-  // Listen for admin refresh trigger from top header bar
+  // Listen for admin refresh trigger from top header bar + realtime reconnect
   useEffect(() => {
     const handleAdminRefresh = () => {
       loadData();
     };
+    const handleRealtimeReconnect = () => {
+      console.debug("[AdminPage] Realtime reconnected — syncing missed orders...");
+      loadData();
+    };
     window.addEventListener("admin-refresh" as any, handleAdminRefresh);
+    window.addEventListener("palak:realtime-reconnected" as any, handleRealtimeReconnect);
     return () => {
       window.removeEventListener("admin-refresh" as any, handleAdminRefresh);
+      window.removeEventListener("palak:realtime-reconnected" as any, handleRealtimeReconnect);
     };
   }, [loadData]);
 
