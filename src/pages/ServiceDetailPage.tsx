@@ -30,13 +30,19 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
       (c) => c.slug === categoryParam || c.id === categoryParam
     );
     const matchedService =
-      matchedCategory && getServiceBySlug(matchedCategory.slug, serviceSlug);
+      (matchedCategory && getServiceBySlug(matchedCategory.slug, serviceSlug)) ||
+      getServiceById(serviceSlug) ||
+      services.find((s) => s.slug === serviceSlug || s.id === serviceSlug);
 
-    if (matchedCategory && matchedService) {
+    if (matchedService) {
+      const parentCategory =
+        matchedCategory ||
+        categories.find((c) => c.id === matchedService.categoryId) ||
+        categories[0];
       return (
         <ServiceDetailPageContent
           service={matchedService}
-          category={matchedCategory}
+          category={parentCategory}
         />
       );
     }

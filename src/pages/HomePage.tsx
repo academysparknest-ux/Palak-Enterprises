@@ -80,11 +80,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
       {/* 1. Hero Section */}
       <Hero onOpenRequestModal={onOpenRequestModal} />
 
-      {/* 2. Website Development Projects / Digital Portfolio */}
-      <WebsiteProjectsSection onOpenRequestModal={onOpenRequestModal} />
-
       <div className="mx-auto max-w-7xl px-4 sm:px-6 space-y-16 sm:space-y-20">
-        {/* 3. Main 4 Service Category Cards */}
+        {/* 2. Main 4 Service Category Cards */}
         <ScrollReveal direction="up" distancePx={20}>
           <section className="space-y-6">
             <div className="flex items-end justify-between">
@@ -198,7 +195,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
           </section>
         </ScrollReveal>
 
-        {/* 6. Business & Bulk Printing Banner */}
+        {/* 6. Website Development Projects / Digital Showcase */}
+        <WebsiteProjectsSection onOpenRequestModal={onOpenRequestModal} />
+
+        {/* 7. Business & Bulk Printing Banner */}
         <ScrollReveal direction="up" distancePx={20}>
           <section className="rounded-3xl border border-line bg-[#123B70] text-white p-6 sm:p-10 relative overflow-hidden shadow-raised">
             {/* Ambient background glows */}

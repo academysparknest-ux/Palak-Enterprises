@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   Layers,
   Search,
+  Receipt,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
@@ -29,10 +30,13 @@ import {
   type StoredServiceRequest,
   type StoredQuoteRequest,
 } from "../lib/storage/store";
-import { getUserOrders } from "../lib/supabase/database";
+import { getUserOrders, getInvoiceByOrderCode } from "../lib/supabase/database";
 import { supabase } from "../lib/supabase/client";
 import { SEO } from "../components/SEO";
 import { business, getWhatsAppLink } from "../config/business";
+import { InvoiceModal } from "../components/invoice/InvoiceModal";
+import type { StoredInvoice } from "../lib/invoice/types";
+import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
 
 export const AccountPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -52,6 +56,21 @@ export const AccountPage: React.FC = () => {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [customerServices, setCustomerServices] = useState<StoredServiceRequest[]>([]);
   const [customerQuotes, setCustomerQuotes] = useState<StoredQuoteRequest[]>([]);
+
+  // Invoice modal state
+  const [selectedInvoiceForModal, setSelectedInvoiceForModal] = useState<StoredInvoice | null>(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+
+  const handleOpenOrderInvoice = async (orderCode: string) => {
+    let inv = PalakInvoiceStore.getLocalInvoiceByOrderCode(orderCode);
+    if (!inv) {
+      inv = (await getInvoiceByOrderCode(orderCode, user?.phone).catch(() => null)) || undefined;
+    }
+    if (inv) {
+      setSelectedInvoiceForModal(inv);
+      setInvoiceModalOpen(true);
+    }
+  };
 
   // Update tab in URL when changed
   const handleTabChange = (tab: "orders" | "services" | "quotes" | "profile") => {
@@ -666,12 +685,24 @@ export const AccountPage: React.FC = () => {
                         }`}>
                           {isPaid ? "✓ Paid" : `Payment: ${paymentMethodClean}`}
                         </span>
-                        <Link
-                          to={`/track-order?code=${encodeURIComponent(order.orderCode)}`}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline"
-                        >
-                          <span>Track Status →</span>
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          {order.orderStatus === "COMPLETED" && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenOrderInvoice(order.orderCode)}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Receipt className="h-3 w-3" />
+                              <span>View Bill</span>
+                            </button>
+                          )}
+                          <Link
+                            to={`/track-order?code=${encodeURIComponent(order.orderCode)}`}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline"
+                          >
+                            <span>Track Status →</span>
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   );
@@ -937,6 +968,14 @@ export const AccountPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Customer Invoice Preview Modal */}
+      <InvoiceModal
+        isOpen={invoiceModalOpen}
+        onClose={() => setInvoiceModalOpen(false)}
+        invoice={selectedInvoiceForModal}
+        isAdmin={false}
+      />
     </div>
   );
 };

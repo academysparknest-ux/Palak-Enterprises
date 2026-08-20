@@ -387,7 +387,7 @@ export const ContactPage: React.FC = () => {
             </div>
 
             {/* Embedded Google Map */}
-            <div className="overflow-hidden rounded-card border border-line bg-white shadow-card p-4 space-y-3">
+            <div className="overflow-hidden rounded-card border border-line bg-white shadow-card p-4 space-y-3 flex-1 flex flex-col">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-bold text-navy uppercase tracking-wider">
                   {currentLang === "hi" ? "गूगल मैप्स लोकेशन" : "Interactive Location Map"}
@@ -401,7 +401,7 @@ export const ContactPage: React.FC = () => {
                   <span>{currentLang === "hi" ? "दिशा-निर्देश (Directions) →" : "Open in Maps →"}</span>
                 </a>
               </div>
-              <div className="overflow-hidden rounded-xl border border-line h-[280px]">
+              <div className="overflow-hidden rounded-xl border border-line h-[280px] lg:h-auto lg:flex-1 min-h-[220px]">
                 <iframe
                   title="Palak Enterprises Google Map"
                   src={business.mapEmbedUrl}
@@ -414,8 +414,8 @@ export const ContactPage: React.FC = () => {
           </div>
 
           {/* Right Column: Interactive Service Request & Inquiry Form */}
-          <div className="lg:col-span-7">
-            <div className="rounded-card border border-line bg-white p-6 sm:p-8 shadow-card space-y-6">
+          <div className="lg:col-span-7 flex flex-col">
+            <div className="rounded-card border border-line bg-white p-6 sm:p-8 shadow-card space-y-6 flex-1 flex flex-col justify-between">
               {/* Form Header */}
               <div>
                 <div className="inline-flex items-center gap-2 rounded-pill bg-navy/10 px-3.5 py-1 text-xs font-bold text-navy">
@@ -445,7 +445,7 @@ export const ContactPage: React.FC = () => {
               </div>
 
               {formSubmitted ? (
-                <div className="rounded-2xl bg-leaf/10 p-6 sm:p-8 border border-leaf/30 space-y-4 text-center">
+                <div className="rounded-2xl bg-leaf/10 p-6 sm:p-8 border border-leaf/30 space-y-4 text-center flex-1 flex flex-col justify-center items-center">
                   <CheckCircle2 className="w-12 h-12 text-leaf mx-auto animate-bounce" />
                   <h4
                     className={`text-lg font-bold text-ink ${
@@ -494,15 +494,16 @@ export const ContactPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleFormSubmit} className="space-y-5" noValidate>
-                  {formError && (
-                    <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-brandred text-xs font-bold flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{formError}</span>
-                    </div>
-                  )}
+                <form onSubmit={handleFormSubmit} className="space-y-6 flex-1 flex flex-col justify-between" noValidate>
+                  <div className="space-y-5">
+                    {formError && (
+                      <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-brandred text-xs font-bold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{formError}</span>
+                      </div>
+                    )}
 
-                  {/* Name and Mobile Row */}
+                    {/* Name and Mobile Row */}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label
@@ -787,9 +788,10 @@ export const ContactPage: React.FC = () => {
                       ? "💡 नोट: आपकी फाइलें आपके डिवाइस पर सुरक्षित रहती हैं — फॉर्म सबमिट होने के बाद व्हाट्सएप चैट में सीधे फोटो या पीडीएफ साझा करें।"
                       : "💡 Note: Files stay secure on your device — you can attach sample images or PDFs directly inside WhatsApp chat."}
                   </p>
+                </div>
 
-                  {/* Submit Action Buttons */}
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                {/* Submit Action Buttons */}
+                <div className="flex flex-wrap items-center gap-3 pt-2 mt-auto">
                     <button
                       type="submit"
                       className={`inline-flex items-center gap-2 rounded-pill bg-brandred px-7 py-3 text-sm font-bold text-white shadow-card transition-all hover:bg-navy hover:scale-[1.02] cursor-pointer ${

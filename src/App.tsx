@@ -14,6 +14,11 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PageTransition } from "./components/ui/motion/PageTransition";
 import { lazyWithRetry } from "./lib/lazyWithRetry";
 import { servicesData, type ServiceItem } from "./config/services";
+import { PalakDataStore } from "./lib/storage/store";
+import { getProducts, getServices, getCategories } from "./lib/supabase/database";
+import { supabase, isSupabaseConfigured } from "./lib/supabase/client";
+import { cn } from "./lib/utils";
+import { AdminRouteGuard } from "./components/admin/AdminRouteGuard";
 
 // Lazy Loaded Pages with Auto-Retry and Seamless Cache Recovery
 const HomePage = lazyWithRetry(() => import("./pages/HomePage").then((m) => ({ default: m.HomePage })));
@@ -44,7 +49,20 @@ const CartPage = lazyWithRetry(() => import("./pages/CartPage").then((m) => ({ d
 const CheckoutPage = lazyWithRetry(() => import("./pages/CheckoutPage").then((m) => ({ default: m.CheckoutPage })));
 const TrackOrderPage = lazyWithRetry(() => import("./pages/TrackOrderPage").then((m) => ({ default: m.TrackOrderPage })));
 const AccountPage = lazyWithRetry(() => import("./pages/AccountPage").then((m) => ({ default: m.AccountPage })));
-const AdminPage = lazyWithRetry(() => import("./pages/AdminPage").then((m) => ({ default: m.AdminPage })));
+// Admin Panel — Route-based layout with nested pages
+const AdminLayout = lazyWithRetry(() => import("./components/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })));
+const AdminDashboardPage = lazyWithRetry(() => import("./pages/admin/AdminDashboardPage").then((m) => ({ default: m.AdminDashboardPage })));
+const AdminLegacyPage = lazyWithRetry(() => import("./pages/AdminPage").then((m) => ({ default: m.AdminPage })));
+const AdminQuickServicesPage = lazyWithRetry(() => import("./pages/admin/AdminQuickServicesPage").then((m) => ({ default: m.AdminQuickServicesPage })));
+const AdminSettingsPage = lazyWithRetry(() => import("./pages/admin/AdminSettingsPage").then((m) => ({ default: m.AdminSettingsPage })));
+const WebsiteManagementPage = lazyWithRetry(() => import("./pages/admin/WebsiteManagementPage").then((m) => ({ default: m.WebsiteManagementPage })));
+const WebsiteServicesPage = lazyWithRetry(() => import("./pages/admin/WebsiteServicesPage").then((m) => ({ default: m.WebsiteServicesPage })));
+const WebsitePricingPage = lazyWithRetry(() => import("./pages/admin/WebsitePricingPage").then((m) => ({ default: m.WebsitePricingPage })));
+const WebsitePhotosPage = lazyWithRetry(() => import("./pages/admin/WebsitePhotosPage").then((m) => ({ default: m.WebsitePhotosPage })));
+const WebsiteCategoriesPage = lazyWithRetry(() => import("./pages/admin/WebsiteCategoriesPage").then((m) => ({ default: m.WebsiteCategoriesPage })));
+const WebsiteContentPage = lazyWithRetry(() => import("./pages/admin/WebsiteContentPage").then((m) => ({ default: m.WebsiteContentPage })));
+const WebsiteAnalyticsPage = lazyWithRetry(() => import("./pages/admin/WebsiteAnalyticsPage").then((m) => ({ default: m.WebsiteAnalyticsPage })));
+const WebsiteActivityPage = lazyWithRetry(() => import("./pages/admin/WebsiteActivityPage").then((m) => ({ default: m.WebsiteActivityPage })));
 const LoginPage = lazyWithRetry(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazyWithRetry(() => import("./pages/SignupPage").then((m) => ({ default: m.SignupPage })));
 const ForgotPasswordPage = lazyWithRetry(() => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })));
@@ -92,6 +110,43 @@ function ScrollToTop() {
 export function AppContent() {
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [modalService, setModalService] = useState<ServiceItem | null>(null);
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
+  // Background catalog synchronization from Supabase with Realtime subscription
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+
+    const syncCatalog = async () => {
+      try {
+        const [prods, servs, cats] = await Promise.all([
+          getProducts(),
+          getServices(),
+          getCategories(),
+        ]);
+        if (prods && prods.length > 0) PalakDataStore.setProducts(prods);
+        if (servs && servs.length > 0) PalakDataStore.setDigitalServices(servs);
+        if (cats && cats.length > 0) PalakDataStore.setCategories(cats);
+      } catch (err) {
+        console.warn("[CatalogSync] Background sync notice:", err);
+      }
+    };
+
+    syncCatalog();
+
+    // Listen to real-time changes on catalog tables
+    const channel = client
+      .channel("storefront-catalog-sync")
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "products" }, () => syncCatalog())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "services" }, () => syncCatalog())
+      .on("postgres_changes" as any, { event: "*", schema: "public", table: "categories" }, () => syncCatalog())
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, []);
 
   const handleOpenRequestModal = (serviceId?: string) => {
     if (serviceId) {
@@ -109,12 +164,15 @@ export function AppContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F7F8FA] font-sans selection:bg-[#123B70] selection:text-white pb-16 md:pb-0">
+    <div className={cn(
+      "min-h-screen flex flex-col bg-[#F7F8FA] font-sans selection:bg-[#123B70] selection:text-white",
+      !isAdminRoute && "pb-16 md:pb-0"
+    )}>
       <StructuredData />
       <ScrollToTop />
 
-      {/* Global Header Navigation */}
-      <Header onOpenRequestModal={() => handleOpenRequestModal()} />
+      {/* Global Header Navigation — Hidden on Admin Control Center Routes */}
+      {!isAdminRoute && <Header onOpenRequestModal={() => handleOpenRequestModal()} />}
 
       {/* Dynamic Page Routes with ErrorBoundary and Suspense */}
       <main className="flex-grow">
@@ -156,20 +214,26 @@ export function AppContent() {
 
                 {/* Graphic Design Studio */}
                 <Route path="/design-services" element={<DesignServicesPage />} />
+                <Route path="/graphic-design" element={<DesignServicesPage />} />
 
-                {/* Quote Requests */}
+                {/* Quotation Calculator */}
                 <Route path="/request-quote" element={<RequestQuotePage />} />
-                <Route path="/request" element={<RequestQuotePage />} />
+                <Route path="/quote" element={<RequestQuotePage />} />
 
-                {/* Shopping Cart & Checkout */}
+                {/* Cart & Checkout */}
                 <Route path="/cart" element={<CartPage />} />
                 <Route path="/checkout" element={<CheckoutPage />} />
 
-                {/* Universal Tracking */}
+                {/* Order Tracking & Status */}
                 <Route path="/track-order" element={<TrackOrderPage />} />
-                <Route path="/order-status" element={<TrackOrderPage />} />
+                <Route path="/track" element={<TrackOrderPage />} />
 
-                {/* Customer Portal, Authentication & Admin ERP */}
+                {/* User Account & History */}
+                <Route path="/account" element={<AccountPage />} />
+                <Route path="/account/orders" element={<AccountPage />} />
+                <Route path="/account/requests" element={<AccountPage />} />
+
+                {/* Auth */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signin" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
@@ -177,10 +241,67 @@ export function AppContent() {
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/auth/callback" element={<AuthCallbackPage />} />
-                <Route path="/account" element={<AccountPage />} />
-                <Route path="/account/orders" element={<AccountPage />} />
-                <Route path="/account/requests" element={<AccountPage />} />
-                <Route path="/admin" element={<AdminPage />} />
+
+                {/* Admin ERP — Nested Route-Based Layout with Role-Based Route Guards */}
+                <Route path="/admin" element={<AdminLayout />}>
+                  <Route index element={<AdminDashboardPage />} />
+                  <Route path="orders" element={<AdminLegacyPage />} />
+                  <Route path="payments" element={<AdminLegacyPage />} />
+                  <Route path="pricing" element={<AdminLegacyPage />} />
+                  <Route path="services-requests" element={<AdminLegacyPage />} />
+                  <Route path="quotes" element={<AdminLegacyPage />} />
+                  <Route path="designs" element={<AdminLegacyPage />} />
+                  <Route path="quick-services" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <AdminQuickServicesPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="website" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <WebsiteManagementPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="website/services" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <WebsiteServicesPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="website/pricing" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <WebsitePricingPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="website/photos" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <WebsitePhotosPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="website/categories" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <WebsiteCategoriesPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="website/content" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <WebsiteContentPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="website/analytics" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <WebsiteAnalyticsPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="website/activity" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <WebsiteActivityPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="settings" element={
+                    <AdminRouteGuard requiredRole="ADMIN">
+                      <AdminSettingsPage />
+                    </AdminRouteGuard>
+                  } />
+                </Route>
 
                 {/* Information, Brand & Policy Pages */}
                 <Route path="/services" element={<ServicesPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
@@ -194,6 +315,7 @@ export function AppContent() {
                 <Route path="/privacy" element={<PrivacyPage />} />
                 <Route path="/terms" element={<TermsPage />} />
                 <Route path="/refund-policy" element={<RefundPolicyPage />} />
+                <Route path="/cancellation-policy" element={<RefundPolicyPage />} />
 
                 {/* Catch-all fallback */}
                 <Route path="*" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
@@ -203,14 +325,14 @@ export function AppContent() {
         </ErrorBoundary>
       </main>
 
-      {/* Global Footer */}
-      <Footer />
-
-      {/* Floating Action Buttons */}
-      <FloatingActions />
-
-      {/* Mobile Bottom Fixed Bar */}
-      <MobileBottomNav onOpenRequestModal={() => handleOpenRequestModal()} />
+      {/* Customer Footer, Floating Actions & Bottom Nav — Hidden on Admin Routes */}
+      {!isAdminRoute && (
+        <>
+          <Footer />
+          <FloatingActions />
+          <MobileBottomNav onOpenRequestModal={() => handleOpenRequestModal()} />
+        </>
+      )}
 
       {/* Interactive Service Request & Upload Modal */}
       <ServiceRequestModal

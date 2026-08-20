@@ -51,6 +51,8 @@ import {
   updateStaffQuoteStatus,
   getPrintPricingConfig,
   updatePrintPricingConfig,
+  getStaffInvoices,
+  regenerateStaffInvoice,
 } from "../lib/supabase/database";
 import {
   DEFAULT_PRINT_PRICING,
@@ -62,6 +64,10 @@ import {
   AdminFileActions,
   type DocumentItem,
 } from "../components/AdminDocumentViewer";
+import { InvoiceModal } from "../components/invoice/InvoiceModal";
+import type { StoredInvoice } from "../lib/invoice/types";
+import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
+import { downloadInvoicePDF, getWhatsAppInvoiceShareLink } from "../lib/invoice/pdfUtils";
 import { cn } from "../lib/utils";
 import {
   sortPrintingQueue,
@@ -77,21 +83,30 @@ export const AdminPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (searchParams.get("tab") as any) || "orders";
 
-  const [activeTab, setActiveTab] = useState<"orders" | "payments" | "pricing" | "services" | "quotes" | "designs">(
-    ["orders", "payments", "pricing", "services", "quotes", "designs"].includes(initialTab) ? initialTab : "orders"
+  const [activeTab, setActiveTab] = useState<"orders" | "invoices" | "payments" | "pricing" | "services" | "quotes" | "designs">(
+    ["orders", "invoices", "payments", "pricing", "services", "quotes", "designs"].includes(initialTab) ? initialTab : "orders"
   );
   const [loading, setLoading] = useState(false);
 
   // Sync tab with URL search parameter if user navigates
-  const handleSelectTab = (tab: "orders" | "payments" | "pricing" | "services" | "quotes" | "designs") => {
+  const handleSelectTab = (tab: "orders" | "invoices" | "payments" | "pricing" | "services" | "quotes" | "designs") => {
     setActiveTab(tab);
     setSearchParams({ tab });
   };
 
   const [orders, setOrders] = useState<StoredOrder[]>([]);
+  const [invoices, setInvoices] = useState<StoredInvoice[]>([]);
   const [serviceRequests, setServiceRequests] = useState<StoredServiceRequest[]>([]);
   const [quoteRequests, setQuoteRequests] = useState<StoredQuoteRequest[]>([]);
   const [designRequests, setDesignRequests] = useState<StoredDesignRequest[]>([]);
+
+  // Invoice Modal & Search State
+  const [selectedInvoiceForModal, setSelectedInvoiceForModal] = useState<StoredInvoice | null>(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [invoicePaymentFilter, setInvoicePaymentFilter] = useState<"ALL" | "PAID" | "PENDING">("ALL");
+  const [invoiceDateFilter, setInvoiceDateFilter] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL");
+  const [generatingInvoiceCode, setGeneratingInvoiceCode] = useState<string | null>(null);
 
   // Active Document Preview in Modal
   const [activePreviewDoc, setActivePreviewDoc] = useState<DocumentItem | null>(null);
@@ -126,9 +141,13 @@ export const AdminPage: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [cloudOrders, cloudServices, cloudQuotes, pricing] = await Promise.all([
+      const [cloudOrders, cloudInvoices, cloudServices, cloudQuotes, pricing] = await Promise.all([
         getStaffOrders().catch((err) => {
           console.warn("getStaffOrders notice:", err);
+          return [];
+        }),
+        getStaffInvoices().catch((err) => {
+          console.warn("getStaffInvoices notice:", err);
           return [];
         }),
         getStaffServiceRequests().catch((err) => {
@@ -151,6 +170,31 @@ export const AdminPage: React.FC = () => {
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       setOrders(allOrders);
+
+      // Merge Invoices
+      const localInvoices = PalakInvoiceStore.getAllLocalInvoices();
+      const mergedInvoicesMap = new Map<string, StoredInvoice>();
+      localInvoices.forEach((inv) => mergedInvoicesMap.set(inv.orderCode, inv));
+      cloudInvoices.forEach((inv) => mergedInvoicesMap.set(inv.orderCode, inv));
+
+      // Ensure any completed order has an invoice automatically generated if not yet present
+      for (const order of allOrders) {
+        if (order.orderStatus === "COMPLETED" && !mergedInvoicesMap.has(order.orderCode)) {
+          try {
+            const genRes = await PalakDataStore.generateInvoiceForOrder(order, false, "System Auto-Sync");
+            if (genRes.invoice) {
+              mergedInvoicesMap.set(order.orderCode, genRes.invoice);
+            }
+          } catch (e) {
+            console.warn("Auto invoice check warning:", e);
+          }
+        }
+      }
+
+      const allInvoices = Array.from(mergedInvoicesMap.values()).sort(
+        (a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime()
+      );
+      setInvoices(allInvoices);
 
       // Merge Service Requests
       const localServices = PalakDataStore.getServiceRequests();
@@ -177,6 +221,7 @@ export const AdminPage: React.FC = () => {
     } catch (err) {
       console.error("Admin loadData error:", err);
       setOrders(PalakDataStore.getOrders());
+      setInvoices(PalakInvoiceStore.getAllLocalInvoices());
       setServiceRequests(PalakDataStore.getServiceRequests());
       setQuoteRequests(PalakDataStore.getQuoteRequests());
       setDesignRequests(PalakDataStore.getDesignRequests());
@@ -184,6 +229,32 @@ export const AdminPage: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  const handleOpenInvoiceModal = async (orderCode: string) => {
+    let inv = invoices.find((i) => i.orderCode.toUpperCase() === orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(orderCode);
+    if (!inv) {
+      const order = orders.find((o) => o.orderCode.toUpperCase() === orderCode.toUpperCase());
+      if (order) {
+        setGeneratingInvoiceCode(orderCode);
+        const res = await PalakDataStore.generateInvoiceForOrder(order, false, user?.name || "Palak Staff ERP");
+        inv = res.invoice;
+        setGeneratingInvoiceCode(null);
+        await loadData();
+      }
+    }
+    if (inv) {
+      setSelectedInvoiceForModal(inv);
+      setInvoiceModalOpen(true);
+    }
+  };
+
+  const handleRegenerateInvoiceForOrder = async (orderCode: string, reason?: string) => {
+    const inv = await regenerateStaffInvoice(orderCode, user?.name || "Palak Staff ERP", reason);
+    if (inv) {
+      setSelectedInvoiceForModal(inv);
+      await loadData();
+    }
+  };
 
   useEffect(() => {
     if (isStaff) {
@@ -332,7 +403,10 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  if (!isStaff) {
+  // Detect if we're rendered inside the new AdminLayout (as a nested route like /admin/orders)
+  const isNestedInLayout = window.location.pathname.startsWith("/admin/");
+
+  if (!isStaff && !isNestedInLayout) {
     return (
       <div className="min-h-screen bg-[#F7F8FA] flex items-center justify-center p-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 max-w-md text-center space-y-4 shadow-card">
@@ -492,6 +566,72 @@ export const AdminPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Invoices & Billing Financial Analytics
+  const invoiceStats = React.useMemo(() => {
+    return PalakInvoiceStore.calculateInvoiceStats(invoices, completedOrdersCount);
+  }, [invoices, completedOrdersCount]);
+
+  const filteredInvoices = React.useMemo(() => {
+    return invoices.filter((inv) => {
+      const q = invoiceSearchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        inv.invoiceNumber.toLowerCase().includes(q) ||
+        inv.orderCode.toLowerCase().includes(q) ||
+        (inv.customerSnapshot?.name || "").toLowerCase().includes(q) ||
+        (inv.customerSnapshot?.phone || "").includes(q);
+
+      let matchesPayment = true;
+      const isPaid = inv.paymentStatus === "confirmed" || inv.paymentStatus === "paid";
+      if (invoicePaymentFilter === "PAID") matchesPayment = isPaid;
+      if (invoicePaymentFilter === "PENDING") matchesPayment = !isPaid;
+
+      let matchesDate = true;
+      const invDate = inv.invoiceDate || inv.createdAt;
+      if (invoiceDateFilter === "TODAY") matchesDate = isToday(invDate);
+      if (invoiceDateFilter === "WEEK") matchesDate = isWithinPastDays(invDate, 7);
+      if (invoiceDateFilter === "MONTH") matchesDate = isWithinPastDays(invDate, 30);
+
+      return matchesSearch && matchesPayment && matchesDate;
+    });
+  }, [invoices, invoiceSearchQuery, invoicePaymentFilter, invoiceDateFilter]);
+
+  const exportInvoicesCSV = () => {
+    const headers = [
+      "Invoice Number",
+      "Order Reference",
+      "Invoice Date",
+      "Customer Name",
+      "Customer Phone",
+      "Total Amount (INR)",
+      "Amount Paid",
+      "Amount Due",
+      "Payment Status",
+      "Payment Method",
+    ];
+    const rows = filteredInvoices.map((inv) => [
+      inv.invoiceNumber,
+      inv.orderCode,
+      new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString("en-IN"),
+      `"${(inv.customerSnapshot?.name || "").replace(/"/g, '""')}"`,
+      `"${inv.customerSnapshot?.phone || ""}"`,
+      inv.totalAmount,
+      inv.amountPaid,
+      inv.amountDue,
+      inv.paymentStatus.toUpperCase(),
+      inv.paymentMethod,
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `palak_invoices_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Filtered & Deterministically Sorted Orders (Priority FIFO first, then Normal FIFO)
   const filteredOrders = React.useMemo(() => {
     const matched = orders.filter((o) => {
@@ -531,8 +671,9 @@ export const AdminPage: React.FC = () => {
   }, [orders, searchQuery, quickFilter, statusFilter]);
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] pb-20">
-      {/* Top Staff ERP Navigation Bar */}
+    <div className={isNestedInLayout ? "pb-6" : "min-h-screen bg-[#F1F5F9] pb-20"}>
+      {/* Top Staff ERP Navigation Bar — Hidden when inside AdminLayout */}
+      {!isNestedInLayout && (
       <div className="bg-[#0F172A] text-white py-4 px-4 sm:px-6 border-b border-slate-800">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -568,10 +709,11 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-6 space-y-6">
         {/* KPI Counter Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           <button
             onClick={() => handleSelectTab("orders")}
             className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -584,6 +726,20 @@ export const AdminPage: React.FC = () => {
             </div>
             <div className="text-2xl font-black text-slate-900 mt-1">{orders.length}</div>
             <div className="text-[11px] text-amber-600 font-semibold mt-1">{newOrdersCount} pending review</div>
+          </button>
+
+          <button
+            onClick={() => handleSelectTab("invoices")}
+            className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+              activeTab === "invoices" ? "bg-white border-[#123B70] shadow-md ring-2 ring-[#123B70]/20" : "bg-white/80 border-slate-200 hover:bg-white"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">Tax Invoices</span>
+              <Receipt className="h-4 w-4 text-[#123B70]" />
+            </div>
+            <div className="text-2xl font-black text-[#123B70] mt-1">{invoices.length}</div>
+            <div className="text-[11px] text-emerald-700 font-semibold mt-1">₹{invoiceStats.totalInvoicedAmount.toLocaleString("en-IN")} Invoiced</div>
           </button>
 
           <button
@@ -1122,6 +1278,87 @@ export const AdminPage: React.FC = () => {
                             )}
                           </div>
                         </div>
+
+                        {/* Invoice Indicator & Action Bar for Completed Orders */}
+                        {order.orderStatus === "COMPLETED" && (() => {
+                          const inv = invoices.find((i) => i.orderCode.toUpperCase() === order.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(order.orderCode);
+                          return (
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 bg-slate-50/60 -mx-5 -mb-5 p-3.5 rounded-b-2xl">
+                              <div className="flex items-center gap-2">
+                                {inv ? (
+                                  <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-2.5 py-1 rounded-lg">
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                    <span>Invoice #{inv.invoiceNumber} — Generated</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-100/80 border border-amber-300 px-2.5 py-1 rounded-lg">
+                                    Invoice Missing
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                {inv ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenInvoiceModal(order.orderCode)}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                                    >
+                                      <Eye className="h-3.5 w-3.5" />
+                                      <span>View Bill</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        await downloadInvoicePDF(inv);
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                                      title="Direct PDF download"
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                      <span>PDF</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenInvoiceModal(order.orderCode)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                                      title="Print preview"
+                                    >
+                                      <Printer className="h-3.5 w-3.5" />
+                                      <span>Print</span>
+                                    </button>
+                                    <a
+                                      href={getWhatsAppInvoiceShareLink(inv)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold transition-colors cursor-pointer"
+                                      title="Send invoice via WhatsApp"
+                                    >
+                                      <MessageSquare className="h-3.5 w-3.5" />
+                                      <span>Send Bill</span>
+                                    </a>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={generatingInvoiceCode === order.orderCode}
+                                    onClick={async () => {
+                                      setGeneratingInvoiceCode(order.orderCode);
+                                      await PalakDataStore.generateInvoiceForOrder(order, false, user?.name || "Palak Staff ERP");
+                                      await loadData();
+                                      setGeneratingInvoiceCode(null);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                                  >
+                                    <RefreshCw className={cn("h-3.5 w-3.5", generatingInvoiceCode === order.orderCode && "animate-spin")} />
+                                    <span>Generate Bill Now</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })
@@ -1130,6 +1367,270 @@ export const AdminPage: React.FC = () => {
                     No print orders matching your filter criteria.
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Tax Invoices & Billing Dashboard */}
+        {activeTab === "invoices" && (
+          <div className="space-y-6 animate-fadeUp">
+            {/* Financial & Invoices Overview Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {/* Total Invoices Issued */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Invoices</span>
+                  <div className="h-8 w-8 rounded-xl bg-[#123B70] text-white flex items-center justify-center shadow-xs">
+                    <Receipt className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
+                  {invoiceStats.totalInvoices}
+                </div>
+                <div className="text-[11px] text-slate-500 font-semibold mt-1">
+                  Sequential PE Numbers Generated
+                </div>
+              </div>
+
+              {/* Today's Invoices */}
+              <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-800">Today's Invoices</span>
+                  <div className="h-8 w-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-blue-950 mt-2">
+                  {invoiceStats.todayInvoices}
+                </div>
+                <div className="text-[11px] text-blue-700 font-semibold mt-1">
+                  Fulfilled & Billed Today
+                </div>
+              </div>
+
+              {/* Month's Invoices */}
+              <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-800">This Month</span>
+                  <div className="h-8 w-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-indigo-950 mt-2">
+                  {invoiceStats.monthInvoices}
+                </div>
+                <div className="text-[11px] text-indigo-700 font-semibold mt-1">
+                  Current Billing Cycle
+                </div>
+              </div>
+
+              {/* Total Invoiced Amount */}
+              <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">Invoiced Turnover</span>
+                  <div className="h-8 w-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                    <Wallet className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-950 mt-2">
+                  ₹{invoiceStats.totalInvoicedAmount.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+                  ₹{invoiceStats.totalPaidAmount.toLocaleString("en-IN")} Collected • ₹{invoiceStats.totalDueAmount.toLocaleString("en-IN")} Due
+                </div>
+              </div>
+
+              {/* Pending Bills for Completed Orders */}
+              <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/80 to-white p-5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-800">Pending Bills</span>
+                  <div className="h-8 w-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-xs">
+                    <RefreshCw className="h-4 w-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-amber-950 mt-2">
+                  {invoiceStats.pendingInvoices}
+                </div>
+                <div className="text-[11px] text-amber-700 font-semibold mt-1">
+                  {invoiceStats.pendingInvoices === 0 ? "All Completed Orders Billed" : "Unbilled Completed Orders"}
+                </div>
+              </div>
+            </div>
+
+            {/* Invoices List Table Card */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Receipt className="h-5 w-5 text-[#123B70]" />
+                    <span>Official Tax Invoices & Retail Bills</span>
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Showing {filteredInvoices.length} of {invoices.length} generated invoice(s)
+                  </p>
+                </div>
+
+                {/* Filters & Export Toolbar */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={invoiceSearchQuery}
+                      onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                      placeholder="Search Invoice # / Order / Phone..."
+                      className="rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs focus:bg-white focus:outline-hidden"
+                    />
+                  </div>
+
+                  <select
+                    value={invoicePaymentFilter}
+                    onChange={(e: any) => setInvoicePaymentFilter(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="ALL">All Payment Statuses</option>
+                    <option value="PAID">Paid Only</option>
+                    <option value="PENDING">Payment Due</option>
+                  </select>
+
+                  <select
+                    value={invoiceDateFilter}
+                    onChange={(e: any) => setInvoiceDateFilter(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="ALL">All Dates</option>
+                    <option value="TODAY">Today</option>
+                    <option value="WEEK">Past 7 Days</option>
+                    <option value="MONTH">Past 30 Days</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={exportInvoicesCSV}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Invoices Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-500 bg-slate-50/50">
+                      <th className="py-3 px-3">Invoice Number</th>
+                      <th className="py-3 px-3">Order Ref</th>
+                      <th className="py-3 px-3">Date</th>
+                      <th className="py-3 px-3">Customer</th>
+                      <th className="py-3 px-3">Items Summary</th>
+                      <th className="py-3 px-3 text-right">Grand Total</th>
+                      <th className="py-3 px-3 text-center">Status</th>
+                      <th className="py-3 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {filteredInvoices.length > 0 ? (
+                      filteredInvoices.map((inv) => {
+                        const isPaid = inv.paymentStatus === "confirmed" || inv.paymentStatus === "paid";
+                        const itemsSummary = inv.items?.map((it) => `${it.productName} (x${it.quantity})`).join(", ") || "Printing Service";
+
+                        return (
+                          <tr key={inv.id || inv.invoiceNumber} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3 px-3 font-mono font-black text-[#123B70]">
+                              {inv.invoiceNumber}
+                            </td>
+                            <td className="py-3 px-3 font-mono text-slate-700">
+                              {inv.orderCode}
+                            </td>
+                            <td className="py-3 px-3 text-slate-600">
+                              {new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </td>
+                            <td className="py-3 px-3">
+                              <div className="font-bold text-slate-900">{inv.customerSnapshot?.name || "Customer"}</div>
+                              <div className="text-[11px] text-slate-500">{inv.customerSnapshot?.phone || "N/A"}</div>
+                            </td>
+                            <td className="py-3 px-3 max-w-xs truncate text-slate-600" title={itemsSummary}>
+                              {itemsSummary}
+                            </td>
+                            <td className="py-3 px-3 text-right font-black font-mono text-slate-900">
+                              ₹{Number(inv.totalAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1 border",
+                                  isPaid
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                    : "bg-amber-50 text-amber-900 border-amber-300"
+                                )}
+                              >
+                                {isPaid ? "PAID" : "DUE"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedInvoiceForModal(inv);
+                                    setInvoiceModalOpen(true);
+                                  }}
+                                  className="p-1.5 rounded-lg text-[#123B70] hover:bg-blue-50 transition-colors cursor-pointer"
+                                  title="View Full Bill"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await downloadInvoicePDF(inv);
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                                  title="Download PDF"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedInvoiceForModal(inv);
+                                    setInvoiceModalOpen(true);
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                                  title="Print Bill"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </button>
+                                <a
+                                  href={getWhatsAppInvoiceShareLink(inv)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-50 transition-colors"
+                                  title="Send Bill on WhatsApp"
+                                >
+                                  <MessageSquare className="h-4 w-4" />
+                                </a>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="py-10 text-center text-slate-400 italic">
+                          No invoices matching the selected filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -2429,6 +2930,107 @@ export const AdminPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Official Tax Invoice Card in Order Modal */}
+            {(() => {
+              const inv = invoices.find((i) => i.orderCode.toUpperCase() === selectedOrderForModal.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(selectedOrderForModal.orderCode);
+              return (
+                <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-blue-50/50 via-white to-slate-50 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase text-[#123B70] tracking-wider flex items-center gap-1.5">
+                      <Receipt className="h-4 w-4 text-[#123B70]" />
+                      Official Tax Invoice & Billing
+                    </span>
+                    {inv ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                        <span>#{inv.invoiceNumber}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {selectedOrderForModal.orderStatus === "COMPLETED" ? "Ready to Generate" : "Auto-generates on Completion"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {inv ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedInvoiceForModal(inv);
+                            setInvoiceModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>View Full Bill</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await downloadInvoicePDF(inv);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          <span>PDF</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedInvoiceForModal(inv);
+                            setInvoiceModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                          <span>Print</span>
+                        </button>
+
+                        <a
+                          href={getWhatsAppInvoiceShareLink(inv)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          <span>Send Bill</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRegenerateInvoiceForOrder(selectedOrderForModal.orderCode)}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold transition-colors cursor-pointer ml-auto"
+                          title="Regenerate bill snapshot from latest order values"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          <span>Regenerate Bill</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={generatingInvoiceCode === selectedOrderForModal.orderCode}
+                        onClick={async () => {
+                          setGeneratingInvoiceCode(selectedOrderForModal.orderCode);
+                          await PalakDataStore.generateInvoiceForOrder(selectedOrderForModal, false, user?.name || "Palak Staff ERP");
+                          await loadData();
+                          setGeneratingInvoiceCode(null);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={cn("h-3.5 w-3.5", generatingInvoiceCode === selectedOrderForModal.orderCode && "animate-spin")} />
+                        <span>Generate Official Bill Now</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Audit Trail: Status History Timeline */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
@@ -2471,6 +3073,15 @@ export const AdminPage: React.FC = () => {
         isOpen={!!activePreviewDoc}
         onClose={() => setActivePreviewDoc(null)}
         document={activePreviewDoc}
+      />
+
+      {/* Dedicated Interactive Tax Invoice & Bill Modal */}
+      <InvoiceModal
+        isOpen={invoiceModalOpen}
+        onClose={() => setInvoiceModalOpen(false)}
+        invoice={selectedInvoiceForModal}
+        isAdmin={true}
+        onRegenerate={selectedInvoiceForModal ? (reason?: string) => handleRegenerateInvoiceForOrder(selectedInvoiceForModal.orderCode, reason) : undefined}
       />
     </div>
   );

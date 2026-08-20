@@ -1369,7 +1369,7 @@ export const services: Service[] = [
       hi: "अपनी दुकान, स्कूल या कंपनी की पहचान के लिए आकर्षक और अनोखा लोगो तैयार करवाएं।",
     },
     icon: "Sparkles",
-    image: "/images/palak-logo-ram-hanuman.jpeg",
+    image: "/logo.webp",
     ctaType: "design",
     featured: false,
     aliases: ["logo", "logo design", "brand logo", "लोगो", "लोगो डिज़ाइन"],

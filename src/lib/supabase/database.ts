@@ -10,6 +10,8 @@ import {
 import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type OrderItemPayload } from "../storage/store";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 import { getQueueClassification, type QueueType, type QueuePriority } from "../queue";
+import type { StoredInvoice } from "../invoice/types";
+import { PalakInvoiceStore } from "../invoice/invoiceStore";
 
 /** Returns true only for valid UUID strings that can be stored in Supabase user_id columns */
 function isValidSupabaseUUID(id?: string): boolean {
@@ -451,6 +453,50 @@ export async function updateStaffOrderStatus(
 
   if (historyError) {
     console.error("Failed to insert status history:", historyError);
+  }
+
+  // Auto-generate invoice when order reaches COMPLETED state
+  if (newStatus === "COMPLETED") {
+    try {
+      const { data: invRes, error: invErr } = await supabase.rpc("create_or_regenerate_invoice", {
+        p_order_code: orderCode,
+        p_force_regenerate: false,
+        p_performed_by: "Palak Staff ERP",
+      });
+
+      if (!invErr && invRes && invRes.invoice) {
+        const inv = invRes.invoice;
+        PalakInvoiceStore.saveInvoiceToLocal({
+          id: inv.id,
+          invoiceNumber: inv.invoice_number,
+          orderId: inv.order_id,
+          orderCode: inv.order_code,
+          userId: inv.user_id,
+          invoiceDate: inv.invoice_date,
+          completionDate: inv.completion_date,
+          customerSnapshot: inv.customer_snapshot,
+          businessSnapshot: inv.business_snapshot,
+          items: inv.items,
+          subtotalAmount: Number(inv.subtotal_amount) || 0,
+          discountAmount: Number(inv.discount_amount) || 0,
+          taxableAmount: Number(inv.taxable_amount) || 0,
+          taxAmount: Number(inv.tax_amount) || 0,
+          deliveryFee: Number(inv.delivery_fee) || 0,
+          otherCharges: Number(inv.other_charges) || 0,
+          totalAmount: Number(inv.total_amount) || 0,
+          amountPaid: Number(inv.amount_paid) || 0,
+          amountDue: Number(inv.amount_due) || 0,
+          paymentStatus: inv.payment_status || "pending",
+          paymentMethod: inv.payment_method || "pay_at_store",
+          status: inv.status || "ISSUED",
+          notes: inv.notes,
+          createdAt: inv.created_at,
+          updatedAt: inv.updated_at,
+        });
+      }
+    } catch (err) {
+      console.warn("[Palak Invoices] Cloud auto-generation notice:", err);
+    }
   }
 }
 
@@ -985,3 +1031,259 @@ export async function submitPrintOrder(
 
   return { success: true, orderCode, orderId };
 }
+
+// ==============================================================================
+// 5. INVOICES & BILLING DATA ACCESS
+// ==============================================================================
+
+export async function getStaffInvoices(): Promise<StoredInvoice[]> {
+  if (!isSupabaseConfigured || !supabase) {
+    return PalakInvoiceStore.getAllLocalInvoices();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("*")
+      .order("invoice_date", { ascending: false });
+
+    if (error) {
+      console.warn("getStaffInvoices error, using local store:", error);
+      return PalakInvoiceStore.getAllLocalInvoices();
+    }
+
+    const cloudData = data || [];
+    const mapped: StoredInvoice[] = cloudData.map((inv: any) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoice_number,
+      orderId: inv.order_id,
+      orderCode: inv.order_code,
+      userId: inv.user_id,
+      invoiceDate: inv.invoice_date,
+      completionDate: inv.completion_date,
+      customerSnapshot: inv.customer_snapshot || {},
+      businessSnapshot: inv.business_snapshot || {},
+      items: inv.items || [],
+      subtotalAmount: Number(inv.subtotal_amount) || 0,
+      discountAmount: Number(inv.discount_amount) || 0,
+      taxableAmount: Number(inv.taxable_amount) || 0,
+      taxAmount: Number(inv.tax_amount) || 0,
+      deliveryFee: Number(inv.delivery_fee) || 0,
+      otherCharges: Number(inv.other_charges) || 0,
+      totalAmount: Number(inv.total_amount) || 0,
+      amountPaid: Number(inv.amount_paid) || 0,
+      amountDue: Number(inv.amount_due) || 0,
+      paymentStatus: inv.payment_status || "pending",
+      paymentMethod: inv.payment_method || "pay_at_store",
+      status: inv.status || "ISSUED",
+      notes: inv.notes,
+      syncStatus: "SYNCED",
+      isTemporary: false,
+      createdAt: inv.created_at,
+      updatedAt: inv.updated_at,
+    }));
+
+    // Authoritatively sync into local store
+    mapped.forEach((inv) => PalakInvoiceStore.saveInvoiceToLocal(inv));
+
+    // Reconcile any pending local temporary invoices in background
+    PalakInvoiceStore.reconcilePendingInvoices().catch((e) => {
+      console.warn("Background invoice reconciliation notice:", e);
+    });
+
+    return mapped;
+  } catch (err) {
+    console.warn("getStaffInvoices exception, using local store:", err);
+    return PalakInvoiceStore.getAllLocalInvoices();
+  }
+}
+
+export async function getInvoiceByOrderCode(
+  orderCode: string,
+  phone?: string
+): Promise<StoredInvoice | null> {
+  const cleanCode = orderCode.trim().toUpperCase();
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.rpc("get_order_invoice", {
+        p_order_code: cleanCode,
+        p_phone: phone ? phone.trim() : null,
+      });
+
+      if (!error && data && data.success && data.invoice) {
+        const inv = data.invoice;
+        const mapped: StoredInvoice = {
+          id: inv.id,
+          invoiceNumber: inv.invoice_number,
+          orderId: inv.order_id,
+          orderCode: inv.order_code,
+          userId: inv.user_id,
+          invoiceDate: inv.invoice_date,
+          completionDate: inv.completion_date,
+          customerSnapshot: inv.customer_snapshot || {},
+          businessSnapshot: inv.business_snapshot || {},
+          items: inv.items || [],
+          subtotalAmount: Number(inv.subtotal_amount) || 0,
+          discountAmount: Number(inv.discount_amount) || 0,
+          taxableAmount: Number(inv.taxable_amount) || 0,
+          taxAmount: Number(inv.tax_amount) || 0,
+          deliveryFee: Number(inv.delivery_fee) || 0,
+          otherCharges: Number(inv.other_charges) || 0,
+          totalAmount: Number(inv.total_amount) || 0,
+          amountPaid: Number(inv.amount_paid) || 0,
+          amountDue: Number(inv.amount_due) || 0,
+          paymentStatus: inv.payment_status || "pending",
+          paymentMethod: inv.payment_method || "pay_at_store",
+          status: inv.status || "ISSUED",
+          notes: inv.notes,
+          syncStatus: "SYNCED",
+          isTemporary: false,
+          createdAt: inv.created_at,
+          updatedAt: inv.updated_at,
+        };
+        PalakInvoiceStore.saveInvoiceToLocal(mapped);
+        return mapped;
+      }
+    } catch (e) {
+      console.warn("Cloud invoice lookup notice:", e);
+    }
+  }
+
+  // Fallback to local store
+  const local = PalakInvoiceStore.getLocalInvoiceByOrderCode(cleanCode);
+  return local || null;
+}
+
+export async function regenerateStaffInvoice(
+  orderCode: string,
+  performedBy: string = "Palak Staff ERP",
+  reason?: string
+): Promise<StoredInvoice | null> {
+  const cleanCode = orderCode.trim().toUpperCase();
+
+  // Find local order record
+  const localOrder = PalakDataStore.getOrderByCode(cleanCode);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.rpc("create_or_regenerate_invoice", {
+        p_order_code: cleanCode,
+        p_force_regenerate: true,
+        p_performed_by: performedBy,
+        p_reason: reason || "Admin manual regeneration",
+      });
+
+      if (!error && data && data.success && data.invoice) {
+        const inv = data.invoice;
+        const mapped: StoredInvoice = {
+          id: inv.id,
+          invoiceNumber: inv.invoice_number,
+          orderId: inv.order_id,
+          orderCode: inv.order_code,
+          userId: inv.user_id,
+          invoiceDate: inv.invoice_date,
+          completionDate: inv.completion_date,
+          customerSnapshot: inv.customer_snapshot || {},
+          businessSnapshot: inv.business_snapshot || {},
+          items: inv.items || [],
+          subtotalAmount: Number(inv.subtotal_amount) || 0,
+          discountAmount: Number(inv.discount_amount) || 0,
+          taxableAmount: Number(inv.taxable_amount) || 0,
+          taxAmount: Number(inv.tax_amount) || 0,
+          deliveryFee: Number(inv.delivery_fee) || 0,
+          otherCharges: Number(inv.other_charges) || 0,
+          totalAmount: Number(inv.total_amount) || 0,
+          amountPaid: Number(inv.amount_paid) || 0,
+          amountDue: Number(inv.amount_due) || 0,
+          paymentStatus: inv.payment_status || "pending",
+          paymentMethod: inv.payment_method || "pay_at_store",
+          status: inv.status || "ISSUED",
+          notes: inv.notes,
+          syncStatus: "SYNCED",
+          isTemporary: false,
+          createdAt: inv.created_at,
+          updatedAt: inv.updated_at,
+        };
+        PalakInvoiceStore.saveInvoiceToLocal(mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Cloud invoice regeneration notice:", err);
+    }
+  }
+
+  // Fallback to local regeneration engine
+  if (localOrder) {
+    const res = await PalakInvoiceStore.generateInvoiceForOrder(localOrder, {
+      forceRegenerate: true,
+      performedBy,
+      reason,
+    });
+    return res.invoice || null;
+  }
+
+  return null;
+}
+
+// ==============================================================================
+// 7. AUDIT LOGGING ENGINE
+// ==============================================================================
+
+export interface AdminAuditPayload {
+  actorId?: string;
+  actorName?: string;
+  actorRole?: string;
+  actionType: string;
+  entityType: 'product' | 'service' | 'category' | 'pricing' | 'content' | 'photo' | 'quick_service' | 'settings' | 'order' | string;
+  entityId?: string;
+  details?: Record<string, any>;
+  previousValue?: any;
+  newValue?: any;
+}
+
+function sanitizeAuditPayload(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(sanitizeAuditPayload);
+  
+  const sanitized: Record<string, any> = {};
+  const sensitiveKeys = ['password', 'secret', 'token', 'apikey', 'api_key', 'auth_token', 'private_key', 'access_token'];
+  
+  for (const [k, v] of Object.entries(data)) {
+    if (sensitiveKeys.some((sk) => k.toLowerCase().includes(sk))) {
+      sanitized[k] = '[REDACTED]';
+    } else if (typeof v === 'object' && v !== null) {
+      sanitized[k] = sanitizeAuditPayload(v);
+    } else {
+      sanitized[k] = v;
+    }
+  }
+  return sanitized;
+}
+
+export async function logAdminAudit(payload: AdminAuditPayload): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return;
+
+  try {
+    const validActorId = isValidSupabaseUUID(payload.actorId) ? payload.actorId : null;
+    const enrichedDetails = sanitizeAuditPayload({
+      ...(payload.details || {}),
+      performed_by: payload.actorName || "Admin Staff",
+      role: payload.actorRole || "STAFF",
+      previous_value: payload.previousValue !== undefined ? payload.previousValue : undefined,
+      new_value: payload.newValue !== undefined ? payload.newValue : undefined,
+      timestamp: new Date().toISOString(),
+    });
+
+    await supabase.from("audit_logs").insert({
+      actor_id: validActorId,
+      action_type: payload.actionType,
+      entity_type: payload.entityType,
+      entity_id: payload.entityId || null,
+      details: enrichedDetails,
+      created_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn("[Palak Audit Engine] Failed to record audit log:", err);
+  }
+}

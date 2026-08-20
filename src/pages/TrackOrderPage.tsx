@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Search, Package, MessageSquare, ShieldCheck, Loader2 } from "lucide-react";
+import { Search, Package, MessageSquare, ShieldCheck, Loader2, Receipt, Download, Printer, Eye, CheckCircle2 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type StoredDesignRequest } from "../lib/storage/store";
-import { fetchPublicTracking, type PublicTrackingResponse } from "../lib/supabase/database";
+import { fetchPublicTracking, getInvoiceByOrderCode, type PublicTrackingResponse } from "../lib/supabase/database";
 import { OrderTimeline } from "../components/OrderTimeline";
 import { getWhatsAppLink } from "../config/business";
 import { getSingleOrderQueueInfo } from "../lib/queue";
+import { InvoiceModal } from "../components/invoice/InvoiceModal";
+import type { StoredInvoice } from "../lib/invoice/types";
+import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
+import { downloadInvoicePDF } from "../lib/invoice/pdfUtils";
 
 export const TrackOrderPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -23,6 +27,11 @@ export const TrackOrderPage: React.FC = () => {
   const [quotes, setQuotes] = useState<StoredQuoteRequest[]>([]);
   const [designs, setDesigns] = useState<StoredDesignRequest[]>([]);
   const [rpcTrackingResult, setRpcTrackingResult] = useState<PublicTrackingResponse | null>(null);
+
+  // Invoice view modal state
+  const [activeInvoice, setActiveInvoice] = useState<StoredInvoice | null>(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
 
   const handleSearch = useCallback(async (codeToSearch?: string) => {
     const q = (codeToSearch !== undefined ? codeToSearch : queryCode).trim();
@@ -45,6 +54,11 @@ export const TrackOrderPage: React.FC = () => {
       setServices([]);
       setQuotes([]);
       setDesigns([]);
+
+      // Fetch invoice if it's an order
+      const inv = await getInvoiceByOrderCode(q, phoneVerification).catch(() => null);
+      setActiveInvoice(inv || PalakInvoiceStore.getLocalInvoiceByOrderCode(q) || null);
+
       setLoading(false);
       return;
     }
@@ -56,6 +70,10 @@ export const TrackOrderPage: React.FC = () => {
     setServices(result.services);
     setQuotes(result.quotes);
     setDesigns(result.designs);
+
+    const localInv = PalakInvoiceStore.getLocalInvoiceByOrderCode(q);
+    setActiveInvoice(localInv || null);
+
     setLoading(false);
   }, [queryCode, phoneVerification, setSearchParams]);
 
@@ -286,6 +304,75 @@ export const TrackOrderPage: React.FC = () => {
                 createdAt: tl.createdAt,
               }))}
             />
+
+            {/* Official Invoice Card for Completed Orders */}
+            {activeInvoice && (
+              <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/70 via-white to-blue-50/40 p-4 sm:p-5 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100/80 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-9 w-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                      <Receipt className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-900">Official Tax Invoice / Bill</span>
+                        <span className="font-mono text-[11px] font-black text-[#123B70] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                          {activeInvoice.invoiceNumber}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-emerald-800 font-semibold">
+                        {currentLang === "hi" ? "आधिकारिक बिल तैयार है • ऑनलाइन डाउनलोड करें" : "Official verified invoice is ready for download & printing"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300 self-start sm:self-auto">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>{currentLang === "hi" ? "बिल तैयार" : "Invoice Generated"}</span>
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <div className="text-xs text-slate-600">
+                    Grand Total: <strong className="text-slate-900 font-black text-sm">₹{activeInvoice.totalAmount}</strong> • Status: <strong className="uppercase text-emerald-800 font-bold">{activeInvoice.paymentStatus}</strong>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>{currentLang === "hi" ? "बिल देखें" : "View Bill"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={downloadingInvoice}
+                      onClick={async () => {
+                        setDownloadingInvoice(true);
+                        await downloadInvoicePDF(activeInvoice);
+                        setDownloadingInvoice(false);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>{downloadingInvoice ? "Downloading..." : "Download PDF"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      <span>Print</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -372,26 +459,26 @@ export const TrackOrderPage: React.FC = () => {
                     {isPriority ? `Priority Position: #${qInfo.positionInQueue}` : `Normal Queue Position: #${qInfo.positionInQueue}`}
                   </span>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed pt-0.5">
-                  {isPriority
-                    ? (currentLang === "hi"
-                        ? "आपके ऑर्डर को प्रिंटिंग कतार में प्राथमिकता दी गई है। आपको सामान्य लाइन में इंतज़ार नहीं करना होगा।"
-                        : "Your order has priority in the printing queue. Orders are prepared first without waiting in normal queue.")
-                    : (currentLang === "hi"
-                        ? "आपका ऑर्डर सामान्य कतार में है। दुकान काउंटर पर आपकी मौजूदगी सत्यापित होते ही प्रिंट शुरू होगा और आप काउंटर पर भुगतान करेंगे।"
-                        : "Your order is in the normal queue. Printing starts once your presence/availability is verified at the counter, and you pay upon pickup.")}
-                </p>
-              </div>
+                  <p className="text-xs text-slate-600 leading-relaxed pt-0.5">
+                    {isPriority
+                      ? (currentLang === "hi"
+                          ? "आपके ऑर्डर को प्रिंटिंग कतार में प्राथमिकता दी गई है। आपको सामान्य लाइन में इंतज़ार नहीं करना होगा।"
+                          : "Your order has priority in the printing queue. Orders are prepared first without waiting in normal queue.")
+                      : (currentLang === "hi"
+                          ? "आपका ऑर्डर सामान्य कतार में है। दुकान काउंटर पर आपकी मौजूदगी सत्यापित होते ही प्रिंट शुरू होगा और आप काउंटर पर भुगतान करेंगे।"
+                          : "Your order is in the normal queue. Printing starts once your presence/availability is verified at the counter, and you pay upon pickup.")}
+                  </p>
+                </div>
 
-              {/* Progress Milestones */}
-              <OrderTimeline
-                currentStatus={order.orderStatus}
-                historyLogs={logs}
-                entityType="order"
-              />
+                {/* Progress Milestones Timeline */}
+                <OrderTimeline
+                  currentStatus={order.orderStatus}
+                  historyLogs={logs}
+                  entityType="order"
+                />
 
-              {/* Items Summary Table */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
+                {/* Items Summary Table */}
+                <div className="pt-2 border-t border-slate-100 space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   Ordered Items ({order.items.length})
                 </h4>
@@ -414,6 +501,74 @@ export const TrackOrderPage: React.FC = () => {
                   <span className="text-sm font-extrabold text-[#123B70]">₹{order.totalAmount}</span>
                 </div>
               </div>
+
+              {/* Official Invoice Card for Local Order */}
+              {(() => {
+                const orderInv = activeInvoice?.orderCode.toUpperCase() === order.orderCode.toUpperCase()
+                  ? activeInvoice
+                  : PalakInvoiceStore.getLocalInvoiceByOrderCode(order.orderCode);
+
+                if (!orderInv && order.orderStatus !== "COMPLETED") return null;
+
+                return (
+                  <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/70 via-white to-blue-50/40 p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                          <Receipt className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-slate-900">Tax Invoice & Bill</span>
+                            {orderInv && (
+                              <span className="font-mono text-[10px] font-black text-[#123B70] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                {orderInv.invoiceNumber}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-emerald-800 font-semibold">
+                            {currentLang === "hi" ? "आधिकारिक बिल उपलब्ध है" : "Official verified invoice is ready"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 self-start sm:self-auto">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                        <span>Ready</span>
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (orderInv) {
+                            setActiveInvoice(orderInv);
+                            setInvoiceModalOpen(true);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>{currentLang === "hi" ? "बिल देखें" : "View Bill"}</span>
+                      </button>
+
+                      {orderInv && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await downloadInvoicePDF(orderInv);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          <span>PDF</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
@@ -509,6 +664,14 @@ export const TrackOrderPage: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Customer Invoice Preview Modal */}
+      <InvoiceModal
+        isOpen={invoiceModalOpen}
+        onClose={() => setInvoiceModalOpen(false)}
+        invoice={activeInvoice}
+        isAdmin={false}
+      />
     </div>
   );
 };

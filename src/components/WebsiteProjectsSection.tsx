@@ -28,9 +28,9 @@ export const WebsiteProjectsSection: React.FC<WebsiteProjectsSectionProps> = ({
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
-  // Exclude self/internal Palak Enterprises platform from the homepage showcase
+  // Exclude self/internal Palak Enterprises platform and Ekaagra Technologies from the homepage showcase
   const homeProjects = websiteProjects.filter(
-    (p) => p.id !== "palak-enterprises-platform"
+    (p) => p.id !== "palak-enterprises-platform" && p.id !== "ekaagra-technologies"
   );
 
   const [activeProjectId, setActiveProjectId] = useState<string>(
@@ -49,7 +49,7 @@ export const WebsiteProjectsSection: React.FC<WebsiteProjectsSectionProps> = ({
 
   return (
     <section
-      className="relative overflow-hidden py-8 sm:py-10 bg-linear-to-b from-slate-50 via-white to-slate-50/70 text-slate-900 rounded-3xl border border-slate-200/90 shadow-xs mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 my-2"
+      className="relative overflow-hidden p-6 sm:p-8 bg-linear-to-b from-slate-50 via-white to-slate-50/70 text-slate-900 rounded-3xl border border-slate-200/90 shadow-xs"
       aria-label={currentLang === "hi" ? "वेबसाइट डेवलपमेंट संक्षिप्त विवरण" : "Website Development Overview"}
     >
       {/* Subtle ambient light gradient background */}

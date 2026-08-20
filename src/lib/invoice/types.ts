@@ -1,0 +1,102 @@
+export interface InvoiceItem {
+  id?: string;
+  productId?: string;
+  productName: string;
+  description?: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  tax: number;
+  totalPrice: number;
+  selectedOptions?: Record<string, any>;
+  selectedOptionsLabels?: Record<string, string>;
+  uploadedFileName?: string;
+}
+
+export interface InvoiceCustomerSnapshot {
+  name: string;
+  phone: string;
+  email?: string;
+  fulfillmentType?: "pickup" | "delivery";
+  deliveryAddress?: {
+    street?: string;
+    landmark?: string;
+    city?: string;
+    district?: string;
+    state?: string;
+    pincode?: string;
+  };
+  orderNotes?: string;
+  gstin?: string;
+}
+
+export interface InvoiceBusinessSnapshot {
+  nameEn: string;
+  nameHi: string;
+  unitEn: string;
+  unitHi: string;
+  taglineEn: string;
+  taglineHi: string;
+  ownerName: string;
+  ownerTitle?: string;
+  primaryPhone: string;
+  secondaryPhone: string;
+  email: string;
+  addressLine: string;
+  landmark?: string;
+  city: string;
+  district: string;
+  state: string;
+  pincode: string;
+  fullAddressEn?: string;
+  fullAddressHi?: string;
+  cscId: string;
+  udyamNo: string;
+  gstin?: string;
+  logoUrl: string;
+  terms: string[];
+}
+
+export interface StoredInvoice {
+  id: string;
+  invoiceNumber: string;
+  orderId?: string;
+  orderCode: string;
+  userId?: string;
+  invoiceDate: string;
+  completionDate: string;
+  customerSnapshot: InvoiceCustomerSnapshot;
+  businessSnapshot: InvoiceBusinessSnapshot;
+  items: InvoiceItem[];
+  subtotalAmount: number;
+  discountAmount: number;
+  taxableAmount: number;
+  taxAmount: number;
+  taxRate?: number;
+  deliveryFee: number;
+  otherCharges: number;
+  totalAmount: number;
+  amountPaid: number;
+  amountDue: number;
+  paymentStatus: "pending" | "confirmed" | "paid" | "failed" | "refunded" | "partially_paid";
+  paymentMethod: "pay_online" | "pay_at_shop" | "pay_at_store" | "pay_after_confirmation" | "upi_online";
+  status: "ISSUED" | "CANCELLED" | "VOID";
+  notes?: string;
+  syncStatus?: "SYNCED" | "LOCAL_PENDING" | "RECONCILIATION_REQUIRED";
+  isTemporary?: boolean;
+  reconciledAt?: string;
+  reconciliationNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceStats {
+  totalInvoices: number;
+  todayInvoices: number;
+  monthInvoices: number;
+  pendingInvoices: number;
+  totalInvoicedAmount: number;
+  totalPaidAmount: number;
+  totalDueAmount: number;
+  pendingReconciliationCount?: number;
+}

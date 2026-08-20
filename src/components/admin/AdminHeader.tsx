@@ -1,0 +1,570 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Link } from "react-router-dom";
+import {
+  Bell,
+  LogOut,
+  RefreshCw,
+  Menu,
+  ChevronDown,
+  User,
+  Shield,
+  ShieldCheck,
+  ExternalLink,
+  Clock,
+  Package,
+  X,
+} from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
+import { cn } from "../../lib/utils";
+
+// ─── Notification Types ───────────────────────────────────────────────────────
+
+interface AdminNotification {
+  id: string;
+  orderCode: string;
+  customerName: string;
+  customerPhone: string;
+  serviceName: string;
+  orderStatus: string;
+  totalAmount: number;
+  createdAt: string;
+  isRead: boolean;
+}
+
+const SEEN_ORDERS_KEY = "palak_admin_seen_orders";
+const NOTIF_STATE_KEY = "palak_admin_notifications_v2";
+
+function getSeenOrders(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SEEN_ORDERS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveSeenOrders(seen: Set<string>) {
+  try {
+    localStorage.setItem(SEEN_ORDERS_KEY, JSON.stringify([...seen]));
+  } catch {}
+}
+
+function getStoredNotifications(): AdminNotification[] {
+  try {
+    const raw = localStorage.getItem(NOTIF_STATE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveNotifications(notifs: AdminNotification[]) {
+  try {
+    // Keep last 50 notifications
+    localStorage.setItem(NOTIF_STATE_KEY, JSON.stringify(notifs.slice(0, 50)));
+  } catch {}
+}
+
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
+// ─── NotificationBell Component ───────────────────────────────────────────────
+
+interface NotificationBellProps {
+  className?: string;
+}
+
+export const NotificationBell: React.FC<NotificationBellProps> = ({ className }) => {
+  const [notifications, setNotifications] = useState<AdminNotification[]>(getStoredNotifications);
+  const [isOpen, setIsOpen] = useState(false);
+  const [ringing, setRinging] = useState(false);
+  const seenRef = useRef(getSeenOrders());
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        bellRef.current &&
+        !bellRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Load initial NEW orders as notifications
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+
+    const loadInitial = async () => {
+      try {
+        const { data } = await client
+          .from("orders")
+          .select("id, order_code, customer_name, customer_phone, items, order_status, total_amount, created_at")
+          .in("order_status", ["NEW", "UNDER_REVIEW"])
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (data && data.length > 0) {
+          const existing = getStoredNotifications();
+          const existingCodes = new Set(existing.map((n) => n.orderCode));
+
+          const newNotifs: AdminNotification[] = data
+            .filter((o: any) => !existingCodes.has(o.order_code))
+            .map((o: any) => ({
+              id: o.id,
+              orderCode: o.order_code,
+              customerName: o.customer_name,
+              customerPhone: o.customer_phone,
+              serviceName: extractServiceName(o.items),
+              orderStatus: o.order_status,
+              totalAmount: Number(o.total_amount) || 0,
+              createdAt: o.created_at,
+              isRead: seenRef.current.has(o.order_code),
+            }));
+
+          if (newNotifs.length > 0) {
+            const merged = [...newNotifs, ...existing].slice(0, 50);
+            setNotifications(merged);
+            saveNotifications(merged);
+          }
+        }
+      } catch (err) {
+        console.warn("[NotificationBell] Initial load notice:", err);
+      }
+    };
+
+    loadInitial();
+  }, []);
+
+  // Subscribe to Supabase Realtime for new orders
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+    if (!client) return;
+
+    const channel = client
+      .channel("admin-notification-bell")
+      .on(
+        "postgres_changes" as any,
+        { event: "INSERT", schema: "public", table: "orders" },
+        (payload: any) => {
+          const o = payload.new;
+          if (!o || !o.order_code) return;
+
+          // Skip if already seen
+          if (seenRef.current.has(o.order_code)) return;
+
+          const notif: AdminNotification = {
+            id: o.id,
+            orderCode: o.order_code,
+            customerName: o.customer_name || "Customer",
+            customerPhone: o.customer_phone || "",
+            serviceName: extractServiceName(o.items),
+            orderStatus: o.order_status || "NEW",
+            totalAmount: Number(o.total_amount) || 0,
+            createdAt: o.created_at || new Date().toISOString(),
+            isRead: false,
+          };
+
+          setNotifications((prev) => {
+            const updated = [notif, ...prev.filter((n) => n.orderCode !== o.order_code)].slice(0, 50);
+            saveNotifications(updated);
+            return updated;
+          });
+
+          // Trigger bell ring animation
+          setRinging(true);
+          setTimeout(() => setRinging(false), 2000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, []);
+
+  const markAsRead = useCallback((orderCode: string) => {
+    seenRef.current.add(orderCode);
+    saveSeenOrders(seenRef.current);
+
+    setNotifications((prev) => {
+      const updated = prev.map((n) =>
+        n.orderCode === orderCode ? { ...n, isRead: true } : n
+      );
+      saveNotifications(updated);
+      return updated;
+    });
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => {
+      const updated = prev.map((n) => {
+        seenRef.current.add(n.orderCode);
+        return { ...n, isRead: true };
+      });
+      saveSeenOrders(seenRef.current);
+      saveNotifications(updated);
+      return updated;
+    });
+  }, []);
+
+  return (
+    <div className={cn("relative", className)}>
+      <button
+        ref={bellRef}
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "relative p-2 rounded-xl transition-all cursor-pointer",
+          "bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white",
+          ringing && "animate-notification-ring"
+        )}
+        title="Notifications"
+      >
+        <Bell className={cn("h-4.5 w-4.5", ringing && "text-amber-400")} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-rose-500 text-[10px] font-black text-white flex items-center justify-center ring-2 ring-[#0F172A] animate-in zoom-in">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div
+          ref={dropdownRef}
+          className="absolute right-0 top-full mt-2 w-[380px] max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Notifications</h3>
+              <p className="text-[11px] text-slate-500">
+                {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-[11px] font-semibold text-[#123B70] hover:underline cursor-pointer px-2 py-1"
+                >
+                  Mark all read
+                </button>
+              )}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-200 cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5 text-slate-400" />
+              </button>
+            </div>
+          </div>
+
+          {/* Notification List */}
+          <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-100">
+            {notifications.length === 0 ? (
+              <div className="py-12 text-center">
+                <Bell className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-xs text-slate-400 font-medium">No notifications yet</p>
+                <p className="text-[11px] text-slate-400 mt-1">New orders will appear here</p>
+              </div>
+            ) : (
+              notifications.map((notif) => (
+                <Link
+                  key={notif.orderCode}
+                  to={`/admin/orders?selected=${notif.orderCode}`}
+                  onClick={() => {
+                    markAsRead(notif.orderCode);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors",
+                    !notif.isRead && "bg-blue-50/40"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "mt-0.5 h-8 w-8 rounded-xl flex items-center justify-center shrink-0",
+                      !notif.isRead
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-slate-100 text-slate-400"
+                    )}
+                  >
+                    <Package className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-900 truncate">
+                        New Order
+                      </span>
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {timeAgo(notif.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-semibold text-[#123B70] mt-0.5">
+                      {notif.orderCode}
+                    </p>
+                    <p className="text-[11px] text-slate-600 truncate">
+                      {notif.customerName}
+                      {notif.customerPhone ? ` • ${notif.customerPhone}` : ""}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {notif.serviceName}
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700">
+                        ₹{notif.totalAmount.toLocaleString("en-IN")}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                          notif.orderStatus === "NEW"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-blue-100 text-blue-800"
+                        )}
+                      >
+                        {notif.orderStatus}
+                      </span>
+                    </div>
+                    {!notif.isRead && (
+                      <div className="mt-1">
+                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          {notifications.length > 0 && (
+            <div className="border-t border-slate-100 p-2">
+              <Link
+                to="/admin/orders"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-xs font-bold text-[#123B70] hover:bg-slate-50 transition-colors"
+              >
+                View All Orders
+                <ExternalLink className="h-3 w-3" />
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ringing animation styles */}
+      <style>{`
+        @keyframes notification-ring {
+          0% { transform: rotate(0deg); }
+          10% { transform: rotate(14deg); }
+          20% { transform: rotate(-12deg); }
+          30% { transform: rotate(10deg); }
+          40% { transform: rotate(-8deg); }
+          50% { transform: rotate(6deg); }
+          60% { transform: rotate(-4deg); }
+          70% { transform: rotate(2deg); }
+          80% { transform: rotate(-1deg); }
+          90% { transform: rotate(1deg); }
+          100% { transform: rotate(0deg); }
+        }
+        .animate-notification-ring {
+          animation: notification-ring 0.8s ease-in-out;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+function extractServiceName(items: any): string {
+  if (!items) return "Print Order";
+  try {
+    const arr = Array.isArray(items) ? items : JSON.parse(items);
+    if (arr.length > 0) {
+      return arr[0].productName || arr[0].product_name || "Print Order";
+    }
+  } catch {}
+  return "Print Order";
+}
+
+// ─── AdminHeader Component ────────────────────────────────────────────────────
+
+interface AdminHeaderProps {
+  onToggleSidebar: () => void;
+  onRefresh?: () => void;
+  loading?: boolean;
+}
+
+export const AdminHeader: React.FC<AdminHeaderProps> = ({
+  onToggleSidebar,
+  onRefresh,
+  loading,
+}) => {
+  const { user, isAdmin, logout } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  const roleBadge = (() => {
+    const role = (user?.role || "STAFF").toUpperCase();
+    if (role === "ADMIN") return { label: "Admin", icon: ShieldCheck, color: "bg-amber-500/20 text-amber-300 border-amber-500/30" };
+    if (role === "MANAGER") return { label: "Manager", icon: Shield, color: "bg-blue-500/20 text-blue-300 border-blue-500/30" };
+    return { label: "Staff", icon: User, color: "bg-slate-500/20 text-slate-300 border-slate-500/30" };
+  })();
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <header className="bg-[#0F172A] text-white border-b border-slate-800 sticky top-0 z-40">
+      <div className="flex items-center justify-between px-4 sm:px-6 h-14">
+        {/* Left: Hamburger + Branding */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onToggleSidebar}
+            className="lg:hidden p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
+          <Link to="/admin" className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm">
+              PE
+            </div>
+            <div className="hidden sm:block">
+              <span className="font-bold text-sm text-white tracking-wide block leading-tight">
+                Palak Enterprises
+              </span>
+              <span className="text-[10px] text-slate-400 leading-tight">
+                Admin Control Center
+              </span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Right: Role badge + Notifications + Profile */}
+        <div className="flex items-center gap-2">
+          {/* Role Badge */}
+          <div className={cn(
+            "hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold",
+            roleBadge.color
+          )}>
+            <roleBadge.icon className="h-3 w-3" />
+            <span>{roleBadge.label}</span>
+          </div>
+
+          {/* Refresh */}
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+              title="Refresh data"
+            >
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin text-amber-400")} />
+            </button>
+          )}
+
+          {/* Notification Bell */}
+          <NotificationBell />
+
+          {/* Profile Menu */}
+          <div className="relative" ref={profileRef}>
+            <button
+              onClick={() => setProfileOpen(!profileOpen)}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <div className="h-7 w-7 rounded-lg bg-[#123B70] text-white flex items-center justify-center text-xs font-bold">
+                {(user?.name || "A").charAt(0).toUpperCase()}
+              </div>
+              <span className="hidden md:block text-xs font-semibold text-slate-200 max-w-[120px] truncate">
+                {user?.name || "Admin"}
+              </span>
+              <ChevronDown className="h-3 w-3 text-slate-400" />
+            </button>
+
+            {profileOpen && (
+              <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100">
+                  <p className="text-sm font-bold text-slate-900 truncate">{user?.name || "Admin"}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{user?.email || ""}</p>
+                  <div className={cn(
+                    "mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-bold",
+                    isAdmin
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : "bg-slate-50 text-slate-600 border-slate-200"
+                  )}>
+                    <roleBadge.icon className="h-3 w-3" />
+                    {(user?.role || "STAFF").toUpperCase()}
+                  </div>
+                </div>
+                <div className="py-1">
+                  <Link
+                    to="/admin/settings"
+                    className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    <User className="h-3.5 w-3.5 text-slate-400" />
+                    Admin Settings
+                  </Link>
+                  <Link
+                    to="/"
+                    target="_blank"
+                    className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                    Preview Website
+                  </Link>
+                </div>
+                <div className="border-t border-slate-100 py-1">
+                  <button
+                    onClick={() => {
+                      setProfileOpen(false);
+                      logout();
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 w-full text-left cursor-pointer"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};

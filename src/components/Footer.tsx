@@ -172,7 +172,7 @@ export function Footer(): React.JSX.Element {
             </li>
             <li>
               <Link to="/refund-policy" className="hover:text-white text-slate-400 transition-colors">
-                {currentLang === "hi" ? "रिफंड एवं रीप्रिंट नीति" : "Refund Policy"}
+                {currentLang === "hi" ? "रिफंड एवं रद्दीकरण नीति" : "Refund & Cancellation"}
               </Link>
             </li>
           </ul>

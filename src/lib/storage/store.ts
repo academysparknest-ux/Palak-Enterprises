@@ -1,6 +1,8 @@
 import { supabase, isSupabaseConfigured } from "../supabase/client";
 import { PRODUCTS, DIGITAL_SERVICES, CATEGORIES, type LocalProduct, type LocalService, type LocalCategory } from "./catalogData";
 import { getQueueClassification, type QueueType, type QueuePriority } from "../queue";
+import { PalakInvoiceStore } from "../invoice/invoiceStore";
+import type { StoredInvoice } from "../invoice/types";
 
 export interface OrderItemPayload {
   productId: string;
@@ -32,6 +34,7 @@ export interface StoredOrder {
   };
   orderNotes?: string;
   subtotalAmount: number;
+  discountAmount?: number;
   deliveryFee: number;
   totalAmount: number;
   paymentMethod: "pay_online" | "pay_at_shop" | "pay_at_store" | "pay_after_confirmation" | "upi_online";
@@ -184,18 +187,43 @@ function isValidSupabaseUUID(id?: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
+// In-memory synchronized catalog cache
+let cachedDbProducts: LocalProduct[] | null = null;
+let cachedDbServices: LocalService[] | null = null;
+let cachedDbCategories: LocalCategory[] | null = null;
+
 export class PalakDataStore {
+  // --- Dynamic Synchronization Setters ---
+  static setProducts(list: LocalProduct[]): void {
+    if (Array.isArray(list) && list.length > 0) {
+      cachedDbProducts = list;
+    }
+  }
+
+  static setDigitalServices(list: LocalService[]): void {
+    if (Array.isArray(list) && list.length > 0) {
+      cachedDbServices = list;
+    }
+  }
+
+  static setCategories(list: LocalCategory[]): void {
+    if (Array.isArray(list) && list.length > 0) {
+      cachedDbCategories = list;
+    }
+  }
+
   // --- Catalog access ---
   static getCategories(): LocalCategory[] {
-    return CATEGORIES;
+    return (cachedDbCategories && cachedDbCategories.length > 0) ? cachedDbCategories : CATEGORIES;
   }
 
   static getProducts(): LocalProduct[] {
-    return PRODUCTS;
+    return (cachedDbProducts && cachedDbProducts.length > 0) ? cachedDbProducts : PRODUCTS;
   }
 
   static getProductBySlug(slug: string): LocalProduct | undefined {
-    return PRODUCTS.find((p) => p.slug === slug || p.id === slug || (p.sku && p.sku.toLowerCase() === slug.toLowerCase()));
+    const list = (cachedDbProducts && cachedDbProducts.length > 0) ? cachedDbProducts : PRODUCTS;
+    return list.find((p) => p.slug === slug || p.id === slug || (p.sku && p.sku.toLowerCase() === slug.toLowerCase()));
   }
 
   static getWeddingCards(filter?: {
@@ -207,7 +235,8 @@ export class PalakDataStore {
     priceRange?: string;
     sortBy?: string;
   }): LocalProduct[] {
-    let cards = PRODUCTS.filter(
+    const list = (cachedDbProducts && cachedDbProducts.length > 0) ? cachedDbProducts : PRODUCTS;
+    let cards = list.filter(
       (p) => p.categoryType === "wedding" || p.categoryId === "wedding-events"
     );
 
@@ -323,11 +352,12 @@ export class PalakDataStore {
   }
 
   static getDigitalServices(): LocalService[] {
-    return DIGITAL_SERVICES;
+    return (cachedDbServices && cachedDbServices.length > 0) ? cachedDbServices : DIGITAL_SERVICES;
   }
 
   static getServiceBySlug(slug: string): LocalService | undefined {
-    return DIGITAL_SERVICES.find((s) => s.slug === slug || s.id === slug);
+    const list = (cachedDbServices && cachedDbServices.length > 0) ? cachedDbServices : DIGITAL_SERVICES;
+    return list.find((s) => s.slug === slug || s.id === slug);
   }
 
   // --- Orders ---
@@ -440,6 +470,20 @@ export class PalakDataStore {
   }): Promise<StoredOrder> {
     const orderCode = data.orderCode || generateCode("O");
     const now = new Date().toISOString();
+    
+    // Server-side amount integrity and price sanitization
+    const sanitizedDeliveryFee = data.fulfillmentType === "pickup" ? 0 : Math.max(0, Number(data.deliveryFee) || 0);
+    const sanitizedSubtotal = Math.max(0, Number(data.subtotalAmount) || 0);
+    const computedTotal = Number((sanitizedSubtotal + sanitizedDeliveryFee).toFixed(2));
+    const sanitizedTotal = data.totalAmount > 0 ? Number(data.totalAmount.toFixed(2)) : computedTotal;
+
+    const sanitizedItems = (data.items || []).map((item) => ({
+      ...item,
+      quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+      unitPrice: Math.max(0, Number(item.unitPrice) || 0),
+      totalPrice: Math.max(0, Number(item.totalPrice) || 0),
+    }));
+
     const queueMeta = getQueueClassification({
       queueType: data.queueType,
       queuePriority: data.queuePriority,
@@ -461,13 +505,13 @@ export class PalakDataStore {
       fulfillmentType: data.fulfillmentType,
       deliveryAddress: data.deliveryAddress,
       orderNotes: data.orderNotes,
-      subtotalAmount: data.subtotalAmount,
-      deliveryFee: data.deliveryFee,
-      totalAmount: data.totalAmount,
+      subtotalAmount: sanitizedSubtotal,
+      deliveryFee: sanitizedDeliveryFee,
+      totalAmount: sanitizedTotal,
       paymentMethod: data.paymentMethod,
       paymentStatus: (data.paymentStatus as any) || "pending",
       orderStatus: data.orderStatus || "NEW",
-      items: data.items,
+      items: sanitizedItems,
       staffNotes: data.staffNotes,
       createdAt: now,
       updatedAt: now,
@@ -645,6 +689,15 @@ export class PalakDataStore {
       messageHi: msg.hi,
       performedBy: "Palak Staff",
     });
+
+    // Auto-generate invoice when order reaches COMPLETED state
+    if (newStatus === "COMPLETED") {
+      PalakInvoiceStore.generateInvoiceForOrder(list[idx], {
+        performedBy: "Palak Staff",
+      }).catch((invErr) => {
+        console.warn("[Palak Invoices] Auto-generation notice:", invErr);
+      });
+    }
 
     return list[idx];
   }
@@ -1110,5 +1163,31 @@ export class PalakDataStore {
     });
 
     return { orders, services, quotes, designs };
+  }
+
+  // --- Invoices & Billing Operations ---
+  static getInvoiceForOrder(orderCode: string): StoredInvoice | undefined {
+    return PalakInvoiceStore.getLocalInvoiceByOrderCode(orderCode);
+  }
+
+  static getInvoiceByNumber(invoiceNumber: string): StoredInvoice | undefined {
+    return PalakInvoiceStore.getLocalInvoiceByNumber(invoiceNumber);
+  }
+
+  static getAllInvoices(): StoredInvoice[] {
+    return PalakInvoiceStore.getAllLocalInvoices();
+  }
+
+  static async generateInvoiceForOrder(
+    order: StoredOrder,
+    forceRegenerate?: boolean,
+    performedBy?: string,
+    reason?: string
+  ): Promise<{ success: boolean; invoice?: StoredInvoice; error?: string; isNew: boolean }> {
+    return PalakInvoiceStore.generateInvoiceForOrder(order, {
+      forceRegenerate,
+      performedBy: performedBy || "Palak Staff",
+      reason,
+    });
   }
 }
