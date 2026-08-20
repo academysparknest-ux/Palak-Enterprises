@@ -32,6 +32,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   onRegenerate,
 }) => {
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [confirmRegenerateOpen, setConfirmRegenerateOpen] = useState(false);
   const [regenerateReason, setRegenerateReason] = useState("");
@@ -39,19 +40,27 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
   if (!isOpen || !invoice) return null;
 
+  const targetInvoiceId = `invoice-modal-content-${invoice.orderCode}`;
+
   const handleDownloadPDF = async () => {
+    if (downloading) return;
     setDownloading(true);
+    setDownloadError(null);
     try {
-      await downloadInvoicePDF(invoice, `invoice-modal-content-${invoice.orderCode}`);
-    } catch (e) {
+      const res = await downloadInvoicePDF(invoice, targetInvoiceId);
+      if (!res.success) {
+        setDownloadError(res.error || "Failed to generate PDF. Please try browser print instead.");
+      }
+    } catch (e: any) {
       console.error("PDF download error:", e);
+      setDownloadError(e?.message || "An unexpected error occurred generating PDF");
     } finally {
       setDownloading(false);
     }
   };
 
   const handlePrint = () => {
-    printInvoiceElement(`invoice-modal-content-${invoice.orderCode}`);
+    printInvoiceElement(targetInvoiceId);
   };
 
   const handleRegenerate = async () => {
@@ -84,14 +93,14 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 print:p-0 print:bg-white print:static print:z-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-4xl max-h-[95vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
-        {/* ─── Top Modal Action Bar ────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-slate-900 text-white shrink-0">
+      <div className="relative w-full max-w-4xl max-h-[95vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 print:border-none print:shadow-none print:max-h-none print:w-full print:rounded-none">
+        {/* ─── Top Modal Action Bar (Hidden on Print) ─────────────────────── */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-slate-900 text-white shrink-0 print:hidden">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-blue-600/30 border border-blue-400/40 text-blue-300 flex items-center justify-center">
               <FileCheck2 className="h-5 w-5" />
@@ -124,8 +133,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           </div>
         </div>
 
-        {/* ─── Primary Controls Toolbar ────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-3 bg-slate-50 border-b border-slate-200 shrink-0">
+        {/* ─── Primary Controls Toolbar (Hidden on Print) ─────────────────── */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-3 bg-slate-50 border-b border-slate-200 shrink-0 print:hidden">
           <div className="flex flex-wrap items-center gap-2">
             {/* Download PDF */}
             <button
@@ -135,7 +144,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
             >
               <Download className={cn("h-3.5 w-3.5", downloading && "animate-bounce")} />
-              <span>{downloading ? "Preparing PDF..." : "Download PDF"}</span>
+              <span>{downloading ? "Preparing A4 PDF..." : "Download Bill / PDF"}</span>
             </button>
 
             {/* Print */}
@@ -145,7 +154,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
             >
               <Printer className="h-3.5 w-3.5 text-slate-600" />
-              <span>Print A4</span>
+              <span>Print Bill</span>
             </button>
 
             {/* Send WhatsApp */}
@@ -187,9 +196,22 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           )}
         </div>
 
+        {/* Error Alert */}
+        {downloadError && (
+          <div className="bg-rose-50 border-b border-rose-200 p-3 px-6 text-rose-800 text-xs flex items-center justify-between print:hidden">
+            <span>{downloadError}</span>
+            <button
+              onClick={() => setDownloadError(null)}
+              className="text-rose-600 font-bold hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {/* ─── Confirmation Modal for Regenerate ───────────────────────────── */}
         {confirmRegenerateOpen && (
-          <div className="bg-amber-50 border-b border-amber-200 p-4 shrink-0 space-y-3 animate-in slide-in-from-top-2">
+          <div className="bg-amber-50 border-b border-amber-200 p-4 shrink-0 space-y-3 animate-in slide-in-from-top-2 print:hidden">
             <div className="flex items-start gap-2.5">
               <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-1">
@@ -233,39 +255,17 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         )}
 
         {/* ─── Scrollable Invoice View Area ────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/70">
-          <div className="bg-white rounded-2xl shadow-sm">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/70 print:p-0 print:bg-white print:overflow-visible">
+          <div className="bg-white rounded-2xl shadow-sm print:shadow-none print:rounded-none">
             <InvoiceView
               invoice={invoice}
-              id={`invoice-modal-content-${invoice.orderCode}`}
+              id={targetInvoiceId}
             />
           </div>
         </div>
-
-        {/* ─── Print-Only Specific Stylesheet Injection ─────────────────────── */}
-        <style>{`
-          @media print {
-            body * {
-              visibility: hidden;
-            }
-            #invoice-modal-content-${invoice.orderCode},
-            #invoice-modal-content-${invoice.orderCode} * {
-              visibility: visible;
-            }
-            #invoice-modal-content-${invoice.orderCode} {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100% !important;
-              max-width: 100% !important;
-              margin: 0 !important;
-              padding: 10mm !important;
-              box-shadow: none !important;
-              border: none !important;
-            }
-          }
-        `}</style>
       </div>
     </div>
   );
 };
+
+export default InvoiceModal;

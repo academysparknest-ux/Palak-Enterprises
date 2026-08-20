@@ -273,7 +273,7 @@ export const WebsiteCategoriesPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <AdminPageHeader 
         title="Category Management" 
         subtitle="Manage product and service categories"
@@ -282,91 +282,92 @@ export const WebsiteCategoriesPage: React.FC = () => {
       <div className="flex justify-end">
         <button
           onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 bg-[#123B70] text-white px-4 py-2 rounded-xl hover:bg-[#123B70]/90 transition-colors"
+          className="flex items-center gap-1.5 bg-[#123B70] text-white px-3 py-1.5 rounded-lg hover:bg-[#123B70]/90 transition-colors text-xs font-bold shadow-xs cursor-pointer"
         >
-          <Plus size={18} />
+          <Plus size={14} />
           <span>Add Category</span>
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse admin-table text-xs">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-sm text-slate-500">
-                <th className="p-4 font-medium">Category Name (EN/HI)</th>
-                <th className="p-4 font-medium">Type</th>
-                <th className="p-4 font-medium text-center">Products</th>
-                <th className="p-4 font-medium text-center">Services</th>
-                <th className="p-4 font-medium text-center">Sort Order</th>
-                <th className="p-4 font-medium text-center">Status</th>
-                <th className="p-4 font-medium text-right">Actions</th>
+              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                <th className="px-3.5 py-2">Category Name (EN/HI)</th>
+                <th className="px-3.5 py-2">Type</th>
+                <th className="px-3.5 py-2 text-center">Products</th>
+                <th className="px-3.5 py-2 text-center">Services</th>
+                <th className="px-3.5 py-2 text-center">Sort Order</th>
+                <th className="px-3.5 py-2 text-center">Status</th>
+                <th className="px-3.5 py-2 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500">Loading categories...</td>
+                  <td colSpan={7} className="px-3.5 py-6 text-center text-slate-500">Loading categories...</td>
                 </tr>
               ) : categories.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500">No categories found.</td>
+                  <td colSpan={7} className="px-3.5 py-6 text-center text-slate-500">No categories found.</td>
                 </tr>
               ) : (
                 categories.map((cat) => (
                   <tr key={cat.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4">
-                      <div className="font-medium text-slate-900">{cat.name_en}</div>
-                      {cat.name_hi && <div className="text-xs text-slate-500">{cat.name_hi}</div>}
+                    <td className="px-3.5 py-2">
+                      <div className="font-semibold text-slate-900">{cat.name_en}</div>
+                      {cat.name_hi && <div className="text-[10px] text-slate-500">{cat.name_hi}</div>}
                     </td>
-                    <td className="p-4">
-                      <span className="text-sm text-slate-600 capitalize">{cat.category_type}</span>
+                    <td className="px-3.5 py-2">
+                      <span className="text-xs text-slate-600 capitalize font-medium">{cat.category_type}</span>
                     </td>
-                    <td className="p-4 text-center">
-                      <span className="inline-flex items-center justify-center bg-slate-100 text-slate-700 text-xs font-medium px-2 py-1 rounded-full">
+                    <td className="px-3.5 py-2 text-center">
+                      <span className="inline-flex items-center justify-center bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
                         {cat.product_count}
                       </span>
                     </td>
-                    <td className="p-4 text-center">
-                      <span className="inline-flex items-center justify-center bg-slate-100 text-slate-700 text-xs font-medium px-2 py-1 rounded-full">
+                    <td className="px-3.5 py-2 text-center">
+                      <span className="inline-flex items-center justify-center bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
                         {cat.service_count}
                       </span>
                     </td>
-                    <td className="p-4 text-center">
-                      <div className="flex items-center justify-center text-slate-600 text-sm">
-                        <ArrowUpDown size={14} className="mr-1" />
+                    <td className="px-3.5 py-2 text-center">
+                      <div className="flex items-center justify-center text-slate-600 text-xs font-mono">
+                        <ArrowUpDown size={12} className="mr-1" />
                         {cat.sort_order}
                       </div>
                     </td>
-                    <td className="p-4 text-center">
-                      <button onClick={() => handleToggleActive(cat)}>
+                    <td className="px-3.5 py-2 text-center">
+                      <button onClick={() => handleToggleActive(cat)} className="cursor-pointer">
                         <StatusBadge 
                           status={cat.is_active ? 'Active' : 'Inactive'} 
                           variant={cat.is_active ? 'success' : 'danger'}
+                          size="sm"
                         />
                       </button>
                     </td>
-                    <td className="p-4">
-                      <div className="flex justify-end gap-2">
+                    <td className="px-3.5 py-2">
+                      <div className="flex justify-end gap-1">
                         <button
                           onClick={() => handleOpenModal(cat)}
-                          className="p-1.5 text-slate-400 hover:text-[#123B70] hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-1 text-slate-400 hover:text-[#123B70] hover:bg-blue-50 rounded transition-colors cursor-pointer"
                           title="Edit"
                         >
-                          <Edit2 size={18} />
+                          <Edit2 size={14} />
                         </button>
                         <button
                           onClick={() => handleDeleteRequest(cat)}
                           className={cn(
-                            "p-1.5 rounded-lg transition-colors",
+                            "p-1 rounded transition-colors",
                             (cat.product_count || 0) > 0 || (cat.service_count || 0) > 0
                               ? "text-slate-300 cursor-not-allowed"
-                              : "text-slate-400 hover:text-rose-500 hover:bg-rose-50"
+                              : "text-slate-400 hover:text-rose-500 hover:bg-rose-50 cursor-pointer"
                           )}
                           title="Delete"
                           disabled={(cat.product_count || 0) > 0 || (cat.service_count || 0) > 0}
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
@@ -383,48 +384,48 @@ export const WebsiteCategoriesPage: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         title={editingCategory ? 'Edit Category' : 'Add Category'}
       >
-        <form onSubmit={handleSaveCategory} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSaveCategory} className="space-y-3">
+          <div className="grid grid-cols-2 gap-2.5">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Name (English) *</label>
+              <label className="text-xs font-medium text-slate-700">Name (English) *</label>
               <input
                 type="text"
                 required
                 value={formData.name_en}
                 onChange={(e) => setFormData({ ...formData, name_en: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Name (Hindi)</label>
+              <label className="text-xs font-medium text-slate-700">Name (Hindi)</label>
               <input
                 type="text"
                 value={formData.name_hi}
                 onChange={(e) => setFormData({ ...formData, name_hi: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
           </div>
           
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Slug (URL identifier)</label>
+            <label className="text-xs font-medium text-slate-700">Slug (URL identifier)</label>
             <input
               type="text"
               value={formData.slug}
               onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
               placeholder="Auto-generated if left empty"
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
+              className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] font-mono text-[11px]"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2.5">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Category Type *</label>
+              <label className="text-xs font-medium text-slate-700">Category Type *</label>
               <select
                 required
                 value={formData.category_type}
                 onChange={(e) => setFormData({ ...formData, category_type: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70] cursor-pointer"
               >
                 <option value="printing">Printing</option>
                 <option value="digital">Digital</option>
@@ -434,51 +435,51 @@ export const WebsiteCategoriesPage: React.FC = () => {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Icon Name</label>
+              <label className="text-xs font-medium text-slate-700">Icon Name</label>
               <input
                 type="text"
                 value={formData.icon_name}
                 onChange={(e) => setFormData({ ...formData, icon_name: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2.5">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Sort Order</label>
+              <label className="text-xs font-medium text-slate-700">Sort Order</label>
               <input
                 type="number"
                 value={formData.sort_order}
-                onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0})}
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
-            <div className="flex items-center space-x-2 pt-6">
+            <div className="flex items-center space-x-2 pt-5">
               <input
                 type="checkbox"
                 id="is_active"
                 checked={formData.is_active}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                className="w-4 h-4 text-[#123B70] border-slate-300 rounded focus:ring-[#123B70]"
+                className="w-3.5 h-3.5 text-[#123B70] border-slate-300 rounded focus:ring-[#123B70]"
               />
-              <label htmlFor="is_active" className="text-sm font-medium text-slate-700">
+              <label htmlFor="is_active" className="text-xs font-semibold text-slate-700 cursor-pointer">
                 Active Category
               </label>
             </div>
           </div>
 
-          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+          <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors font-medium"
+              className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#123B70] text-white rounded-xl hover:bg-[#123B70]/90 transition-colors font-medium"
+              className="px-3.5 py-1.5 text-xs font-bold bg-[#123B70] text-white rounded-lg hover:bg-[#123B70]/90 transition-colors shadow-xs cursor-pointer"
             >
               {editingCategory ? 'Update Category' : 'Create Category'}
             </button>

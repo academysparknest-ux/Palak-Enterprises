@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import type { OrderItemPayload } from "../lib/storage/store";
+import { calculateOrderCharges } from "../lib/charges/pricingEngine";
+import { PalakChargesStore } from "../lib/charges/chargesStore";
+import type { OrderChargesBreakdown } from "../lib/charges/types";
 
 export interface CartItem extends OrderItemPayload {
   id: string;
@@ -17,6 +20,7 @@ interface CartContextType {
   subtotal: number;
   deliveryFee: number;
   total: number;
+  breakdown: OrderChargesBreakdown;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -100,10 +104,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setItems([]);
   };
 
+  const totalQuantity = items.reduce((acc, i) => acc + (Number(i.quantity) || 1), 0);
   const itemCount = items.reduce((acc, i) => acc + (i.quantity > 0 ? 1 : 0), 0);
-  const subtotal = items.reduce((acc, i) => acc + i.totalPrice, 0);
-  const deliveryFee = 0; // Default pickup is free
-  const total = subtotal + deliveryFee;
+  const subtotal = items.reduce((acc, i) => acc + (Number(i.totalPrice) || 0), 0);
+
+  const breakdown = useMemo(() => {
+    const config = PalakChargesStore.getChargesConfig();
+    return calculateOrderCharges({
+      subtotal,
+      quantity: totalQuantity,
+      fulfillmentType: 'pickup',
+      config,
+    });
+  }, [subtotal, totalQuantity]);
+
+  const deliveryFee = breakdown.deliveryFee;
+  const total = breakdown.grandTotal;
 
   return (
     <CartContext.Provider
@@ -117,6 +133,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subtotal,
         deliveryFee,
         total,
+        breakdown,
       }}
     >
       {children}

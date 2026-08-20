@@ -52,44 +52,44 @@ export function AdminModal({
   };
 
   const sizeClasses = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl'
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-xl',
+    xl: 'max-w-3xl'
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200"
       onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
         className={cn(
-          'w-full bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200',
+          'w-full bg-white rounded-xl shadow-xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200',
           sizeClasses[size],
           className
         )}
       >
-        <div className="flex items-start justify-between p-6 border-b border-slate-100">
+        <div className="flex items-start justify-between p-4 sm:p-4.5 border-b border-slate-100">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
-            {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+            <h2 className="text-base sm:text-lg font-bold text-slate-900">{title}</h2>
+            {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
+        <div className="p-4 sm:p-4.5 overflow-y-auto">
           {children}
         </div>
 
         {footer && (
-          <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex items-center justify-end gap-3">
+          <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50 rounded-b-xl flex items-center justify-end gap-2.5">
             {footer}
           </div>
         )}

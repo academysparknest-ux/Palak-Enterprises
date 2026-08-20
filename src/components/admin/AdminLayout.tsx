@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import { ToastProvider } from "./AdminToast";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
+import { useRealtimeOrders } from "../../hooks/useRealtimeOrders";
 import { Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -38,31 +39,21 @@ export const AdminLayout: React.FC = () => {
     }
   }, [isStaff, fetchNewOrdersCount]);
 
-  // Subscribe to order changes for live badge count
-  const channelRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
-  useEffect(() => {
-    if (!isStaff || !supabase) return;
-
-    const channel = supabase
-      .channel("admin-layout-orders")
-      .on(
-        "postgres_changes" as any,
-        { event: "*", schema: "public", table: "orders" },
-        () => {
-          fetchNewOrdersCount();
-        }
-      )
-      .subscribe();
-
-    channelRef.current = channel;
-
-    return () => {
-      if (channelRef.current && supabase) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+  // Listen to realtime orders for sidebar badge count
+  useRealtimeOrders({
+    onNewOrder: (order) => {
+      if (order.orderStatus === "NEW" || order.orderStatus === "UNDER_REVIEW") {
+        setNewOrdersCount((prev) => prev + 1);
       }
-    };
-  }, [isStaff, fetchNewOrdersCount]);
+      fetchNewOrdersCount();
+    },
+    onOrderUpdated: () => {
+      fetchNewOrdersCount();
+    },
+    onOrderDeleted: () => {
+      fetchNewOrdersCount();
+    },
+  });
 
   const handleRefresh = useCallback(async () => {
     setDataLoading(true);
@@ -117,8 +108,8 @@ export const AdminLayout: React.FC = () => {
           loading={dataLoading}
         />
 
-        <div className="flex flex-1 relative w-full min-h-[calc(100vh-3.5rem)]">
-          {/* Sidebar: 286px desktop fixed width */}
+        <div className="flex flex-1 relative w-full min-h-[calc(100vh-2.75rem)]">
+          {/* Sidebar: 230px desktop fixed width */}
           <AdminSidebar
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
@@ -127,7 +118,7 @@ export const AdminLayout: React.FC = () => {
 
           {/* Main Content Area: starts immediately next to sidebar with consistent padding */}
           <div className="flex-1 min-w-0 w-full overflow-x-hidden">
-            <main className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8 box-border">
+            <main className="w-full px-3 sm:px-5 lg:px-6 py-4 lg:py-5 box-border">
               <Outlet />
             </main>
           </div>

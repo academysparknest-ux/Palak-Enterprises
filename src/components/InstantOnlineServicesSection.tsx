@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   FileText,
   Camera,
@@ -23,6 +23,8 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
 }) => {
   const { lang, language, t } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
+  const [searchParams] = useSearchParams();
+  const paymentParam = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay");
 
   const services = [
     {
@@ -228,7 +230,8 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
                   </div>
                 ) : (
                   <Link
-                    to={service.path}
+                    to={paymentParam ? `${service.path}?payment=${paymentParam}` : service.path}
+                    state={paymentParam ? { paymentMethod: paymentParam } : undefined}
                     className={cn(
                       "w-full inline-flex items-center justify-between rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-xs group-hover:shadow-card cursor-pointer",
                       isDoc

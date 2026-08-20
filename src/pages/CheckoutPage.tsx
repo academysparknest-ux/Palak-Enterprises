@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSquare, User, Sparkles, CreditCard, Building } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
@@ -7,11 +7,13 @@ import { useAuth } from "../context/AuthContext";
 import { PalakDataStore } from "../lib/storage/store";
 import { getWhatsAppLink } from "../config/business";
 import { initiateRazorpayPayment } from "../lib/razorpay";
+import { calculateOrderCharges } from "../lib/charges/pricingEngine";
+import { PalakChargesStore } from "../lib/charges/chargesStore";
 
 export const CheckoutPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const { items, subtotal, total, clearCart, itemCount } = useCart();
+  const { items, subtotal, clearCart, itemCount } = useCart();
   const { user, isAuthenticated } = useAuth();
 
   // Form State
@@ -41,6 +43,17 @@ export const CheckoutPage: React.FC = () => {
     fulfillmentType: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const chargesBreakdown = useMemo(() => {
+    const config = PalakChargesStore.getChargesConfig();
+    const totalQty = items.reduce((acc, i) => acc + (Number(i.quantity) || 1), 0);
+    return calculateOrderCharges({
+      subtotal,
+      quantity: totalQty,
+      fulfillmentType,
+      config,
+    });
+  }, [subtotal, items, fulfillmentType]);
 
   if (itemCount === 0 && !placedOrder) {
     return (
@@ -74,10 +87,6 @@ export const CheckoutPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const calculatedSubtotal = items.reduce((acc, i) => acc + (Number(i.unitPrice) * Number(i.quantity)), 0);
-      const deliveryCharge = fulfillmentType === "delivery" ? 50 : 0;
-      const finalTotal = calculatedSubtotal + deliveryCharge;
-
       const completeOrderCreation = async (razorpayPaymentId?: string) => {
         const order = await PalakDataStore.createOrder({
           userId: user?.id,
@@ -97,9 +106,20 @@ export const CheckoutPage: React.FC = () => {
           orderNotes: razorpayPaymentId 
             ? `${orderNotes.trim() ? orderNotes.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]` 
             : (orderNotes.trim() || undefined),
-          subtotalAmount: calculatedSubtotal,
-          deliveryFee: deliveryCharge,
-          totalAmount: finalTotal,
+          subtotalAmount: chargesBreakdown.subtotal,
+          discountAmount: chargesBreakdown.discount,
+          deliveryFee: chargesBreakdown.deliveryFee,
+          platformFee: chargesBreakdown.platformFee,
+          serviceCharge: chargesBreakdown.serviceCharge,
+          otherCharges: chargesBreakdown.otherCharges,
+          taxAmount: chargesBreakdown.taxAmount,
+          taxRate: chargesBreakdown.taxRate,
+          taxableAmount: chargesBreakdown.taxableAmount,
+          cgstAmount: chargesBreakdown.cgstAmount,
+          sgstAmount: chargesBreakdown.sgstAmount,
+          igstAmount: chargesBreakdown.igstAmount,
+          chargesSnapshot: chargesBreakdown,
+          totalAmount: chargesBreakdown.grandTotal,
           paymentMethod: paymentMethod,
           paymentStatus: razorpayPaymentId ? "paid" : "pending",
           orderStatus: "NEW",
@@ -119,7 +139,7 @@ export const CheckoutPage: React.FC = () => {
 
       if (paymentMethod === "pay_online") {
         await initiateRazorpayPayment({
-          amount: finalTotal,
+          amount: chargesBreakdown.grandTotal,
           name: "Palak Enterprises",
           description: `Order checkout (${items.length} item${items.length > 1 ? "s" : ""})`,
           prefill: {
@@ -564,21 +584,63 @@ export const CheckoutPage: React.FC = () => {
                   ))}
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-slate-100 text-xs text-slate-600">
+                <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs text-slate-600">
                   <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>₹{subtotal}</span>
+                    <span>Subtotal ({itemCount} item{itemCount > 1 ? "s" : ""})</span>
+                    <span className="font-semibold text-slate-800">₹{chargesBreakdown.subtotal.toFixed(2)}</span>
                   </div>
+
+                  {chargesBreakdown.discount > 0 && (
+                    <div className="flex justify-between text-emerald-600 font-semibold">
+                      <span>Discount</span>
+                      <span>-₹{chargesBreakdown.discount.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {chargesBreakdown.platformFee > 0 && (
+                    <div className="flex justify-between">
+                      <span className="flex items-center gap-1">
+                        <span>Platform & Tech Fee</span>
+                      </span>
+                      <span className="font-semibold text-slate-800">₹{chargesBreakdown.platformFee.toFixed(2)}</span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between">
                     <span>Fulfillment</span>
-                    <span>{fulfillmentType === "delivery" ? "₹50 (Local Delivery)" : "FREE (Pickup)"}</span>
+                    <span className="font-semibold text-slate-800">
+                      {chargesBreakdown.deliveryFee > 0
+                        ? `₹${chargesBreakdown.deliveryFee.toFixed(2)} (Local Delivery)`
+                        : "FREE (Store Pickup)"}
+                    </span>
                   </div>
+
+                  {chargesBreakdown.otherCharges > 0 && (
+                    <div className="flex justify-between">
+                      <span>Handling / Other Surcharges</span>
+                      <span className="font-semibold text-slate-800">₹{chargesBreakdown.otherCharges.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {chargesBreakdown.taxAmount > 0 ? (
+                    <div className="flex justify-between">
+                      <span>
+                        GST / Taxes ({chargesBreakdown.taxRate}%)
+                      </span>
+                      <span className="font-semibold text-slate-800">₹{chargesBreakdown.taxAmount.toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-slate-400 text-[11px]">
+                      <span>GST / Taxes</span>
+                      <span>₹0.00 (Exempt)</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
-                  <span className="text-sm font-bold text-slate-900">Total</span>
+                  <span className="text-sm font-bold text-slate-900">Total Payable</span>
                   <span className="text-2xl font-black text-[#123B70]">
-                    ₹{total + (fulfillmentType === "delivery" ? 50 : 0)}
+                    ₹{chargesBreakdown.grandTotal.toFixed(2)}
                   </span>
                 </div>
 

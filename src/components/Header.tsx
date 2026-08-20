@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   Search,
@@ -20,6 +20,7 @@ import {
   ClipboardList,
   MonitorSmartphone,
   Zap,
+  ShieldCheck,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
@@ -44,7 +45,53 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [servicesMenuOpen, setServicesMenuOpen] = useState(false);
   const megaMenuRef = useRef<HTMLDivElement>(null);
+  const dropdownMenuRef = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Position dropdown centered by default, but shifted right if cut on left
+  const updateDropdownPosition = useCallback(() => {
+    if (!megaMenuRef.current) return;
+    const triggerRect = megaMenuRef.current.getBoundingClientRect();
+    const triggerCenter = triggerRect.left + triggerRect.width / 2;
+    const screenPadding = 16;
+    const viewportWidth = window.innerWidth;
+
+    const menuEl = dropdownMenuRef.current;
+    const menuWidth = menuEl ? menuEl.offsetWidth : Math.min(880, viewportWidth - screenPadding * 2);
+
+    // Centered position
+    let idealLeft = triggerCenter - menuWidth / 2;
+
+    // If cut from left, shift right to protect cut area
+    if (idealLeft < screenPadding) {
+      idealLeft = screenPadding;
+    }
+
+    // If cut from right, shift left to stay inside viewport
+    if (idealLeft + menuWidth > viewportWidth - screenPadding) {
+      idealLeft = Math.max(screenPadding, viewportWidth - screenPadding - menuWidth);
+    }
+
+    const offsetFromTrigger = idealLeft - triggerRect.left;
+
+    setDropdownStyle({
+      left: `${Math.round(offsetFromTrigger)}px`,
+      transform: "none",
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (servicesMenuOpen) {
+      updateDropdownPosition();
+      window.addEventListener("resize", updateDropdownPosition);
+      window.addEventListener("scroll", updateDropdownPosition, true);
+      return () => {
+        window.removeEventListener("resize", updateDropdownPosition);
+        window.removeEventListener("scroll", updateDropdownPosition, true);
+      };
+    }
+  }, [servicesMenuOpen, updateDropdownPosition]);
 
   const handleCloseDrawer = useCallback(() => {
     setDrawerOpen(false);
@@ -124,6 +171,18 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
             </div>
 
             <div className="flex items-center gap-3.5 text-[11px] shrink-0">
+              {isStaff && (
+                <>
+                  <Link
+                    to="/admin"
+                    className="hover:text-amber-200 text-amber-300 transition-colors flex items-center gap-1.5 font-bold"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+                    <span>ERP Admin</span>
+                  </Link>
+                  <span className="text-slate-400">|</span>
+                </>
+              )}
               <Link
                 to="/track-order"
                 className="hover:text-amber-300 transition-colors flex items-center gap-1.5 font-medium"
@@ -144,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
         </div>
 
         {/* Main Navbar Bar */}
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-2 sm:py-2.5">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 lg:gap-3 xl:gap-4 px-3 sm:px-4 lg:px-4 xl:px-5 2xl:px-6 py-2 sm:py-2.5">
           {/* Brand Logo & Name */}
           <Link to="/" className="flex items-center gap-2 sm:gap-2.5 shrink-0 group min-w-0" aria-label="Palak Enterprises Home">
             <img
@@ -155,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full object-cover ring-2 ring-amber-400/60 shadow-xs group-hover:scale-105 transition-transform shrink-0"
               loading="eager"
             />
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col min-w-0 shrink-0">
               <span className="font-display text-sm sm:text-base md:text-lg font-black text-[#123B70] tracking-tight group-hover:text-amber-600 transition-colors truncate">
                 {business.name[currentLang]}
               </span>
@@ -166,14 +225,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
           </Link>
 
           {/* Desktop Navigation Links (Central, Consolidated, Accessible) */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5" aria-label="Main navigation">
+          <nav className="hidden lg:flex items-center gap-0.5 lg:gap-0.5 xl:gap-1 2xl:gap-1.5" aria-label="Main navigation">
             {/* Home Link */}
             <NavLink
               to="/"
               end
               className={({ isActive }) =>
                 cn(
-                  "px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
+                  "px-2 py-1.5 xl:px-2 2xl:px-2.5 text-xs 2xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
                   isActive
                     ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
                     : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
@@ -193,7 +252,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               <NavLink
                 to="/services"
                 className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer",
+                  "inline-flex items-center gap-1 px-2 py-1.5 xl:px-2 2xl:px-2.5 text-xs 2xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap cursor-pointer",
                   isServicesActive || servicesMenuOpen
                     ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
                     : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
@@ -214,7 +273,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               {/* Exact 3001 Mega Menu Dropdown */}
               {servicesMenuOpen && (
                 <div
-                  className="absolute left-1/2 top-full -translate-x-1/2 mt-2 w-[calc(100vw-2rem)] sm:w-[600px] md:w-[760px] lg:w-[880px] max-w-[95vw] max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 lg:p-6 shadow-2xl animate-fadeUp z-50 text-slate-800"
+                  ref={dropdownMenuRef}
+                  style={dropdownStyle}
+                  className="absolute top-full mt-2 w-[calc(100vw-2rem)] sm:w-[580px] md:w-[720px] lg:w-[820px] xl:w-[880px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 lg:p-6 shadow-2xl animate-fadeUp z-50 text-slate-800"
                   onMouseEnter={handleMouseEnter}
                   onMouseLeave={handleMouseLeave}
                 >
@@ -574,14 +635,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               to="/online-services"
               className={({ isActive }) =>
                 cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
+                  "inline-flex items-center gap-1 px-2 py-1.5 xl:px-2 2xl:px-2.5 text-xs 2xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
                   isActive
                     ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
                     : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
                 )
               }
             >
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               <span>{currentLang === "hi" ? "त्वरित सेवा" : "Quick Service"}</span>
             </NavLink>
 
@@ -590,14 +651,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               to="/wedding-events"
               className={({ isActive }) =>
                 cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
+                  "inline-flex items-center gap-1 px-2 py-1.5 xl:px-2 2xl:px-2.5 text-xs 2xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
                   isActive
                     ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
                     : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
                 )
               }
             >
-              <Heart className="w-3.5 h-3.5 text-rose-500" />
+              <Heart className="w-3.5 h-3.5 text-rose-500 shrink-0" />
               <span>{currentLang === "hi" ? "शादी कार्ड" : "Wedding & Events"}</span>
             </NavLink>
 
@@ -606,14 +667,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               to="/track-order"
               className={({ isActive }) =>
                 cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
+                  "inline-flex items-center gap-1 px-2 py-1.5 xl:px-2 2xl:px-2.5 text-xs 2xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
                   isActive
                     ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
                     : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
                 )
               }
             >
-              <Package className="w-3.5 h-3.5 text-amber-500" />
+              <Package className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               <span>{currentLang === "hi" ? "ट्रैक ऑर्डर" : "Track Order"}</span>
             </NavLink>
 
@@ -622,7 +683,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               to="/contact"
               className={({ isActive }) =>
                 cn(
-                  "px-2.5 py-1.5 xl:px-3 text-xs xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
+                  "px-2 py-1.5 xl:px-2 2xl:px-2.5 text-xs 2xl:text-sm font-semibold rounded-lg transition-all whitespace-nowrap",
                   isActive
                     ? "bg-[#123B70]/10 text-[#123B70] font-bold shadow-2xs"
                     : "text-slate-600 hover:text-[#123B70] hover:bg-slate-100/80"
@@ -634,17 +695,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
           </nav>
 
           {/* Right Action Controls */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Search Trigger */}
             <button
               type="button"
               onClick={() => setSearchModalOpen(true)}
-              className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-slate-50/90 px-2 sm:px-2.5 py-1.5 text-xs text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 transition-all cursor-pointer shadow-2xs"
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/90 px-2.5 text-xs text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 transition-all cursor-pointer shadow-2xs shrink-0"
               title="Search services & products (Ctrl+K)"
               aria-label="Search catalog and services"
             >
               <Search className="h-4 w-4 text-slate-500 shrink-0" />
-              <span className="hidden xl:inline font-medium">
+              <span className="hidden 2xl:inline font-medium">
                 {currentLang === "hi" ? "खोजें..." : "Search..."}
               </span>
               <kbd className="hidden 2xl:inline-block rounded border border-slate-200 bg-white px-1.5 py-0.2 text-[10px] text-slate-400 font-mono">
@@ -667,19 +728,30 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
               )}
             </Link>
 
-            {/* Account / Login (Desktop / Tablet) */}
-            <Link
-              to={isAuthenticated ? "/account" : "/login"}
-              className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors shadow-2xs shrink-0"
-              title={isAuthenticated ? (isStaff ? "ERP Admin" : "Account") : "Login"}
-            >
-              <User className="h-4 w-4 text-[#123B70]" />
-              <span className="hidden xl:inline">
-                {isAuthenticated
-                  ? (isStaff ? "ERP Admin" : (user?.name?.split(" ")[0] || "Account"))
-                  : (currentLang === "hi" ? "लॉगिन" : "Login")}
-              </span>
-            </Link>
+            {/* Account / Login / ERP Admin Button */}
+            {isStaff ? (
+              <Link
+                to="/admin"
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
+                title="Open Staff ERP Admin"
+              >
+                <ShieldCheck className="h-4 w-4 text-amber-700 shrink-0" />
+                <span className="font-bold">ERP Admin</span>
+              </Link>
+            ) : (
+              <Link
+                to={isAuthenticated ? "/account" : "/login"}
+                className="hidden sm:flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
+                title={isAuthenticated ? "Account" : "Login"}
+              >
+                <User className="h-4 w-4 text-[#123B70] shrink-0" />
+                <span>
+                  {isAuthenticated
+                    ? (user?.name?.split(" ")[0] || "Account")
+                    : (currentLang === "hi" ? "लॉगिन" : "Login")}
+                </span>
+              </Link>
+            )}
 
             {/* Mobile Drawer Hamburger Button */}
             <button

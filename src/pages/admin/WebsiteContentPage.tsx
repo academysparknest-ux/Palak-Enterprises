@@ -189,83 +189,83 @@ export const WebsiteContentPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <AdminPageHeader 
         title="Website Content" 
         subtitle="Manage text, images, and content across your website"
       />
 
       {/* Hero Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-          <h2 className="text-lg font-semibold text-[#123B70]">Hero Section (Homepage)</h2>
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+          <h2 className="text-sm font-bold text-[#123B70]">Hero Section (Homepage)</h2>
           <button
             onClick={() => handleSaveSection('hero')}
             disabled={saving === 'hero'}
-            className="flex items-center gap-2 bg-[#123B70] text-white px-4 py-2 rounded-xl hover:bg-[#123B70]/90 transition-colors disabled:opacity-70"
+            className="flex items-center gap-1.5 bg-[#123B70] text-white px-3 py-1.5 rounded-lg hover:bg-[#123B70]/90 transition-colors disabled:opacity-70 text-xs font-bold shadow-xs cursor-pointer"
           >
-            <Save size={16} />
+            <Save size={14} />
             <span>{saving === 'hero' ? 'Saving...' : 'Save Hero'}</span>
           </button>
         </div>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <h3 className="font-medium text-slate-700">English Content</h3>
+        <div className="p-3.5 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2.5">
+            <h3 className="text-xs font-bold text-slate-700">English Content</h3>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Heading</label>
+              <label className="text-xs font-medium text-slate-600">Heading</label>
               <input
                 type="text"
                 value={heroContent.heading_en}
                 onChange={(e) => setHeroContent({ ...heroContent, heading_en: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Subtitle</label>
+              <label className="text-xs font-medium text-slate-600">Subtitle</label>
               <input
                 type="text"
                 value={heroContent.subtitle_en}
                 onChange={(e) => setHeroContent({ ...heroContent, subtitle_en: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">CTA Text</label>
+              <label className="text-xs font-medium text-slate-600">CTA Text</label>
               <input
                 type="text"
                 value={heroContent.cta_text_en}
                 onChange={(e) => setHeroContent({ ...heroContent, cta_text_en: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
           </div>
-          <div className="space-y-4">
-            <h3 className="font-medium text-slate-700">Hindi Content</h3>
+          <div className="space-y-2.5">
+            <h3 className="text-xs font-bold text-slate-700">Hindi Content</h3>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Heading</label>
+              <label className="text-xs font-medium text-slate-600">Heading</label>
               <input
                 type="text"
                 value={heroContent.heading_hi}
                 onChange={(e) => setHeroContent({ ...heroContent, heading_hi: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Subtitle</label>
+              <label className="text-xs font-medium text-slate-600">Subtitle</label>
               <input
                 type="text"
                 value={heroContent.subtitle_hi}
                 onChange={(e) => setHeroContent({ ...heroContent, subtitle_hi: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">CTA Text</label>
+              <label className="text-xs font-medium text-slate-600">CTA Text</label>
               <input
                 type="text"
                 value={heroContent.cta_text_hi}
                 onChange={(e) => setHeroContent({ ...heroContent, cta_text_hi: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
           </div>
@@ -273,70 +273,70 @@ export const WebsiteContentPage: React.FC = () => {
       </div>
 
       {/* Promo Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-semibold text-[#123B70]">Promotional Banner</h2>
-            <div className="flex items-center space-x-2">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-bold text-[#123B70]">Promotional Banner</h2>
+            <div className="flex items-center space-x-1.5">
               <input
                 type="checkbox"
                 id="promo_active"
                 checked={promoContent.is_active}
                 onChange={(e) => setPromoContent({ ...promoContent, is_active: e.target.checked })}
-                className="w-4 h-4 text-[#123B70] border-slate-300 rounded focus:ring-[#123B70]"
+                className="w-3.5 h-3.5 text-[#123B70] border-slate-300 rounded focus:ring-[#123B70]"
               />
-              <label htmlFor="promo_active" className="text-sm text-slate-600">Enable Banner</label>
+              <label htmlFor="promo_active" className="text-xs text-slate-600 font-medium cursor-pointer">Enable Banner</label>
             </div>
           </div>
           <button
             onClick={() => handleSaveSection('promo')}
             disabled={saving === 'promo'}
-            className="flex items-center gap-2 bg-[#123B70] text-white px-4 py-2 rounded-xl hover:bg-[#123B70]/90 transition-colors disabled:opacity-70"
+            className="flex items-center gap-1.5 bg-[#123B70] text-white px-3 py-1.5 rounded-lg hover:bg-[#123B70]/90 transition-colors disabled:opacity-70 text-xs font-bold shadow-xs cursor-pointer"
           >
-            <Save size={16} />
+            <Save size={14} />
             <span>{saving === 'promo' ? 'Saving...' : 'Save Promo'}</span>
           </button>
         </div>
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+        <div className="p-3.5 sm:p-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2.5">
               <div className="space-y-1">
-                <label className="text-sm text-slate-600">Banner Heading</label>
+                <label className="text-xs font-medium text-slate-600">Banner Heading</label>
                 <input
                   type="text"
                   value={promoContent.heading}
                   onChange={(e) => setPromoContent({ ...promoContent, heading: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm text-slate-600">Banner Description</label>
+                <label className="text-xs font-medium text-slate-600">Banner Description</label>
                 <textarea
                   value={promoContent.description}
                   onChange={(e) => setPromoContent({ ...promoContent, description: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
                 />
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Image URL</label>
+              <label className="text-xs font-medium text-slate-600">Image URL</label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <ImageIcon size={16} className="text-slate-400" />
+                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                    <ImageIcon size={14} className="text-slate-400" />
                   </div>
                   <input
                     type="text"
                     value={promoContent.image}
                     onChange={(e) => setPromoContent({ ...promoContent, image: e.target.value })}
                     placeholder="https://..."
-                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                    className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
                   />
                 </div>
               </div>
               {promoContent.image && (
-                <div className="mt-2 h-32 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                <div className="mt-1.5 h-24 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
                   <img src={promoContent.image} alt="Promo preview" className="h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                 </div>
               )}
@@ -346,66 +346,66 @@ export const WebsiteContentPage: React.FC = () => {
       </div>
 
       {/* Business Info Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-          <h2 className="text-lg font-semibold text-[#123B70]">Business Information (Footer/Contact)</h2>
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+          <h2 className="text-sm font-bold text-[#123B70]">Business Information (Footer/Contact)</h2>
           <button
             onClick={() => handleSaveSection('business')}
             disabled={saving === 'business'}
-            className="flex items-center gap-2 bg-[#123B70] text-white px-4 py-2 rounded-xl hover:bg-[#123B70]/90 transition-colors disabled:opacity-70"
+            className="flex items-center gap-1.5 bg-[#123B70] text-white px-3 py-1.5 rounded-lg hover:bg-[#123B70]/90 transition-colors disabled:opacity-70 text-xs font-bold shadow-xs cursor-pointer"
           >
-            <Save size={16} />
+            <Save size={14} />
             <span>{saving === 'business' ? 'Saving...' : 'Save Info'}</span>
           </button>
         </div>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
+        <div className="p-3.5 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2.5">
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Phone Number</label>
+              <label className="text-xs font-medium text-slate-600">Phone Number</label>
               <input
                 type="text"
                 value={businessInfo.phone}
                 onChange={(e) => setBusinessInfo({ ...businessInfo, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">WhatsApp Number</label>
+              <label className="text-xs font-medium text-slate-600">WhatsApp Number</label>
               <input
                 type="text"
                 value={businessInfo.whatsapp}
                 onChange={(e) => setBusinessInfo({ ...businessInfo, whatsapp: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Email Address</label>
+              <label className="text-xs font-medium text-slate-600">Email Address</label>
               <input
                 type="email"
                 value={businessInfo.email}
                 onChange={(e) => setBusinessInfo({ ...businessInfo, email: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-2.5">
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Physical Address</label>
+              <label className="text-xs font-medium text-slate-600">Physical Address</label>
               <textarea
                 value={businessInfo.address}
                 onChange={(e) => setBusinessInfo({ ...businessInfo, address: e.target.value })}
                 rows={3}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-slate-600">Business Hours</label>
+              <label className="text-xs font-medium text-slate-600">Business Hours</label>
               <input
                 type="text"
                 value={businessInfo.hours}
                 onChange={(e) => setBusinessInfo({ ...businessInfo, hours: e.target.value })}
                 placeholder="e.g. Mon-Sat: 10 AM - 8 PM"
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
               />
             </div>
           </div>

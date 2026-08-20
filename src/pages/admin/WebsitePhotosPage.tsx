@@ -369,7 +369,7 @@ export const WebsitePhotosPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <AdminPageHeader 
         title="Photo & Media Asset Manager" 
         subtitle="Upload, replace, and safely organize images across products, galleries, and website banners"
@@ -377,9 +377,9 @@ export const WebsitePhotosPage: React.FC = () => {
           <button
             onClick={fetchImages}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin text-[#123B70]")} />
+            <RefreshCw className={cn("w-3 h-3", loading && "animate-spin text-[#123B70]")} />
             <span>Reload Media</span>
           </button>
         }
@@ -388,7 +388,7 @@ export const WebsitePhotosPage: React.FC = () => {
       {/* Upload Dropzone */}
       <div 
         className={cn(
-          "border-2 border-dashed rounded-2xl p-8 sm:p-10 text-center transition-all duration-200 shadow-xs cursor-pointer",
+          "border-2 border-dashed rounded-xl p-5 sm:p-6 text-center transition-all duration-200 shadow-xs cursor-pointer",
           isDragging ? "border-[#123B70] bg-[#123B70]/5 ring-4 ring-[#123B70]/10" : "border-slate-300 bg-white hover:bg-slate-50/70"
         )}
         onDragOver={handleDragOver}
@@ -413,19 +413,19 @@ export const WebsitePhotosPage: React.FC = () => {
           onChange={handleReplaceFile}
         />
 
-        <div className="flex flex-col items-center justify-center space-y-3">
-          <div className="p-3.5 bg-blue-50 text-[#123B70] rounded-2xl border border-blue-200/60 shadow-xs">
+        <div className="flex flex-col items-center justify-center space-y-2">
+          <div className="p-2.5 bg-blue-50 text-[#123B70] rounded-xl border border-blue-200/60 shadow-xs">
             {uploading ? (
-              <RefreshCw className="w-7 h-7 animate-spin text-[#123B70]" />
+              <RefreshCw className="w-5 h-5 animate-spin text-[#123B70]" />
             ) : (
-              <UploadCloud className="w-7 h-7" />
+              <UploadCloud className="w-5 h-5" />
             )}
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900">
+            <h3 className="text-xs font-bold text-slate-900">
               {uploading ? 'Uploading media assets...' : 'Drag & Drop Images or Click to Browse'}
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-[11px] text-slate-500 mt-0.5">
               Supports JPEG, PNG, WebP, SVG • Max 10MB per file • Auto-uploaded to Supabase Storage
             </p>
           </div>
@@ -433,53 +433,53 @@ export const WebsitePhotosPage: React.FC = () => {
       </div>
 
       {/* Filter and Gallery Grid */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 sm:p-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3.5 sm:p-4 space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setFilterType('all')}
-              className={cn("px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer", filterType === 'all' ? "bg-[#123B70] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}
+              className={cn("px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer", filterType === 'all' ? "bg-[#123B70] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}
             >
               All Assets ({images.length})
             </button>
             <button
               onClick={() => setFilterType('product')}
-              className={cn("px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer", filterType === 'product' ? "bg-[#123B70] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}
+              className={cn("px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer", filterType === 'product' ? "bg-[#123B70] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}
             >
               Product Images
             </button>
             <button
               onClick={() => setFilterType('content')}
-              className={cn("px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer", filterType === 'content' ? "bg-[#123B70] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}
+              className={cn("px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer", filterType === 'content' ? "bg-[#123B70] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}
             >
               Content & Banners
             </button>
           </div>
 
           <div className="relative max-w-xs w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
               placeholder="Search by product / banner name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#123B70]/20"
+              className="w-full pl-8 pr-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#123B70]/20"
             />
           </div>
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="aspect-square bg-slate-100 rounded-xl animate-pulse" />
             ))}
           </div>
         ) : filteredImages.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {filteredImages.map((img, idx) => (
               <div 
                 key={`${img.id}-${idx}`} 
-                className="group border border-slate-200 rounded-2xl overflow-hidden hover:shadow-md hover:border-[#123B70]/40 transition-all bg-white flex flex-col justify-between"
+                className="group border border-slate-200 rounded-xl overflow-hidden hover:shadow-sm hover:border-[#123B70]/40 transition-all bg-white flex flex-col justify-between"
               >
                 <div className="aspect-square relative overflow-hidden bg-slate-100 flex items-center justify-center">
                   <img 
@@ -490,30 +490,30 @@ export const WebsitePhotosPage: React.FC = () => {
                       (e.target as HTMLImageElement).src = '/images/gallery/visiting-cards-sample.svg';
                     }}
                   />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
                     <button 
                       onClick={() => triggerReplace(img)}
-                      className="p-2 bg-white text-slate-800 rounded-xl hover:text-[#123B70] hover:bg-slate-100 shadow-sm cursor-pointer" 
+                      className="p-1.5 bg-white text-slate-800 rounded-lg hover:text-[#123B70] hover:bg-slate-100 shadow-xs cursor-pointer" 
                       title="Replace Image"
                     >
-                      <Edit className="w-3.5 h-3.5" />
+                      <Edit className="w-3 h-3" />
                     </button>
                     <button 
                       onClick={() => setImageToDelete(img)}
-                      className="p-2 bg-white text-rose-600 rounded-xl hover:bg-rose-50 shadow-sm cursor-pointer" 
+                      className="p-1.5 bg-white text-rose-600 rounded-lg hover:bg-rose-50 shadow-xs cursor-pointer" 
                       title="Remove Reference"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
 
-                <div className="p-3 bg-white space-y-1">
+                <div className="p-2.5 bg-white space-y-0.5">
                   <p className="text-xs font-bold text-slate-900 truncate" title={img.sourceName}>
                     {img.sourceName}
                   </p>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                    <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
                       {img.type === 'product_image' ? 'Main' : img.type === 'product_gallery' ? 'Gallery' : 'Banner'}
                     </span>
                     <a 
@@ -531,10 +531,10 @@ export const WebsitePhotosPage: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-16 text-slate-500 space-y-2">
-            <ImageIcon className="w-10 h-10 mx-auto text-slate-300" />
+          <div className="text-center py-12 text-slate-500 space-y-1.5">
+            <ImageIcon className="w-8 h-8 mx-auto text-slate-300" />
             <p className="text-xs font-bold text-slate-600">No media assets found</p>
-            <p className="text-[11px] text-slate-400">Drag & drop image files above to upload new assets</p>
+            <p className="text-[10px] text-slate-400">Drag & drop image files above to upload new assets</p>
           </div>
         )}
       </div>

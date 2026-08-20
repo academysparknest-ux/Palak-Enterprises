@@ -19,9 +19,11 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { PalakDataStore } from '../../lib/storage/store';
+import { PalakInvoiceStore } from '../../lib/invoice/invoiceStore';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { AdminContentContainer } from '../../components/admin/AdminContentContainer';
+import { useRealtimeOrders } from '../../hooks/useRealtimeOrders';
 import { cn } from '../../lib/utils';
 
 // ─── Data Types ─────────────────────────────────────────────────────────────
@@ -127,7 +129,7 @@ export const AdminDashboardPage: React.FC = () => {
       const endOfTodayIso = endOfToday.toISOString();
 
       if (isSupabaseConfigured && supabase) {
-        // Query database with authoritative schema columns
+        // Query database with authoritative schema columns in parallel
         const [
           ordersRes,
           revenueRes,
@@ -137,7 +139,7 @@ export const AdminDashboardPage: React.FC = () => {
           recentOrdersRes,
         ] = await Promise.all([
           // 1. All orders with their order_status
-          supabase.from('orders').select('order_status', { count: 'exact' }),
+          supabase.from('orders').select('order_status, created_at', { count: 'exact' }),
           // 2. Paid orders (excluding cancelled)
           supabase
             .from('orders')
@@ -168,13 +170,10 @@ export const AdminDashboardPage: React.FC = () => {
             .limit(6),
         ]);
 
-        // If any primary query failed with an error, evaluate error classification
-        const anyError = ordersRes.error || revenueRes.error || todaysOrdersRes.error || serviceReqRes.error || quoteReqRes.error || recentOrdersRes.error;
-        if (anyError) {
-          const classified = classifyError(anyError);
-          
-          // Only if it's a genuine network failure, check local fallback
-          if (classified.isNetwork) {
+        // Evaluate orders query authoritatively
+        if (ordersRes.error) {
+          const classified = classifyError(ordersRes.error);
+          if (classified.isNetwork && typeof navigator !== 'undefined' && !navigator.onLine) {
             const localOrders = PalakDataStore.getOrders();
             if (localOrders.length > 0) {
               const localServiceRequests = PalakDataStore.getServiceRequests();
@@ -226,36 +225,51 @@ export const AdminDashboardPage: React.FC = () => {
             }
           }
 
-          // Otherwise, show the clean classified error (auth / db / network without cache)
           setError(classified.message);
           return;
         }
 
-        // ── CASE A & B: Successful query (empty or populated) ────────────────
-        // An empty result is valid authoritative data (0 records). Never trigger stale fallback.
+        // ── Authoritative successful orders result ──────────────────────────
         const ordersList = ordersRes.data || [];
+        const totalOrdersCount = ordersRes.count !== null && ordersRes.count !== undefined ? ordersRes.count : ordersList.length;
+
+        // If database contains 0 orders, sync local caches and zero out order-derived stats
+        if (totalOrdersCount === 0) {
+          PalakDataStore.syncOrdersFromCloud([]);
+          PalakInvoiceStore.pruneOrphanedInvoices(new Set());
+        }
+
         const newOrders = ordersList.filter((o) => o.order_status === 'NEW' || o.order_status === 'UNDER_REVIEW').length;
         const inProduction = ordersList.filter((o) => o.order_status === 'IN_PRODUCTION' || o.order_status === 'DESIGN_REVIEW' || o.order_status === 'APPROVED').length;
         const readyForPickup = ordersList.filter((o) => o.order_status === 'READY_FOR_PICKUP' || o.order_status === 'OUT_FOR_DELIVERY').length;
         
-        const revenue = (revenueRes.data || []).reduce((sum, order) => {
-          const amt = Number(order.total_amount);
-          return sum + (isNaN(amt) ? 0 : Math.max(0, amt));
-        }, 0);
+        const revenue = totalOrdersCount === 0
+          ? 0
+          : (revenueRes.data || []).reduce((sum, order) => {
+              const amt = Number(order.total_amount);
+              return sum + (isNaN(amt) ? 0 : Math.max(0, amt));
+            }, 0);
+
+        const todaysCount = totalOrdersCount === 0
+          ? 0
+          : (todaysOrdersRes.count ?? ordersList.filter((o) => {
+              const time = new Date(o.created_at).getTime();
+              return time >= startOfToday.getTime() && time <= endOfToday.getTime();
+            }).length);
 
         setStats({
-          totalOrders: ordersRes.count ?? ordersList.length,
-          newOrders,
-          inProduction,
-          readyForPickup,
+          totalOrders: totalOrdersCount,
+          newOrders: totalOrdersCount === 0 ? 0 : newOrders,
+          inProduction: totalOrdersCount === 0 ? 0 : inProduction,
+          readyForPickup: totalOrdersCount === 0 ? 0 : readyForPickup,
           totalRevenue: revenue,
-          todaysOrders: todaysOrdersRes.count ?? 0,
-          pendingServiceRequests: serviceReqRes.count ?? 0,
-          pendingQuoteRequests: quoteReqRes.count ?? 0,
+          todaysOrders: todaysCount,
+          pendingServiceRequests: (!serviceReqRes.error && serviceReqRes.count !== null && serviceReqRes.count !== undefined) ? serviceReqRes.count : 0,
+          pendingQuoteRequests: (!quoteReqRes.error && quoteReqRes.count !== null && quoteReqRes.count !== undefined) ? quoteReqRes.count : 0,
         });
 
         // Format recent orders safely
-        if (recentOrdersRes.data) {
+        if (totalOrdersCount > 0 && recentOrdersRes.data && !recentOrdersRes.error) {
           const formattedOrders: RecentOrder[] = recentOrdersRes.data.map((order: any) => {
             let serviceName = "Print Order";
             try {
@@ -345,16 +359,118 @@ export const AdminDashboardPage: React.FC = () => {
     }
   }, []);
 
+  // Optimistically and reliably handle real-time orders on dashboard
+  useRealtimeOrders({
+    onNewOrder: (newOrder) => {
+      // Immediate optimistic update for fast visual response
+      setStats((prev) => ({
+        ...prev,
+        totalOrders: prev.totalOrders + 1,
+        newOrders: (newOrder.orderStatus === 'NEW' || newOrder.orderStatus === 'UNDER_REVIEW') ? prev.newOrders + 1 : prev.newOrders,
+        todaysOrders: prev.todaysOrders + 1,
+        totalRevenue: (newOrder.paymentStatus === 'paid' || newOrder.paymentStatus === 'confirmed')
+          ? prev.totalRevenue + (Number(newOrder.totalAmount) || 0)
+          : prev.totalRevenue,
+      }));
+
+      // Update recent orders list
+      setRecentOrders((prev) => {
+        const firstItem = newOrder.items && newOrder.items.length > 0 ? newOrder.items[0] : null;
+        let serviceName = firstItem ? firstItem.productName : "Print Order";
+        if (newOrder.items && newOrder.items.length > 1) {
+          serviceName += ` + ${newOrder.items.length - 1} more`;
+        }
+
+        const newRecent: RecentOrder = {
+          id: newOrder.id,
+          order_code: newOrder.orderCode,
+          customer_name: newOrder.customerName || "Customer",
+          service_name: serviceName,
+          total_amount: Math.max(0, Number(newOrder.totalAmount) || 0),
+          status: newOrder.orderStatus,
+          created_at: newOrder.createdAt,
+        };
+
+        const filtered = prev.filter((o) => o.order_code !== newOrder.orderCode && o.id !== newOrder.id);
+        return [newRecent, ...filtered].slice(0, 6);
+      });
+
+      // Background reconciliation
+      fetchDashboardData();
+    },
+    onOrderUpdated: () => {
+      fetchDashboardData();
+    },
+    onOrderDeleted: (payload) => {
+      const code = payload.orderCode;
+      const id = payload.id;
+      setRecentOrders((prev) => prev.filter((o) => {
+        if (id && o.id === id) return false;
+        if (code && o.order_code === code) return false;
+        return true;
+      }));
+      fetchDashboardData();
+    },
+  });
+
   useEffect(() => {
     fetchDashboardData();
 
-    // Listen for admin refresh events from top bar
+    // 1. Listen for admin refresh events from top bar
     const handleAdminRefresh = () => {
       setRefreshing(true);
       fetchDashboardData();
     };
     window.addEventListener('admin-refresh', handleAdminRefresh);
-    return () => window.removeEventListener('admin-refresh', handleAdminRefresh);
+
+    // 2. Supabase Realtime stream for service requests & quote requests
+    let channel: any = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let isActive = true;
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      const setupRealtime = () => {
+        if (!isActive) return;
+
+        channel = client
+          .channel('admin-dashboard-requests-stream')
+          .on(
+            'postgres_changes' as any,
+            { event: '*', schema: 'public', table: 'service_requests' },
+            () => {
+              fetchDashboardData();
+            }
+          )
+          .on(
+            'postgres_changes' as any,
+            { event: '*', schema: 'public', table: 'quote_requests' },
+            () => {
+              fetchDashboardData();
+            }
+          )
+          .subscribe((status: string) => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              if (reconnectTimer) clearTimeout(reconnectTimer);
+              reconnectTimer = setTimeout(() => {
+                if (channel) client.removeChannel(channel);
+                setupRealtime();
+              }, 4000);
+            }
+          });
+      };
+
+      setupRealtime();
+    }
+
+    return () => {
+      isActive = false;
+      window.removeEventListener('admin-refresh', handleAdminRefresh);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [fetchDashboardData]);
 
   const formatCurrency = (amount: number) => {
@@ -490,19 +606,19 @@ export const AdminDashboardPage: React.FC = () => {
           title="Dashboard" 
           subtitle="Overview of your business operations" 
         />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 w-full">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 w-full">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-28 bg-white rounded-2xl animate-pulse shadow-xs border border-slate-200/80"></div>
+            <div key={i} className="h-20 bg-white rounded-xl animate-pulse shadow-xs border border-slate-200/80"></div>
           ))}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 w-full">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 bg-white rounded-2xl animate-pulse shadow-xs border border-slate-200/80"></div>
+            <div key={i} className="h-18 bg-white rounded-xl animate-pulse shadow-xs border border-slate-200/80"></div>
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
-          <div className="lg:col-span-2 h-96 bg-white rounded-2xl animate-pulse shadow-xs border border-slate-200/80"></div>
-          <div className="h-96 bg-white rounded-2xl animate-pulse shadow-xs border border-slate-200/80"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
+          <div className="lg:col-span-2 h-72 bg-white rounded-xl animate-pulse shadow-xs border border-slate-200/80"></div>
+          <div className="h-72 bg-white rounded-xl animate-pulse shadow-xs border border-slate-200/80"></div>
         </div>
       </AdminContentContainer>
     );
@@ -521,9 +637,9 @@ export const AdminDashboardPage: React.FC = () => {
               fetchDashboardData();
             }}
             disabled={refreshing}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
           >
-            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin text-amber-500")} />
+            <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin text-amber-500")} />
             <span>Refresh</span>
           </button>
         }
@@ -531,9 +647,9 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* 2. Offline Notice Banner (only when connection failed and cached data is shown) */}
       {isOfflineFallback && (
-        <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
+        <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl flex items-center justify-between gap-2.5 shadow-xs">
+          <div className="flex items-center gap-2">
+            <WifiOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <p className="text-xs font-medium">Viewing cached local data due to temporary network unavailability.</p>
           </div>
           <button
@@ -550,9 +666,9 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* 3. Error Notice (Auth, RLS, Database or unrecoverable network failure) */}
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center justify-between gap-2.5 shadow-xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
             <p className="text-xs font-medium">{error}</p>
           </div>
           <button
@@ -560,38 +676,38 @@ export const AdminDashboardPage: React.FC = () => {
               setRefreshing(true);
               fetchDashboardData();
             }}
-            className="text-xs font-bold px-3 py-1.5 bg-rose-100 text-rose-800 rounded-lg hover:bg-rose-200 transition-colors cursor-pointer"
+            className="text-xs font-bold px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg hover:bg-rose-200 transition-colors cursor-pointer"
           >
             Retry
           </button>
         </div>
       )}
 
-      {/* 4. Responsive 6-Card KPI Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 w-full">
+      {/* 4. Responsive 6-Card KPI Grid (25% more compact) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 w-full">
         {dashboardMetrics.map((kpi) => (
           <Link
             key={kpi.key}
             to={kpi.href}
             className={cn(
-              "bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 transition-all duration-200 flex flex-col justify-between group",
+              "bg-white rounded-xl p-3 shadow-xs border border-slate-200/80 transition-all duration-200 flex flex-col justify-between group",
               kpi.borderColor,
               "hover:shadow-sm hover:border-slate-300"
             )}
           >
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className={cn("p-2 rounded-xl transition-colors", kpi.iconBg)}>
-                <kpi.icon className={cn("w-4 h-4", kpi.iconColor)} />
+            <div className="flex items-center justify-between gap-1.5 mb-1.5">
+              <div className={cn("p-1.5 rounded-lg transition-colors", kpi.iconBg)}>
+                <kpi.icon className={cn("w-3.5 h-3.5", kpi.iconColor)} />
               </div>
               {kpi.badge && (
-                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", kpi.badgeColor)}>
+                <span className={cn("text-[9px] font-bold px-1.5 py-0.2 rounded-full", kpi.badgeColor)}>
                   {kpi.badge}
                 </span>
               )}
             </div>
             <div>
-              <h3 className="text-xs font-medium text-slate-500 truncate mb-1">{kpi.label}</h3>
-              <p className={cn("text-xl sm:text-2xl font-bold tracking-tight", kpi.valueColor)}>
+              <h3 className="text-[11px] font-medium text-slate-500 truncate mb-0.5">{kpi.label}</h3>
+              <p className={cn("text-lg sm:text-xl font-bold tracking-tight", kpi.valueColor)}>
                 {kpi.value}
               </p>
             </div>
@@ -599,30 +715,30 @@ export const AdminDashboardPage: React.FC = () => {
         ))}
       </div>
 
-      {/* 5. Quick Action Cards (4 Columns) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+      {/* 5. Quick Action Cards (4 Columns - 25% more compact) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 w-full">
         {quickActions.map((action) => (
           <Link
             key={action.title}
             to={action.href}
             className={cn(
-              "rounded-2xl p-5 transition-all duration-200 flex items-center justify-between group shadow-xs border",
+              "rounded-xl p-3.5 transition-all duration-200 flex items-center justify-between group shadow-xs border",
               action.primary
                 ? "bg-[#123B70] text-white border-[#123B70] hover:bg-[#0c274c] hover:border-[#0c274c]"
                 : "bg-white text-slate-800 border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/50"
             )}
           >
-            <div className="flex items-center gap-3.5 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className={cn(
-                "p-2.5 rounded-xl transition-colors shrink-0",
+                "p-2 rounded-lg transition-colors shrink-0",
                 action.primary ? "bg-white/10 text-amber-400" : "bg-slate-100 text-slate-700 group-hover:bg-slate-200"
               )}>
-                <action.icon className="w-5 h-5" />
+                <action.icon className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <span className="font-bold text-sm block truncate">{action.title}</span>
+                <span className="font-bold text-xs block truncate">{action.title}</span>
                 <span className={cn(
-                  "text-[11px] block truncate mt-0.5",
+                  "text-[10px] block truncate mt-0.2",
                   action.primary ? "text-blue-200" : "text-slate-400"
                 )}>
                   {action.subtitle}
@@ -630,7 +746,7 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             </div>
             <ArrowRight className={cn(
-              "w-4 h-4 shrink-0 transition-transform duration-200 group-hover:translate-x-1",
+              "w-3.5 h-3.5 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5",
               action.primary ? "text-white/60 group-hover:text-white" : "text-slate-400 group-hover:text-slate-700"
             )} />
           </Link>
@@ -638,19 +754,19 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* 6. Lower Content Grid: Recent Orders (2fr) + Requests Summary (1fr) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full items-start">
         {/* Recent Orders Section */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden flex flex-col">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="h-7 w-7 rounded-lg bg-blue-50 text-[#123B70] flex items-center justify-center font-bold text-xs">
-                <Package className="h-4 w-4" />
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-xs border border-slate-200/80 overflow-hidden flex flex-col">
+          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-md bg-blue-50 text-[#123B70] flex items-center justify-center font-bold text-xs">
+                <Package className="h-3.5 w-3.5" />
               </div>
-              <h2 className="text-base font-bold text-[#123B70]">Recent Orders</h2>
+              <h2 className="text-sm font-bold text-[#123B70]">Recent Orders</h2>
             </div>
             <Link 
               to="/admin/orders" 
-              className="text-xs font-bold text-[#123B70] hover:text-amber-600 transition-colors inline-flex items-center gap-1"
+              className="text-[11px] font-bold text-[#123B70] hover:text-amber-600 transition-colors inline-flex items-center gap-1"
             >
               <span>View all orders</span>
               <ArrowRight className="h-3 w-3" />
@@ -659,15 +775,15 @@ export const AdminDashboardPage: React.FC = () => {
           
           {recentOrders.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs admin-table">
                 <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100">
                   <tr>
-                    <th className="px-5 py-3 font-semibold">Order Code</th>
-                    <th className="px-5 py-3 font-semibold">Customer</th>
-                    <th className="px-5 py-3 font-semibold">Service</th>
-                    <th className="px-5 py-3 font-semibold">Amount</th>
-                    <th className="px-5 py-3 font-semibold">Status</th>
-                    <th className="px-5 py-3 font-semibold text-right">Time</th>
+                    <th className="px-3.5 py-2 text-[11px] font-semibold">Order Code</th>
+                    <th className="px-3.5 py-2 text-[11px] font-semibold">Customer</th>
+                    <th className="px-3.5 py-2 text-[11px] font-semibold">Service</th>
+                    <th className="px-3.5 py-2 text-[11px] font-semibold">Amount</th>
+                    <th className="px-3.5 py-2 text-[11px] font-semibold">Status</th>
+                    <th className="px-3.5 py-2 text-[11px] font-semibold text-right">Time</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -677,14 +793,14 @@ export const AdminDashboardPage: React.FC = () => {
                       className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                       onClick={() => navigate(`/admin/orders?selected=${order.order_code}`)}
                     >
-                      <td className="px-5 py-3.5 font-bold text-[#123B70]">{order.order_code}</td>
-                      <td className="px-5 py-3.5 text-slate-700 font-medium">{order.customer_name}</td>
-                      <td className="px-5 py-3.5 text-slate-600 truncate max-w-[180px]">{order.service_name}</td>
-                      <td className="px-5 py-3.5 font-bold text-slate-900">{formatCurrency(order.total_amount)}</td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-3.5 py-2 font-bold text-[#123B70]">{order.order_code}</td>
+                      <td className="px-3.5 py-2 text-slate-700 font-medium">{order.customer_name}</td>
+                      <td className="px-3.5 py-2 text-slate-600 truncate max-w-[160px]">{order.service_name}</td>
+                      <td className="px-3.5 py-2 font-bold text-slate-900">{formatCurrency(order.total_amount)}</td>
+                      <td className="px-3.5 py-2">
                         <StatusBadge status={order.status} size="sm" />
                       </td>
-                      <td className="px-5 py-3.5 text-slate-400 text-[11px] text-right whitespace-nowrap">
+                      <td className="px-3.5 py-2 text-slate-400 text-[10px] text-right whitespace-nowrap">
                         {formatDate(order.created_at)}
                       </td>
                     </tr>
@@ -693,51 +809,51 @@ export const AdminDashboardPage: React.FC = () => {
               </table>
             </div>
           ) : (
-            <div className="p-12 text-center text-slate-500">
-              <ShoppingBag className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <div className="p-8 text-center text-slate-500">
+              <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
               <p className="text-xs font-semibold text-slate-600">No recent orders found</p>
-              <p className="text-[11px] text-slate-400 mt-1">New incoming customer orders will appear here automatically.</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">New incoming customer orders will appear here automatically.</p>
             </div>
           )}
         </div>
 
         {/* Requests & Inquiries Summary */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 flex flex-col">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-base font-bold text-[#123B70]">Inquiries & Requests</h2>
-            <span className="text-[11px] font-semibold text-slate-400">Live Counters</span>
+        <div className="bg-white rounded-xl shadow-xs border border-slate-200/80 flex flex-col">
+          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-[#123B70]">Inquiries & Requests</h2>
+            <span className="text-[10px] font-semibold text-slate-400">Live Counters</span>
           </div>
           
-          <div className="p-5 flex flex-col gap-4">
+          <div className="p-3.5 flex flex-col gap-3">
             {/* Service Requests */}
             <Link 
               to="/admin/services-requests" 
-              className="bg-gradient-to-br from-amber-50 to-amber-50/40 rounded-2xl p-5 border border-amber-200/80 hover:border-amber-300 transition-all duration-200 relative overflow-hidden group shadow-xs hover:shadow-xs"
+              className="bg-gradient-to-br from-amber-50 to-amber-50/40 rounded-xl p-3.5 border border-amber-200/80 hover:border-amber-300 transition-all duration-200 relative overflow-hidden group shadow-xs hover:shadow-xs"
             >
-              <div className="absolute top-2 right-2 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                <FileText className="w-16 h-16 text-amber-600" />
+              <div className="absolute top-2 right-2 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                <FileText className="w-12 h-12 text-amber-600" />
               </div>
-              <p className="text-amber-900 text-xs font-bold mb-1">Citizen & Digital Requests</p>
-              <p className="text-[11px] text-amber-700/80 mb-3">PAN, CSC, Certificates & Forms</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-amber-700">{stats.pendingServiceRequests}</span>
-                <span className="text-amber-800/80 text-xs font-semibold">pending requests</span>
+              <p className="text-amber-900 text-[11px] font-bold mb-0.5">Citizen & Digital Requests</p>
+              <p className="text-[10px] text-amber-700/80 mb-2">PAN, CSC, Certificates & Forms</p>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black text-amber-700">{stats.pendingServiceRequests}</span>
+                <span className="text-amber-800/80 text-[11px] font-semibold">pending requests</span>
               </div>
             </Link>
 
             {/* Quote Inquiries */}
             <Link 
               to="/admin/quotes" 
-              className="bg-gradient-to-br from-indigo-50 to-indigo-50/40 rounded-2xl p-5 border border-indigo-200/80 hover:border-indigo-300 transition-all duration-200 relative overflow-hidden group shadow-xs hover:shadow-xs"
+              className="bg-gradient-to-br from-indigo-50 to-indigo-50/40 rounded-xl p-3.5 border border-indigo-200/80 hover:border-indigo-300 transition-all duration-200 relative overflow-hidden group shadow-xs hover:shadow-xs"
             >
-              <div className="absolute top-2 right-2 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                <MessageSquare className="w-16 h-16 text-indigo-600" />
+              <div className="absolute top-2 right-2 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                <MessageSquare className="w-12 h-12 text-indigo-600" />
               </div>
-              <p className="text-indigo-900 text-xs font-bold mb-1">Custom Quote Inquiries</p>
-              <p className="text-[11px] text-indigo-700/80 mb-3">Bulk printing, wedding & custom jobs</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-indigo-700">{stats.pendingQuoteRequests}</span>
-                <span className="text-indigo-800/80 text-xs font-semibold">pending quotes</span>
+              <p className="text-indigo-900 text-[11px] font-bold mb-0.5">Custom Quote Inquiries</p>
+              <p className="text-[10px] text-indigo-700/80 mb-2">Bulk printing, wedding & custom jobs</p>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black text-indigo-700">{stats.pendingQuoteRequests}</span>
+                <span className="text-indigo-800/80 text-[11px] font-semibold">pending quotes</span>
               </div>
             </Link>
           </div>

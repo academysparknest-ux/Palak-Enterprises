@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FileText,
   Camera,
@@ -17,6 +17,8 @@ import {
   Clock,
   Search,
   Globe,
+  Zap,
+  FileUp,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { SEO } from "../components/SEO";
@@ -31,7 +33,34 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [onlineTrackInput, setOnlineTrackInput] = useState("");
+
+  const rawPayment = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay");
+  const initialMode = (rawPayment && (rawPayment.toLowerCase() === "pay_online" || rawPayment.toLowerCase() === "online" || rawPayment.toLowerCase() === "priority"))
+    ? "pay_online"
+    : "pay_at_shop";
+
+  const [paymentMode, setPaymentMode] = useState<"pay_online" | "pay_at_shop">(initialMode);
+
+  useEffect(() => {
+    const raw = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay");
+    if (raw) {
+      const p = raw.toLowerCase();
+      if (p === "pay_online" || p === "online" || p === "priority" || p === "paid" || p === "upi_online") {
+        setPaymentMode("pay_online");
+      } else if (p === "pay_at_shop" || p === "send_document" || p === "send-document" || p === "shop" || p === "store" || p === "normal") {
+        setPaymentMode("pay_at_shop");
+      }
+    }
+  }, [searchParams]);
+
+  const handleSelectPaymentMode = (mode: "pay_online" | "pay_at_shop") => {
+    setPaymentMode(mode);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("payment", mode);
+    setSearchParams(newParams, { replace: true });
+  };
 
   const services = [
     {
@@ -227,17 +256,17 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
         }}
         primaryCta={{
           label: { en: "Document Printing", hi: "दस्तावेज प्रिंटिंग" },
-          to: "/online-services/document-printing",
+          to: `/online-services/document-printing?payment=${paymentMode}`,
         }}
         secondaryCta={{
           label: { en: "Passport Photos", hi: "पासपोर्ट फोटो" },
-          to: "/online-services/passport-photo",
+          to: `/online-services/passport-photo?payment=${paymentMode}`,
         }}
       />
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10 space-y-10 sm:space-y-12">
         {/* 2. QUICK PRINT SERVICES GRID (Above the fold on standard desktop) */}
-        <section aria-labelledby="quick-print-services-heading" className="space-y-4">
+        <section aria-labelledby="quick-print-services-heading" className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
             <div>
               <h2
@@ -257,11 +286,94 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
             </span>
           </div>
 
+          {/* Payment Method Selector Banner / Quick Filter */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-700">
+                {currentLang === "hi" ? "भुगतान विकल्प चुनें (Pre-select Mode)" : "Choose Order Mode (Pre-select Payment)"}
+              </span>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {paymentMode === "pay_online"
+                  ? (currentLang === "hi" ? "⚡ प्रायोरिटी कतार: भुगतान ऑनलाइन, दुकान पर सीधा पिकअप" : "⚡ Priority Queue: Pay online & collect ready prints directly")
+                  : (currentLang === "hi" ? "📄 सामान्य कतार: फाइल भेजें, काउंटर पर भुगतान" : "📄 Normal Queue: Send files now, pay at shop counter")}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleSelectPaymentMode("pay_online")}
+                className={cn(
+                  "flex items-start gap-3 p-3.5 rounded-xl border transition-all text-left cursor-pointer",
+                  paymentMode === "pay_online"
+                    ? "border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/30 shadow-xs"
+                    : "border-slate-200 bg-slate-50/50 hover:bg-slate-100/70 opacity-80"
+                )}
+              >
+                <div className={cn(
+                  "h-8 w-8 rounded-lg flex items-center justify-center shrink-0 text-white font-bold text-xs",
+                  paymentMode === "pay_online" ? "bg-emerald-600" : "bg-slate-400"
+                )}>
+                  <Zap className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs sm:text-sm font-extrabold text-slate-900">
+                      {currentLang === "hi" ? "💳 ऑनलाइन भुगतान" : "💳 Pay Online (Fastest)"}
+                    </span>
+                    <span className="rounded-full bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 uppercase">
+                      PRIORITY QUEUE
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                    {currentLang === "hi"
+                      ? "ऑनलाइन भुगतान करें • सबसे पहले प्रिंट पाएं • 0 इंतज़ार"
+                      : "Pay via UPI/Cards • Express priority printing • Instant pickup"}
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectPaymentMode("pay_at_shop")}
+                className={cn(
+                  "flex items-start gap-3 p-3.5 rounded-xl border transition-all text-left cursor-pointer",
+                  paymentMode === "pay_at_shop"
+                    ? "border-amber-500 bg-amber-50/80 ring-2 ring-amber-500/30 shadow-xs"
+                    : "border-slate-200 bg-slate-50/50 hover:bg-slate-100/70 opacity-80"
+                )}
+              >
+                <div className={cn(
+                  "h-8 w-8 rounded-lg flex items-center justify-center shrink-0 text-white font-bold text-xs",
+                  paymentMode === "pay_at_shop" ? "bg-amber-500" : "bg-slate-400"
+                )}>
+                  <FileUp className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs sm:text-sm font-extrabold text-slate-900">
+                      {currentLang === "hi" ? "📄 दुकान पर भुगतान" : "📄 Send Document (Pay at Shop)"}
+                    </span>
+                    <span className="rounded-full bg-amber-100 text-amber-900 text-[9px] font-bold px-2 py-0.5 uppercase">
+                      STANDARD QUEUE
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                    {currentLang === "hi"
+                      ? "फाइल अभी भेजें • काउंटर पर आते ही प्रिंट शुरू • दुकान पर भुगतान"
+                      : "Send files in advance • Verified at counter • Pay on pickup"}
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* 3-Column Desktop Grid / 2-Col Tablet / 1-Col Mobile */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {services.map((service) => {
               const Icon = service.icon;
               const isDoc = service.id === "document-printing";
+              const targetUrl = `${service.path}?payment=${paymentMode}`;
 
               return (
                 <article
@@ -331,7 +443,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
                       </div>
                     ) : (
                       <Link
-                        to={service.path}
+                        to={targetUrl}
+                        state={{ paymentMethod: paymentMode }}
                         className={cn(
                           "w-full inline-flex items-center justify-between rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-xs cursor-pointer",
                           isDoc

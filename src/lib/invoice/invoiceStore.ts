@@ -209,10 +209,17 @@ export function buildInvoiceItems(items: OrderItemPayload[]): InvoiceItem[] {
   });
 }
 
-/** Strict financial calculation helper */
+/** Strict financial calculation helper using order snapshot */
 export function calculateFinancials(params: {
   subtotal: number;
   discount?: number;
+  taxableAmount?: number;
+  taxAmount?: number;
+  taxRate?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  platformFee?: number;
   deliveryFee?: number;
   otherCharges?: number;
   paymentStatus?: string;
@@ -220,13 +227,19 @@ export function calculateFinancials(params: {
 }) {
   const subtotal = Math.max(0, roundCurrency(params.subtotal || 0));
   const discount = Math.max(0, roundCurrency(params.discount || 0));
-  const taxable = Math.max(0, roundCurrency(subtotal - discount));
-  const tax = 0; // Palak standard 0% / exempt
+  const platformFee = Math.max(0, roundCurrency(params.platformFee || 0));
   const delivery = Math.max(0, roundCurrency(params.deliveryFee || 0));
   const other = Math.max(0, roundCurrency(params.otherCharges || 0));
+  const taxable = params.taxableAmount !== undefined 
+    ? Math.max(0, roundCurrency(params.taxableAmount))
+    : Math.max(0, roundCurrency(subtotal - discount));
+  const tax = params.taxAmount !== undefined 
+    ? Math.max(0, roundCurrency(params.taxAmount))
+    : 0;
+
   const grandTotal = params.totalOverride !== undefined && params.totalOverride > 0
     ? roundCurrency(params.totalOverride)
-    : roundCurrency(taxable + tax + delivery + other);
+    : roundCurrency(subtotal - discount + platformFee + delivery + other + tax);
 
   const isPaid = params.paymentStatus === "confirmed" || params.paymentStatus === "paid";
   const isPartiallyPaid = params.paymentStatus === "partially_paid";
@@ -247,6 +260,11 @@ export function calculateFinancials(params: {
     discountAmount: discount,
     taxableAmount: taxable,
     taxAmount: tax,
+    taxRate: params.taxRate || 0,
+    cgstAmount: params.cgstAmount,
+    sgstAmount: params.sgstAmount,
+    igstAmount: params.igstAmount,
+    platformFee,
     deliveryFee: delivery,
     otherCharges: other,
     totalAmount: grandTotal,
@@ -259,6 +277,30 @@ export class PalakInvoiceStore {
   /** Fetch all invoices from localStorage */
   static getAllLocalInvoices(): StoredInvoice[] {
     return getLocal<StoredInvoice[]>(INVOICES_STORAGE_KEY, []);
+  }
+
+  /** Clear all invoices from local storage */
+  static clearAllInvoices(): void {
+    setLocal(INVOICES_STORAGE_KEY, []);
+  }
+
+  /** Sync cloud invoices to local storage */
+  static syncInvoicesFromCloud(cloudInvoices: StoredInvoice[]): void {
+    if (Array.isArray(cloudInvoices)) {
+      setLocal(INVOICES_STORAGE_KEY, cloudInvoices);
+    }
+  }
+
+  /** Prune invoices whose order codes no longer exist in the authoritative orders list */
+  static pruneOrphanedInvoices(validOrderCodes: Set<string>): StoredInvoice[] {
+    const list = this.getAllLocalInvoices();
+    if (!validOrderCodes || validOrderCodes.size === 0) {
+      setLocal(INVOICES_STORAGE_KEY, []);
+      return [];
+    }
+    const filtered = list.filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()));
+    setLocal(INVOICES_STORAGE_KEY, filtered);
+    return filtered;
   }
 
   /** Fetch single invoice by order code from local store */
@@ -382,7 +424,15 @@ export class PalakInvoiceStore {
       const fin = calculateFinancials({
         subtotal: order.subtotalAmount || order.totalAmount || 0,
         discount: order.discountAmount || 0,
+        taxableAmount: order.taxableAmount,
+        taxAmount: order.taxAmount,
+        taxRate: order.taxRate,
+        cgstAmount: order.cgstAmount,
+        sgstAmount: order.sgstAmount,
+        igstAmount: order.igstAmount,
+        platformFee: order.platformFee,
         deliveryFee: order.deliveryFee || 0,
+        otherCharges: order.otherCharges || order.serviceCharge || 0,
         paymentStatus: order.paymentStatus,
         totalOverride: order.totalAmount,
       });
@@ -414,8 +464,14 @@ export class PalakInvoiceStore {
         discountAmount: fin.discountAmount,
         taxableAmount: fin.taxableAmount,
         taxAmount: fin.taxAmount,
+        taxRate: fin.taxRate,
+        cgstAmount: fin.cgstAmount,
+        sgstAmount: fin.sgstAmount,
+        igstAmount: fin.igstAmount,
+        platformFee: fin.platformFee,
         deliveryFee: fin.deliveryFee,
-        otherCharges: 0,
+        otherCharges: fin.otherCharges,
+        chargesSnapshot: order.chargesSnapshot,
         totalAmount: fin.totalAmount,
         amountPaid: fin.amountPaid,
         amountDue: fin.amountDue,
@@ -423,7 +479,6 @@ export class PalakInvoiceStore {
         paymentMethod: normalizeInvoicePaymentMethod(order.paymentMethod),
         status: "ISSUED",
         syncStatus: "LOCAL_PENDING",
-        isTemporary: true,
         notes: forceRegenerate
           ? `Locally regenerated by ${performedBy}: ${reason || "No reason specified"}`
           : `Temporary offline bill created by ${performedBy}`,

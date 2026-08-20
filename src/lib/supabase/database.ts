@@ -1,6 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./client";
 import {
-  CATEGORIES as LOCAL_CATEGORIES,
   PRODUCTS as LOCAL_PRODUCTS,
   DIGITAL_SERVICES as LOCAL_SERVICES,
   type LocalProduct,
@@ -73,8 +72,9 @@ export interface PrintOrderPayload {
 // ==============================================================================
 
 export async function getCategories(): Promise<LocalCategory[]> {
+  const localList = PalakDataStore.getCategories();
   if (!isSupabaseConfigured || !supabase) {
-    return LOCAL_CATEGORIES;
+    return localList;
   }
   try {
     const { data, error } = await supabase
@@ -84,10 +84,10 @@ export async function getCategories(): Promise<LocalCategory[]> {
       .order("sort_order", { ascending: true });
 
     if (error || !data || data.length === 0) {
-      return LOCAL_CATEGORIES;
+      return localList;
     }
 
-    return data.map((c) => ({
+    const dbCategories = data.map((c) => ({
       id: c.id,
       name: { en: c.name_en, hi: c.name_hi },
       description: { en: c.description_en || "", hi: c.description_hi || "" },
@@ -96,14 +96,22 @@ export async function getCategories(): Promise<LocalCategory[]> {
       badge: c.badge_en ? { en: c.badge_en, hi: c.badge_hi || c.badge_en } : undefined,
       count: 0,
     }));
+
+    const mergedMap = new Map<string, LocalCategory>();
+    localList.forEach((c) => mergedMap.set(c.id, c));
+    dbCategories.forEach((c) => mergedMap.set(c.id, c));
+    const mergedList = Array.from(mergedMap.values());
+    PalakDataStore.setCategories(mergedList);
+    return mergedList;
   } catch {
-    return LOCAL_CATEGORIES;
+    return localList;
   }
 }
 
 export async function getProducts(): Promise<LocalProduct[]> {
+  const localList = PalakDataStore.getProducts();
   if (!isSupabaseConfigured || !supabase) {
-    return LOCAL_PRODUCTS;
+    return localList;
   }
   try {
     const { data, error } = await supabase
@@ -133,10 +141,10 @@ export async function getProducts(): Promise<LocalProduct[]> {
       .order("sort_order", { ascending: true });
 
     if (error || !data || data.length === 0) {
-      return LOCAL_PRODUCTS;
+      return localList;
     }
 
-    return (data as any[]).map((p: any) => {
+    const dbProducts: LocalProduct[] = (data as any[]).map((p: any) => {
       // Map joined options
       const options = (p.product_options || []).map((opt: any) => ({
         key: opt.option_key as any,
@@ -151,38 +159,46 @@ export async function getProducts(): Promise<LocalProduct[]> {
       }));
 
       // If no options joined from DB, use local product options template if available
-      const localMatch = LOCAL_PRODUCTS.find((lp) => lp.id === p.id || lp.slug === p.slug);
+      const localMatch = localList.find((lp) => lp.id === p.id || lp.slug === p.slug) || LOCAL_PRODUCTS.find((lp) => lp.id === p.id || lp.slug === p.slug);
 
       return {
         id: p.id,
         slug: p.slug,
         categoryId: p.category_id,
-        categoryType: p.category_type || "printing",
+        categoryType: p.category_type || localMatch?.categoryType || "printing",
         name: { en: p.name_en, hi: p.name_hi },
         shortDesc: { en: p.short_desc_en || "", hi: p.short_desc_hi || "" },
         description: { en: p.description_en, hi: p.description_hi },
-        startingPrice: Number(p.starting_price) || 0,
-        baseQuantity: p.base_quantity || 1,
-        unit: p.unit || "Pcs",
+        startingPrice: Number(p.starting_price) || localMatch?.startingPrice || 0,
+        baseQuantity: p.base_quantity || localMatch?.baseQuantity || 1,
+        unit: p.unit || localMatch?.unit || "Pcs",
         imageUrl: p.image_url || localMatch?.imageUrl || "/images/gallery/visiting-cards-sample.svg",
         galleryUrls: p.gallery_urls && p.gallery_urls.length > 0 ? p.gallery_urls : localMatch?.galleryUrls || [],
         isFeatured: Boolean(p.is_featured),
         isPopular: Boolean(p.is_popular),
         isNew: Boolean(p.is_new),
         turnaroundTime: { en: p.turnaround_time_en || "24-48 Hours", hi: p.turnaround_time_hi || "24-48 घंटे" },
-        tags: p.tags || [],
+        tags: p.tags || localMatch?.tags || [],
         options: options.length > 0 ? options : localMatch?.options || [],
         specifications: p.specifications || localMatch?.specifications || {},
       };
     });
+
+    const mergedMap = new Map<string, LocalProduct>();
+    localList.forEach((p) => mergedMap.set(p.id, p));
+    dbProducts.forEach((p) => mergedMap.set(p.id, p));
+    const mergedList = Array.from(mergedMap.values());
+    PalakDataStore.setProducts(mergedList);
+    return mergedList;
   } catch {
-    return LOCAL_PRODUCTS;
+    return localList;
   }
 }
 
 export async function getServices(): Promise<LocalService[]> {
+  const localList = PalakDataStore.getDigitalServices();
   if (!isSupabaseConfigured || !supabase) {
-    return LOCAL_SERVICES;
+    return localList;
   }
   try {
     const { data, error } = await supabase
@@ -192,11 +208,11 @@ export async function getServices(): Promise<LocalService[]> {
       .order("sort_order", { ascending: true });
 
     if (error || !data || data.length === 0) {
-      return LOCAL_SERVICES;
+      return localList;
     }
 
-    return data.map((s) => {
-      const localMatch = LOCAL_SERVICES.find((ls) => ls.id === s.id || ls.slug === s.slug);
+    const dbServices: LocalService[] = data.map((s) => {
+      const localMatch = localList.find((ls) => ls.id === s.id || ls.slug === s.slug) || LOCAL_SERVICES.find((ls) => ls.id === s.id || ls.slug === s.slug);
       return {
         id: s.id,
         slug: s.slug,
@@ -204,7 +220,7 @@ export async function getServices(): Promise<LocalService[]> {
         name: { en: s.name_en, hi: s.name_hi },
         shortDesc: { en: s.short_desc_en || "", hi: s.short_desc_hi || "" },
         description: { en: s.description_en, hi: s.description_hi },
-        estimatedFee: Number(s.estimated_fee) || 0,
+        estimatedFee: Number(s.estimated_fee) || localMatch?.estimatedFee || 0,
         processingTime: { en: s.processing_time_en || "1-3 Days", hi: s.processing_time_hi || "1-3 दिन" },
         requiredDocuments: (s.required_documents_en || []).map((docEn: string, idx: number) => ({
           en: docEn,
@@ -226,8 +242,15 @@ export async function getServices(): Promise<LocalService[]> {
         tags: s.tags || localMatch?.tags || [],
       };
     });
+
+    const mergedMap = new Map<string, LocalService>();
+    localList.forEach((s) => mergedMap.set(s.id, s));
+    dbServices.forEach((s) => mergedMap.set(s.id, s));
+    const mergedList = Array.from(mergedMap.values());
+    PalakDataStore.setDigitalServices(mergedList);
+    return mergedList;
   } catch {
-    return LOCAL_SERVICES;
+    return localList;
   }
 }
 
@@ -280,6 +303,73 @@ export async function fetchPublicTracking(
 // 3. STAFF & ERP OPERATIONS (Protected by Database RLS & Staff Roles)
 // ==============================================================================
 
+export function mapOrderRowToStoredOrder(o: any): StoredOrder {
+  let orderItems: OrderItemPayload[] = [];
+  if (Array.isArray(o.items) && o.items.length > 0) {
+    orderItems = o.items;
+  } else if (typeof o.items === "string") {
+    try {
+      const parsed = JSON.parse(o.items);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        orderItems = parsed;
+      }
+    } catch {}
+  }
+  
+  if (orderItems.length === 0 && Array.isArray(o.order_items) && o.order_items.length > 0) {
+    orderItems = o.order_items.map((it: any) => ({
+      productId: it.product_id || "service",
+      productName: it.product_name,
+      quantity: Number(it.quantity) || 1,
+      unitPrice: Number(it.unit_price) || 0,
+      totalPrice: Number(it.total_price) || 0,
+      selectedOptions: it.selected_options || {},
+      selectedOptionsLabels: it.selected_options_labels || {},
+      uploadedFileName: it.uploaded_file_name,
+      uploadedFileUrl: it.uploaded_file_url,
+      designAssistanceRequested: Boolean(it.design_assistance_requested),
+      designNotes: it.design_notes,
+    }));
+  }
+
+  const queueMeta = getQueueClassification({
+    queueType: o.queue_type || o.queueType,
+    queuePriority: o.queue_priority || o.queuePriority,
+    submittedAt: o.submitted_at || o.submittedAt || o.created_at,
+    priorityAt: o.priority_at || o.priorityAt,
+    paymentMethod: o.payment_method || o.paymentMethod,
+    paymentStatus: o.payment_status || o.paymentStatus,
+    orderNotes: o.order_notes || o.orderNotes,
+    createdAt: o.created_at,
+  });
+
+  return {
+    id: o.id,
+    orderCode: o.order_code,
+    userId: o.user_id,
+    customerName: o.customer_name,
+    customerPhone: o.customer_phone,
+    customerEmail: o.customer_email,
+    fulfillmentType: o.fulfillment_type || "pickup",
+    deliveryAddress: o.delivery_address,
+    orderNotes: o.order_notes,
+    subtotalAmount: Number(o.subtotal_amount) || 0,
+    deliveryFee: Number(o.delivery_fee) || 0,
+    totalAmount: Number(o.total_amount) || 0,
+    paymentMethod: o.payment_method || "pay_at_store",
+    paymentStatus: o.payment_status || "pending",
+    orderStatus: o.order_status || "NEW",
+    items: orderItems,
+    staffNotes: o.staff_notes,
+    createdAt: o.created_at,
+    updatedAt: o.updated_at,
+    queueType: queueMeta.queueType,
+    queuePriority: queueMeta.queuePriority,
+    submittedAt: queueMeta.submittedAt,
+    priorityAt: queueMeta.priorityAt,
+  };
+}
+
 export async function getStaffOrders(): Promise<StoredOrder[]> {
   if (!isSupabaseConfigured || !supabase) return [];
   const { data, error } = await supabase
@@ -292,62 +382,27 @@ export async function getStaffOrders(): Promise<StoredOrder[]> {
     throw error;
   }
 
-  return (data || []).map((o: any) => {
-    let orderItems: OrderItemPayload[] = [];
-    if (Array.isArray(o.items) && o.items.length > 0) {
-      orderItems = o.items;
-    } else if (Array.isArray(o.order_items) && o.order_items.length > 0) {
-      orderItems = o.order_items.map((it: any) => ({
-        productId: it.product_id || "service",
-        productName: it.product_name,
-        quantity: Number(it.quantity) || 1,
-        unitPrice: Number(it.unit_price) || 0,
-        totalPrice: Number(it.total_price) || 0,
-        selectedOptions: it.selected_options || {},
-        selectedOptionsLabels: it.selected_options_labels || {},
-        uploadedFileName: it.uploaded_file_name,
-        uploadedFileUrl: it.uploaded_file_url,
-        designAssistanceRequested: Boolean(it.design_assistance_requested),
-        designNotes: it.design_notes,
-      }));
+  return (data || []).map(mapOrderRowToStoredOrder);
+}
+
+export async function getStaffOrderByCodeOrId(codeOrId: string): Promise<StoredOrder | null> {
+  if (!isSupabaseConfigured || !supabase || !codeOrId) return null;
+  try {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(codeOrId);
+    let query = supabase.from("orders").select("*, order_items(*)");
+    if (isUUID) {
+      query = query.eq("id", codeOrId);
+    } else {
+      query = query.eq("order_code", codeOrId.trim().toUpperCase());
     }
 
-    const queueMeta = getQueueClassification({
-      queueType: o.queue_type || o.queueType,
-      queuePriority: o.queue_priority || o.queuePriority,
-      submittedAt: o.submitted_at || o.submittedAt || o.created_at,
-      priorityAt: o.priority_at || o.priorityAt,
-      paymentMethod: o.payment_method || o.paymentMethod,
-      paymentStatus: o.payment_status || o.paymentStatus,
-      orderNotes: o.order_notes || o.orderNotes,
-      createdAt: o.created_at,
-    });
-
-    return {
-      id: o.id,
-      orderCode: o.order_code,
-      customerName: o.customer_name,
-      customerPhone: o.customer_phone,
-      customerEmail: o.customer_email,
-      fulfillmentType: o.fulfillment_type || "pickup",
-      deliveryAddress: o.delivery_address,
-      orderNotes: o.order_notes,
-      subtotalAmount: Number(o.subtotal_amount) || 0,
-      deliveryFee: Number(o.delivery_fee) || 0,
-      totalAmount: Number(o.total_amount) || 0,
-      paymentMethod: o.payment_method || "pay_at_store",
-      paymentStatus: o.payment_status || "pending",
-      orderStatus: o.order_status || "NEW",
-      items: orderItems,
-      staffNotes: o.staff_notes,
-      createdAt: o.created_at,
-      updatedAt: o.updated_at,
-      queueType: queueMeta.queueType,
-      queuePriority: queueMeta.queuePriority,
-      submittedAt: queueMeta.submittedAt,
-      priorityAt: queueMeta.priorityAt,
-    };
-  });
+    const { data, error } = await query.maybeSingle();
+    if (error || !data) return null;
+    return mapOrderRowToStoredOrder(data);
+  } catch (err) {
+    console.warn("getStaffOrderByCodeOrId query notice:", err);
+    return null;
+  }
 }
 
 export async function getStaffServiceRequests(): Promise<StoredServiceRequest[]> {
@@ -822,9 +877,69 @@ export async function uploadOrderFile(
   return null;
 }
 
-export async function getPrintPricingConfig(): Promise<PrintPricingConfig> {
-  if (!isSupabaseConfigured || !supabase) {
+const PRINT_PRICING_STORAGE_KEY = "palak_print_pricing_config_v1";
+
+export function getLocalPrintPricingConfig(): PrintPricingConfig {
+  if (typeof window === "undefined") return DEFAULT_PRINT_PRICING;
+  try {
+    const raw = localStorage.getItem(PRINT_PRICING_STORAGE_KEY);
+    if (!raw) return DEFAULT_PRINT_PRICING;
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_PRINT_PRICING,
+      ...parsed,
+      documentPrinting: {
+        ...DEFAULT_PRINT_PRICING.documentPrinting,
+        ...(parsed.documentPrinting || {}),
+        paperSizes: {
+          ...DEFAULT_PRINT_PRICING.documentPrinting.paperSizes,
+          ...(parsed.documentPrinting?.paperSizes || {}),
+        },
+        baseRatePerPage: {
+          ...DEFAULT_PRINT_PRICING.documentPrinting.baseRatePerPage,
+          ...(parsed.documentPrinting?.baseRatePerPage || {}),
+        },
+        finishing: {
+          ...DEFAULT_PRINT_PRICING.documentPrinting.finishing,
+          ...(parsed.documentPrinting?.finishing || {}),
+        },
+      },
+      passportPhoto: {
+        ...DEFAULT_PRINT_PRICING.passportPhoto,
+        ...(parsed.passportPhoto || {}),
+      },
+      visitingCards: {
+        ...DEFAULT_PRINT_PRICING.visitingCards,
+        ...(parsed.visitingCards || {}),
+      },
+      idCards: {
+        ...DEFAULT_PRINT_PRICING.idCards,
+        ...(parsed.idCards || {}),
+      },
+      posters: {
+        ...DEFAULT_PRINT_PRICING.posters,
+        ...(parsed.posters || {}),
+      },
+    };
+  } catch {
     return DEFAULT_PRINT_PRICING;
+  }
+}
+
+export function saveLocalPrintPricingConfig(config: PrintPricingConfig): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(PRINT_PRICING_STORAGE_KEY, JSON.stringify(config));
+    window.dispatchEvent(new CustomEvent("palak_print_pricing_updated", { detail: config }));
+  } catch (e) {
+    console.error("Error saving print pricing locally:", e);
+  }
+}
+
+export async function getPrintPricingConfig(): Promise<PrintPricingConfig> {
+  const localConfig = getLocalPrintPricingConfig();
+  if (!isSupabaseConfigured || !supabase) {
+    return localConfig;
   }
   try {
     const { data, error } = await supabase
@@ -834,16 +949,21 @@ export async function getPrintPricingConfig(): Promise<PrintPricingConfig> {
       .maybeSingle();
 
     if (error || !data || !data.value) {
-      return DEFAULT_PRINT_PRICING;
+      return localConfig;
     }
-    return { ...DEFAULT_PRINT_PRICING, ...data.value };
+    const merged = { ...localConfig, ...data.value };
+    saveLocalPrintPricingConfig(merged);
+    return merged;
   } catch {
-    return DEFAULT_PRINT_PRICING;
+    return localConfig;
   }
 }
 
 export async function updatePrintPricingConfig(config: PrintPricingConfig): Promise<boolean> {
-  if (!isSupabaseConfigured || !supabase) return false;
+  // Always persist locally first so edits are guaranteed across reloads
+  saveLocalPrintPricingConfig(config);
+
+  if (!isSupabaseConfigured || !supabase) return true;
   try {
     const { error } = await supabase
       .from("business_settings")
@@ -853,9 +973,13 @@ export async function updatePrintPricingConfig(config: PrintPricingConfig): Prom
         description: "Authoritative pricing configuration for instant online printing services",
         updated_at: new Date().toISOString(),
       });
-    return !error;
-  } catch {
-    return false;
+    if (error) {
+      console.warn("[updatePrintPricingConfig] Cloud update notice (saved locally):", error.message);
+    }
+    return true;
+  } catch (err) {
+    console.warn("[updatePrintPricingConfig] Cloud update notice (saved locally):", err);
+    return true;
   }
 }
 
@@ -1036,9 +1160,10 @@ export async function submitPrintOrder(
 // 5. INVOICES & BILLING DATA ACCESS
 // ==============================================================================
 
-export async function getStaffInvoices(): Promise<StoredInvoice[]> {
+export async function getStaffInvoices(validOrderCodes?: Set<string>): Promise<StoredInvoice[]> {
   if (!isSupabaseConfigured || !supabase) {
-    return PalakInvoiceStore.getAllLocalInvoices();
+    const local = PalakInvoiceStore.getAllLocalInvoices();
+    return validOrderCodes ? local.filter((i) => i.orderCode && validOrderCodes.has(i.orderCode.trim().toUpperCase())) : local;
   }
 
   try {
@@ -1048,7 +1173,10 @@ export async function getStaffInvoices(): Promise<StoredInvoice[]> {
       .order("invoice_date", { ascending: false });
 
     if (error) {
-      console.warn("getStaffInvoices error, using local store:", error);
+      console.warn("getStaffInvoices cloud query error, reconciling local store:", error.message || error);
+      if (validOrderCodes) {
+        return PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
+      }
       return PalakInvoiceStore.getAllLocalInvoices();
     }
 
@@ -1084,16 +1212,18 @@ export async function getStaffInvoices(): Promise<StoredInvoice[]> {
     }));
 
     // Authoritatively sync into local store
-    mapped.forEach((inv) => PalakInvoiceStore.saveInvoiceToLocal(inv));
+    PalakInvoiceStore.syncInvoicesFromCloud(mapped);
 
-    // Reconcile any pending local temporary invoices in background
-    PalakInvoiceStore.reconcilePendingInvoices().catch((e) => {
-      console.warn("Background invoice reconciliation notice:", e);
-    });
+    if (validOrderCodes) {
+      return PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
+    }
 
     return mapped;
   } catch (err) {
-    console.warn("getStaffInvoices exception, using local store:", err);
+    console.warn("getStaffInvoices exception, reconciling local store:", err);
+    if (validOrderCodes) {
+      return PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
+    }
     return PalakInvoiceStore.getAllLocalInvoices();
   }
 }

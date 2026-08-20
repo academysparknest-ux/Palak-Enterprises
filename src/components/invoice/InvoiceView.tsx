@@ -10,6 +10,17 @@ interface InvoiceViewProps {
   className?: string;
 }
 
+/**
+ * Format currency with Indian comma separators and fixed 2 decimal places: e.g. ₹1,142.24
+ */
+function formatCurrency(amount?: number): string {
+  const valid = roundCurrency(Number(amount) || 0);
+  return `₹${valid.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className }) => {
   const isPaid = invoice.paymentStatus === "confirmed" || invoice.paymentStatus === "paid";
   const isTemporary = Boolean(invoice.isTemporary || invoice.syncStatus === "LOCAL_PENDING");
@@ -37,7 +48,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
     <div
       id={elementId}
       className={cn(
-        "bg-white text-slate-900 mx-auto w-full max-w-[800px] p-6 sm:p-10 rounded-2xl border border-slate-200 shadow-sm print:shadow-none print:border-0 print:p-0 print:m-0 print:max-w-none text-xs leading-normal font-sans",
+        "palak-invoice-root bg-white text-slate-900 mx-auto w-full max-w-[800px] p-6 sm:p-10 rounded-2xl border border-slate-200 shadow-sm print:shadow-none print:border-0 print:p-0 print:m-0 print:max-w-none text-xs leading-normal font-sans",
         className
       )}
       style={{
@@ -58,12 +69,13 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
       )}
 
       {/* ─── 1. Header Banner & Business Identity ──────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b-2 border-slate-900/80">
+      <div className="invoice-section-avoid-break flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b-2 border-slate-900/80">
         {/* Business Logo & Name */}
         <div className="flex items-start gap-3.5">
           <img
             src={invoice.businessSnapshot.logoUrl || "/logo.webp"}
             alt="Palak Enterprises"
+            crossOrigin="anonymous"
             className="h-16 w-16 object-contain rounded-xl border border-slate-100 p-1 bg-white shrink-0"
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = "none";
@@ -118,7 +130,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
       </div>
 
       {/* ─── 2. Invoice Meta & Customer Details ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-5 border-b border-slate-200">
+      <div className="invoice-section-avoid-break grid grid-cols-1 sm:grid-cols-2 gap-4 py-5 border-b border-slate-200">
         {/* Customer / Bill To */}
         <div className="space-y-1 rounded-xl bg-slate-50/70 p-3.5 border border-slate-100">
           <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
@@ -201,10 +213,10 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
       </div>
 
       {/* ─── 3. Itemized Table ─────────────────────────────────────────────────── */}
-      <div className="py-5">
-        <table className="w-full text-left border-collapse">
+      <div className="py-5 overflow-x-auto">
+        <table className="w-full text-left border-collapse invoice-table">
           <thead>
-            <tr className="border-b-2 border-slate-900 text-[11px] font-black uppercase tracking-wider text-slate-700">
+            <tr className="border-b-2 border-slate-900 text-[11px] font-black uppercase tracking-wider text-slate-700 bg-slate-50/50">
               <th className="py-2.5 px-2 w-10 text-center">#</th>
               <th className="py-2.5 px-3">Item & Description</th>
               <th className="py-2.5 px-3 text-center w-16">Qty</th>
@@ -217,7 +229,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
           <tbody className="divide-y divide-slate-200">
             {invoice.items && invoice.items.length > 0 ? (
               invoice.items.map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/50">
+                <tr key={idx} className="hover:bg-slate-50/50 invoice-row-avoid-break">
                   <td className="py-3 px-2 text-center text-slate-400 font-mono text-xs">{idx + 1}</td>
                   <td className="py-3 px-3">
                     <div className="font-bold text-slate-900 text-xs">{item.productName}</div>
@@ -236,16 +248,16 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
                     {item.quantity}
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-slate-700 text-xs">
-                    ₹{roundCurrency(item.unitPrice).toFixed(2)}
+                    {formatCurrency(item.unitPrice)}
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-slate-500 text-xs">
-                    {item.discount > 0 ? `-₹${roundCurrency(item.discount).toFixed(2)}` : "—"}
+                    {item.discount > 0 ? `-${formatCurrency(item.discount)}` : "—"}
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-slate-500 text-xs">
-                    {item.tax > 0 ? `₹${roundCurrency(item.tax).toFixed(2)}` : "0% (Exempt)"}
+                    {item.tax > 0 ? formatCurrency(item.tax) : "0% (Exempt)"}
                   </td>
                   <td className="py-3 px-3 text-right font-black text-slate-900 font-mono text-xs">
-                    ₹{roundCurrency(item.totalPrice).toFixed(2)}
+                    {formatCurrency(item.totalPrice)}
                   </td>
                 </tr>
               ))
@@ -261,7 +273,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
       </div>
 
       {/* ─── 4. Calculation Summary & Financials ───────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-3 pb-6 border-t-2 border-slate-900">
+      <div className="invoice-totals-avoid-break grid grid-cols-1 sm:grid-cols-2 gap-6 pt-3 pb-6 border-t-2 border-slate-900">
         {/* Left Column: Words & Notes */}
         <div className="space-y-3">
           <div className="rounded-xl bg-slate-50 p-3 border border-slate-200">
@@ -294,37 +306,81 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
           <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
             <span>Subtotal:</span>
             <span className="font-mono font-bold text-slate-900">
-              ₹{roundCurrency(invoice.subtotalAmount || invoice.totalAmount).toFixed(2)}
+              {formatCurrency(invoice.subtotalAmount || invoice.totalAmount)}
             </span>
           </div>
 
           {invoice.discountAmount > 0 && (
             <div className="flex justify-between py-1 border-b border-slate-100 text-emerald-700">
               <span>Discount:</span>
-              <span className="font-mono font-bold">-₹{roundCurrency(invoice.discountAmount).toFixed(2)}</span>
+              <span className="font-mono font-bold">-{formatCurrency(invoice.discountAmount)}</span>
+            </div>
+          )}
+
+          {invoice.platformFee !== undefined && invoice.platformFee > 0 && (
+            <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
+              <span>Platform & Tech Fee:</span>
+              <span className="font-mono font-bold text-slate-900">
+                {formatCurrency(invoice.platformFee)}
+              </span>
+            </div>
+          )}
+
+          {invoice.deliveryFee > 0 && (
+            <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
+              <span>Delivery / Courier Charge:</span>
+              <span className="font-mono font-bold text-slate-900">
+                {formatCurrency(invoice.deliveryFee)}
+              </span>
+            </div>
+          )}
+
+          {invoice.otherCharges > 0 && (
+            <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
+              <span>Other Charges / Surcharges:</span>
+              <span className="font-mono font-bold text-slate-900">
+                {formatCurrency(invoice.otherCharges)}
+              </span>
             </div>
           )}
 
           <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
             <span>Taxable Amount:</span>
             <span className="font-mono font-bold text-slate-900">
-              ₹{roundCurrency(invoice.taxableAmount || (invoice.subtotalAmount - invoice.discountAmount)).toFixed(2)}
+              {formatCurrency(invoice.taxableAmount || (invoice.subtotalAmount - (invoice.discountAmount || 0)))}
             </span>
           </div>
 
-          <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
-            <span>GST / Tax:</span>
-            <span className="font-mono font-bold text-slate-900">
-              {invoice.taxAmount > 0 ? `₹${roundCurrency(invoice.taxAmount).toFixed(2)}` : "₹0.00 (0% / Exempt)"}
-            </span>
-          </div>
-
-          {invoice.deliveryFee > 0 && (
+          {invoice.taxAmount > 0 ? (
+            <>
+              {invoice.cgstAmount !== undefined && invoice.sgstAmount !== undefined ? (
+                <>
+                  <div className="flex justify-between py-0.5 text-[11px] text-slate-500">
+                    <span>CGST:</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {formatCurrency(invoice.cgstAmount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-0.5 border-b border-slate-100 text-[11px] text-slate-500">
+                    <span>SGST:</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {formatCurrency(invoice.sgstAmount)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
+                  <span>GST / Tax {invoice.taxRate ? `(${invoice.taxRate}%)` : ''}:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatCurrency(invoice.taxAmount)}
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
             <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
-              <span>Delivery / Courier Charge:</span>
-              <span className="font-mono font-bold text-slate-900">
-                ₹{roundCurrency(invoice.deliveryFee).toFixed(2)}
-              </span>
+              <span>GST / Tax:</span>
+              <span className="font-mono font-bold text-slate-900">₹0.00 (0% / Exempt)</span>
             </div>
           )}
 
@@ -332,28 +388,28 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
           <div className="flex justify-between items-center py-2.5 px-3 rounded-xl bg-[#123B70] text-white text-sm font-black shadow-xs mt-2">
             <span>GRAND TOTAL:</span>
             <span className="text-base font-mono tracking-tight">
-              ₹{roundCurrency(invoice.totalAmount).toFixed(2)}
+              {formatCurrency(invoice.totalAmount)}
             </span>
           </div>
 
           <div className="flex justify-between py-1 text-slate-600 pt-1">
             <span>Amount Paid:</span>
             <span className="font-mono font-bold text-emerald-700">
-              ₹{roundCurrency(invoice.amountPaid || (isPaid ? invoice.totalAmount : 0)).toFixed(2)}
+              {formatCurrency(invoice.amountPaid || (isPaid ? invoice.totalAmount : 0))}
             </span>
           </div>
 
           <div className="flex justify-between py-1 text-slate-600">
             <span>Balance Due:</span>
             <span className={cn("font-mono font-black", invoice.amountDue > 0 ? "text-amber-700" : "text-slate-800")}>
-              ₹{roundCurrency(invoice.amountDue || (isPaid ? 0 : invoice.totalAmount)).toFixed(2)}
+              {formatCurrency(invoice.amountDue || (isPaid ? 0 : invoice.totalAmount))}
             </span>
           </div>
         </div>
       </div>
 
       {/* ─── 5. Terms & Conditions and Signatory Footer ───────────────────────── */}
-      <div className="pt-4 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-4 items-end text-[10px] text-slate-500">
+      <div className="invoice-footer-avoid-break pt-4 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-4 items-end text-[10px] text-slate-500">
         <div>
           <span className="font-bold text-slate-700 uppercase tracking-wider block mb-1">
             Terms & Conditions:
@@ -391,3 +447,5 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
     </div>
   );
 };
+
+export default InvoiceView;

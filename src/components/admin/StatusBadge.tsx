@@ -34,8 +34,8 @@ export function StatusBadge({ status, variant, size = 'md', className }: StatusB
   };
 
   const sizeClasses = {
-    sm: 'px-2 py-0.5 text-xs',
-    md: 'px-2.5 py-0.5 text-sm'
+    sm: 'px-1.5 py-0.2 text-[10px] font-bold',
+    md: 'px-2 py-0.5 text-xs font-semibold'
   };
 
   return (

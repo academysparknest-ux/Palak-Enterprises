@@ -30,6 +30,7 @@ import {
   Palette,
   Laptop,
   Briefcase,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -435,14 +436,25 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                     </button>
                   </div>
 
-                  <Link
-                    to="/account"
-                    onClick={onClose}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors"
-                  >
-                    <User className="w-3.5 h-3.5 text-[#123B70]" />
-                    <span>{isStaff ? (currentLang === "hi" ? "स्टाफ ERP डैशबोर्ड" : "Staff ERP Dashboard") : (currentLang === "hi" ? "मेरा अकाउंट व ऑर्डर्स" : "My Account & Orders")}</span>
-                  </Link>
+                  {isStaff ? (
+                    <Link
+                      to="/admin"
+                      onClick={onClose}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition-colors"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-amber-700" />
+                      <span>{currentLang === "hi" ? "स्टाफ ERP डैशबोर्ड" : "Staff ERP Dashboard"}</span>
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/account"
+                      onClick={onClose}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors"
+                    >
+                      <User className="w-3.5 h-3.5 text-[#123B70]" />
+                      <span>{currentLang === "hi" ? "मेरा अकाउंट व ऑर्डर्स" : "My Account & Orders"}</span>
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

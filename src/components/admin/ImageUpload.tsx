@@ -93,13 +93,13 @@ export function ImageUpload({
 
   return (
     <div className={cn("w-full", className)}>
-      {label && <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>}
+      {label && <label className="block text-xs font-semibold text-slate-700 mb-1.5">{label}</label>}
       
       <div 
         className={cn(
-          "relative border-2 border-dashed rounded-2xl p-6 transition-colors duration-200 flex flex-col items-center justify-center text-center",
+          "relative border-2 border-dashed rounded-xl p-4 transition-colors duration-200 flex flex-col items-center justify-center text-center",
           isDragging ? "border-[#123B70] bg-[#123B70]/5" : "border-slate-300 hover:border-[#123B70] bg-slate-50",
-          currentImageUrl && !isUploading ? "p-2" : "min-h-[160px]"
+          currentImageUrl && !isUploading ? "p-1.5" : "min-h-[120px]"
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -107,7 +107,7 @@ export function ImageUpload({
       >
         <input 
           type="file" 
-          ref={fileInputRef}
+          ref={fileInputRef} 
           className="hidden" 
           accept={accept}
           onChange={handleChange}
@@ -116,21 +116,21 @@ export function ImageUpload({
 
         {isUploading ? (
           <div className="flex flex-col items-center justify-center text-[#123B70]">
-            <Loader2 className="w-8 h-8 animate-spin mb-2" />
-            <p className="text-sm font-medium">Uploading...</p>
+            <Loader2 className="w-6 h-6 animate-spin mb-1.5" />
+            <p className="text-xs font-medium">Uploading...</p>
           </div>
         ) : currentImageUrl ? (
-          <div className="relative w-full h-full min-h-[140px] rounded-xl overflow-hidden group">
+          <div className="relative w-full h-full min-h-[110px] rounded-lg overflow-hidden group">
             <img 
               src={currentImageUrl} 
               alt="Uploaded preview" 
-              className="w-full h-full object-cover rounded-xl"
+              className="w-full h-full object-cover rounded-lg"
             />
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="bg-white text-slate-900 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+                className="bg-white text-slate-900 px-2.5 py-1 rounded-lg text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Change
               </button>
@@ -138,9 +138,9 @@ export function ImageUpload({
                 <button
                   type="button"
                   onClick={onRemove}
-                  className="bg-rose-600 text-white p-1.5 rounded-lg hover:bg-rose-700 transition-colors"
+                  className="bg-rose-600 text-white p-1 rounded-lg hover:bg-rose-700 transition-colors cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -150,18 +150,16 @@ export function ImageUpload({
             className="flex flex-col items-center cursor-pointer w-full"
             onClick={() => fileInputRef.current?.click()}
           >
-            <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-3">
-              <UploadCloud className="w-6 h-6 text-[#123B70]" />
+            <div className="w-9 h-9 bg-white rounded-full shadow-xs flex items-center justify-center mb-2">
+              <UploadCloud className="w-4 h-4 text-[#123B70]" />
             </div>
-            <p className="text-sm font-medium text-slate-900">Click to upload or drag and drop</p>
-            <p className="text-xs text-slate-500 mt-1">SVG, PNG, JPG or GIF (max. {maxSizeMB}MB)</p>
+            <p className="text-xs font-bold text-slate-900">Click to upload or drag & drop</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">SVG, PNG, JPG or GIF (max. {maxSizeMB}MB)</p>
           </div>
         )}
       </div>
 
-      {error && (
-        <p className="mt-2 text-sm text-rose-600">{error}</p>
-      )}
+      {error && <p className="text-[11px] text-rose-600 mt-1">{error}</p>}
     </div>
   );
 }

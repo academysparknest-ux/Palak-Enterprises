@@ -48,22 +48,26 @@ export const TrackOrderPage: React.FC = () => {
 
     // 1. Try secure Supabase RPC tracking first
     const rpcRes = await fetchPublicTracking(q, phoneVerification);
-    if (rpcRes.success) {
+    if (rpcRes.success || rpcRes.error === "NOT_FOUND" || rpcRes.error === "PHONE_MISMATCH") {
       setRpcTrackingResult(rpcRes);
       setOrders([]);
       setServices([]);
       setQuotes([]);
       setDesigns([]);
 
-      // Fetch invoice if it's an order
-      const inv = await getInvoiceByOrderCode(q, phoneVerification).catch(() => null);
-      setActiveInvoice(inv || PalakInvoiceStore.getLocalInvoiceByOrderCode(q) || null);
+      if (rpcRes.success) {
+        // Fetch invoice if it's an order
+        const inv = await getInvoiceByOrderCode(q, phoneVerification).catch(() => null);
+        setActiveInvoice(inv || PalakInvoiceStore.getLocalInvoiceByOrderCode(q) || null);
+      } else {
+        setActiveInvoice(null);
+      }
 
       setLoading(false);
       return;
     }
 
-    // 2. Fallback to local store for offline or local cache
+    // 2. Fallback to local store ONLY on true network offline error
     setRpcTrackingResult(null);
     const result = PalakDataStore.lookupAny(q);
     setOrders(result.orders);

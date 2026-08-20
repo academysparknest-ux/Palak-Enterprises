@@ -16,7 +16,7 @@ export const AdminContentContainer: React.FC<AdminContentContainerProps> = ({
   className,
 }) => {
   return (
-    <div className={cn("w-full space-y-6 max-w-none box-border", className)}>
+    <div className={cn("w-full space-y-4 max-w-none box-border", className)}>
       {children}
     </div>
   );

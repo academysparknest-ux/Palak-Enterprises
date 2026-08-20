@@ -232,20 +232,20 @@ export function WebsiteManagementPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Control Center Page Header */}
       <AdminPageHeader 
         title="Website Control Center" 
         subtitle="Real-time website health monitor, catalog synchronization, and content controls"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={handleManualRefresh}
               disabled={refreshing || loading}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
               title="Refresh health statistics"
             >
-              <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin text-[#123B70]")} />
+              <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin text-[#123B70]")} />
               <span>Refresh Metrics</span>
             </button>
 
@@ -253,10 +253,10 @@ export function WebsiteManagementPage() {
               href="/" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#123B70] text-white rounded-xl hover:bg-[#0d2a50] transition-colors text-xs font-bold shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#123B70] text-white rounded-lg hover:bg-[#0d2a50] transition-colors text-xs font-bold shadow-xs cursor-pointer"
             >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Preview Customer Site</span>
+              <ExternalLink className="w-3 h-3" />
+              <span>Preview Site</span>
             </a>
           </div>
         }
@@ -264,54 +264,54 @@ export function WebsiteManagementPage() {
 
       {/* Top Health Status Master Banner */}
       <div className={cn(
-        "rounded-2xl border p-5 sm:p-6 transition-all shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4",
+        "rounded-xl border p-3.5 sm:p-4 transition-all shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3",
         healthStatus.level === 'healthy' && "bg-emerald-500/5 border-emerald-500/20",
         healthStatus.level === 'warning' && "bg-amber-500/5 border-amber-500/20",
         healthStatus.level === 'danger' && "bg-rose-500/5 border-rose-500/20"
       )}>
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-3">
           <div className={cn(
-            "p-3 rounded-2xl shrink-0 flex items-center justify-center",
+            "p-2 rounded-xl shrink-0 flex items-center justify-center",
             healthStatus.level === 'healthy' && "bg-emerald-100 text-emerald-700",
             healthStatus.level === 'warning' && "bg-amber-100 text-amber-700",
             healthStatus.level === 'danger' && "bg-rose-100 text-rose-700"
           )}>
-            <healthStatus.icon className="w-7 h-7" />
+            <healthStatus.icon className="w-5 h-5" />
           </div>
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Website Health Status</span>
-              <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-black border", healthStatus.badgeBg)}>
+          <div className="space-y-0.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Website Health</span>
+              <span className={cn("px-2 py-0.2 rounded-full text-[10px] font-black border", healthStatus.badgeBg)}>
                 {healthStatus.label}
               </span>
             </div>
-            <p className="text-sm font-semibold text-slate-800 leading-snug">
+            <p className="text-xs font-semibold text-slate-800 leading-snug">
               {healthStatus.summary}
             </p>
             {stats.lastUpdated && (
-              <p className="text-xs text-slate-500 flex items-center gap-1.5 pt-0.5">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <p className="text-[10px] text-slate-500 flex items-center gap-1 pt-0.5">
+                <Clock className="w-3 h-3 text-slate-400" />
                 <span>Last catalog update: <strong>{stats.lastUpdated.entity}</strong> ({new Date(stats.lastUpdated.time).toLocaleDateString()} {new Date(stats.lastUpdated.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+        <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
           {healthStatus.level !== 'healthy' ? (
             <Link
               to={stats.products.missingPrices > 0 ? "/admin/website/pricing" : "/admin/website/services"}
               className={cn(
-                "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-xs",
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-xs",
                 healthStatus.level === 'danger' ? "bg-rose-600 hover:bg-rose-700" : "bg-amber-600 hover:bg-amber-700"
               )}
             >
               <span>Resolve Issues</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-3 h-3" />
             </Link>
           ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100/70 text-emerald-800 text-xs font-bold">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100/70 text-emerald-800 text-xs font-bold">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span>Published & Synced</span>
             </div>
           )}
@@ -319,21 +319,21 @@ export function WebsiteManagementPage() {
       </div>
 
       {/* 8 Interactive Health KPI Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         {/* Card 1: Total Products & Services */}
         <Link 
           to="/admin/website/services" 
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-[#123B70]/40 transition-all group flex flex-col justify-between"
+          className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-sm hover:border-[#123B70]/40 transition-all group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Total Catalog</span>
-            <div className="p-2 rounded-xl bg-blue-50 text-[#123B70] group-hover:bg-[#123B70] group-hover:text-white transition-colors">
-              <Package className="w-4 h-4" />
+            <span className="text-[11px] font-bold text-slate-500">Total Catalog</span>
+            <div className="p-1.5 rounded-lg bg-blue-50 text-[#123B70] group-hover:bg-[#123B70] group-hover:text-white transition-colors">
+              <Package className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-slate-900">{totalItems}</div>
-            <div className="text-[11px] font-semibold text-slate-500 mt-0.5">
+          <div className="mt-2">
+            <div className="text-xl sm:text-2xl font-black text-slate-900">{totalItems}</div>
+            <div className="text-[10px] font-semibold text-slate-500 mt-0.5">
               {stats.products.total} Products • {stats.services.total} Digital
             </div>
           </div>
@@ -342,20 +342,20 @@ export function WebsiteManagementPage() {
         {/* Card 2: Active Services */}
         <Link 
           to="/admin/website/services" 
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-emerald-500/40 transition-all group flex flex-col justify-between"
+          className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-sm hover:border-emerald-500/40 transition-all group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Active (Published)</span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-              <CheckCircle2 className="w-4 h-4" />
+            <span className="text-[11px] font-bold text-slate-500">Active (Live)</span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+              <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-emerald-700">
+          <div className="mt-2">
+            <div className="text-xl sm:text-2xl font-black text-emerald-700">
               {stats.products.active + stats.services.active}
             </div>
-            <div className="text-[11px] font-semibold text-emerald-700 mt-0.5 flex items-center gap-1">
-              <span>Live on website catalog</span>
+            <div className="text-[10px] font-semibold text-emerald-700 mt-0.5">
+              Live on website catalog
             </div>
           </div>
         </Link>
@@ -363,24 +363,24 @@ export function WebsiteManagementPage() {
         {/* Card 3: Hidden / Inactive Services */}
         <Link 
           to="/admin/website/services" 
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-amber-500/40 transition-all group flex flex-col justify-between"
+          className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-sm hover:border-amber-500/40 transition-all group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Hidden / Draft</span>
+            <span className="text-[11px] font-bold text-slate-500">Hidden / Draft</span>
             <div className={cn(
-              "p-2 rounded-xl transition-colors",
+              "p-1.5 rounded-lg transition-colors",
               (stats.products.inactive + stats.services.inactive) > 0 
                 ? "bg-amber-100 text-amber-700 group-hover:bg-amber-600 group-hover:text-white" 
                 : "bg-slate-100 text-slate-500"
             )}>
-              <AlertCircle className="w-4 h-4" />
+              <AlertCircle className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-slate-900">
+          <div className="mt-2">
+            <div className="text-xl sm:text-2xl font-black text-slate-900">
               {stats.products.inactive + stats.services.inactive}
             </div>
-            <div className="text-[11px] font-semibold text-amber-700 mt-0.5">
+            <div className="text-[10px] font-semibold text-amber-700 mt-0.5">
               {(stats.products.inactive + stats.services.inactive) > 0 ? "Not visible to visitors" : "No hidden items"}
             </div>
           </div>
@@ -389,17 +389,17 @@ export function WebsiteManagementPage() {
         {/* Card 4: Total Categories */}
         <Link 
           to="/admin/website/categories" 
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-teal-500/40 transition-all group flex flex-col justify-between"
+          className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-sm hover:border-teal-500/40 transition-all group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Total Categories</span>
-            <div className="p-2 rounded-xl bg-teal-50 text-teal-700 group-hover:bg-teal-600 group-hover:text-white transition-colors">
-              <FolderTree className="w-4 h-4" />
+            <span className="text-[11px] font-bold text-slate-500">Total Categories</span>
+            <div className="p-1.5 rounded-lg bg-teal-50 text-teal-700 group-hover:bg-teal-600 group-hover:text-white transition-colors">
+              <FolderTree className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-slate-900">{stats.categories.total}</div>
-            <div className="text-[11px] font-semibold text-teal-700 mt-0.5">
+          <div className="mt-2">
+            <div className="text-xl sm:text-2xl font-black text-slate-900">{stats.categories.total}</div>
+            <div className="text-[10px] font-semibold text-teal-700 mt-0.5">
               {stats.categories.active} Active Groups
             </div>
           </div>
@@ -409,29 +409,29 @@ export function WebsiteManagementPage() {
         <Link 
           to="/admin/website/pricing" 
           className={cn(
-            "p-5 rounded-2xl border shadow-xs hover:shadow-md transition-all group flex flex-col justify-between",
+            "p-3.5 rounded-xl border shadow-xs hover:shadow-sm transition-all group flex flex-col justify-between",
             stats.products.missingPrices > 0 
               ? "bg-rose-50/40 border-rose-300 hover:border-rose-500" 
               : "bg-white border-slate-200/80"
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Missing Prices</span>
+            <span className="text-[11px] font-bold text-slate-500">Missing Prices</span>
             <div className={cn(
-              "p-2 rounded-xl transition-colors",
+              "p-1.5 rounded-lg transition-colors",
               stats.products.missingPrices > 0 
                 ? "bg-rose-100 text-rose-700 group-hover:bg-rose-600 group-hover:text-white" 
                 : "bg-slate-100 text-slate-500"
             )}>
-              <IndianRupee className="w-4 h-4" />
+              <IndianRupee className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className={cn("text-3xl font-black", stats.products.missingPrices > 0 ? "text-rose-700" : "text-slate-900")}>
+          <div className="mt-2">
+            <div className={cn("text-xl sm:text-2xl font-black", stats.products.missingPrices > 0 ? "text-rose-700" : "text-slate-900")}>
               {stats.products.missingPrices}
             </div>
-            <div className={cn("text-[11px] font-semibold mt-0.5", stats.products.missingPrices > 0 ? "text-rose-600 font-bold" : "text-emerald-700")}>
-              {stats.products.missingPrices > 0 ? "⚠️ Click to assign rates" : "✓ All products priced"}
+            <div className={cn("text-[10px] font-semibold mt-0.5", stats.products.missingPrices > 0 ? "text-rose-600 font-bold" : "text-emerald-700")}>
+              {stats.products.missingPrices > 0 ? "⚠️ Assign rates" : "✓ All priced"}
             </div>
           </div>
         </Link>
@@ -440,29 +440,29 @@ export function WebsiteManagementPage() {
         <Link 
           to="/admin/website/photos" 
           className={cn(
-            "p-5 rounded-2xl border shadow-xs hover:shadow-md transition-all group flex flex-col justify-between",
+            "p-3.5 rounded-xl border shadow-xs hover:shadow-sm transition-all group flex flex-col justify-between",
             stats.products.missingImages > 0 
               ? "bg-amber-50/40 border-amber-300 hover:border-amber-500" 
               : "bg-white border-slate-200/80"
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Missing Images</span>
+            <span className="text-[11px] font-bold text-slate-500">Missing Images</span>
             <div className={cn(
-              "p-2 rounded-xl transition-colors",
+              "p-1.5 rounded-lg transition-colors",
               stats.products.missingImages > 0 
                 ? "bg-amber-100 text-amber-700 group-hover:bg-amber-600 group-hover:text-white" 
                 : "bg-slate-100 text-slate-500"
             )}>
-              <ImageIcon className="w-4 h-4" />
+              <ImageIcon className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className={cn("text-3xl font-black", stats.products.missingImages > 0 ? "text-amber-800" : "text-slate-900")}>
+          <div className="mt-2">
+            <div className={cn("text-xl sm:text-2xl font-black", stats.products.missingImages > 0 ? "text-amber-800" : "text-slate-900")}>
               {stats.products.missingImages}
             </div>
-            <div className={cn("text-[11px] font-semibold mt-0.5", stats.products.missingImages > 0 ? "text-amber-700 font-bold" : "text-emerald-700")}>
-              {stats.products.missingImages > 0 ? "⚠️ Click to upload images" : "✓ All items have media"}
+            <div className={cn("text-[10px] font-semibold mt-0.5", stats.products.missingImages > 0 ? "text-amber-700 font-bold" : "text-emerald-700")}>
+              {stats.products.missingImages > 0 ? "⚠️ Upload media" : "✓ All have media"}
             </div>
           </div>
         </Link>
@@ -470,17 +470,17 @@ export function WebsiteManagementPage() {
         {/* Card 7: Quick Services */}
         <Link 
           to="/admin/quick-services" 
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-amber-500/40 transition-all group flex flex-col justify-between"
+          className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-sm hover:border-amber-500/40 transition-all group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Instant Services</span>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-700 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-              <Zap className="w-4 h-4" />
+            <span className="text-[11px] font-bold text-slate-500">Instant Services</span>
+            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-700 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+              <Zap className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-slate-900">7</div>
-            <div className="text-[11px] font-semibold text-amber-700 mt-0.5">
+          <div className="mt-2">
+            <div className="text-xl sm:text-2xl font-black text-slate-900">7</div>
+            <div className="text-[10px] font-semibold text-amber-700 mt-0.5">
               Direct Online Order Forms
             </div>
           </div>
@@ -489,17 +489,17 @@ export function WebsiteManagementPage() {
         {/* Card 8: Homepage Content Sections */}
         <Link 
           to="/admin/website/content" 
-          className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-indigo-500/40 transition-all group flex flex-col justify-between"
+          className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-sm hover:border-indigo-500/40 transition-all group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">Content Sections</span>
-            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <LayoutGrid className="w-4 h-4" />
+            <span className="text-[11px] font-bold text-slate-500">Content Sections</span>
+            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+              <LayoutGrid className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-black text-slate-900">{stats.content.total || 3}</div>
-            <div className="text-[11px] font-semibold text-indigo-700 mt-0.5">
+          <div className="mt-2">
+            <div className="text-xl sm:text-2xl font-black text-slate-900">{stats.content.total || 3}</div>
+            <div className="text-[10px] font-semibold text-indigo-700 mt-0.5">
               Hero, Promo & Shop Info
             </div>
           </div>
@@ -508,28 +508,28 @@ export function WebsiteManagementPage() {
 
       {/* Control Center Management Shortcuts Grid */}
       <div>
-        <div className="flex items-center justify-between mb-3.5">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+        <div className="flex items-center justify-between mb-2.5">
+          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
             <span>Management Control Areas</span>
           </h2>
-          <span className="text-xs text-slate-500">Direct shortcuts to admin sections</span>
+          <span className="text-[11px] text-slate-500">Direct shortcuts to admin sections</span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {shortcuts.map((shortcut) => (
             <Link
               key={shortcut.title}
               to={shortcut.to}
-              className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col justify-between gap-4 group"
+              className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between gap-2.5 group"
             >
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className={cn("p-3 rounded-xl border", shortcut.bgColor)}>
-                    <shortcut.icon className={cn("w-5 h-5", shortcut.color)} />
+                  <div className={cn("p-2 rounded-lg border", shortcut.bgColor)}>
+                    <shortcut.icon className={cn("w-4 h-4", shortcut.color)} />
                   </div>
                   {shortcut.badge && (
                     <span className={cn(
-                      "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                      "px-1.5 py-0.2 rounded-full text-[9px] font-bold border",
                       shortcut.badgeAlert 
                         ? "bg-rose-50 text-rose-700 border-rose-200" 
                         : "bg-slate-100 text-slate-600 border-slate-200"
@@ -539,18 +539,18 @@ export function WebsiteManagementPage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900 group-hover:text-[#123B70] transition-colors">
+                  <h3 className="font-bold text-xs text-slate-900 group-hover:text-[#123B70] transition-colors">
                     {shortcut.title}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
                     {shortcut.description}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 text-xs font-bold text-[#123B70] pt-2 border-t border-slate-100 group-hover:translate-x-1 transition-transform">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#123B70] pt-1.5 border-t border-slate-100 group-hover:translate-x-0.5 transition-transform">
                 <span>Configure</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3 h-3" />
               </div>
             </Link>
           ))}
@@ -559,23 +559,23 @@ export function WebsiteManagementPage() {
 
       {/* Live Recent Activity Stream */}
       <div>
-        <div className="flex items-center justify-between mb-3.5">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <History className="w-4 h-4 text-slate-600" />
+        <div className="flex items-center justify-between mb-2.5">
+          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+            <History className="w-3.5 h-3.5 text-slate-600" />
             <span>Recent Website Modifications</span>
           </h2>
-          <Link to="/admin/website/activity" className="text-xs font-bold text-[#123B70] hover:underline flex items-center gap-1">
+          <Link to="/admin/website/activity" className="text-[11px] font-bold text-[#123B70] hover:underline flex items-center gap-1">
             <span>View Full Audit Log</span>
-            <ArrowRight className="w-3 h-3" />
+            <ArrowRight className="w-2.5 h-2.5" />
           </Link>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
           {recentActivity.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              <History className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <div className="p-6 text-center text-slate-500">
+              <History className="w-6 h-6 text-slate-300 mx-auto mb-1.5" />
               <p className="text-xs font-semibold text-slate-600">No modifications logged yet</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Admin changes will appear here automatically with timestamps</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Admin changes will appear here automatically with timestamps</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -583,27 +583,27 @@ export function WebsiteManagementPage() {
                 const actionType = log.action_type || log.action || 'update';
                 const entityType = log.entity_type || 'catalog';
                 return (
-                  <div key={log.id} className="p-4 flex items-center justify-between hover:bg-slate-50/80 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-100 rounded-xl text-slate-600 shrink-0">
-                        <History className="w-4 h-4" />
+                  <div key={log.id} className="p-3 flex items-center justify-between hover:bg-slate-50/80 transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 bg-slate-100 rounded-lg text-slate-600 shrink-0">
+                        <History className="w-3.5 h-3.5" />
                       </div>
                       <div>
                         <p className="text-xs font-bold text-slate-900">
-                          {actionType.toUpperCase()} <span className="font-normal text-slate-500">on</span> <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono text-[10px]">{entityType}</span>
+                          {actionType.toUpperCase()} <span className="font-normal text-slate-500">on</span> <span className="px-1 py-0.2 rounded bg-slate-100 text-slate-700 font-mono text-[9px]">{entityType}</span>
                         </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[10px] text-slate-500 mt-0.5">
                           {log.details?.product_name || log.details?.title || log.entity_id || 'Website Setting'}
                           {log.details?.new_price ? ` • Price updated to ₹${log.details.new_price}` : ''}
                         </p>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-[10px] text-slate-400 flex items-center gap-1 justify-end">
-                        <Clock className="w-3 h-3" />
+                      <p className="text-[9px] text-slate-400 flex items-center gap-0.5 justify-end">
+                        <Clock className="w-2.5 h-2.5" />
                         {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
-                      <span className="text-[10px] font-bold text-slate-600">
+                      <span className="text-[9px] font-bold text-slate-600">
                         {log.details?.performed_by || 'Admin Staff'}
                       </span>
                     </div>

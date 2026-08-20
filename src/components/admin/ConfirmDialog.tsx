@@ -29,12 +29,12 @@ export function ConfirmDialog({
   const getIcon = () => {
     switch (variant) {
       case 'danger':
-        return <AlertCircle className="w-10 h-10 text-rose-500" />;
+        return <AlertCircle className="w-6 h-6 text-rose-500" />;
       case 'info':
-        return <Info className="w-10 h-10 text-blue-500" />;
+        return <Info className="w-6 h-6 text-blue-500" />;
       case 'warning':
       default:
-        return <AlertTriangle className="w-10 h-10 text-amber-500" />;
+        return <AlertTriangle className="w-6 h-6 text-amber-500" />;
     }
   };
 
@@ -58,24 +58,24 @@ export function ConfirmDialog({
       size="sm"
       className="overflow-hidden"
     >
-      <div className="flex flex-col items-center text-center pt-4 pb-2">
+      <div className="flex flex-col items-center text-center pt-2 pb-1">
         <div className={cn(
-          "w-16 h-16 flex items-center justify-center rounded-full mb-4",
+          "w-12 h-12 flex items-center justify-center rounded-full mb-3",
           variant === 'danger' && "bg-rose-100",
           variant === 'warning' && "bg-amber-100",
           variant === 'info' && "bg-blue-100"
         )}>
           {getIcon()}
         </div>
-        <h3 className="text-xl font-bold text-slate-900 mb-2">{title}</h3>
-        <p className="text-slate-500 text-sm">{message}</p>
+        <h3 className="text-base font-bold text-slate-900 mb-1">{title}</h3>
+        <p className="text-slate-500 text-xs leading-relaxed">{message}</p>
       </div>
 
-      <div className="flex items-center justify-center gap-3 mt-8">
+      <div className="flex items-center justify-center gap-2.5 mt-5">
         <button
           onClick={onCancel}
           disabled={loading}
-          className="px-4 py-2 rounded-xl text-slate-700 font-medium bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50"
+          className="px-3.5 py-1.5 rounded-lg text-slate-700 font-semibold text-xs bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
         >
           {cancelText}
         </button>
@@ -83,12 +83,12 @@ export function ConfirmDialog({
           onClick={onConfirm}
           disabled={loading}
           className={cn(
-            "px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]",
+            "px-3.5 py-1.5 rounded-lg font-bold text-xs transition-colors disabled:opacity-50 flex items-center justify-center min-w-[80px] cursor-pointer",
             getConfirmBtnClass()
           )}
         >
           {loading ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             confirmText
           )}

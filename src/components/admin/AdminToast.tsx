@@ -49,6 +49,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [addToast]
   );
 
+  useEffect(() => {
+    const handleShowToast = (e: CustomEvent) => {
+      if (e.detail && e.detail.title) {
+        toast(e.detail.title, e.detail.type || 'info', e.detail.message);
+      }
+    };
+    window.addEventListener('palak:show-toast' as any, handleShowToast);
+    return () => {
+      window.removeEventListener('palak:show-toast' as any, handleShowToast);
+    };
+  }, [toast]);
+
   return (
     <ToastContext.Provider value={{ addToast, removeToast, toast }}>
       {children}

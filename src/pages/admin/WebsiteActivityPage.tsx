@@ -167,7 +167,7 @@ export const WebsiteActivityPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <AdminPageHeader 
         title="Website Activity & Audit Trail" 
         subtitle="Immutable log of all administrative modifications, pricing changes, media uploads, and catalog updates"
@@ -175,24 +175,24 @@ export const WebsiteActivityPage: React.FC = () => {
           <button
             onClick={fetchLogs}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin text-[#123B70]")} />
+            <RefreshCw className={cn("w-3 h-3", loading && "animate-spin text-[#123B70]")} />
             <span>Refresh Logs</span>
           </button>
         }
       />
 
       {/* Filter Controls Bar */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 sm:p-5 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 sm:p-3.5 space-y-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
           {/* Action Filter */}
           <div>
-            <label className="text-xs font-bold text-slate-600 block mb-1">Action Type</label>
+            <label className="text-[11px] font-bold text-slate-600 block mb-0.5">Action Type</label>
             <select
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 cursor-pointer"
             >
               <option value="all">All Actions</option>
               <option value="price_change">Price Changes</option>
@@ -209,11 +209,11 @@ export const WebsiteActivityPage: React.FC = () => {
 
           {/* Entity Filter */}
           <div>
-            <label className="text-xs font-bold text-slate-600 block mb-1">Entity Target</label>
+            <label className="text-[11px] font-bold text-slate-600 block mb-0.5">Entity Target</label>
             <select
               value={entityFilter}
               onChange={(e) => setEntityFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 cursor-pointer"
             >
               <option value="all">All Entities</option>
               <option value="product">Products</option>
@@ -228,11 +228,11 @@ export const WebsiteActivityPage: React.FC = () => {
 
           {/* Date Range Filter */}
           <div>
-            <label className="text-xs font-bold text-slate-600 block mb-1">Date Range</label>
+            <label className="text-[11px] font-bold text-slate-600 block mb-0.5">Date Range</label>
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 cursor-pointer"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#123B70]/20 cursor-pointer"
             >
               <option value="all">All Time</option>
               <option value="today">Today Only</option>
@@ -243,15 +243,15 @@ export const WebsiteActivityPage: React.FC = () => {
 
           {/* Keyword Search */}
           <div>
-            <label className="text-xs font-bold text-slate-600 block mb-1">Search Logs</label>
+            <label className="text-[11px] font-bold text-slate-600 block mb-0.5">Search Logs</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
                 placeholder="Product name, actor..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#123B70]/20"
+                className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#123B70]/20"
               />
             </div>
           </div>
@@ -259,61 +259,61 @@ export const WebsiteActivityPage: React.FC = () => {
       </div>
 
       {/* Logs Stream List */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="divide-y divide-slate-100">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="p-4 flex items-center justify-between animate-pulse">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-slate-100" />
-                  <div className="space-y-1.5">
-                    <div className="w-48 h-3.5 bg-slate-100 rounded" />
-                    <div className="w-32 h-2.5 bg-slate-100 rounded" />
+              <div key={i} className="p-3 flex items-center justify-between animate-pulse">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-slate-100" />
+                  <div className="space-y-1">
+                    <div className="w-40 h-3 bg-slate-100 rounded" />
+                    <div className="w-24 h-2 bg-slate-100 rounded" />
                   </div>
                 </div>
-                <div className="w-20 h-4 bg-slate-100 rounded" />
+                <div className="w-16 h-3 bg-slate-100 rounded" />
               </div>
             ))}
           </div>
         ) : filteredLogs.length > 0 ? (
           <div className="divide-y divide-slate-100">
             {filteredLogs.map((log) => (
-              <div key={log.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors">
-                <div className="flex items-start gap-3.5">
-                  <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 shrink-0 mt-0.5">
+              <div key={log.id} className="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50/70 transition-colors">
+                <div className="flex items-start gap-2.5">
+                  <div className="p-2 rounded-lg bg-slate-100 border border-slate-200 shrink-0 mt-0.5">
                     {getActionIcon(log.action_type)}
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <div className="space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-xs font-bold text-slate-900">
                         {formatActionDescription(log)}
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
                       <span className="flex items-center gap-1 font-semibold text-slate-700">
-                        <User className="w-3 h-3 text-slate-400" />
+                        <User className="w-2.5 h-2.5 text-slate-400" />
                         {log.actor_name}
                       </span>
                       <span>•</span>
-                      <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                      <span className="font-mono text-[9px] bg-slate-100 px-1 py-0.2 rounded text-slate-600">
                         {log.entity_type}
                       </span>
                       {log.entity_id && (
                         <>
                           <span>•</span>
-                          <span className="font-mono text-[10px] text-slate-400">ID: {log.entity_id}</span>
+                          <span className="font-mono text-[9px] text-slate-400">ID: {log.entity_id}</span>
                         </>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="sm:text-right shrink-0 flex items-center sm:flex-col gap-2 sm:gap-1 pl-11 sm:pl-0">
-                  <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-400" />
+                <div className="sm:text-right shrink-0 flex items-center sm:flex-col gap-1.5 sm:gap-0.5 pl-9 sm:pl-0">
+                  <span className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                    <Clock className="w-2.5 h-2.5 text-slate-400" />
                     {new Date(log.created_at).toLocaleDateString()} {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                     Logged
                   </span>
                 </div>
@@ -321,10 +321,10 @@ export const WebsiteActivityPage: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-20 text-slate-500 space-y-2">
-            <Activity className="w-10 h-10 mx-auto text-slate-300" />
+          <div className="text-center py-14 text-slate-500 space-y-1.5">
+            <Activity className="w-8 h-8 mx-auto text-slate-300" />
             <p className="text-xs font-bold text-slate-700">No activity records match your criteria</p>
-            <p className="text-[11px] text-slate-400">Try changing your search keywords or adjusting the filter dates</p>
+            <p className="text-[10px] text-slate-400">Try changing your search keywords or adjusting the filter dates</p>
           </div>
         )}
       </div>

@@ -31,7 +31,7 @@ import {
   type StoredQuoteRequest,
 } from "../lib/storage/store";
 import { getUserOrders, getInvoiceByOrderCode } from "../lib/supabase/database";
-import { supabase } from "../lib/supabase/client";
+import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { SEO } from "../components/SEO";
 import { business, getWhatsAppLink } from "../config/business";
 import { InvoiceModal } from "../components/invoice/InvoiceModal";
@@ -100,36 +100,39 @@ export const AccountPage: React.FC = () => {
     const loadUserData = async () => {
       setOrdersLoading(true);
       try {
-        // Fetch orders: Remote Supabase with local store fallback
+        // Fetch orders: Remote Supabase with local store fallback only if offline
         let orders: StoredOrder[] = [];
-        if (userId) {
+        let fetchedFromCloud = false;
+
+        if (userId && isSupabaseConfigured) {
           try {
             const remote = await getUserOrders(userId);
-            if (remote && remote.length > 0) {
-              orders = remote;
-            }
+            orders = remote;
+            fetchedFromCloud = true;
           } catch (e) {
             console.warn("Supabase user orders fetch notice:", e);
           }
         }
 
-        if (orders.length === 0 && userPhone) {
-          try {
-            orders = PalakDataStore.getOrdersByPhone(userPhone);
-          } catch {
-            orders = [];
+        // Only check local fallback if cloud was not configured or offline
+        if (!fetchedFromCloud) {
+          if (orders.length === 0 && userPhone) {
+            try {
+              orders = PalakDataStore.getOrdersByPhone(userPhone);
+            } catch {
+              orders = [];
+            }
           }
-        }
 
-        // If local user has created orders in current session
-        if (orders.length === 0) {
-          const allOrders = PalakDataStore.getOrders();
-          orders = allOrders.filter((o) => {
-            if (userPhone && o.customerPhone && o.customerPhone.includes(userPhone)) return true;
-            if (userEmail && o.customerEmail && o.customerEmail.toLowerCase() === userEmail) return true;
-            if (userId && o.userId === userId) return true;
-            return false;
-          });
+          if (orders.length === 0) {
+            const allOrders = PalakDataStore.getOrders();
+            orders = allOrders.filter((o) => {
+              if (userPhone && o.customerPhone && o.customerPhone.includes(userPhone)) return true;
+              if (userEmail && o.customerEmail && o.customerEmail.toLowerCase() === userEmail) return true;
+              if (userId && o.userId === userId) return true;
+              return false;
+            });
+          }
         }
 
         // Fetch digital service requests safely

@@ -1,8 +1,7 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React from "react";
+import { Link } from "react-router-dom";
 import {
   ArrowRight,
-  Search,
   ShieldCheck,
   CheckCircle2,
   Sparkles,
@@ -21,8 +20,6 @@ interface HeroProps {
 export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestModal }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const navigate = useNavigate();
-  const [heroTrackingId, setHeroTrackingId] = useState("");
 
   return (
     <section className="relative overflow-hidden bg-[#123B70] text-white flex flex-col justify-center min-h-fit lg:min-h-[clamp(560px,72vh,700px)] pt-6 sm:pt-8 pb-10 sm:pb-14 border-b border-line">
@@ -81,10 +78,10 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestMo
       </div>
 
       <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:gap-8 xl:gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div className="grid gap-6 lg:gap-8 xl:gap-10 lg:grid-cols-2 lg:items-center">
           
           {/* =========================================================================
-              LEFT COLUMN: Brand, Main Value & Actions (52%)
+              LEFT COLUMN: Brand, Main Value & Actions (50%)
              ========================================================================= */}
           <div className="flex flex-col justify-center space-y-3.5 sm:space-y-4">
             {/* Small Trust Badge */}
@@ -200,7 +197,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestMo
           </div>
 
           {/* =========================================================================
-              RIGHT COLUMN: Quick Print Workflow Panel (48%)
+              RIGHT COLUMN: Quick Print Workflow Panel (50%)
              ========================================================================= */}
           <div
             className="relative"
@@ -287,7 +284,8 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestMo
 
                   <div className="mt-2 pt-2 border-t border-emerald-500/20">
                     <Link
-                      to="/online-services/document-printing"
+                      to="/online-services/document-printing?payment=pay_online"
+                      state={{ paymentMethod: "pay_online" }}
                       className="inline-flex items-center justify-between w-full text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors group/link cursor-pointer btn-hover-arrow"
                     >
                       <span>{currentLang === "hi" ? "ऑनलाइन प्रिंट करें (Priority) →" : "Order Online (Priority) →"}</span>
@@ -324,7 +322,8 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestMo
 
                   <div className="mt-2 pt-2 border-t border-amber-400/20">
                     <Link
-                      to="/online-services/document-printing"
+                      to="/online-services/document-printing?payment=pay_at_shop"
+                      state={{ paymentMethod: "pay_at_shop" }}
                       className="inline-flex items-center justify-between w-full text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors group/link cursor-pointer btn-hover-arrow"
                     >
                       <span>{currentLang === "hi" ? "दुकान पर भुगतान से ऑर्डर करें →" : "Order & Pay at Shop →"}</span>
@@ -333,60 +332,6 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestMo
                   </div>
                 </div>
 
-              </div>
-
-              {/* Right Panel Utility: Returning Customer Track Order Link & Search */}
-              <div className="rounded-xl bg-sky-950/60 border border-sky-500/30 p-2.5 sm:p-3 space-y-2 text-xs backdrop-blur-xs shadow-inner">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-slate-200 text-xs font-semibold">
-                    <Search className="h-3.5 w-3.5 text-amber-400 shrink-0" aria-hidden="true" />
-                    <span>
-                      {currentLang === "hi"
-                        ? "क्या आपने पहले ही ऑर्डर दिया है?"
-                        : "Already placed an order?"}
-                    </span>
-                  </div>
-                  <Link
-                    to="/order-status"
-                    className="text-[11px] font-bold text-sky-400 hover:text-sky-300 inline-flex items-center gap-1 group transition-colors"
-                  >
-                    <span>{currentLang === "hi" ? "ट्रैक पोर्टल" : "Track Order"}</span>
-                    <span className="group-hover:translate-x-0.5 transition-transform">→</span>
-                  </Link>
-                </div>
-
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (heroTrackingId.trim()) {
-                      navigate(`/order-status?code=${encodeURIComponent(heroTrackingId.trim())}`);
-                    } else {
-                      navigate("/order-status");
-                    }
-                  }}
-                  className="flex items-center gap-1.5"
-                >
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={heroTrackingId}
-                      onChange={(e) => setHeroTrackingId(e.target.value)}
-                      placeholder={
-                        currentLang === "hi"
-                          ? "ट्रैकिंग आईडी दर्ज करें (e.g. PE-O-...)"
-                          : "Type Tracking ID (e.g. PE-O-...)"
-                      }
-                      className="w-full rounded-lg border border-sky-400/30 bg-slate-900/80 px-2.5 py-1.5 text-xs text-white placeholder-slate-400 focus:border-amber-400 focus:bg-slate-900 focus:outline-hidden transition-all"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 text-xs inline-flex items-center gap-1 active-press transition-all hover:scale-105 shrink-0 cursor-pointer shadow-xs"
-                  >
-                    <span>{currentLang === "hi" ? "ट्रैक करें" : "Track"}</span>
-                    <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                  </button>
-                </form>
               </div>
 
             </div>

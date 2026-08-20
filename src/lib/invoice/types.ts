@@ -73,8 +73,13 @@ export interface StoredInvoice {
   taxableAmount: number;
   taxAmount: number;
   taxRate?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  platformFee?: number;
   deliveryFee: number;
   otherCharges: number;
+  chargesSnapshot?: any;
   totalAmount: number;
   amountPaid: number;
   amountDue: number;

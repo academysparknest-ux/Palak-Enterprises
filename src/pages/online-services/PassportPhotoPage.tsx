@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams, useLocation } from "react-router-dom";
 import {
   Upload,
   CheckCircle2,
@@ -60,8 +60,37 @@ export const PassportPhotoPage: React.FC = () => {
     }
   }, [user]);
 
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  const resolvePaymentMethod = (): "pay_at_shop" | "pay_online" => {
+    const payParam = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay") || (location.state as any)?.paymentMethod;
+    if (payParam) {
+      const p = String(payParam).toLowerCase();
+      if (p === "pay_online" || p === "online" || p === "pay-online" || p === "priority" || p === "upi_online" || p === "paid") {
+        return "pay_online";
+      }
+      if (p === "pay_at_shop" || p === "send_document" || p === "send-document" || p === "pay_at_store" || p === "shop" || p === "store" || p === "normal") {
+        return "pay_at_shop";
+      }
+    }
+    return "pay_at_shop";
+  };
+
   // Payment Method Selection
-  const [paymentMethod, setPaymentMethod] = useState<"pay_at_shop" | "pay_online">("pay_at_shop");
+  const [paymentMethod, setPaymentMethod] = useState<"pay_at_shop" | "pay_online">(resolvePaymentMethod);
+
+  useEffect(() => {
+    const payParam = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay") || (location.state as any)?.paymentMethod;
+    if (payParam) {
+      const p = String(payParam).toLowerCase();
+      if (p === "pay_online" || p === "online" || p === "pay-online" || p === "priority" || p === "upi_online" || p === "paid") {
+        setPaymentMethod("pay_online");
+      } else if (p === "pay_at_shop" || p === "send_document" || p === "send-document" || p === "pay_at_store" || p === "shop" || p === "store" || p === "normal") {
+        setPaymentMethod("pay_at_shop");
+      }
+    }
+  }, [searchParams, location.state]);
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -76,6 +105,11 @@ export const PassportPhotoPage: React.FC = () => {
 
   useEffect(() => {
     getPrintPricingConfig().then(setPricingConfig).catch(() => setPricingConfig(DEFAULT_PRINT_PRICING));
+    const handleUpdate = (e: any) => {
+      if (e?.detail) setPricingConfig(e.detail);
+    };
+    window.addEventListener("palak_print_pricing_updated", handleUpdate);
+    return () => window.removeEventListener("palak_print_pricing_updated", handleUpdate);
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

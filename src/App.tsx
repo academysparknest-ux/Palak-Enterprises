@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { LanguageProvider } from "./context/LanguageContext";
 import { AccessibilityProvider } from "./context/AccessibilityContext";
 import { CartProvider } from "./context/CartContext";
@@ -54,6 +54,7 @@ const AdminLayout = lazyWithRetry(() => import("./components/admin/AdminLayout")
 const AdminDashboardPage = lazyWithRetry(() => import("./pages/admin/AdminDashboardPage").then((m) => ({ default: m.AdminDashboardPage })));
 const AdminLegacyPage = lazyWithRetry(() => import("./pages/AdminPage").then((m) => ({ default: m.AdminPage })));
 const AdminQuickServicesPage = lazyWithRetry(() => import("./pages/admin/AdminQuickServicesPage").then((m) => ({ default: m.AdminQuickServicesPage })));
+const AdminChargesPage = lazyWithRetry(() => import("./pages/admin/AdminChargesPage").then((m) => ({ default: m.AdminChargesPage })));
 const AdminSettingsPage = lazyWithRetry(() => import("./pages/admin/AdminSettingsPage").then((m) => ({ default: m.AdminSettingsPage })));
 const WebsiteManagementPage = lazyWithRetry(() => import("./pages/admin/WebsiteManagementPage").then((m) => ({ default: m.WebsiteManagementPage })));
 const WebsiteServicesPage = lazyWithRetry(() => import("./pages/admin/WebsiteServicesPage").then((m) => ({ default: m.WebsiteServicesPage })));
@@ -246,6 +247,8 @@ export function AppContent() {
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<AdminDashboardPage />} />
                   <Route path="orders" element={<AdminLegacyPage />} />
+                  <Route path="orders/:orderCode" element={<AdminLegacyPage />} />
+                  <Route path="notifications" element={<Navigate to="/admin/orders" replace />} />
                   <Route path="payments" element={<AdminLegacyPage />} />
                   <Route path="pricing" element={<AdminLegacyPage />} />
                   <Route path="services-requests" element={<AdminLegacyPage />} />
@@ -254,6 +257,11 @@ export function AppContent() {
                   <Route path="quick-services" element={
                     <AdminRouteGuard requiredRole="MANAGER">
                       <AdminQuickServicesPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="charges" element={
+                    <AdminRouteGuard requiredRole="MANAGER">
+                      <AdminChargesPage />
                     </AdminRouteGuard>
                   } />
                   <Route path="website" element={

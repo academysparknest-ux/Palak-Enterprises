@@ -362,3 +362,164 @@ button, a {
     scroll-behavior: auto !important;
   }
 }
+
+/* =========================================================================
+   ADMIN PANEL 25% COMPACT DESIGN SYSTEM TOKENS & UTILITIES
+   ========================================================================= */
+
+/* Compact Admin Table Rows & Cells */
+.admin-table th {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  line-height: 1rem;
+}
+
+.admin-table td {
+  padding: 0.625rem 0.875rem;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+
+/* Compact Admin Form Controls */
+.admin-input {
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  border-radius: 0.5rem;
+  border-width: 1px;
+}
+
+.admin-btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1rem;
+  border-radius: 0.5rem;
+  transition: all 150ms ease-in-out;
+}
+
+.admin-btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 0.875rem;
+  border-radius: 0.375rem;
+}
+
+/* Compact Admin Cards */
+.admin-card {
+  border-radius: 0.75rem;
+  padding: 0.875rem;
+}
+
+.admin-card-lg {
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+/* =========================================================================
+   OFFICIAL TAX INVOICE & BILL PRINT ENGINE (A4 PORTRAIT)
+   ========================================================================= */
+
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm 10mm 12mm;
+}
+
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide entire application chrome when printing */
+  nav,
+  aside,
+  header,
+  footer:not(.invoice-footer-avoid-break),
+  button,
+  .no-print,
+  [role="dialog"] > div:first-child:not(.palak-invoice-root),
+  #admin-sidebar,
+  #admin-header {
+    display: none !important;
+  }
+
+  /* Make invoice container full-width and clean */
+  .palak-invoice-root,
+  [id^="invoice-view-"],
+  [id^="invoice-modal-content-"] {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Table rules for multi-page invoices */
+  .invoice-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .invoice-table thead {
+    display: table-header-group !important;
+  }
+
+  .invoice-table tbody {
+    display: table-row-group !important;
+  }
+
+  .invoice-table tr,
+  .invoice-row-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Avoid awkward page break slices in critical sections */
+  .invoice-section-avoid-break,
+  .invoice-totals-avoid-break,
+  .invoice-footer-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Ensure text contrast in print */
+  .text-slate-900,
+  .text-slate-800 {
+    color: #0f172a !important;
+  }
+
+  .text-emerald-700,
+  .text-emerald-800 {
+    color: #15803d !important;
+  }
+
+  .text-amber-700,
+  .text-amber-900 {
+    color: #b45309 !important;
+  }
+
+  .bg-slate-900 {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+  }
+}
+
