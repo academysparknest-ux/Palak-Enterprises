@@ -76,33 +76,72 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
       return;
     }
 
-    // Resolve inline browser-accessible signed URL (download: false)
-    resolveDocumentUrl(doc.url, false, doc.name)
-      .then((url) => {
-        if (!isMounted) return;
-        if (!url) {
-          // If resolving failed, fallback to raw url if it exists
+    const fileCategory = getFileCategory(doc.name, doc.url, doc.mimeType);
+
+    // For PDFs: fetch as blob to avoid X-Frame-Options / Content-Disposition issues with signed URLs
+    if (fileCategory === "pdf") {
+      resolveDocumentUrl(doc.url, false, doc.name)
+        .then((signedUrl) => {
+          if (!isMounted || !signedUrl) {
+            if (isMounted) setError("Unable to resolve PDF URL.");
+            return;
+          }
+          return fetch(signedUrl).then((resp) => {
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            return resp.blob();
+          });
+        })
+        .then((blob) => {
+          if (!isMounted || !blob) return;
+          // Guarantee application/pdf MIME type for browser PDF viewer
+          const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
+          const blobUrl = URL.createObjectURL(pdfBlob);
+          setResolvedUrl(blobUrl);
+        })
+        .catch((err) => {
+          if (!isMounted) return;
+          console.warn("PDF blob fetch note, falling back to direct URL:", err);
+          resolveDocumentUrl(doc.url, false, doc.name).then((fallbackUrl) => {
+            if (isMounted) {
+              if (fallbackUrl) {
+                setResolvedUrl(fallbackUrl);
+              } else {
+                setError("Unable to preview this PDF inline. Please use the Download or New Tab button.");
+              }
+            }
+          });
+        })
+        .finally(() => {
+          if (isMounted) setLoading(false);
+        });
+    } else {
+      // For non-PDF files: resolve signed URL directly (images, etc.)
+      resolveDocumentUrl(doc.url, false, doc.name)
+        .then((url) => {
+          if (!isMounted) return;
+          if (!url) {
+            if (doc.url) {
+              setResolvedUrl(doc.url);
+            } else {
+              setError("Unable to preview this document. The storage path could not be resolved.");
+            }
+          } else {
+            setResolvedUrl(url);
+          }
+        })
+        .catch((err) => {
+          if (!isMounted) return;
+          console.error("Failed to resolve document preview:", err);
           if (doc.url) {
             setResolvedUrl(doc.url);
           } else {
-            setError("Unable to preview this document. The storage path could not be resolved.");
+            setError("Unable to preview this document. Please try again or download directly.");
           }
-        } else {
-          setResolvedUrl(url);
-        }
-      })
-      .catch((err) => {
-        if (!isMounted) return;
-        console.error("Failed to resolve document preview:", err);
-        if (doc.url) {
-          setResolvedUrl(doc.url);
-        } else {
-          setError("Unable to preview this document. Please try again or download directly.");
-        }
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+        })
+        .finally(() => {
+          if (isMounted) setLoading(false);
+        });
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -301,14 +340,34 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
           ) : category === "pdf" ? (
             <div className="w-full h-full rounded-xl overflow-hidden bg-white shadow-inner border border-slate-300 flex flex-col relative">
               {resolvedUrl ? (
-                <iframe
-                  ref={iframeRef}
-                  src={resolvedUrl.startsWith("data:") ? resolvedUrl : `${resolvedUrl}#toolbar=1&navpanes=0`}
-                  title={doc.name}
+                <object
+                  data={resolvedUrl}
+                  type="application/pdf"
                   className="w-full flex-1 border-0"
-                  onLoad={() => setLoading(false)}
-                  onError={() => setError("Unable to preview this PDF inline. Please use 'Open in New Tab'.")}
-                />
+                  title={doc.name}
+                >
+                  <iframe
+                    ref={iframeRef}
+                    src={resolvedUrl.startsWith("blob:") || resolvedUrl.startsWith("data:") ? resolvedUrl : `${resolvedUrl}#toolbar=1&navpanes=0`}
+                    title={doc.name}
+                    className="w-full flex-1 border-0"
+                    onLoad={() => setLoading(false)}
+                    onError={() => setError("Unable to preview this PDF inline. Please use 'Open in New Tab' or 'Download'.")}
+                  >
+                    <div className="flex flex-col items-center justify-center p-8 text-center text-xs text-slate-500 gap-3">
+                      <p>Inline PDF preview is not supported directly by your browser configuration.</p>
+                      <a
+                        href={resolvedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#123B70] text-white font-semibold text-xs"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        <span>Open PDF in New Tab</span>
+                      </a>
+                    </div>
+                  </iframe>
+                </object>
               ) : (
                 <div className="p-8 text-center text-xs text-slate-400">PDF URL not loaded.</div>
               )}
