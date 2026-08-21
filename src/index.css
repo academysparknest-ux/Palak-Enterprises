@@ -426,7 +426,7 @@ button, a {
 
 @page {
   size: A4 portrait;
-  margin: 8mm 10mm 8mm 10mm;
+  margin: 6mm 8mm 6mm 8mm;
 }
 
 @media print {
@@ -439,7 +439,7 @@ button, a {
   html, body {
     background: #ffffff !important;
     color: #0f172a !important;
-    font-size: 11pt !important;
+    font-size: 10pt !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
@@ -448,7 +448,7 @@ button, a {
     overflow: visible !important;
   }
 
-  /* When printing an invoice modal, hide background app elements */
+  /* Global print hiding for non-printable UI */
   nav,
   aside,
   header:not(.invoice-section-avoid-break),
@@ -457,13 +457,28 @@ button, a {
   .no-print,
   .print\:hidden,
   #admin-sidebar,
-  #admin-header {
+  #admin-header,
+  .admin-order-modal-backdrop,
+  [data-no-print="true"] {
     display: none !important;
+    visibility: hidden !important;
   }
 
-  /* Reset modal containers so they do not clip or create overlay backdrops */
-  .fixed.inset-0,
-  [role="dialog"] {
+  /* When an invoice is being printed (either via invoice-print-active class or when .palak-invoice-root is present) */
+  /* Completely hide all non-invoice content in #root and other modal dialogs */
+  body.palak-invoice-print-active #root > *:not(:has(.palak-invoice-root)),
+  body.palak-invoice-print-active #root > div > *:not(.invoice-modal-overlay):not(:has(.palak-invoice-root)),
+  body.palak-invoice-print-active .fixed.inset-0:not(.invoice-modal-overlay):not(:has(.palak-invoice-root)),
+  body:has(.palak-invoice-root) #root > *:not(:has(.palak-invoice-root)),
+  body:has(.palak-invoice-root) #root > div > *:not(.invoice-modal-overlay):not(:has(.palak-invoice-root)),
+  body:has(.palak-invoice-root) .fixed.inset-0:not(.invoice-modal-overlay):not(:has(.palak-invoice-root)) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Reset the invoice modal container so it flows naturally without backdrop or modal wrapper styling */
+  .invoice-modal-overlay,
+  .palak-invoice-print-container {
     position: static !important;
     background: transparent !important;
     backdrop-filter: none !important;
@@ -478,16 +493,32 @@ button, a {
     border: none !important;
     box-shadow: none !important;
     border-radius: 0 !important;
+    z-index: auto !important;
   }
 
-  .overflow-y-auto {
+  .invoice-modal-overlay > div {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .invoice-modal-overlay .overflow-y-auto {
     overflow: visible !important;
     height: auto !important;
     max-height: none !important;
     padding: 0 !important;
+    background: #ffffff !important;
   }
 
-  /* Make invoice container full-width and clean */
+  /* Make invoice container full-width and clean for A4 printing */
   .palak-invoice-root,
   [id^="invoice-view-"],
   [id^="invoice-modal-content-"] {
@@ -554,4 +585,5 @@ button, a {
     color: #b45309 !important;
   }
 }
+
 

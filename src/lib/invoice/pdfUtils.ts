@@ -38,6 +38,7 @@ async function getOrRenderInvoiceElement(
 
   // Create an offscreen mount point with exact styling width
   const container = document.createElement("div");
+  container.className = "palak-invoice-print-container";
   container.style.position = "fixed";
   container.style.left = "-9999px";
   container.style.top = "0";
@@ -405,192 +406,68 @@ export async function downloadInvoicePDF(
 }
 
 /**
- * Triggers clean, dedicated bill printing in an isolated print document.
- * This guarantees ONLY the invoice is printed (no background page bleed,
+ * Triggers clean, dedicated bill printing.
+ * Guarantees ONLY the invoice is printed (no background page bleed,
  * no modal scroll clipping, exact colors, and crisp typography).
  */
 export async function printInvoiceElement(
-  invoiceOrElementOrId?: StoredInvoice | HTMLElement | string
+  invoiceOrElementOrId?: StoredInvoice | HTMLElement | string,
+  explicitId?: string
 ): Promise<void> {
   let targetElement: HTMLElement | null = null;
   let cleanupFn: (() => void) | undefined;
 
-  if (typeof invoiceOrElementOrId === "string") {
+  if (explicitId) {
+    targetElement = document.getElementById(explicitId);
+  }
+
+  if (!targetElement && typeof invoiceOrElementOrId === "string") {
     targetElement = document.getElementById(invoiceOrElementOrId);
-  } else if (invoiceOrElementOrId instanceof HTMLElement) {
+  } else if (!targetElement && invoiceOrElementOrId instanceof HTMLElement) {
     targetElement = invoiceOrElementOrId;
   } else if (
+    !targetElement &&
     invoiceOrElementOrId &&
     typeof invoiceOrElementOrId === "object" &&
     "orderCode" in invoiceOrElementOrId
   ) {
-    const { element, cleanup } = await getOrRenderInvoiceElement(invoiceOrElementOrId);
-    targetElement = element;
-    cleanupFn = cleanup;
-  } else {
+    targetElement =
+      document.getElementById(`invoice-modal-content-${invoiceOrElementOrId.orderCode}`) ||
+      document.getElementById(`invoice-view-${invoiceOrElementOrId.orderCode}`);
+
+    if (!targetElement) {
+      const { element, cleanup } = await getOrRenderInvoiceElement(invoiceOrElementOrId);
+      targetElement = element;
+      cleanupFn = cleanup;
+    }
+  } else if (!targetElement) {
     targetElement = document.querySelector(".palak-invoice-root");
   }
 
-  if (!targetElement) {
-    window.print();
-    cleanupFn?.();
-    return;
-  }
+  // Ensure body has the print isolation class
+  document.body.classList.add("palak-invoice-print-active");
 
-  // Create an isolated hidden iframe for printing
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  iframe.style.opacity = "0";
-  iframe.setAttribute("aria-hidden", "true");
-
-  document.body.appendChild(iframe);
-
-  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!iframeDoc) {
-    window.print();
-    cleanupFn?.();
-    return;
-  }
-
-  // Collect all active style tags and external stylesheet links from current page
-  const headElements: string[] = [];
-  document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
-    headElements.push(node.outerHTML);
-  });
-
-  const printSpecificStyles = `
-    @page {
-      size: A4 portrait;
-      margin: 8mm 10mm 8mm 10mm;
-    }
-    * {
-      box-sizing: border-box !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-    html, body {
-      margin: 0 !important;
-      padding: 0 !important;
-      background: #ffffff !important;
-      color: #0f172a !important;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      font-size: 11pt;
-      width: 100% !important;
-      height: auto !important;
-    }
-    .palak-invoice-root {
-      width: 100% !important;
-      max-width: 100% !important;
-      margin: 0 auto !important;
-      padding: 0 !important;
-      border: none !important;
-      box-shadow: none !important;
-      border-radius: 0 !important;
-      background: #ffffff !important;
-    }
-    .no-print, .print\\:hidden {
-      display: none !important;
-    }
-    table {
-      width: 100% !important;
-      border-collapse: collapse !important;
-    }
-    tr, .invoice-row-avoid-break {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    .invoice-section-avoid-break,
-    .invoice-totals-avoid-break,
-    .invoice-footer-avoid-break {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-    }
-    img {
-      max-width: 100%;
-      height: auto;
-    }
-  `;
-
-  iframeDoc.open();
-  iframeDoc.write(`
-    <!DOCTYPE html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Tax Invoice - Palak Enterprises</title>
-        ${headElements.join("\n")}
-        <style>${printSpecificStyles}</style>
-      </head>
-      <body>
-        <div style="width: 100%; background: #ffffff;">
-          ${targetElement.outerHTML}
-        </div>
-      </body>
-    </html>
-  `);
-  iframeDoc.close();
-
-  const triggerPrint = () => {
-    try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-    } catch (e) {
-      console.warn("Iframe print failed, falling back to window.print:", e);
-      window.print();
-    } finally {
-      setTimeout(() => {
-        try {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-        } catch {
-          // ignore
-        }
-        cleanupFn?.();
-      }, 1500);
+  const cleanupAndRestore = () => {
+    document.body.classList.remove("palak-invoice-print-active");
+    if (cleanupFn) {
+      cleanupFn();
     }
   };
 
-  // Wait for images to load before printing
-  const images = iframeDoc.querySelectorAll("img");
-  let loadedCount = 0;
-  const totalImages = images.length;
+  // Attach afterprint event to clean up automatically after print dialog closes
+  window.addEventListener("afterprint", cleanupAndRestore, { once: true });
 
-  if (totalImages === 0) {
-    setTimeout(triggerPrint, 250);
-  } else {
-    let fired = false;
-    const onImgDone = () => {
-      loadedCount++;
-      if (loadedCount >= totalImages && !fired) {
-        fired = true;
-        setTimeout(triggerPrint, 150);
-      }
-    };
-
-    images.forEach((img) => {
-      if (img.complete) {
-        onImgDone();
-      } else {
-        img.onload = onImgDone;
-        img.onerror = onImgDone;
-      }
-    });
-
-    // Fallback timer if image load event doesn't trigger
-    setTimeout(() => {
-      if (!fired) {
-        fired = true;
-        triggerPrint();
-      }
-    }, 1200);
-  }
+  // Give DOM a micro-tick to ensure styles and classes are applied before printing
+  setTimeout(() => {
+    try {
+      window.print();
+    } catch (e) {
+      console.warn("Print execution warning:", e);
+    } finally {
+      // Safety fallback to clean up even if afterprint doesn't fire in older environments
+      setTimeout(cleanupAndRestore, 4000);
+    }
+  }, 100);
 }
 
 /** Formats a professional WhatsApp message with invoice summary and tracking link */

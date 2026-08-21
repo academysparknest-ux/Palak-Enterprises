@@ -358,7 +358,7 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
 };
 
 export const AdminPage: React.FC = () => {
-  const { user, isStaff, logout } = useAuth();
+  const { user, isStaff, logout, loading: authLoading, session } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -410,11 +410,11 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const [orders, setOrders] = useState<StoredOrder[]>([]);
-  const [invoices, setInvoices] = useState<StoredInvoice[]>([]);
-  const [serviceRequests, setServiceRequests] = useState<StoredServiceRequest[]>([]);
-  const [quoteRequests, setQuoteRequests] = useState<StoredQuoteRequest[]>([]);
-  const [designRequests, setDesignRequests] = useState<StoredDesignRequest[]>([]);
+  const [orders, setOrders] = useState<StoredOrder[]>(() => PalakDataStore.getOrders());
+  const [invoices, setInvoices] = useState<StoredInvoice[]>(() => PalakInvoiceStore.getAllLocalInvoices());
+  const [serviceRequests, setServiceRequests] = useState<StoredServiceRequest[]>(() => PalakDataStore.getServiceRequests());
+  const [quoteRequests, setQuoteRequests] = useState<StoredQuoteRequest[]>(() => PalakDataStore.getQuoteRequests());
+  const [designRequests, setDesignRequests] = useState<StoredDesignRequest[]>(() => PalakDataStore.getDesignRequests());
 
   // Invoice Modal & Search State
   const [selectedInvoiceForModal, setSelectedInvoiceForModal] = useState<StoredInvoice | null>(null);
@@ -481,31 +481,38 @@ export const AdminPage: React.FC = () => {
       const localOrders = PalakDataStore.getOrders();
       const validCloudOrders = Array.isArray(cloudOrders) ? cloudOrders : [];
 
-      // Build merged order list deterministically (outside state updater to avoid race)
+      // Build merged order list deterministically
       const mergedMap = new Map<string, StoredOrder>();
 
-      // 1. Seed from local cached store (lowest priority)
+      // 1. Seed from local cached store
       localOrders.forEach((o) => {
         if (o && o.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
       });
 
       // 2. Overlay cloud orders (authoritative for cloud-backed records)
       validCloudOrders.forEach((o) => {
-        if (o && o.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
+        if (o && o.orderCode) {
+          const key = o.orderCode.trim().toUpperCase();
+          const prev = mergedMap.get(key);
+          mergedMap.set(key, { ...prev, ...o });
+        }
       });
 
-      const allOrders = Array.from(mergedMap.values());
+      let allOrders = Array.from(mergedMap.values());
       allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       if (allOrders.length > 0) {
         PalakDataStore.syncOrdersFromCloud(allOrders);
       }
 
-      // Set state, also preserving any real-time orders that arrived mid-load
+      // Set state, preserving existing in-memory orders if transient load returned empty
       setOrders((prev) => {
+        if (allOrders.length === 0 && prev.length > 0) {
+          return prev;
+        }
         const finalMap = new Map<string, StoredOrder>();
         allOrders.forEach((o) => finalMap.set(o.orderCode.trim().toUpperCase(), o));
-        // Preserve real-time orders not in the merged set
+        // Preserve any real-time orders not yet in merged set
         prev.forEach((o) => {
           if (o && o.orderCode) {
             const code = o.orderCode.trim().toUpperCase();
@@ -519,27 +526,36 @@ export const AdminPage: React.FC = () => {
         return result;
       });
 
-      // Build valid active order codes set to prevent orphaned financial records
-      const validOrderCodes = new Set(allOrders.map((o) => o.orderCode.trim().toUpperCase()));
-      PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
-
       // Invoices: authoritatively bound to active orders
+      const validOrderCodes = allOrders.length > 0
+        ? new Set(allOrders.map((o) => o.orderCode.trim().toUpperCase()))
+        : new Set<string>();
+
+      if (validOrderCodes.size > 0) {
+        PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
+      }
+
       let allInvoices: StoredInvoice[] = [];
-      if (Array.isArray(cloudInvoices)) {
-        allInvoices = cloudInvoices.filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()));
+      if (Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
+        allInvoices = validOrderCodes.size > 0
+          ? cloudInvoices.filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()))
+          : cloudInvoices;
       } else {
-        allInvoices = PalakInvoiceStore.getAllLocalInvoices().filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()));
+        const localInvs = PalakInvoiceStore.getAllLocalInvoices();
+        allInvoices = validOrderCodes.size > 0
+          ? localInvs.filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()))
+          : localInvs;
       }
 
       // Ensure any completed order has an invoice automatically generated if not yet present
-      const invoiceOrderCodes = new Set(allInvoices.map((inv) => inv.orderCode));
+      const invoiceOrderCodes = new Set(allInvoices.map((inv) => inv.orderCode.trim().toUpperCase()));
       for (const order of allOrders) {
-        if (order.orderStatus === "COMPLETED" && !invoiceOrderCodes.has(order.orderCode)) {
+        if (order.orderStatus === "COMPLETED" && !invoiceOrderCodes.has(order.orderCode.trim().toUpperCase())) {
           try {
             const genRes = await PalakDataStore.generateInvoiceForOrder(order, false, "System Auto-Sync");
             if (genRes.invoice) {
               allInvoices.push(genRes.invoice);
-              invoiceOrderCodes.add(order.orderCode);
+              invoiceOrderCodes.add(order.orderCode.trim().toUpperCase());
             }
           } catch (e) {
             console.warn("Auto invoice check warning:", e);
@@ -550,8 +566,10 @@ export const AdminPage: React.FC = () => {
       allInvoices.sort(
         (a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime()
       );
-      PalakInvoiceStore.syncInvoicesFromCloud(allInvoices);
-      setInvoices(allInvoices);
+      if (allInvoices.length > 0) {
+        PalakInvoiceStore.syncInvoicesFromCloud(allInvoices);
+      }
+      setInvoices((prev) => (allInvoices.length === 0 && prev.length > 0 ? prev : allInvoices));
 
       // Merge Service Requests
       const localServices = PalakDataStore.getServiceRequests();
@@ -580,11 +598,11 @@ export const AdminPage: React.FC = () => {
       // Always fall back to locally cached data — never wipe the display to zero
       const fallbackOrders = PalakDataStore.getOrders();
       if (fallbackOrders.length > 0) {
-        setOrders(fallbackOrders);
+        setOrders((prev) => (prev.length > 0 ? prev : fallbackOrders));
       }
       const fallbackInvoices = PalakInvoiceStore.getAllLocalInvoices();
       if (fallbackInvoices.length > 0) {
-        setInvoices(fallbackInvoices);
+        setInvoices((prev) => (prev.length > 0 ? prev : fallbackInvoices));
       }
       setServiceRequests(PalakDataStore.getServiceRequests());
       setQuoteRequests(PalakDataStore.getQuoteRequests());
@@ -620,11 +638,32 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  // Synchronize data on mount, when auth completes, or when session changes
   useEffect(() => {
-    if (isStaff || isNestedInLayout) {
+    if (!authLoading && (isStaff || isNestedInLayout)) {
       loadData();
     }
-  }, [isStaff, isNestedInLayout, loadData]);
+  }, [authLoading, isStaff, isNestedInLayout, session?.user?.id, loadData]);
+
+  // Also re-sync when tab regains focus or visibility
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && !authLoading && (isStaff || isNestedInLayout)) {
+        loadData();
+      }
+    };
+    const handleWindowFocus = () => {
+      if (!authLoading && (isStaff || isNestedInLayout)) {
+        loadData();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [authLoading, isStaff, isNestedInLayout, loadData]);
 
   // Real-time order handling without full page reload
   const handleRealtimeNewOrder = useCallback((newOrder: StoredOrder) => {
@@ -3050,7 +3089,7 @@ export const AdminPage: React.FC = () => {
       {/* Full Order Detail Drawer / Modal */}
       {selectedOrderForModal && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in print:hidden admin-order-modal-backdrop"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleCloseOrderModal();
           }}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import type { StoredInvoice } from "../../lib/invoice/types";
 import { InvoiceView } from "./InvoiceView";
 import { downloadInvoicePDF, printInvoiceElement, getWhatsAppInvoiceShareLink } from "../../lib/invoice/pdfUtils";
@@ -38,6 +38,16 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   const [regenerateReason, setRegenerateReason] = useState("");
   const [regenerating, setRegenerating] = useState(false);
 
+  // Isolate print view to ONLY this invoice while modal is open
+  useEffect(() => {
+    if (isOpen && invoice) {
+      document.body.classList.add("palak-invoice-print-active");
+      return () => {
+        document.body.classList.remove("palak-invoice-print-active");
+      };
+    }
+  }, [isOpen, invoice]);
+
   if (!isOpen || !invoice) return null;
 
   const targetInvoiceId = `invoice-modal-content-${invoice.orderCode}`;
@@ -60,7 +70,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   };
 
   const handlePrint = () => {
-    printInvoiceElement(targetInvoiceId);
+    printInvoiceElement(invoice, targetInvoiceId);
   };
 
   const handleRegenerate = async () => {
@@ -93,7 +103,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 print:p-0 print:bg-white print:static print:z-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 invoice-modal-overlay print:p-0 print:bg-white print:static print:z-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

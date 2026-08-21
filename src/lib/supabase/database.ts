@@ -373,11 +373,10 @@ export function mapOrderRowToStoredOrder(o: any): StoredOrder {
 export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]> {
   if (!isSupabaseConfigured || !supabase) return [];
 
-  // Query orders directly — items are stored as JSONB in the `items` column,
-  // so no join to order_items is needed (matches the working AdminHeader query pattern).
+  // Query orders with order_items join so items are fully populated
   let query = supabase
     .from("orders")
-    .select("*")
+    .select("*, order_items(*)")
     .order("created_at", { ascending: false });
 
   if (limit > 0) {
@@ -399,7 +398,7 @@ export async function getStaffOrderByCodeOrId(codeOrId: string): Promise<StoredO
 
   try {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(codeOrId);
-    let query = supabase.from("orders").select("*");
+    let query = supabase.from("orders").select("*, order_items(*)");
     if (isUUID) {
       query = query.eq("id", codeOrId);
     } else {
@@ -1149,10 +1148,6 @@ export async function submitPrintOrder(
           order_status: "NEW",
           items: [orderItem],
           staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
-          queue_type: queueMeta.queueType,
-          queue_priority: queueMeta.queuePriority,
-          submitted_at: queueMeta.submittedAt,
-          priority_at: queueMeta.priorityAt || null,
         };
         if (validUserId) insertPayload.user_id = validUserId;
 

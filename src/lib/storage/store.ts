@@ -927,19 +927,34 @@ export class PalakDataStore {
   }
 
   static syncOrdersFromCloud(cloudOrders: StoredOrder[]): void {
-    if (Array.isArray(cloudOrders)) {
-      setLocal(ORDERS_KEY, cloudOrders);
-      if (cloudOrders.length === 0) {
-        // Authoritative clear of order status history logs & invoices
-        const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
-        setLocal(STATUS_HISTORY_KEY, logs.filter((l) => l.entityType !== "order"));
-        PalakInvoiceStore.pruneOrphanedInvoices(new Set());
-      } else {
-        const validCodes = new Set(cloudOrders.map((o) => o.orderCode.toUpperCase()));
-        const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
-        setLocal(STATUS_HISTORY_KEY, logs.filter((l) => l.entityType !== "order" || validCodes.has(l.entityCode.toUpperCase())));
-        PalakInvoiceStore.pruneOrphanedInvoices(validCodes);
-      }
+    if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+      const existing = this.getOrders();
+      const mergedMap = new Map<string, StoredOrder>();
+
+      // 1. Existing local records
+      existing.forEach((o) => {
+        if (o && o.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
+      });
+
+      // 2. Cloud records take precedence
+      cloudOrders.forEach((o) => {
+        if (o && o.orderCode) {
+          const key = o.orderCode.trim().toUpperCase();
+          const prev = mergedMap.get(key);
+          mergedMap.set(key, { ...prev, ...o });
+        }
+      });
+
+      const mergedList = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      setLocal(ORDERS_KEY, mergedList);
+
+      const validCodes = new Set(mergedList.map((o) => o.orderCode.trim().toUpperCase()));
+      const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
+      setLocal(STATUS_HISTORY_KEY, logs.filter((l) => l.entityType !== "order" || validCodes.has(l.entityCode.toUpperCase())));
+      PalakInvoiceStore.pruneOrphanedInvoices(validCodes);
     }
   }
 

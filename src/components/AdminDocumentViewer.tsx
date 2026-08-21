@@ -191,7 +191,7 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in print:hidden">
       <div className="relative flex flex-col w-full max-w-5xl h-[92vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
         {/* Modal Header Toolbar */}
         <div className="flex items-center justify-between px-4 py-3 bg-[#0F172A] text-white border-b border-slate-800 shrink-0">

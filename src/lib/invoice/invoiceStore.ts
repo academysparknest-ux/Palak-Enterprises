@@ -148,17 +148,18 @@ function generateLocalTemporaryNumber(year: number = new Date().getFullYear()): 
 }
 
 /** Builds invoice line items from order items snapshot */
-export function buildInvoiceItems(items: OrderItemPayload[]): InvoiceItem[] {
+export function buildInvoiceItems(items: OrderItemPayload[], fallbackTotal: number = 0): InvoiceItem[] {
   if (!Array.isArray(items) || items.length === 0) {
+    const validTotal = Math.max(0, Number(fallbackTotal) || 0);
     return [
       {
         productName: "Printing & Documentation Service",
         description: "Custom Service Execution",
         quantity: 1,
-        unitPrice: 0,
+        unitPrice: validTotal,
         discount: 0,
         tax: 0,
-        totalPrice: 0,
+        totalPrice: validTotal,
       },
     ];
   }
@@ -286,8 +287,19 @@ export class PalakInvoiceStore {
 
   /** Sync cloud invoices to local storage */
   static syncInvoicesFromCloud(cloudInvoices: StoredInvoice[]): void {
-    if (Array.isArray(cloudInvoices)) {
-      setLocal(INVOICES_STORAGE_KEY, cloudInvoices);
+    if (Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
+      const existing = this.getAllLocalInvoices();
+      const map = new Map<string, StoredInvoice>();
+      existing.forEach((i) => {
+        if (i && i.invoiceNumber) map.set(i.invoiceNumber.toUpperCase(), i);
+      });
+      cloudInvoices.forEach((i) => {
+        if (i && i.invoiceNumber) map.set(i.invoiceNumber.toUpperCase(), i);
+      });
+      const merged = Array.from(map.values()).sort(
+        (a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime()
+      );
+      setLocal(INVOICES_STORAGE_KEY, merged);
     }
   }
 
@@ -295,8 +307,8 @@ export class PalakInvoiceStore {
   static pruneOrphanedInvoices(validOrderCodes: Set<string>): StoredInvoice[] {
     const list = this.getAllLocalInvoices();
     if (!validOrderCodes || validOrderCodes.size === 0) {
-      setLocal(INVOICES_STORAGE_KEY, []);
-      return [];
+      // Do not purge local invoices if order list is empty / during initial loading
+      return list;
     }
     const filtered = list.filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()));
     setLocal(INVOICES_STORAGE_KEY, filtered);
@@ -381,7 +393,7 @@ export class PalakInvoiceStore {
             completionDate: invData.completion_date || now,
             customerSnapshot: invData.customer_snapshot || {},
             businessSnapshot: invData.business_snapshot || getBusinessSnapshot(),
-            items: Array.isArray(invData.items) ? invData.items : buildInvoiceItems(order.items),
+            items: Array.isArray(invData.items) ? invData.items : buildInvoiceItems(order.items, Number(invData.total_amount) || order.totalAmount || 0),
             subtotalAmount: Number(invData.subtotal_amount) || order.subtotalAmount || 0,
             discountAmount: Number(invData.discount_amount) || 0,
             taxableAmount: Number(invData.taxable_amount) || order.subtotalAmount || 0,
@@ -447,7 +459,7 @@ export class PalakInvoiceStore {
       };
 
       const businessSnapshot = getBusinessSnapshot();
-      const invoiceItems = buildInvoiceItems(order.items);
+      const invoiceItems = buildInvoiceItems(order.items, fin.totalAmount || order.totalAmount || 0);
 
       const tempInvoice: StoredInvoice = {
         id: existingLocal?.id || (crypto.randomUUID ? crypto.randomUUID() : `temp_${Date.now()}`),
