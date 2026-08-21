@@ -426,10 +426,16 @@ button, a {
 
 @page {
   size: A4 portrait;
-  margin: 10mm 12mm 10mm 12mm;
+  margin: 8mm 10mm 8mm 10mm;
 }
 
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
+  }
+
   html, body {
     background: #ffffff !important;
     color: #0f172a !important;
@@ -438,22 +444,47 @@ button, a {
     padding: 0 !important;
     width: 100% !important;
     height: auto !important;
+    min-height: 100% !important;
     overflow: visible !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
   }
 
-  /* Hide entire application chrome when printing */
+  /* When printing an invoice modal, hide background app elements */
   nav,
   aside,
-  header,
+  header:not(.invoice-section-avoid-break),
   footer:not(.invoice-footer-avoid-break),
   button,
   .no-print,
-  [role="dialog"] > div:first-child:not(.palak-invoice-root),
+  .print\:hidden,
   #admin-sidebar,
   #admin-header {
     display: none !important;
+  }
+
+  /* Reset modal containers so they do not clip or create overlay backdrops */
+  .fixed.inset-0,
+  [role="dialog"] {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0 !important;
   }
 
   /* Make invoice container full-width and clean */
@@ -465,7 +496,7 @@ button, a {
     position: static !important;
     width: 100% !important;
     max-width: 100% !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
@@ -473,7 +504,7 @@ button, a {
     background: #ffffff !important;
   }
 
-  /* Table rules for multi-page invoices */
+  /* Table rules for clean multi-page invoice layout */
   .invoice-table {
     width: 100% !important;
     border-collapse: collapse !important;
@@ -501,7 +532,13 @@ button, a {
     page-break-inside: avoid !important;
   }
 
-  /* Ensure text contrast in print */
+  /* Color preservation for headers and totals */
+  .bg-\[\#123B70\],
+  .bg-slate-900 {
+    background-color: #123B70 !important;
+    color: #ffffff !important;
+  }
+
   .text-slate-900,
   .text-slate-800 {
     color: #0f172a !important;
@@ -515,11 +552,6 @@ button, a {
   .text-amber-700,
   .text-amber-900 {
     color: #b45309 !important;
-  }
-
-  .bg-slate-900 {
-    background-color: #0f172a !important;
-    color: #ffffff !important;
   }
 }
 

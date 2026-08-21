@@ -17,6 +17,7 @@ import {
   resolveDocumentUrl,
   printDocumentFile,
   downloadFile,
+  openDocumentInNewTab,
   type FileCategory,
 } from "../lib/documentUtils";
 import { cn } from "../lib/utils";
@@ -259,18 +260,17 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
               <span>Download</span>
             </button>
 
-            {/* Open in New Tab (Inline) */}
-            {resolvedUrl && !error && (
-              <a
-                href={resolvedUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition-all"
-                title="Open preview in new browser tab"
+            {/* Open in New Tab (Inline Native Viewer) */}
+            {doc.url && (
+              <button
+                type="button"
+                onClick={() => openDocumentInNewTab(resolvedUrl || doc.url, doc.name, doc.mimeType)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                title="Open in new browser tab with full native viewer"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">New Tab</span>
-              </a>
+              </button>
             )}
 
             {/* Close Modal */}
@@ -452,6 +452,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
 }) => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isOpening, setIsOpening] = useState(false);
 
   if (!fileUrl && !fileName) {
     return <span className="text-[11px] text-slate-400 italic">No digital file uploaded</span>;
@@ -461,13 +462,27 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
   const url = fileUrl || "";
   const category = getFileCategory(name, url, mimeType);
 
-  const handleOpen = () => {
+  const handleOpenInTab = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setIsOpening(true);
+    try {
+      await openDocumentInNewTab(url, name, mimeType);
+    } catch (err) {
+      console.error("Open in new tab error:", err);
+      if (onOpenPreview) {
+        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
+      }
+    } finally {
+      setIsOpening(false);
+    }
+  };
+
+  const handleOpenPreviewModal = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (onOpenPreview) {
       onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
     } else {
-      resolveDocumentUrl(url, false, name).then((inlineUrl) => {
-        if (inlineUrl) window.open(inlineUrl, "_blank");
-      });
+      handleOpenInTab();
     }
   };
 
@@ -538,12 +553,21 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
             <>
               <button
                 type="button"
-                onClick={handleOpen}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold transition-colors cursor-pointer"
-                title="Open PDF in secure viewer"
+                onClick={handleOpenInTab}
+                disabled={isOpening}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                title="Open PDF directly in new tab with full native reader & print controls"
+              >
+                <ExternalLink className="h-3 w-3" />
+                <span>{isOpening ? "..." : "Open PDF"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenPreviewModal}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer"
+                title="Preview PDF inline"
               >
                 <Eye className="h-3 w-3" />
-                <span>Open PDF</span>
               </button>
               <button
                 type="button"
@@ -570,12 +594,12 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
             <>
               <button
                 type="button"
-                onClick={handleOpen}
+                onClick={handleOpenPreviewModal}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition-colors cursor-pointer"
                 title="Preview image and prepare for printing"
               >
                 <Eye className="h-3 w-3" />
-                <span>Preview & Print</span>
+                <span>Preview</span>
               </button>
               <button
                 type="button"
@@ -646,7 +670,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
             {formattedSize && <span>{formattedSize}</span>}
             {category === "pdf" ? (
-              <span className="text-red-600 font-medium">PDF Document • Download or Print</span>
+              <span className="text-red-600 font-medium">PDF Document • Open, Download or Print</span>
             ) : (
               <span>Customer Uploaded File</span>
             )}
@@ -660,12 +684,22 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
           <>
             <button
               type="button"
-              onClick={handleOpen}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
-              title="Open PDF viewer"
+              onClick={handleOpenInTab}
+              disabled={isOpening}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              title="Open PDF directly in new browser tab"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span>{isOpening ? "Opening..." : "Open PDF"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenPreviewModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              title="Open inline preview modal"
             >
               <Eye className="h-3.5 w-3.5" />
-              <span>Open PDF</span>
+              <span>Preview</span>
             </button>
             <button
               type="button"
@@ -695,7 +729,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
           <>
             <button
               type="button"
-              onClick={handleOpen}
+              onClick={handleOpenPreviewModal}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
               title="Open image preview and print dialog"
             >
@@ -741,3 +775,4 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
     </div>
   );
 };
+

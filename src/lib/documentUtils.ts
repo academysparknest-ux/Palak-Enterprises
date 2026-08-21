@@ -148,6 +148,96 @@ export async function downloadFile(
   }
 }
 
+/**
+ * Converts a data URL (e.g. data:application/pdf;base64,...) into a local Blob URL
+ * because modern browsers (Chrome/Edge) block direct top-level navigation to data: URLs.
+ */
+export function dataUrlToBlobUrl(dataUrl: string, defaultMime = "application/pdf"): string {
+  try {
+    const parts = dataUrl.split(",");
+    if (parts.length < 2) return dataUrl;
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : defaultMime;
+    const isBase64 = parts[0].includes("base64");
+    
+    let byteArray: Uint8Array;
+    if (isBase64) {
+      const byteString = atob(parts[1]);
+      byteArray = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) {
+        byteArray[i] = byteString.charCodeAt(i);
+      }
+    } else {
+      const decoded = decodeURIComponent(parts[1]);
+      byteArray = new TextEncoder().encode(decoded);
+    }
+    
+    const blob = new Blob([byteArray.buffer as ArrayBuffer], { type: mime });
+    return URL.createObjectURL(blob);
+  } catch (err) {
+    console.warn("dataUrlToBlobUrl conversion notice:", err);
+    return dataUrl;
+  }
+}
+
+/**
+ * Opens any document (PDF, image, etc.) in a new browser tab with full native viewer support.
+ * Automatically handles data: URLs, Supabase storage paths, signed URLs, and blobs.
+ */
+export async function openDocumentInNewTab(
+  urlOrPath: string,
+  fileName?: string,
+  mimeType?: string
+): Promise<void> {
+  if (!urlOrPath) return;
+
+  // 1. Data URLs: Convert to Blob URL so Chrome/Edge doesn't block top-level opening
+  if (urlOrPath.startsWith("data:")) {
+    const category = getFileCategory(fileName, urlOrPath, mimeType);
+    const mime = mimeType || (category === "pdf" ? "application/pdf" : "image/png");
+    const blobUrl = dataUrlToBlobUrl(urlOrPath, mime);
+    window.open(blobUrl, "_blank");
+    return;
+  }
+
+  // 2. Blob URLs
+  if (urlOrPath.startsWith("blob:")) {
+    window.open(urlOrPath, "_blank");
+    return;
+  }
+
+  // 3. Supabase Storage Path or Remote URL
+  try {
+    const resolvedUrl = await resolveDocumentUrl(urlOrPath, false, fileName);
+    if (!resolvedUrl) {
+      window.open(urlOrPath, "_blank");
+      return;
+    }
+
+    // If it's a PDF, try fetching as blob to provide instant inline opening without content-disposition issues
+    const category = getFileCategory(fileName, urlOrPath, mimeType);
+    if (category === "pdf") {
+      try {
+        const resp = await fetch(resolvedUrl);
+        if (resp.ok) {
+          const blob = await resp.blob();
+          const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
+          const blobUrl = URL.createObjectURL(pdfBlob);
+          window.open(blobUrl, "_blank");
+          return;
+        }
+      } catch {
+        // Fall back to opening signed URL directly
+      }
+    }
+
+    window.open(resolvedUrl, "_blank");
+  } catch (err) {
+    console.error("openDocumentInNewTab error:", err);
+    window.open(urlOrPath, "_blank");
+  }
+}
+
 /** @deprecated Use downloadFile instead */
 export const downloadNonPdfFile = downloadFile;
 

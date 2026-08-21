@@ -75,7 +75,6 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, id, className
           <img
             src={invoice.businessSnapshot.logoUrl || "/logo.webp"}
             alt="Palak Enterprises"
-            crossOrigin="anonymous"
             className="h-16 w-16 object-contain rounded-xl border border-slate-100 p-1 bg-white shrink-0"
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = "none";
