@@ -372,9 +372,12 @@ export function mapOrderRowToStoredOrder(o: any): StoredOrder {
 
 export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]> {
   if (!isSupabaseConfigured || !supabase) return [];
+
+  // Query orders directly — items are stored as JSONB in the `items` column,
+  // so no join to order_items is needed (matches the working AdminHeader query pattern).
   let query = supabase
     .from("orders")
-    .select("*, order_items(*)")
+    .select("*")
     .order("created_at", { ascending: false });
 
   if (limit > 0) {
@@ -384,7 +387,7 @@ export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]
   const { data, error } = await query;
 
   if (error) {
-    console.warn("getStaffOrders query notice:", error.message || error);
+    console.warn("getStaffOrders query error:", error.message || error);
     throw error;
   }
 
@@ -393,9 +396,10 @@ export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]
 
 export async function getStaffOrderByCodeOrId(codeOrId: string): Promise<StoredOrder | null> {
   if (!isSupabaseConfigured || !supabase || !codeOrId) return null;
+
   try {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(codeOrId);
-    let query = supabase.from("orders").select("*, order_items(*)");
+    let query = supabase.from("orders").select("*");
     if (isUUID) {
       query = query.eq("id", codeOrId);
     } else {

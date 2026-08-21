@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { PalakDataStore } from '../../lib/storage/store';
-import { PalakInvoiceStore } from '../../lib/invoice/invoiceStore';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { AdminContentContainer } from '../../components/admin/AdminContentContainer';
@@ -174,7 +173,7 @@ export const AdminDashboardPage: React.FC = () => {
           // 9. Recent orders (6 rows max)
           supabase
             .from('orders')
-            .select('id, order_code, customer_name, customer_phone, total_amount, order_status, created_at, items')
+            .select('id, order_code, customer_name, customer_phone, total_amount, order_status, created_at, items, order_items(product_name, quantity, total_price)')
             .order('created_at', { ascending: false })
             .limit(6),
         ]);
@@ -182,7 +181,7 @@ export const AdminDashboardPage: React.FC = () => {
         // Evaluate error
         if (allOrdersCountRes.error) {
           const classified = classifyError(allOrdersCountRes.error);
-          if (classified.isNetwork && typeof navigator !== 'undefined' && !navigator.onLine) {
+          if (classified.isNetwork || (typeof navigator !== 'undefined' && !navigator.onLine)) {
             const localOrders = PalakDataStore.getOrders();
             if (localOrders.length > 0) {
               const localServiceRequests = PalakDataStore.getServiceRequests();
@@ -213,6 +212,9 @@ export const AdminDashboardPage: React.FC = () => {
               const formattedLocalOrders: RecentOrder[] = localOrders.slice(0, 6).map((order) => {
                 const firstItem = order.items && order.items.length > 0 ? order.items[0] : null;
                 let serviceName = firstItem ? firstItem.productName : "Print Order";
+                if (firstItem && firstItem.quantity && firstItem.quantity > 1) {
+                  serviceName += ` (${firstItem.quantity}x)`;
+                }
                 if (order.items && order.items.length > 1) {
                   serviceName += ` + ${order.items.length - 1} more`;
                 }
@@ -244,12 +246,6 @@ export const AdminDashboardPage: React.FC = () => {
         const inProductionCount = inProdCountRes.count ?? 0;
         const readyForPickupCount = readyCountRes.count ?? 0;
 
-        // If database contains 0 orders, sync local caches and zero out order-derived stats
-        if (totalOrdersCount === 0) {
-          PalakDataStore.syncOrdersFromCloud([]);
-          PalakInvoiceStore.pruneOrphanedInvoices(new Set());
-        }
-
         const revenue = totalOrdersCount === 0
           ? 0
           : (revenueRes.data || []).reduce((sum, order) => {
@@ -276,13 +272,19 @@ export const AdminDashboardPage: React.FC = () => {
             let serviceName = "Print Order";
             try {
               let itemsArr: any[] = [];
-              if (Array.isArray(order.items)) {
+              if (Array.isArray(order.items) && order.items.length > 0) {
                 itemsArr = order.items;
               } else if (typeof order.items === 'string') {
                 itemsArr = JSON.parse(order.items);
+              } else if (Array.isArray(order.order_items) && order.order_items.length > 0) {
+                itemsArr = order.order_items;
               }
+
               if (Array.isArray(itemsArr) && itemsArr.length > 0) {
-                serviceName = itemsArr[0]?.productName || itemsArr[0]?.product_name || "Print Service";
+                const first = itemsArr[0];
+                const rawName = first?.productName || first?.product_name || first?.name || "Print Service";
+                const qty = Number(first?.quantity) || 1;
+                serviceName = qty > 1 ? `${rawName} (${qty}x)` : rawName;
                 if (itemsArr.length > 1) {
                   serviceName += ` + ${itemsArr.length - 1} more`;
                 }

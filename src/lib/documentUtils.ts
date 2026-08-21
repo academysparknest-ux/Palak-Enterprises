@@ -115,21 +115,14 @@ export async function resolveDocumentUrl(
 }
 
 /**
- * Downloads non-PDF documents safely.
- * CRITICAL RULE: PDFs must NEVER be downloaded via this action.
+ * Downloads any document file including PDFs.
  */
-export async function downloadNonPdfFile(
+export async function downloadFile(
   urlOrPath: string,
   fileName?: string,
-  mimeType?: string
+  _mimeType?: string
 ): Promise<void> {
   if (!urlOrPath) return;
-
-  const category = getFileCategory(fileName, urlOrPath, mimeType);
-  if (category === "pdf") {
-    console.warn("Restricted Action: PDF direct download is disabled. Use Open PDF / Print workflow.");
-    return;
-  }
 
   const safeName = fileName || `document-${Date.now()}`;
   const downloadUrl = await resolveDocumentUrl(urlOrPath, true, safeName);
@@ -154,6 +147,9 @@ export async function downloadNonPdfFile(
     document.body.removeChild(link);
   }
 }
+
+/** @deprecated Use downloadFile instead */
+export const downloadNonPdfFile = downloadFile;
 
 /**
  * Triggers clean in-browser printing for PDF or Image documents without saving to disk first.

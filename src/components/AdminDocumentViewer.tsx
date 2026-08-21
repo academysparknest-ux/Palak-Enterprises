@@ -16,7 +16,7 @@ import {
   getFileCategory,
   resolveDocumentUrl,
   printDocumentFile,
-  downloadNonPdfFile,
+  downloadFile,
   type FileCategory,
 } from "../lib/documentUtils";
 import { cn } from "../lib/utils";
@@ -142,9 +142,9 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
   };
 
   const handleDownload = async () => {
-    if (!doc || category === "pdf") return;
+    if (!doc) return;
     try {
-      await downloadNonPdfFile(doc.url, doc.name, doc.mimeType);
+      await downloadFile(doc.url, doc.name, doc.mimeType);
     } catch (err) {
       console.error("Download error:", err);
     }
@@ -208,19 +208,17 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
               </button>
             )}
 
-            {/* Download Button: ONLY FOR NON-PDF FILES! NEVER SHOWN FOR PDF */}
-            {category !== "pdf" && (
-              <button
-                type="button"
-                onClick={handleDownload}
-                disabled={loading || !!error}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-slate-700 transition-all cursor-pointer disabled:opacity-50"
-                title="Download original file"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Download</span>
-              </button>
-            )}
+            {/* Download Button: Available for ALL file types including PDF */}
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={loading || !!error}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-slate-700 transition-all cursor-pointer disabled:opacity-50"
+              title="Download file to disk"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Download</span>
+            </button>
 
             {/* Open in New Tab (Inline) */}
             {resolvedUrl && !error && (
@@ -254,13 +252,13 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             <span>
               {category === "pdf"
-                ? "Secure Customer PDF • Ready for print verification & production workflow."
+                ? "Secure Customer PDF • Download, preview, or print directly."
                 : "Secure Document Stream • Authorized Staff Session"}
             </span>
           </div>
           {category === "pdf" && (
             <span className="text-slate-500 hidden md:inline">
-              PDF files are configured for direct preview & print.
+              Use Download button to save PDF to disk.
             </span>
           )}
         </div>
@@ -431,10 +429,9 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
 
   const handleDirectDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (category === "pdf") return;
     setIsDownloading(true);
     try {
-      await downloadNonPdfFile(url, name, mimeType);
+      await downloadFile(url, name, mimeType);
     } catch (err) {
       console.error("Download error:", err);
     } finally {
@@ -484,10 +481,20 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
                 type="button"
                 onClick={handleOpen}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold transition-colors cursor-pointer"
-                title="Open PDF in secure viewer for proofing & printing"
+                title="Open PDF in secure viewer"
               >
                 <Eye className="h-3 w-3" />
-                <span>Open & Print</span>
+                <span>Open PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDirectDownload}
+                disabled={isDownloading}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                title="Download PDF"
+              >
+                <Download className="h-3 w-3" />
+                <span>{isDownloading ? "..." : "Download"}</span>
               </button>
               <button
                 type="button"
@@ -580,7 +587,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
             {formattedSize && <span>{formattedSize}</span>}
             {category === "pdf" ? (
-              <span className="text-red-600 font-medium">Secure Stream • Inline Print Workflow</span>
+              <span className="text-red-600 font-medium">PDF Document • Download or Print</span>
             ) : (
               <span>Customer Uploaded File</span>
             )}
@@ -589,24 +596,34 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 shrink-0">
-        {/* PDF Workflow: Strict No-Download Enforcement */}
+        {/* PDF Workflow */}
         {category === "pdf" && (
           <>
             <button
               type="button"
               onClick={handleOpen}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
-              title="Open secure PDF viewer for inspection and direct printing"
+              title="Open PDF viewer"
             >
               <Eye className="h-3.5 w-3.5" />
-              <span>Open & Print</span>
+              <span>Open PDF</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDirectDownload}
+              disabled={isDownloading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              title="Download PDF file"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>{isDownloading ? "..." : "Download"}</span>
             </button>
             <button
               type="button"
               onClick={handleDirectPrint}
               disabled={isPrinting}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-              title="Send directly to printer without downloading"
+              title="Send directly to printer"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>{isPrinting ? "Printing..." : "Print"}</span>

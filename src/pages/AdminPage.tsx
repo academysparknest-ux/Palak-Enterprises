@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Search,
   CheckCircle2,
-  XCircle,
   MessageSquare,
   Settings,
   Save,
@@ -29,6 +28,8 @@ import {
   Check,
   Filter,
   Clock,
+  Phone,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -40,6 +41,7 @@ import {
 } from "../lib/storage/store";
 import {
   getStaffOrders,
+  getStaffOrderByCodeOrId,
   getStaffServiceRequests,
   getStaffQuoteRequests,
   updateStaffOrderStatus,
@@ -74,6 +76,286 @@ import {
   extractRazorpayId,
   isOrderPaidOnline,
 } from "../lib/queue";
+import type { OrderItemPayload } from "../lib/storage/store";
+
+interface AdminOrderItemSpecsProps {
+  item: OrderItemPayload;
+  itemIndex?: number;
+  totalItems?: number;
+  orderCode: string;
+  isModal?: boolean;
+  onOpenPreview?: (doc: DocumentItem) => void;
+}
+
+const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
+  item,
+  itemIndex = 0,
+  totalItems = 1,
+  orderCode,
+  isModal = false,
+  onOpenPreview,
+}) => {
+  const opts = item.selectedOptions || {};
+  const labels = item.selectedOptionsLabels || {};
+  const fin = (opts.finishing || {}) as Record<string, boolean>;
+  const prodId = (item.productId || "").toLowerCase();
+  const prodName = (item.productName || "").toLowerCase();
+
+  // Determine Category / Service Kind
+  const isVisitingCard = prodId.includes("visiting") || prodName.includes("visiting");
+  const isPassportPhoto = prodId.includes("passport") || prodId.includes("photo") || prodName.includes("passport") || prodName.includes("photo");
+  const isIdCard = prodId.includes("id-card") || prodId.includes("id_card") || prodName.includes("id card");
+  const isPosterBanner = prodId.includes("poster") || prodId.includes("banner") || prodName.includes("poster") || prodName.includes("banner");
+  const isWeddingCard = prodId.includes("wedding") || prodId.includes("invitation") || prodName.includes("wedding") || prodName.includes("invitation");
+  const isDocumentPrinting = prodId.includes("document") || prodName.includes("document") || (!isVisitingCard && !isPassportPhoto && !isIdCard && !isPosterBanner && !isWeddingCard && (opts.paperSize || opts.colorMode || opts.sides));
+
+  // Collect all attached files
+  const attachedFiles: Array<{ name: string; url: string; mimeType?: string; size?: number }> = [];
+  if (item.uploadedFileName || item.uploadedFileUrl || opts.storagePath) {
+    attachedFiles.push({
+      name: item.uploadedFileName || `attachment-${itemIndex + 1}`,
+      url: item.uploadedFileUrl || opts.storagePath || "",
+      mimeType: opts.mimeType,
+      size: opts.fileSize || opts.size,
+    });
+  }
+  if (Array.isArray(opts.files) && opts.files.length > 0) {
+    opts.files.forEach((f: any, idx: number) => {
+      const fUrl = f.url || f.storagePath || "";
+      const fName = f.name || f.fileName || `file-${idx + 1}`;
+      if (!attachedFiles.some((ex) => ex.name === fName && ex.url === fUrl)) {
+        attachedFiles.push({
+          name: fName,
+          url: fUrl,
+          mimeType: f.mimeType || f.type,
+          size: f.size,
+        });
+      }
+    });
+  }
+
+  // Generate human-readable specs list
+  const specPills: Array<{ label: string; value: string; highlight?: boolean }> = [];
+
+  if (isVisitingCard) {
+    specPills.push({ label: "Paper Stock", value: opts.paperType === "300gsm" ? "300 GSM Art Card" : "350 GSM Premium Art Board" });
+    specPills.push({
+      label: "Lamination Finish",
+      value: opts.finish === "matte" ? "Matte Lamination" : opts.finish === "gloss" ? "Gloss Lamination" : opts.finish === "velvet" ? "Velvet Touch" : (opts.finish || "Matte"),
+      highlight: true,
+    });
+    specPills.push({ label: "Print Sides", value: opts.sides === "double" ? "Double Sided (Front & Back)" : "Single Sided (Front Only)" });
+    specPills.push({ label: "Quantity", value: `${item.quantity || opts.quantity || 100} Cards`, highlight: true });
+    if (opts.mode) {
+      specPills.push({ label: "Design Mode", value: opts.mode === "template" ? "Design Template" : "Customer Upload" });
+    }
+  } else if (isPassportPhoto) {
+    specPills.push({
+      label: "Photo Size",
+      value: opts.photoSize === "stamp-25x25" ? "Stamp Size (25×25mm)" : opts.photoSize === "visa-50x50" ? "Visa Size (50×50mm)" : "Passport Size (35×45mm)",
+      highlight: true,
+    });
+    specPills.push({
+      label: "Background",
+      value: opts.background === "blue" ? "Studio Blue" : opts.background === "light_gray" ? "Light Grey" : "Studio White",
+    });
+    specPills.push({
+      label: "Paper Finish",
+      value: opts.paperFinish === "matte" ? "Premium Matte" : "High Gloss Photo",
+    });
+    specPills.push({ label: "Copies", value: `${item.quantity || opts.copies || 8} Photos`, highlight: true });
+  } else if (isIdCard) {
+    specPills.push({
+      label: "Card Type",
+      value: opts.idCardType === "rfid_proximity" ? "RFID Proximity Card" : opts.idCardType === "metal" ? "Metallic Card" : "Standard PVC Smart Card",
+      highlight: true,
+    });
+    specPills.push({
+      label: "Lanyard",
+      value: opts.lanyard === "printed_satin" ? "Printed Satin Ribbon" : opts.lanyard === "plain_ribbon" ? "Plain Lanyard" : "No Lanyard",
+    });
+    specPills.push({
+      label: "Card Holder",
+      value: opts.holder === "hard_case" ? "Hard Case Box" : opts.holder === "transparent_pouch" ? "Clear Soft Pouch" : "None",
+    });
+    specPills.push({ label: "Quantity", value: `${item.quantity} Cards`, highlight: true });
+  } else if (isPosterBanner) {
+    specPills.push({
+      label: "Dimensions",
+      value: opts.bannerSize ? `${opts.bannerSize} ft` : (opts.size || "Standard Size"),
+      highlight: true,
+    });
+    specPills.push({
+      label: "Media",
+      value: opts.material === "flex_star" ? "Star Flex Banner" : opts.material === "vinyl_gloss" ? "Self-Adhesive Vinyl" : opts.material === "canvas" ? "Textured Canvas" : (opts.material || "Flex"),
+    });
+    if (opts.eyelets) specPills.push({ label: "Eyelets", value: "Metal Rings Included" });
+    if (opts.lamination) specPills.push({ label: "Lamination", value: "Laminated" });
+    specPills.push({ label: "Quantity", value: `${item.quantity} Pcs`, highlight: true });
+  } else if (isDocumentPrinting) {
+    specPills.push({ label: "Paper", value: String(opts.paperSize || "A4").toUpperCase(), highlight: true });
+    specPills.push({ label: "Color", value: opts.colorMode === "bw" ? "B&W (Grayscale)" : "Full Color", highlight: opts.colorMode !== "bw" });
+    specPills.push({ label: "Sides", value: opts.sides === "single" ? "Single Sided" : "Double Sided (Back-to-Back)" });
+    specPills.push({ label: "Orientation", value: opts.orientation === "landscape" ? "Landscape" : "Portrait" });
+    specPills.push({ label: "Copies", value: `${item.quantity || 1} Copies`, highlight: true });
+  } else if (isWeddingCard) {
+    specPills.push({ label: "Paper Stock", value: opts.paperStock || "300 GSM Shimmer Metallic", highlight: true });
+    if (opts.cardFormat) specPills.push({ label: "Format", value: opts.cardFormat });
+    if (opts.envelope !== undefined) specPills.push({ label: "Envelope", value: opts.envelope ? "Included" : "Without Envelope" });
+    specPills.push({ label: "Quantity", value: `${item.quantity} Sets`, highlight: true });
+  } else {
+    // Custom / Cart Items: Pull from selectedOptionsLabels or selectedOptions
+    const internalKeys = new Set(["finishing", "finishingTotal", "breakdown", "storagePath", "files", "mimeType", "documentType", "source", "sku"]);
+    Object.keys(labels).forEach((k) => {
+      if (!internalKeys.has(k) && labels[k]) {
+        specPills.push({ label: k, value: String(labels[k]) });
+      }
+    });
+    if (specPills.length === 0) {
+      Object.keys(opts).forEach((k) => {
+        if (!internalKeys.has(k) && typeof opts[k] !== "object" && opts[k] !== undefined && opts[k] !== "") {
+          specPills.push({ label: k.replace(/([A-Z])/g, " $1").replace(/_/g, " "), value: String(opts[k]) });
+        }
+      });
+    }
+    specPills.push({ label: "Quantity", value: `${item.quantity} Pcs`, highlight: true });
+  }
+
+  // Visiting card template metadata (if applicable)
+  const templateFields = [
+    { label: "Name", val: opts.cardName },
+    { label: "Designation", val: opts.cardDesignation },
+    { label: "Company", val: opts.cardCompany },
+    { label: "Tagline", val: opts.cardTagline },
+    { label: "Mobile", val: opts.cardMobile },
+    { label: "WhatsApp", val: opts.cardWhatsApp },
+    { label: "Email", val: opts.cardEmail },
+    { label: "Address", val: opts.cardAddress },
+    { label: "Website", val: opts.cardWebsite },
+  ].filter((f) => Boolean(f.val));
+
+  // Finishing checklist for document printing
+  const hasFinishing = fin.spiralBinding || fin.combBinding || fin.lamination || fin.stapling;
+
+  return (
+    <div className={cn(
+      "rounded-lg p-2.5 space-y-2 bg-slate-50/80 border border-slate-200/80",
+      totalItems > 1 && "bg-slate-50 border-slate-200"
+    )}>
+      {/* Product Title Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-200/70 pb-1.5">
+        <div className="flex items-center gap-1.5">
+          {totalItems > 1 && (
+            <span className="h-4 w-4 rounded-full bg-[#123B70] text-white text-[9px] font-bold flex items-center justify-center">
+              {itemIndex + 1}
+            </span>
+          )}
+          <span className="font-bold text-xs text-slate-900">
+            {item.productName || opts.documentType || "Print Service"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-700">
+          <span>Qty: <strong className="text-slate-900 font-bold">{item.quantity}</strong></span>
+          <span>•</span>
+          <span className="text-[#123B70] font-black">₹{item.totalPrice}</span>
+        </div>
+      </div>
+
+      {/* Specifications Badges Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+        {specPills.map((sp, idx) => (
+          <div
+            key={idx}
+            className={cn(
+              "rounded-md p-1.5 border",
+              sp.highlight
+                ? "bg-blue-50/80 text-blue-950 border-blue-200/80 font-bold"
+                : "bg-white text-slate-700 border-slate-200"
+            )}
+          >
+            <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+              {sp.label}
+            </span>
+            <span className="block truncate font-semibold">{sp.value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Document Printing Finishing Checklist */}
+      {isDocumentPrinting && hasFinishing && (
+        <div className="rounded-md bg-white p-2 border border-slate-200 space-y-1">
+          <span className="text-[9px] font-bold uppercase text-slate-500 block">
+            Finishing Services Requested
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[10px]">
+            {fin.spiralBinding && (
+              <div className="flex items-center gap-1 text-emerald-800 font-bold">
+                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                <span>Spiral Binding</span>
+              </div>
+            )}
+            {fin.combBinding && (
+              <div className="flex items-center gap-1 text-emerald-800 font-bold">
+                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                <span>Comb Binding</span>
+              </div>
+            )}
+            {fin.lamination && (
+              <div className="flex items-center gap-1 text-emerald-800 font-bold">
+                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                <span>Lamination</span>
+              </div>
+            )}
+            {fin.stapling && (
+              <div className="flex items-center gap-1 text-emerald-800 font-bold">
+                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                <span>Stapling</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Template Card Details (if visiting card template used) */}
+      {templateFields.length > 0 && (
+        <div className="rounded-md bg-amber-50/60 p-2 border border-amber-200/80 space-y-1">
+          <span className="text-[9px] font-bold uppercase text-amber-900 block">
+            Visiting Card Custom Text Details
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-2 gap-y-0.5 text-[10px] text-amber-950">
+            {templateFields.map((tf, i) => (
+              <div key={i} className="truncate">
+                <span className="text-amber-800 font-semibold">{tf.label}:</span> {tf.val}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Attached Files List for this item */}
+      {attachedFiles.length > 0 && (
+        <div className="space-y-1 pt-0.5">
+          <span className="text-[9px] font-bold uppercase text-slate-500 block">
+            Attached Artwork & Files ({attachedFiles.length})
+          </span>
+          <div className="space-y-1">
+            {attachedFiles.map((af, fIdx) => (
+              <AdminFileActions
+                key={fIdx}
+                fileName={af.name}
+                fileUrl={af.url}
+                mimeType={af.mimeType}
+                orderCode={orderCode}
+                compact={!isModal}
+                onOpenPreview={onOpenPreview}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const AdminPage: React.FC = () => {
   const { user, isStaff, logout } = useAuth();
@@ -195,32 +477,50 @@ export const AdminPage: React.FC = () => {
         getPrintPricingConfig().catch(() => DEFAULT_PRINT_PRICING),
       ]);
 
-      // Authoritative Cloud Orders (if cloud query succeeded, sync to local cache; if offline, fallback to local)
-      const freshOrders: StoredOrder[] = Array.isArray(cloudOrders) ? cloudOrders : PalakDataStore.getOrders();
-      let allOrders: StoredOrder[] = [];
+      // Authoritative Cloud Orders & Local Cache Synchronization
+      const localOrders = PalakDataStore.getOrders();
+      const validCloudOrders = Array.isArray(cloudOrders) ? cloudOrders : [];
+
+      // Build merged order list deterministically (outside state updater to avoid race)
+      const mergedMap = new Map<string, StoredOrder>();
+
+      // 1. Seed from local cached store (lowest priority)
+      localOrders.forEach((o) => {
+        if (o && o.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
+      });
+
+      // 2. Overlay cloud orders (authoritative for cloud-backed records)
+      validCloudOrders.forEach((o) => {
+        if (o && o.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
+      });
+
+      const allOrders = Array.from(mergedMap.values());
+      allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      if (allOrders.length > 0) {
+        PalakDataStore.syncOrdersFromCloud(allOrders);
+      }
+
+      // Set state, also preserving any real-time orders that arrived mid-load
       setOrders((prev) => {
-        const mergedMap = new Map<string, StoredOrder>();
-        freshOrders.forEach((o) => {
-          mergedMap.set(o.orderCode.trim().toUpperCase(), o);
-        });
-        // Preserve any orders that arrived in real-time before loadData completed
+        const finalMap = new Map<string, StoredOrder>();
+        allOrders.forEach((o) => finalMap.set(o.orderCode.trim().toUpperCase(), o));
+        // Preserve real-time orders not in the merged set
         prev.forEach((o) => {
-          const code = o.orderCode.trim().toUpperCase();
-          if (!mergedMap.has(code)) {
-            mergedMap.set(code, o);
-          } else {
-            const existing = mergedMap.get(code)!;
-            mergedMap.set(code, { ...existing, ...o });
+          if (o && o.orderCode) {
+            const code = o.orderCode.trim().toUpperCase();
+            if (!finalMap.has(code)) {
+              finalMap.set(code, o);
+            }
           }
         });
-        allOrders = Array.from(mergedMap.values());
-        allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        PalakDataStore.syncOrdersFromCloud(allOrders);
-        return allOrders;
+        const result = Array.from(finalMap.values());
+        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return result;
       });
 
       // Build valid active order codes set to prevent orphaned financial records
-      const validOrderCodes = new Set((allOrders.length > 0 ? allOrders : freshOrders).map((o) => o.orderCode.trim().toUpperCase()));
+      const validOrderCodes = new Set(allOrders.map((o) => o.orderCode.trim().toUpperCase()));
       PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
 
       // Invoices: authoritatively bound to active orders
@@ -233,7 +533,7 @@ export const AdminPage: React.FC = () => {
 
       // Ensure any completed order has an invoice automatically generated if not yet present
       const invoiceOrderCodes = new Set(allInvoices.map((inv) => inv.orderCode));
-      for (const order of (allOrders.length > 0 ? allOrders : freshOrders)) {
+      for (const order of allOrders) {
         if (order.orderStatus === "COMPLETED" && !invoiceOrderCodes.has(order.orderCode)) {
           try {
             const genRes = await PalakDataStore.generateInvoiceForOrder(order, false, "System Auto-Sync");
@@ -277,13 +577,14 @@ export const AdminPage: React.FC = () => {
       setPricingConfig(pricing);
     } catch (err) {
       console.error("Admin loadData error:", err);
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        setOrders(PalakDataStore.getOrders());
-        setInvoices(PalakInvoiceStore.getAllLocalInvoices());
-      } else {
-        // Online error: do not resurrect stale local data
-        setOrders([]);
-        setInvoices([]);
+      // Always fall back to locally cached data — never wipe the display to zero
+      const fallbackOrders = PalakDataStore.getOrders();
+      if (fallbackOrders.length > 0) {
+        setOrders(fallbackOrders);
+      }
+      const fallbackInvoices = PalakInvoiceStore.getAllLocalInvoices();
+      if (fallbackInvoices.length > 0) {
+        setInvoices(fallbackInvoices);
       }
       setServiceRequests(PalakDataStore.getServiceRequests());
       setQuoteRequests(PalakDataStore.getQuoteRequests());
@@ -449,6 +750,18 @@ export const AdminPage: React.FC = () => {
           el.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       }, 150);
+    } else if (cleanTarget) {
+      // If not yet in current orders list, fetch directly from cloud/store
+      getStaffOrderByCodeOrId(cleanTarget).then((fetched: StoredOrder | null) => {
+        if (fetched) {
+          setOrders((prev) => {
+            if (prev.some((o) => o.orderCode.toUpperCase() === fetched.orderCode.toUpperCase())) return prev;
+            return [fetched, ...prev];
+          });
+          handleOpenOrderModal(fetched);
+          if (activeTab !== "orders") setActiveTab("orders");
+        }
+      }).catch((e: any) => console.warn("Failed to load targeted order:", e));
     }
   }, [targetOrderCode, orders, selectedOrderCode, activeTab, handleOpenOrderModal]);
 
@@ -1198,22 +1511,22 @@ export const AdminPage: React.FC = () => {
               <div className="space-y-2.5">
                 {filteredOrders.length > 0 ? (
                   filteredOrders.map((order) => {
-                    const firstItem = order.items[0];
-                    const options = firstItem?.selectedOptions || {};
-                    const finishing = (options.finishing || {}) as Record<string, boolean>;
+                    const items = Array.isArray(order.items) ? order.items : [];
+                    const firstItem = items[0];
                     const qMeta = getQueueClassification(order);
                     const isPriority = qMeta.queuePriority === 1;
                     const positionInfo = queueStats.positionsMap.get(order.orderCode);
                     const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
                     const isOnlineOrder = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online";
                     const isSelected = selectedOrderCode === order.orderCode;
+                    const isDelivery = order.fulfillmentType === "delivery";
 
                     return (
                       <div
                         key={order.id}
                         id={`order-${order.orderCode}`}
                         className={cn(
-                          "rounded-xl border p-3.5 space-y-2.5 transition-all bg-white shadow-xs",
+                          "rounded-xl border p-3.5 space-y-3 transition-all bg-white shadow-xs",
                           isSelected
                             ? "border-[#123B70] ring-2 ring-[#123B70]/40 shadow-sm bg-blue-50/20"
                             : isPriority
@@ -1224,7 +1537,7 @@ export const AdminPage: React.FC = () => {
                         {/* Top Header Row */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
                           <div className="flex items-center gap-2.5">
-                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-bold ${
+                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-bold shrink-0 ${
                               isPriority
                                 ? "bg-amber-100 text-amber-900 border border-amber-300"
                                 : "bg-slate-100 text-slate-700 border border-slate-200"
@@ -1254,8 +1567,23 @@ export const AdminPage: React.FC = () => {
                                   </span>
                                 )}
 
-                                <span className="rounded-full px-1.5 py-0.2 text-[9px] font-semibold bg-blue-50 text-blue-900 border border-blue-200">
-                                  {options.documentType || firstItem?.productName || "Print Job"}
+                                {/* Fulfillment Tag */}
+                                {isDelivery ? (
+                                  <span className="rounded-full px-1.5 py-0.2 text-[9px] font-bold bg-amber-50 text-amber-900 border border-amber-200 flex items-center gap-0.5">
+                                    <MapPin className="h-2.5 w-2.5" />
+                                    <span>Home Delivery</span>
+                                  </span>
+                                ) : (
+                                  <span className="rounded-full px-1.5 py-0.2 text-[9px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                    Store Pickup
+                                  </span>
+                                )}
+
+                                {/* Service/Product Badge */}
+                                <span className="rounded-full px-2 py-0.2 text-[9px] font-bold bg-blue-50 text-blue-900 border border-blue-200">
+                                  {items.length > 1 
+                                    ? `${items.length} Products` 
+                                    : (firstItem?.productName || "Print Job")}
                                 </span>
 
                                 {isToday(order.createdAt) && (
@@ -1264,11 +1592,19 @@ export const AdminPage: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-1.5">
+                              <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2">
                                 <span>
-                                  Customer: <strong className="text-slate-800">{order.customerName}</strong> ({order.customerPhone})
+                                  Customer: <strong className="text-slate-800">{order.customerName}</strong>
                                 </span>
-                                {order.customerEmail && <span>• {order.customerEmail}</span>}
+                                <a 
+                                  href={`tel:${order.customerPhone}`}
+                                  className="text-blue-700 font-semibold hover:underline inline-flex items-center gap-0.5"
+                                  title="Call Customer"
+                                >
+                                  <Phone className="h-2.5 w-2.5" />
+                                  <span>{order.customerPhone}</span>
+                                </a>
+                                {order.customerEmail && <span className="text-slate-400">• {order.customerEmail}</span>}
                                 <span className="text-slate-400">
                                   • {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
@@ -1345,79 +1681,63 @@ export const AdminPage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Specifications & Finishing Checklist */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
-                          {/* Printing Specs */}
-                          <div className="rounded-lg bg-slate-50 p-2.5 space-y-1">
-                            <span className="font-bold text-slate-700 block uppercase text-[9px] tracking-wider">
-                              Printing Specs
-                            </span>
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-slate-600">
-                              <div>Paper: <span className="font-semibold text-slate-800">{String(options.paperSize || "A4").toUpperCase()}</span></div>
-                              <div>Color: <span className="font-semibold text-slate-800">{options.colorMode === "bw" ? "B&W" : "Color"}</span></div>
-                              <div>Sides: <span className="font-semibold text-slate-800">{options.sides === "single" ? "Single" : "Double"}</span></div>
-                              <div>Copies: <span className="font-semibold text-slate-800">{firstItem?.quantity || 1}</span></div>
+                        {/* Order Items & Accurate Dynamic Specifications */}
+                        <div className="space-y-2">
+                          {items.length > 0 ? (
+                            items.map((item, itIdx) => (
+                              <AdminOrderItemSpecs
+                                key={itIdx}
+                                item={item}
+                                itemIndex={itIdx}
+                                totalItems={items.length}
+                                orderCode={order.orderCode}
+                                isModal={false}
+                                onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                              />
+                            ))
+                          ) : (
+                            <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-500 italic">
+                              Print Order #{order.orderCode}
                             </div>
-                          </div>
+                          )}
+                        </div>
 
-                          {/* Finishing Checklist */}
-                          <div className="rounded-lg bg-slate-50 p-2.5 space-y-1">
-                            <span className="font-bold text-slate-700 block uppercase text-[9px] tracking-wider">
-                              Finishing Checklist
-                            </span>
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
-                              <div className={cn("flex items-center gap-1 font-medium", finishing.spiralBinding ? "text-emerald-700 font-bold" : "text-slate-400")}>
-                                {finishing.spiralBinding ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <XCircle className="h-3 w-3 text-slate-300" />}
-                                <span>Spiral Binding</span>
+                        {/* Delivery Address & Customer Note Details */}
+                        {(isDelivery || order.orderNotes || order.staffNotes) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                            {isDelivery && order.deliveryAddress && (
+                              <div className="rounded-lg bg-blue-50/60 p-2 border border-blue-200/80 space-y-0.5 text-[11px] text-blue-950">
+                                <span className="font-bold flex items-center gap-1 text-blue-900 uppercase text-[9px] tracking-wider">
+                                  <MapPin className="h-3 w-3 text-blue-600" />
+                                  Delivery Address:
+                                </span>
+                                <p>
+                                  {order.deliveryAddress.street}
+                                  {order.deliveryAddress.landmark ? `, ${order.deliveryAddress.landmark}` : ""}
+                                  {`, ${order.deliveryAddress.city || "Chakia"} - ${order.deliveryAddress.pincode || "845412"}`}
+                                </p>
                               </div>
-                              <div className={cn("flex items-center gap-1 font-medium", finishing.combBinding ? "text-emerald-700 font-bold" : "text-slate-400")}>
-                                {finishing.combBinding ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <XCircle className="h-3 w-3 text-slate-300" />}
-                                <span>Comb Binding</span>
-                              </div>
-                              <div className={cn("flex items-center gap-1 font-medium", finishing.lamination ? "text-emerald-700 font-bold" : "text-slate-400")}>
-                                {finishing.lamination ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <XCircle className="h-3 w-3 text-slate-300" />}
-                                <span>Lamination</span>
-                              </div>
-                              <div className={cn("flex items-center gap-1 font-medium", finishing.stapling ? "text-emerald-700 font-bold" : "text-slate-400")}>
-                                {finishing.stapling ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <XCircle className="h-3 w-3 text-slate-300" />}
-                                <span>Stapling</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* File & Instructions */}
-                          <div className="rounded-lg bg-slate-50 p-2.5 space-y-1.5">
-                            <span className="font-bold text-slate-700 block uppercase text-[9px] tracking-wider">
-                              Attached Customer Files {order.items?.filter((it) => it.uploadedFileName || it.uploadedFileUrl || it.selectedOptions?.storagePath).length > 1 ? `(${order.items.filter((it) => it.uploadedFileName || it.uploadedFileUrl || it.selectedOptions?.storagePath).length})` : ""}
-                            </span>
-
-                            {order.items?.some((it) => it.uploadedFileName || it.uploadedFileUrl || it.selectedOptions?.storagePath) ? (
-                              <div className="space-y-1">
-                                {order.items
-                                  .filter((it) => it.uploadedFileName || it.uploadedFileUrl || it.selectedOptions?.storagePath)
-                                  .map((it, idx) => (
-                                    <AdminFileActions
-                                      key={idx}
-                                      fileName={it.uploadedFileName || `attached-file-${idx + 1}`}
-                                      fileUrl={it.uploadedFileUrl || it.selectedOptions?.storagePath || ""}
-                                      mimeType={it.selectedOptions?.mimeType}
-                                      orderCode={order.orderCode}
-                                      compact
-                                      onOpenPreview={(doc) => setActivePreviewDoc(doc)}
-                                    />
-                                  ))}
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 italic">No digital file uploaded</span>
                             )}
 
                             {order.orderNotes && (
-                              <p className="text-[10px] text-slate-500 italic bg-white/70 p-1.5 rounded-md border border-slate-200">
-                                Note: "{order.orderNotes}"
-                              </p>
+                              <div className="rounded-lg bg-amber-50/70 p-2 border border-amber-200 space-y-0.5 text-[11px] text-amber-950">
+                                <span className="font-bold uppercase text-[9px] text-amber-900 tracking-wider block">
+                                  Customer Instructions:
+                                </span>
+                                <p className="italic">"{order.orderNotes}"</p>
+                              </div>
+                            )}
+
+                            {order.staffNotes && (
+                              <div className="rounded-lg bg-slate-100 p-2 border border-slate-200 space-y-0.5 text-[11px] text-slate-800">
+                                <span className="font-bold uppercase text-[9px] text-slate-500 tracking-wider block">
+                                  Staff Remarks:
+                                </span>
+                                <p>{order.staffNotes}</p>
+                              </div>
                             )}
                           </div>
-                        </div>
+                        )}
 
                         {/* Invoice Indicator & Action Bar for Completed Orders */}
                         {order.orderStatus === "COMPLETED" && (() => {
@@ -2775,18 +3095,41 @@ export const AdminPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {/* Customer Card */}
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
-                <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Customer Details</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Customer & Delivery</span>
+                  <span className={cn(
+                    "text-[9px] font-bold px-1.5 py-0.2 rounded-full",
+                    selectedOrderForModal.fulfillmentType === "delivery" ? "bg-amber-100 text-amber-900" : "bg-slate-200 text-slate-700"
+                  )}>
+                    {selectedOrderForModal.fulfillmentType === "delivery" ? "🚚 Home Delivery" : "🏬 Store Pickup"}
+                  </span>
+                </div>
                 <div className="space-y-0.5 text-xs">
                   <div><strong>Name:</strong> {selectedOrderForModal.customerName}</div>
-                  <div><strong>Phone:</strong> {selectedOrderForModal.customerPhone}</div>
+                  <div>
+                    <strong>Phone:</strong>{" "}
+                    <a href={`tel:${selectedOrderForModal.customerPhone}`} className="text-blue-700 font-semibold hover:underline">
+                      {selectedOrderForModal.customerPhone}
+                    </a>
+                  </div>
                   {selectedOrderForModal.customerEmail && (
                     <div><strong>Email:</strong> {selectedOrderForModal.customerEmail}</div>
+                  )}
+                  {selectedOrderForModal.fulfillmentType === "delivery" && selectedOrderForModal.deliveryAddress && (
+                    <div className="mt-1 pt-1 border-t border-slate-200 text-[11px] text-slate-700">
+                      <strong>Delivery Address:</strong>
+                      <p className="mt-0.5">
+                        {selectedOrderForModal.deliveryAddress.street}
+                        {selectedOrderForModal.deliveryAddress.landmark ? `, ${selectedOrderForModal.deliveryAddress.landmark}` : ""}
+                        {`, ${selectedOrderForModal.deliveryAddress.city || "Chakia"} - ${selectedOrderForModal.deliveryAddress.pincode || "845412"}`}
+                      </p>
+                    </div>
                   )}
                   {selectedOrderForModal.userId && (
                     <div><strong>User ID:</strong> <span className="font-mono text-[10px] text-slate-600">{selectedOrderForModal.userId}</span></div>
                   )}
                 </div>
-                <div className="pt-1">
+                <div className="pt-1 flex items-center gap-3">
                   <a
                     href={getWhatsAppLink(`Hello ${selectedOrderForModal.customerName}, regarding your Palak Enterprises order (${selectedOrderForModal.orderCode}): `)}
                     target="_blank"
@@ -2794,7 +3137,14 @@ export const AdminPage: React.FC = () => {
                     className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline"
                   >
                     <MessageSquare className="h-3 w-3" />
-                    <span>Open WhatsApp Chat</span>
+                    <span>WhatsApp Chat</span>
+                  </a>
+                  <a
+                    href={`tel:${selectedOrderForModal.customerPhone}`}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline"
+                  >
+                    <Phone className="h-3 w-3" />
+                    <span>Call Customer</span>
                   </a>
                 </div>
               </div>
@@ -2914,84 +3264,31 @@ export const AdminPage: React.FC = () => {
               );
             })()}
 
-            {/* Print Specification & Options */}
-            {selectedOrderForModal.items.map((item, idx) => {
-              const opts = item.selectedOptions || {};
-              const fin = (opts.finishing || {}) as Record<string, boolean>;
-
-              return (
-                <div key={idx} className="rounded-xl border border-slate-200 p-3 space-y-2 bg-white">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                    <span className="text-xs font-bold text-slate-900">
-                      Product: {opts.documentType || item.productName || "Custom Print"}
-                    </span>
-                    <span className="text-xs font-mono font-bold text-slate-600">
-                      Qty: {item.quantity} • ₹{item.totalPrice}
-                    </span>
-                  </div>
-
-                  {/* Print Parameters Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
-                    <div className="rounded-lg bg-slate-50 p-2">
-                      <span className="text-[9px] text-slate-400 block">Paper Size</span>
-                      <span className="font-bold text-slate-800">{String(opts.paperSize || "A4").toUpperCase()}</span>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-2">
-                      <span className="text-[9px] text-slate-400 block">Color Mode</span>
-                      <span className="font-bold text-slate-800">{opts.colorMode === "bw" ? "B&W" : "Color"}</span>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-2">
-                      <span className="text-[9px] text-slate-400 block">Sides</span>
-                      <span className="font-bold text-slate-800">{opts.sides === "single" ? "Single Side" : "Double Side"}</span>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 p-2">
-                      <span className="text-[9px] text-slate-400 block">Orientation</span>
-                      <span className="font-bold text-slate-800">{opts.orientation || "Portrait"}</span>
-                    </div>
-                  </div>
-
-                  {/* Finishing Checklist */}
-                  <div className="rounded-lg bg-slate-50 p-2.5 space-y-1">
-                    <span className="text-[9px] font-bold uppercase text-slate-500 block">Finishing Services Required</span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
-                      <div className={cn("flex items-center gap-1 font-medium", fin.spiralBinding ? "text-emerald-700 font-bold" : "text-slate-400")}>
-                        {fin.spiralBinding ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <XCircle className="h-3 w-3 text-slate-300" />}
-                        <span>Spiral Binding</span>
-                      </div>
-                      <div className={cn("flex items-center gap-1 font-medium", fin.combBinding ? "text-emerald-700 font-bold" : "text-slate-400")}>
-                        {fin.combBinding ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <XCircle className="h-3 w-3 text-slate-300" />}
-                        <span>Comb Binding</span>
-                      </div>
-                      <div className={cn("flex items-center gap-1 font-medium", fin.lamination ? "text-emerald-700 font-bold" : "text-slate-400")}>
-                        {fin.lamination ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <XCircle className="h-3 w-3 text-slate-300" />}
-                        <span>Lamination</span>
-                      </div>
-                      <div className={cn("flex items-center gap-1 font-medium", fin.stapling ? "text-emerald-700 font-bold" : "text-slate-400")}>
-                        {fin.stapling ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> : <XCircle className="h-3 w-3 text-slate-300" />}
-                        <span>Stapling</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Attached File Display & Actions */}
-                  {(item.uploadedFileName || item.uploadedFileUrl) && (
-                    <div className="space-y-0.5 pt-0.5">
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 block">
-                        Customer Artwork / Attached Document
-                      </span>
-                      <AdminFileActions
-                        fileName={item.uploadedFileName}
-                        fileUrl={item.selectedOptions?.storagePath || item.uploadedFileUrl}
-                        mimeType={item.selectedOptions?.mimeType}
-                        orderCode={selectedOrderForModal.orderCode}
-                        compact={false}
-                        onOpenPreview={(doc) => setActivePreviewDoc(doc)}
-                      />
-                    </div>
-                  )}
+            {/* Print Specifications & Options */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
+                  Ordered Products & Specifications ({(selectedOrderForModal.items || []).length})
+                </span>
+              </div>
+              {(selectedOrderForModal.items || []).length > 0 ? (
+                (selectedOrderForModal.items || []).map((item, idx) => (
+                  <AdminOrderItemSpecs
+                    key={idx}
+                    item={item}
+                    itemIndex={idx}
+                    totalItems={(selectedOrderForModal.items || []).length}
+                    orderCode={selectedOrderForModal.orderCode}
+                    isModal={true}
+                    onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                  />
+                ))
+              ) : (
+                <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-500 italic">
+                  No items listed for order #{selectedOrderForModal.orderCode}
                 </div>
-              );
-            })}
+              )}
+            </div>
 
             {/* Order Notes & Staff Notes Editor */}
             <div className="space-y-2">

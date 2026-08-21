@@ -12,12 +12,12 @@ export function StatusBadge({ status, variant, size = 'md', className }: StatusB
   const getVariant = () => {
     if (variant) return variant;
     
-    const lowerStatus = status.toLowerCase();
-    if (['active', 'completed', 'success', 'delivered', 'done'].includes(lowerStatus)) return 'success';
-    if (['inactive', 'cancelled', 'failed', 'danger', 'error'].includes(lowerStatus)) return 'danger';
-    if (['pending', 'processing', 'warning', 'hold'].includes(lowerStatus)) return 'warning';
-    if (['new', 'info', 'shipped'].includes(lowerStatus)) return 'info';
-    if (['draft', 'neutral', 'archived'].includes(lowerStatus)) return 'neutral';
+    const lowerStatus = status.toLowerCase().replace(/_/g, " ");
+    if (["active", "completed", "success", "delivered", "done", "ready for pickup", "approved", "documents verified"].some(s => lowerStatus.includes(s))) return "success";
+    if (["inactive", "cancelled", "failed", "danger", "error", "rejected"].some(s => lowerStatus.includes(s))) return "danger";
+    if (["pending", "processing", "warning", "hold", "under review", "action required", "estimate prepared", "quote sent"].some(s => lowerStatus.includes(s))) return "warning";
+    if (["new", "info", "shipped", "confirmed", "in production", "out for delivery", "submitted to portal", "in design", "proof sent"].some(s => lowerStatus.includes(s))) return "info";
+    if (["draft", "neutral", "archived"].some(s => lowerStatus.includes(s))) return "neutral";
     
     return 'default';
   };
