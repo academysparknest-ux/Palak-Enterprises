@@ -11,7 +11,7 @@ interface DigitalServiceCardProps {
   className?: string;
 }
 
-export const DigitalServiceCard: React.FC<DigitalServiceCardProps> = ({ service, className }) => {
+export const DigitalServiceCard: React.FC<DigitalServiceCardProps> = React.memo(({ service, className }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
@@ -80,4 +80,4 @@ export const DigitalServiceCard: React.FC<DigitalServiceCardProps> = ({ service,
       </div>
     </div>
   );
-};
+});

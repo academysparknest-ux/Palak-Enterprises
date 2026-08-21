@@ -370,12 +370,18 @@ export function mapOrderRowToStoredOrder(o: any): StoredOrder {
   };
 }
 
-export async function getStaffOrders(): Promise<StoredOrder[]> {
+export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]> {
   if (!isSupabaseConfigured || !supabase) return [];
-  const { data, error } = await supabase
+  let query = supabase
     .from("orders")
     .select("*, order_items(*)")
     .order("created_at", { ascending: false });
+
+  if (limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.warn("getStaffOrders query notice:", error.message || error);

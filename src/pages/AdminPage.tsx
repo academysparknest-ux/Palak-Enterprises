@@ -60,12 +60,8 @@ import {
 import { useRealtimeOrders } from "../hooks/useRealtimeOrders";
 import { dispatchAdminToast } from "../lib/realtime/adminOrderEvents";
 import { getWhatsAppLink } from "../config/business";
-import {
-  AdminFilePreviewModal,
-  AdminFileActions,
-  type DocumentItem,
-} from "../components/AdminDocumentViewer";
-import { InvoiceModal } from "../components/invoice/InvoiceModal";
+import { AdminFilePreviewModal, AdminFileActions, type DocumentItem } from "../components/AdminDocumentViewer";
+const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
 import { downloadInvoicePDF, getWhatsAppInvoiceShareLink } from "../lib/invoice/pdfUtils";
@@ -3267,13 +3263,17 @@ export const AdminPage: React.FC = () => {
       />
 
       {/* Dedicated Interactive Tax Invoice & Bill Modal */}
-      <InvoiceModal
-        isOpen={invoiceModalOpen}
-        onClose={() => setInvoiceModalOpen(false)}
-        invoice={selectedInvoiceForModal}
-        isAdmin={true}
-        onRegenerate={selectedInvoiceForModal ? (reason?: string) => handleRegenerateInvoiceForOrder(selectedInvoiceForModal.orderCode, reason) : undefined}
-      />
+      {invoiceModalOpen && (
+        <React.Suspense fallback={null}>
+          <InvoiceModal
+            isOpen={invoiceModalOpen}
+            onClose={() => setInvoiceModalOpen(false)}
+            invoice={selectedInvoiceForModal}
+            isAdmin={true}
+            onRegenerate={selectedInvoiceForModal ? (reason?: string) => handleRegenerateInvoiceForOrder(selectedInvoiceForModal.orderCode, reason) : undefined}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 };

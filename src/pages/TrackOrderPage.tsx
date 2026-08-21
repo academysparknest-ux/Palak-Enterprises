@@ -7,7 +7,7 @@ import { fetchPublicTracking, getInvoiceByOrderCode, type PublicTrackingResponse
 import { OrderTimeline } from "../components/OrderTimeline";
 import { getWhatsAppLink } from "../config/business";
 import { getSingleOrderQueueInfo } from "../lib/queue";
-import { InvoiceModal } from "../components/invoice/InvoiceModal";
+const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
 import { downloadInvoicePDF } from "../lib/invoice/pdfUtils";
@@ -670,12 +670,16 @@ export const TrackOrderPage: React.FC = () => {
       </div>
 
       {/* Customer Invoice Preview Modal */}
-      <InvoiceModal
-        isOpen={invoiceModalOpen}
-        onClose={() => setInvoiceModalOpen(false)}
-        invoice={activeInvoice}
-        isAdmin={false}
-      />
+      {invoiceModalOpen && (
+        <React.Suspense fallback={null}>
+          <InvoiceModal
+            isOpen={invoiceModalOpen}
+            onClose={() => setInvoiceModalOpen(false)}
+            invoice={activeInvoice}
+            isAdmin={false}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 };

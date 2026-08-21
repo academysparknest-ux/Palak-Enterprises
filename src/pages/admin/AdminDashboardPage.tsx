@@ -129,40 +129,49 @@ export const AdminDashboardPage: React.FC = () => {
       const endOfTodayIso = endOfToday.toISOString();
 
       if (isSupabaseConfigured && supabase) {
-        // Query database with authoritative schema columns in parallel
+        // Query database with high-performance HEAD count requests in parallel
         const [
-          ordersRes,
+          allOrdersCountRes,
+          newOrdersCountRes,
+          inProdCountRes,
+          readyCountRes,
           revenueRes,
           todaysOrdersRes,
           serviceReqRes,
           quoteReqRes,
           recentOrdersRes,
         ] = await Promise.all([
-          // 1. All orders with their order_status
-          supabase.from('orders').select('order_status, created_at', { count: 'exact' }),
-          // 2. Paid orders (excluding cancelled)
+          // 1. Total orders count (HEAD only - zero body transfer)
+          supabase.from('orders').select('id', { count: 'exact', head: true }),
+          // 2. New & Under Review orders count (HEAD only)
+          supabase.from('orders').select('id', { count: 'exact', head: true }).in('order_status', ['NEW', 'UNDER_REVIEW']),
+          // 3. In Production orders count (HEAD only)
+          supabase.from('orders').select('id', { count: 'exact', head: true }).in('order_status', ['IN_PRODUCTION', 'DESIGN_REVIEW', 'APPROVED', 'PROCESSING']),
+          // 4. Ready for pickup orders count (HEAD only)
+          supabase.from('orders').select('id', { count: 'exact', head: true }).in('order_status', ['READY_FOR_PICKUP', 'OUT_FOR_DELIVERY']),
+          // 5. Paid orders for revenue calculation
           supabase
             .from('orders')
             .select('total_amount')
             .in('payment_status', ['paid', 'PAID', 'confirmed'])
             .neq('order_status', 'CANCELLED'),
-          // 3. Today's orders count
+          // 6. Today's orders count (HEAD only)
           supabase
             .from('orders')
             .select('id', { count: 'exact', head: true })
             .gte('created_at', startOfTodayIso)
             .lte('created_at', endOfTodayIso),
-          // 4. Pending service requests
+          // 7. Pending service requests (HEAD only)
           supabase
             .from('service_requests')
             .select('id', { count: 'exact', head: true })
             .in('request_status', ['NEW', 'DOCUMENTS_VERIFIED', 'IN_PROCESSING', 'ACTION_REQUIRED', 'SUBMITTED_TO_PORTAL']),
-          // 5. Pending quote requests
+          // 8. Pending quote requests (HEAD only)
           supabase
             .from('quote_requests')
             .select('id', { count: 'exact', head: true })
             .in('quote_status', ['NEW', 'ESTIMATE_PREPARED', 'QUOTE_SENT']),
-          // 6. Recent orders
+          // 9. Recent orders (6 rows max)
           supabase
             .from('orders')
             .select('id, order_code, customer_name, customer_phone, total_amount, order_status, created_at, items')
@@ -170,9 +179,9 @@ export const AdminDashboardPage: React.FC = () => {
             .limit(6),
         ]);
 
-        // Evaluate orders query authoritatively
-        if (ordersRes.error) {
-          const classified = classifyError(ordersRes.error);
+        // Evaluate error
+        if (allOrdersCountRes.error) {
+          const classified = classifyError(allOrdersCountRes.error);
           if (classified.isNetwork && typeof navigator !== 'undefined' && !navigator.onLine) {
             const localOrders = PalakDataStore.getOrders();
             if (localOrders.length > 0) {
@@ -230,8 +239,10 @@ export const AdminDashboardPage: React.FC = () => {
         }
 
         // ── Authoritative successful orders result ──────────────────────────
-        const ordersList = ordersRes.data || [];
-        const totalOrdersCount = ordersRes.count !== null && ordersRes.count !== undefined ? ordersRes.count : ordersList.length;
+        const totalOrdersCount = allOrdersCountRes.count ?? 0;
+        const newOrdersCount = newOrdersCountRes.count ?? 0;
+        const inProductionCount = inProdCountRes.count ?? 0;
+        const readyForPickupCount = readyCountRes.count ?? 0;
 
         // If database contains 0 orders, sync local caches and zero out order-derived stats
         if (totalOrdersCount === 0) {
@@ -239,10 +250,6 @@ export const AdminDashboardPage: React.FC = () => {
           PalakInvoiceStore.pruneOrphanedInvoices(new Set());
         }
 
-        const newOrders = ordersList.filter((o) => o.order_status === 'NEW' || o.order_status === 'UNDER_REVIEW').length;
-        const inProduction = ordersList.filter((o) => o.order_status === 'IN_PRODUCTION' || o.order_status === 'DESIGN_REVIEW' || o.order_status === 'APPROVED').length;
-        const readyForPickup = ordersList.filter((o) => o.order_status === 'READY_FOR_PICKUP' || o.order_status === 'OUT_FOR_DELIVERY').length;
-        
         const revenue = totalOrdersCount === 0
           ? 0
           : (revenueRes.data || []).reduce((sum, order) => {
@@ -250,18 +257,13 @@ export const AdminDashboardPage: React.FC = () => {
               return sum + (isNaN(amt) ? 0 : Math.max(0, amt));
             }, 0);
 
-        const todaysCount = totalOrdersCount === 0
-          ? 0
-          : (todaysOrdersRes.count ?? ordersList.filter((o) => {
-              const time = new Date(o.created_at).getTime();
-              return time >= startOfToday.getTime() && time <= endOfToday.getTime();
-            }).length);
+        const todaysCount = totalOrdersCount === 0 ? 0 : (todaysOrdersRes.count ?? 0);
 
         setStats({
           totalOrders: totalOrdersCount,
-          newOrders: totalOrdersCount === 0 ? 0 : newOrders,
-          inProduction: totalOrdersCount === 0 ? 0 : inProduction,
-          readyForPickup: totalOrdersCount === 0 ? 0 : readyForPickup,
+          newOrders: newOrdersCount,
+          inProduction: inProductionCount,
+          readyForPickup: readyForPickupCount,
           totalRevenue: revenue,
           todaysOrders: todaysCount,
           pendingServiceRequests: (!serviceReqRes.error && serviceReqRes.count !== null && serviceReqRes.count !== undefined) ? serviceReqRes.count : 0,

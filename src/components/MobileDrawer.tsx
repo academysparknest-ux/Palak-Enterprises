@@ -1,15 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
-import { useAccessibility } from "../context/AccessibilityContext";
 import { useAuth } from "../context/AuthContext";
 import { business, getWhatsAppLink, getCallLink } from "../config/business";
 import {
   X,
   Phone,
   MessageSquare,
-  Eye,
-  Globe,
   Home,
   Zap,
   Printer,
@@ -45,9 +42,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   onClose,
   onOpenRequestModal,
 }) => {
-  const { language, lang, setLanguage } = useLanguage();
+  const { language, lang } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const { seniorMode, toggleSeniorMode } = useAccessibility();
   const { user, isAuthenticated, isStaff, logout } = useAuth();
   const location = useLocation();
 
@@ -213,69 +209,80 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
           </div>
 
           {/* Links Body */}
-          <div className="p-3.5 sm:p-4 overflow-y-auto space-y-3.5 flex-1">
-            {/* Language & Accessibility Bar */}
-            <div className="bg-slate-100/90 p-2.5 rounded-2xl space-y-2 border border-slate-200/60">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                  <Globe className="w-3.5 h-3.5 text-[#123B70]" />
-                  <span>{currentLang === "hi" ? "भाषा / Language" : "Language"}</span>
-                </span>
-                <div className="flex bg-white p-0.5 rounded-xl border border-slate-200 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => setLanguage("en")}
-                    aria-pressed={currentLang === "en"}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer",
-                      currentLang === "en"
-                        ? "bg-[#123B70] text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    )}
-                  >
-                    English
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLanguage("hi")}
-                    aria-pressed={currentLang === "hi"}
-                    className={cn(
-                      "px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer font-hindi",
-                      currentLang === "hi"
-                        ? "bg-[#123B70] text-white shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    )}
-                  >
-                    हिंदी
-                  </button>
-                </div>
-              </div>
+          <div className="p-3.5 sm:p-4 overflow-y-auto space-y-3.5 flex-1 bg-slate-50/60">
+            {/* Mobile Auth Quick Action Bar (Top) */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs">
+              {isAuthenticated ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {user?.avatarUrl ? (
+                        <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                          {(user?.name || "U").charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{user?.email || `+91 ${user?.phone}`}</p>
+                      </div>
+                    </div>
 
-              {/* Senior Citizen / High Contrast Mode Toggle */}
-              <button
-                type="button"
-                onClick={toggleSeniorMode}
-                className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer",
-                  seniorMode
-                    ? "bg-amber-100/80 text-amber-950 border border-amber-300"
-                    : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-                )}
-                aria-pressed={seniorMode}
-              >
-                <div className="flex items-center gap-2">
-                  <Eye className={cn("w-4 h-4", seniorMode ? "text-amber-700" : "text-slate-500")} />
-                  <span>{currentLang === "hi" ? "बड़ा फॉन्ट / Senior Mode" : "Senior / Large Text Mode"}</span>
-                </div>
-                <span
-                  className={cn(
-                    "text-[10px] font-extrabold px-1.5 py-0.5 rounded-md",
-                    seniorMode ? "bg-amber-500 text-slate-950" : "bg-slate-100 text-slate-500"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logout();
+                        onClose();
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 shrink-0 cursor-pointer"
+                    >
+                      <LogOut className="h-3 w-3" />
+                      <span>{currentLang === "hi" ? "लॉगआउट" : "Logout"}</span>
+                    </button>
+                  </div>
+
+                  {isStaff ? (
+                    <Link
+                      to="/admin"
+                      onClick={onClose}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition-colors"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-amber-700" />
+                      <span>{currentLang === "hi" ? "स्टाफ ERP डैशबोर्ड" : "Staff ERP Dashboard"}</span>
+                    </Link>
+                  ) : (
+                    <Link
+                      to="/account"
+                      onClick={onClose}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors"
+                    >
+                      <User className="w-3.5 h-3.5 text-[#123B70]" />
+                      <span>{currentLang === "hi" ? "मेरा अकाउंट व ऑर्डर्स" : "My Account & Orders"}</span>
+                    </Link>
                   )}
-                >
-                  {seniorMode ? "ON" : "OFF"}
-                </span>
-              </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/login"
+                    onClick={onClose}
+                    className="flex-1 bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>{currentLang === "hi" ? "लॉगिन करें" : "Sign In"}</span>
+                  </Link>
+
+                  <Link
+                    to="/signup"
+                    onClick={onClose}
+                    className="flex-1 border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{currentLang === "hi" ? "खाता बनाएं" : "Sign Up"}</span>
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Navigation List */}
@@ -403,81 +410,6 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 );
               })}
             </nav>
-
-            {/* Mobile Auth Quick Action Bar */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs">
-              {isAuthenticated ? (
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {user?.avatarUrl ? (
-                        <img src={user.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover shrink-0" />
-                      ) : (
-                        <div className="h-8 w-8 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
-                          {(user?.name || "U").charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
-                        <p className="text-[10px] text-slate-500 truncate">{user?.email || `+91 ${user?.phone}`}</p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        logout();
-                        onClose();
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 shrink-0 cursor-pointer"
-                    >
-                      <LogOut className="h-3 w-3" />
-                      <span>{currentLang === "hi" ? "लॉगआउट" : "Logout"}</span>
-                    </button>
-                  </div>
-
-                  {isStaff ? (
-                    <Link
-                      to="/admin"
-                      onClick={onClose}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition-colors"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-amber-700" />
-                      <span>{currentLang === "hi" ? "स्टाफ ERP डैशबोर्ड" : "Staff ERP Dashboard"}</span>
-                    </Link>
-                  ) : (
-                    <Link
-                      to="/account"
-                      onClick={onClose}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors"
-                    >
-                      <User className="w-3.5 h-3.5 text-[#123B70]" />
-                      <span>{currentLang === "hi" ? "मेरा अकाउंट व ऑर्डर्स" : "My Account & Orders"}</span>
-                    </Link>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Link
-                    to="/login"
-                    onClick={onClose}
-                    className="flex-1 bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs"
-                  >
-                    <LogIn className="w-3.5 h-3.5" />
-                    <span>{currentLang === "hi" ? "लॉगिन करें" : "Sign In"}</span>
-                  </Link>
-
-                  <Link
-                    to="/signup"
-                    onClick={onClose}
-                    className="flex-1 border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{currentLang === "hi" ? "खाता बनाएं" : "Sign Up"}</span>
-                  </Link>
-                </div>
-              )}
-            </div>
 
             {/* Quick Request & WhatsApp CTA Box */}
             <div className="bg-gradient-to-br from-[#123B70] to-slate-900 text-white p-3.5 rounded-2xl space-y-2 shadow-xs">

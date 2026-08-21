@@ -26,7 +26,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { business, businessConfig } from "../config/business";
-import { GlobalSearchModal } from "./GlobalSearchModal";
+const GlobalSearchModal = React.lazy(() => import("./GlobalSearchModal").then((m) => ({ default: m.GlobalSearchModal })));
 import { MobileDrawer } from "./MobileDrawer";
 import { cn } from "../lib/utils";
 
@@ -768,10 +768,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
       </header>
 
       {/* Global Search Modal */}
-      <GlobalSearchModal
-        isOpen={searchModalOpen}
-        onClose={() => setSearchModalOpen(false)}
-      />
+      {searchModalOpen && (
+        <React.Suspense fallback={null}>
+          <GlobalSearchModal
+            isOpen={searchModalOpen}
+            onClose={() => setSearchModalOpen(false)}
+          />
+        </React.Suspense>
+      )}
 
       {/* Mobile Drawer */}
       <MobileDrawer

@@ -34,7 +34,7 @@ import { getUserOrders, getInvoiceByOrderCode } from "../lib/supabase/database";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { SEO } from "../components/SEO";
 import { business, getWhatsAppLink } from "../config/business";
-import { InvoiceModal } from "../components/invoice/InvoiceModal";
+const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
 
@@ -973,12 +973,16 @@ export const AccountPage: React.FC = () => {
       </div>
 
       {/* Customer Invoice Preview Modal */}
-      <InvoiceModal
-        isOpen={invoiceModalOpen}
-        onClose={() => setInvoiceModalOpen(false)}
-        invoice={selectedInvoiceForModal}
-        isAdmin={false}
-      />
+      {invoiceModalOpen && (
+        <React.Suspense fallback={null}>
+          <InvoiceModal
+            isOpen={invoiceModalOpen}
+            onClose={() => setInvoiceModalOpen(false)}
+            invoice={selectedInvoiceForModal}
+            isAdmin={false}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 };

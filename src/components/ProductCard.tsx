@@ -10,7 +10,7 @@ interface ProductCardProps {
   className?: string;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, className }) => {
+export const ProductCard: React.FC<ProductCardProps> = React.memo(({ product, className }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
@@ -29,6 +29,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, className }) 
             alt={product.name[currentLang]}
             className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
+            decoding="async"
           />
 
           {/* Badges */}
@@ -92,4 +93,4 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, className }) 
       </div>
     </div>
   );
-};
+});

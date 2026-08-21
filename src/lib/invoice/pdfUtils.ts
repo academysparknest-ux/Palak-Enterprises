@@ -1,5 +1,3 @@
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import type { StoredInvoice } from "./types";
 import { numberToIndianRupeesWords, roundCurrency } from "./invoiceStore";
 
@@ -23,6 +21,13 @@ export async function downloadInvoicePDF(
   elementOrId?: HTMLElement | string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const [jsPDFModule, html2canvasModule] = await Promise.all([
+      import("jspdf"),
+      import("html2canvas"),
+    ]);
+    const jsPDF = jsPDFModule.default;
+    const html2canvas = html2canvasModule.default;
+
     let targetElement: HTMLElement | null = null;
 
     if (typeof elementOrId === "string") {
@@ -106,6 +111,7 @@ export async function downloadInvoicePDF(
     const pageWidth = 210;
     const pageHeight = 297;
     let y = 18;
+
 
     // Header Branding
     doc.setFontSize(16);

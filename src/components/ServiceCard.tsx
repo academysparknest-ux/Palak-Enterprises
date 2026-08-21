@@ -1,16 +1,12 @@
 import { Link } from "react-router-dom";
-import * as Icons from "lucide-react";
 import { ArrowRight, Eye } from "lucide-react";
+import { DynamicIcon } from "./DynamicIcon";
 import { useLanguage } from "../context/LanguageContext";
 import type { Service } from "../config/services";
 import { categories, ctaLabels } from "../config/services";
 import SampleImage from "./SampleImage";
 import { cn } from "../lib/utils";
 
-function ServiceIcon({ name }: { name: string }) {
-  const Icon = (Icons as any)[name] ?? Icons.Sparkles;
-  return <Icon size={20} aria-hidden />;
-}
 
 export interface ServiceCardProps {
   service: Service;
@@ -81,7 +77,7 @@ export default function ServiceCard({
 
         {/* Category / Service Icon Floating Pill */}
         <div className="absolute bottom-2.5 left-2.5 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-white/95 text-navy shadow-md backdrop-blur-xs border border-slate-200/80 transition-colors group-hover:bg-brandred group-hover:text-white">
-          <ServiceIcon name={service.icon} />
+          <DynamicIcon name={service.icon} size={20} className="w-5 h-5" />
         </div>
       </div>
 

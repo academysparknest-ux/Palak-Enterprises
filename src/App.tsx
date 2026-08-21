@@ -8,7 +8,6 @@ import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { MobileBottomNav } from "./components/MobileBottomNav";
 import { FloatingActions } from "./components/FloatingActions";
-import { ServiceRequestModal } from "./components/ServiceRequestModal";
 import { StructuredData } from "./components/StructuredData";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PageTransition } from "./components/ui/motion/PageTransition";
@@ -19,6 +18,9 @@ import { getProducts, getServices, getCategories } from "./lib/supabase/database
 import { supabase, isSupabaseConfigured } from "./lib/supabase/client";
 import { cn } from "./lib/utils";
 import { AdminRouteGuard } from "./components/admin/AdminRouteGuard";
+
+const ServiceRequestModal = lazyWithRetry(() => import("./components/ServiceRequestModal").then((m) => ({ default: m.ServiceRequestModal })));
+
 
 // Lazy Loaded Pages with Auto-Retry and Seamless Cache Recovery
 const HomePage = lazyWithRetry(() => import("./pages/HomePage").then((m) => ({ default: m.HomePage })));
@@ -343,11 +345,15 @@ export function AppContent() {
       )}
 
       {/* Interactive Service Request & Upload Modal */}
-      <ServiceRequestModal
-        isOpen={requestModalOpen}
-        onClose={() => setRequestModalOpen(false)}
-        selectedService={modalService}
-      />
+      {requestModalOpen && (
+        <Suspense fallback={null}>
+          <ServiceRequestModal
+            isOpen={requestModalOpen}
+            onClose={() => setRequestModalOpen(false)}
+            selectedService={modalService}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

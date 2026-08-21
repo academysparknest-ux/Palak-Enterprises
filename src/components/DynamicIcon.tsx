@@ -30,6 +30,20 @@ import {
   Globe2,
   Sparkles,
   HelpCircle,
+  Heart,
+  ClipboardList,
+  HeartHandshake,
+  Sprout,
+  Landmark,
+  Banknote,
+  MonitorSmartphone,
+  BookOpen,
+  Layers,
+  Copy,
+  PartyPopper,
+  BookMarked,
+  Scan,
+  Share2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,6 +78,20 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Globe2,
   Sparkles,
   HelpCircle,
+  Heart,
+  ClipboardList,
+  HeartHandshake,
+  Sprout,
+  Landmark,
+  Banknote,
+  MonitorSmartphone,
+  BookOpen,
+  Layers,
+  Copy,
+  PartyPopper,
+  BookMarked,
+  Scan,
+  Share2,
 };
 
 interface DynamicIconProps {
@@ -76,3 +104,4 @@ export const DynamicIcon: React.FC<DynamicIconProps> = ({ name, className = "w-6
   const IconComponent = ICON_MAP[name] || HelpCircle;
   return <IconComponent className={className} size={size} aria-hidden="true" />;
 };
+
