@@ -44,6 +44,12 @@ export const CheckoutPage: React.FC = () => {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (placedOrder) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [placedOrder]);
+
   const chargesBreakdown = useMemo(() => {
     const config = PalakChargesStore.getChargesConfig();
     const totalQty = items.reduce((acc, i) => acc + (Number(i.quantity) || 1), 0);

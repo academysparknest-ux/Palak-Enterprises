@@ -49,13 +49,20 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
 
   React.useEffect(() => {
     if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -75,31 +82,39 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   const waLink = getWhatsAppLink(waSupportMsg);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-4 md:p-6 flex min-h-full items-center justify-center animate-fadeIn">
-      <div
-        className="relative w-full max-w-lg rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 my-auto transition-all"
-        style={{ animation: "scaleIn 300ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
-      >
-        {/* Close Button */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active-press transition-colors cursor-pointer"
-          aria-label="Close dialog"
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-xs animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="order-success-title"
+      onClick={onClose}
+    >
+      <div className="min-h-full min-h-[100dvh] w-full flex items-center justify-center p-3 sm:p-4 md:p-6 py-6 sm:py-8">
+        <div
+          className="relative w-full max-w-lg rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 text-left transition-all my-auto"
+          style={{ animation: "scaleIn 300ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <X className="h-5 w-5" />
-        </button>
+          {/* Close Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active-press transition-colors cursor-pointer"
+            aria-label="Close dialog"
+          >
+            <X className="h-5 w-5" />
+          </button>
 
-        {/* Success Icon Header */}
-        <div className="text-center space-y-1.5 sm:space-y-2 pt-1 sm:pt-0">
-          <div className={cn(
-            "h-12 w-12 sm:h-16 sm:w-16 rounded-full flex items-center justify-center mx-auto ring-4 sm:ring-8 animate-popIn",
-            isPriority ? "bg-amber-100 text-amber-600 ring-amber-50" : "bg-blue-100 text-blue-600 ring-blue-50"
-          )}>
-            <CheckCircle2 className="h-7 w-7 sm:h-9 sm:w-9" />
-          </div>
+          {/* Success Icon Header */}
+          <div className="text-center space-y-1.5 sm:space-y-2 pt-1 sm:pt-0">
+            <div className={cn(
+              "h-12 w-12 sm:h-16 sm:w-16 rounded-full flex items-center justify-center mx-auto ring-4 sm:ring-8 animate-popIn",
+              isPriority ? "bg-amber-100 text-amber-600 ring-amber-50" : "bg-blue-100 text-blue-600 ring-blue-50"
+            )}>
+              <CheckCircle2 className="h-7 w-7 sm:h-9 sm:w-9" />
+            </div>
 
-          <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+            <h2 id="order-success-title" className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
             {isPriority
               ? (currentLang === "hi" ? "🎉 भुगतान सफल! (Priority Print)" : "🎉 Payment Successful!")
               : (currentLang === "hi" ? "📄 दस्तावेज सफलतापूर्वक भेजा गया" : "📄 Document Sent Successfully")}
@@ -316,5 +331,6 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
