@@ -9,17 +9,18 @@ interface MobileBottomNavProps {
   onOpenRequestModal?: () => void;
 }
 
-export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestModal }) => {
+export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestModal: _onOpenRequestModal }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
   const location = useLocation();
 
   const isServicesActive =
     location.pathname.startsWith("/services") ||
-    location.pathname.startsWith("/online-services") ||
     location.pathname.startsWith("/printing") ||
     location.pathname.startsWith("/digital-services") ||
     location.pathname.startsWith("/wedding-events");
+
+  const isOnlineServicesActive = location.pathname.startsWith("/online-services");
 
   return (
     <nav
@@ -55,22 +56,24 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenRequestM
           <span className="text-[10px] leading-none font-medium">{currentLang === "hi" ? "सेवाएँ" : "Services"}</span>
         </Link>
 
-        {/* Center Primary Action: Instant Document Print */}
+        {/* Center Primary Action: Online Services */}
         <Link
-          to="/online-services/document-printing"
-          onClick={(e) => {
-            if (onOpenRequestModal) {
-              e.preventDefault();
-              onOpenRequestModal();
-            }
-          }}
+          to="/online-services"
           className="flex flex-col items-center justify-center py-0.5 px-2 min-w-[58px] text-[#123B70] font-bold transition-transform active-press group"
-          aria-label={currentLang === "hi" ? "प्रिंट ऑर्डर" : "Print Order"}
+          aria-label={currentLang === "hi" ? "ऑनलाइन सेवाएँ" : "Online Services"}
         >
-          <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-md mb-0.5 -mt-3.5 border-2 border-white group-hover:bg-amber-400 group-hover:scale-105 transition-all ring-2 ring-amber-300/50">
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center shadow-md mb-0.5 -mt-3.5 border-2 border-white transition-all ring-2",
+            isOnlineServicesActive
+              ? "bg-amber-400 text-slate-950 scale-105 ring-amber-400"
+              : "bg-amber-500 text-slate-950 group-hover:bg-amber-400 group-hover:scale-105 ring-amber-300/50"
+          )}>
             <Sparkles className="w-5 h-5" />
           </div>
-          <span className="text-[10px] font-bold text-[#123B70] leading-none">
+          <span className={cn(
+            "text-[10px] font-bold leading-none",
+            isOnlineServicesActive ? "text-[#123B70]" : "text-[#123B70]"
+          )}>
             {currentLang === "hi" ? "प्रिंट" : "Print"}
           </span>
         </Link>

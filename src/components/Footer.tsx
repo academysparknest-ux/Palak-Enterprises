@@ -14,7 +14,7 @@ export function Footer(): React.JSX.Element {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-[#0F172A] pb-2 pt-10 text-white/80 border-t border-slate-800">
+    <footer className="bg-[#0F172A] pb-2 pt-8 text-white/80 border-t border-slate-800">
 
       <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:px-8 md:grid-cols-5">
         {/* Column 1: Brand & Registrations */}
@@ -200,7 +200,7 @@ export function Footer(): React.JSX.Element {
         </div>
       </div>
 
-      <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-3 border-t border-slate-800 px-4 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <div className="mx-auto mt-2 flex max-w-7xl flex-col gap-3 border-t border-slate-800 px-4 pt-2 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
         <p>
           © {year} {business.name[currentLang]} ({business.unit[currentLang]}). {currentLang === "hi" ? "सर्वाधिकार सुरक्षित।" : "All rights reserved."}
         </p>
