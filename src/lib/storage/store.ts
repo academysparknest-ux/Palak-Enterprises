@@ -262,11 +262,18 @@ function loadStoredCategories(): LocalCategory[] {
   }
 }
 
-// Generate code format: PE-O-2026-1042
+// In-flight mutex to eliminate duplicate submissions from concurrent clicks / rapid retries
+const inFlightOrderSubmissions = new Map<string, Promise<StoredOrder>>();
+const recentOrderSubmissionKeys = new Set<string>();
+
+// Generate code format: PE-O-20260822-1042
 function generateCode(prefix: string): string {
-  const year = 2026;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
   const rand = Math.floor(1000 + Math.random() * 9000);
-  return `PE-${prefix}-${year}-${rand}`;
+  return `PE-${prefix}-${year}${month}${day}-${rand}`;
 }
 
 /** Returns true only for valid UUID strings that can be stored in Supabase user_id columns */
@@ -822,203 +829,287 @@ export class PalakDataStore {
     submittedAt?: string;
     priorityAt?: string;
   }): Promise<StoredOrder> {
-    const orderCode = data.orderCode || generateCode("O");
-    const now = new Date().toISOString();
-
-    const sanitizedItems = (data.items || []).map((item) => ({
-      ...item,
-      quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
-      unitPrice: Math.max(0, Number(item.unitPrice) || 0),
-      totalPrice: Math.max(0, Number(item.totalPrice) || 0),
-    }));
-
-    const totalQty = sanitizedItems.reduce((acc, i) => acc + i.quantity, 0);
-
-    // Compute or use authoritative charges snapshot
-    const snapshot = data.chargesSnapshot || calculateOrderCharges({
-      subtotal: data.subtotalAmount,
-      quantity: totalQty,
-      discount: data.discountAmount || 0,
-      fulfillmentType: data.fulfillmentType,
-      customDeliveryFee: data.deliveryFee,
-    });
-
-    const queueMeta = getQueueClassification({
-      queueType: data.queueType,
-      queuePriority: data.queuePriority,
-      submittedAt: data.submittedAt || now,
-      priorityAt: data.priorityAt,
-      paymentMethod: data.paymentMethod,
-      paymentStatus: data.paymentStatus as any,
-      orderNotes: data.orderNotes,
-      createdAt: now,
-    });
-
-    const newOrder: StoredOrder = {
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-      orderCode,
-      userId: data.userId,
-      customerName: data.customerName,
-      customerPhone: data.customerPhone,
-      customerEmail: data.customerEmail,
-      fulfillmentType: data.fulfillmentType,
-      deliveryAddress: data.deliveryAddress,
-      orderNotes: data.orderNotes,
-      subtotalAmount: snapshot.subtotal,
-      discountAmount: snapshot.discount,
-      deliveryFee: snapshot.deliveryFee,
-      platformFee: snapshot.platformFee,
-      serviceCharge: snapshot.serviceCharge,
-      otherCharges: snapshot.otherCharges,
-      taxAmount: snapshot.taxAmount,
-      taxRate: snapshot.taxRate,
-      taxableAmount: snapshot.taxableAmount,
-      cgstAmount: snapshot.cgstAmount,
-      sgstAmount: snapshot.sgstAmount,
-      igstAmount: snapshot.igstAmount,
-      chargesSnapshot: snapshot,
-      totalAmount: snapshot.grandTotal > 0 ? snapshot.grandTotal : data.totalAmount,
-      paymentMethod: data.paymentMethod,
-      paymentStatus: (data.paymentStatus as any) || "pending",
-      orderStatus: data.orderStatus || "NEW",
-      items: sanitizedItems,
-      staffNotes: data.staffNotes,
-      createdAt: now,
-      updatedAt: now,
-      queueType: queueMeta.queueType,
-      queuePriority: queueMeta.queuePriority,
-      submittedAt: queueMeta.submittedAt,
-      priorityAt: queueMeta.priorityAt,
-    };
-
-    const list = getLocal<StoredOrder[]>(ORDERS_KEY, []);
-    list.unshift(newOrder);
-    setLocal(ORDERS_KEY, list);
-
-    this.addStatusHistory({
-      entityType: "order",
-      entityCode: orderCode,
-      newStatus: "NEW",
-      messageEn: "Order placed successfully. Palak team is reviewing specifications.",
-      messageHi: "ऑर्डर सफलतापूर्वक दर्ज हुआ। पालक टीम विवरण की समीक्षा कर रही है।",
-      performedBy: "Customer",
-    });
-
-    // Dispatch realtime event across all open admin tabs and components
-    try {
-      const firstItem = sanitizedItems.length > 0 ? sanitizedItems[0] : null;
-      let serviceTitle = firstItem ? firstItem.productName : "Print Order";
-      if (sanitizedItems.length > 1) {
-        serviceTitle += ` + ${sanitizedItems.length - 1} more`;
-      }
-
-      dispatchNewOrderLocally({
-        id: newOrder.id,
-        orderCode: newOrder.orderCode,
-        customerName: newOrder.customerName,
-        customerPhone: newOrder.customerPhone,
-        totalAmount: newOrder.totalAmount,
-        orderStatus: newOrder.orderStatus,
-        paymentStatus: newOrder.paymentStatus,
-        paymentMethod: newOrder.paymentMethod,
-        serviceName: serviceTitle,
-        items: sanitizedItems,
-        createdAt: newOrder.createdAt,
-        source: "local_store",
-      });
-    } catch (e) {
-      console.debug("[Realtime Bus] Local dispatch notice:", e);
+    const markStart = `order_submit_start_${Date.now()}`;
+    if (typeof performance !== "undefined" && performance.mark) {
+      performance.mark(markStart);
     }
 
-    if (isSupabaseConfigured && supabase) {
+    // 1. Idempotency Lock: Build unique signature to deduplicate rapid duplicate clicks
+    const sanitizedPhone = data.customerPhone.trim();
+    const itemsSig = (data.items || []).map((i) => `${i.productId}_${i.quantity}_${i.totalPrice}`).join("|");
+    const idempotencyKey = `${sanitizedPhone}_${itemsSig}_${data.totalAmount}_${data.paymentMethod}`;
+
+    if (inFlightOrderSubmissions.has(idempotencyKey)) {
+      console.warn("[PalakDataStore] In-flight order deduplication triggered for key:", idempotencyKey);
+      return inFlightOrderSubmissions.get(idempotencyKey)!;
+    }
+
+    const orderExecutionPromise = (async () => {
+      const orderCode = data.orderCode || generateCode("O");
+      const now = new Date().toISOString();
+
+      const sanitizedItems = (data.items || []).map((item) => ({
+        ...item,
+        quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+        unitPrice: Math.max(0, Number(item.unitPrice) || 0),
+        totalPrice: Math.max(0, Number(item.totalPrice) || 0),
+      }));
+
+      const totalQty = sanitizedItems.reduce((acc, i) => acc + i.quantity, 0);
+
+      // Compute or use authoritative charges snapshot
+      const snapshot = data.chargesSnapshot || calculateOrderCharges({
+        subtotal: data.subtotalAmount,
+        quantity: totalQty,
+        discount: data.discountAmount || 0,
+        fulfillmentType: data.fulfillmentType,
+        customDeliveryFee: data.deliveryFee,
+      });
+
+      const queueMeta = getQueueClassification({
+        queueType: data.queueType,
+        queuePriority: data.queuePriority,
+        submittedAt: data.submittedAt || now,
+        priorityAt: data.priorityAt,
+        paymentMethod: data.paymentMethod,
+        paymentStatus: data.paymentStatus as any,
+        orderNotes: data.orderNotes,
+        createdAt: now,
+      });
+
+      const finalTotalAmount = snapshot.grandTotal > 0 ? snapshot.grandTotal : data.totalAmount;
+
+      const newOrder: StoredOrder = {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        orderCode,
+        userId: data.userId,
+        customerName: data.customerName.trim(),
+        customerPhone: sanitizedPhone,
+        customerEmail: data.customerEmail?.trim() || undefined,
+        fulfillmentType: data.fulfillmentType,
+        deliveryAddress: data.deliveryAddress,
+        orderNotes: data.orderNotes?.trim() || undefined,
+        subtotalAmount: snapshot.subtotal,
+        discountAmount: snapshot.discount,
+        deliveryFee: snapshot.deliveryFee,
+        platformFee: snapshot.platformFee,
+        serviceCharge: snapshot.serviceCharge,
+        otherCharges: snapshot.otherCharges,
+        taxAmount: snapshot.taxAmount,
+        taxRate: snapshot.taxRate,
+        taxableAmount: snapshot.taxableAmount,
+        cgstAmount: snapshot.cgstAmount,
+        sgstAmount: snapshot.sgstAmount,
+        igstAmount: snapshot.igstAmount,
+        chargesSnapshot: snapshot,
+        totalAmount: finalTotalAmount,
+        paymentMethod: data.paymentMethod,
+        paymentStatus: (data.paymentStatus as any) || "pending",
+        orderStatus: data.orderStatus || "NEW",
+        items: sanitizedItems,
+        staffNotes: data.staffNotes,
+        createdAt: now,
+        updatedAt: now,
+        queueType: queueMeta.queueType,
+        queuePriority: queueMeta.queuePriority,
+        submittedAt: queueMeta.submittedAt,
+        priorityAt: queueMeta.priorityAt,
+      };
+
+      // 2. Persist locally first for offline-first instant durability
+      const list = getLocal<StoredOrder[]>(ORDERS_KEY, []);
+      list.unshift(newOrder);
+      setLocal(ORDERS_KEY, list);
+
+      // Local status history entry
+      this.addStatusHistory({
+        entityType: "order",
+        entityCode: orderCode,
+        newStatus: "NEW",
+        messageEn: "Order placed successfully. Palak team is reviewing specifications.",
+        messageHi: "ऑर्डर सफलतापूर्वक दर्ज हुआ। पालक टीम विवरण की समीक्षा कर रही है।",
+        performedBy: "Customer",
+      });
+
+      // 3. Dispatch realtime event locally (non-blocking for UI)
       try {
-        const normalizedPaymentMethod =
-          data.paymentMethod === "upi_online" || data.paymentMethod === "pay_online"
-            ? "upi_online"
-            : data.paymentMethod === "pay_after_confirmation"
-            ? "pay_after_confirmation"
-            : "pay_at_store";
-
-        const currentPaymentStatus = String(data.paymentStatus || "").toLowerCase();
-        const normalizedPaymentStatus =
-          currentPaymentStatus === "confirmed" || currentPaymentStatus === "paid"
-            ? "confirmed"
-            : currentPaymentStatus === "refunded"
-            ? "refunded"
-            : currentPaymentStatus === "failed"
-            ? "failed"
-            : "pending";
-
-        const orderInsertPayload: any = {
-          order_code: orderCode,
-          customer_name: data.customerName,
-          customer_phone: data.customerPhone,
-          customer_email: data.customerEmail || null,
-          fulfillment_type: data.fulfillmentType || "pickup",
-          delivery_address: data.deliveryAddress || null,
-          order_notes: data.orderNotes || null,
-          subtotal_amount: data.subtotalAmount || 0,
-          delivery_fee: data.deliveryFee || 0,
-          total_amount: data.totalAmount || 0,
-          payment_method: normalizedPaymentMethod,
-          payment_status: normalizedPaymentStatus,
-          order_status: data.orderStatus || "NEW",
-          items: data.items || [],
-          staff_notes: data.staffNotes || null,
-        };
-
-        // Only set user_id if it's a valid Supabase UUID (not a guest ID like cust_xxx)
-        if (isValidSupabaseUUID(data.userId)) {
-          orderInsertPayload.user_id = data.userId;
+        const firstItem = sanitizedItems.length > 0 ? sanitizedItems[0] : null;
+        let serviceTitle = firstItem ? firstItem.productName : "Print Order";
+        if (sanitizedItems.length > 1) {
+          serviceTitle += ` + ${sanitizedItems.length - 1} more`;
         }
 
-        const { data: insertedOrder, error: orderErr } = await supabase
-          .from("orders")
-          .insert(orderInsertPayload)
-          .select("id")
-          .single();
+        dispatchNewOrderLocally({
+          id: newOrder.id,
+          orderCode: newOrder.orderCode,
+          customerName: newOrder.customerName,
+          customerPhone: newOrder.customerPhone,
+          totalAmount: newOrder.totalAmount,
+          orderStatus: newOrder.orderStatus,
+          paymentStatus: newOrder.paymentStatus,
+          paymentMethod: newOrder.paymentMethod,
+          serviceName: serviceTitle,
+          items: sanitizedItems,
+          createdAt: newOrder.createdAt,
+          source: "local_store",
+        });
+      } catch (e) {
+        console.debug("[Realtime Bus] Local dispatch notice:", e);
+      }
 
-        if (orderErr) {
-          console.warn("[Palak Cloud] Order insert error:", orderErr.message || orderErr);
-        } else if (insertedOrder?.id && data.items.length > 0) {
-          const itemRows = data.items.map((item) => ({
-            order_id: insertedOrder.id,
-            product_id: item.productId,
-            product_name: item.productName,
-            quantity: item.quantity,
-            unit_price: item.unitPrice,
-            total_price: item.totalPrice,
-            selected_options: item.selectedOptions || {},
-            selected_options_labels: item.selectedOptionsLabels || {},
-            uploaded_file_url: item.uploadedFileUrl,
-            uploaded_file_name: item.uploadedFileName,
-            design_assistance_requested: Boolean(item.designAssistanceRequested),
-            design_notes: item.designNotes,
-          }));
+      // 4. Critical Database Persistence (Fast-path: Single Atomic Supabase RPC Round-Trip)
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const normalizedPaymentMethod =
+            data.paymentMethod === "upi_online" || data.paymentMethod === "pay_online"
+              ? "upi_online"
+              : data.paymentMethod === "pay_after_confirmation"
+              ? "pay_after_confirmation"
+              : "pay_at_store";
 
-          await supabase.from("order_items").insert(itemRows);
+          const currentPaymentStatus = String(data.paymentStatus || "").toLowerCase();
+          const normalizedPaymentStatus =
+            currentPaymentStatus === "confirmed" || currentPaymentStatus === "paid"
+              ? "confirmed"
+              : currentPaymentStatus === "refunded"
+              ? "refunded"
+              : currentPaymentStatus === "failed"
+              ? "failed"
+              : "pending";
 
-          // If file uploaded, record in order_files table
-          for (const item of data.items) {
+          const validUserId = isValidSupabaseUUID(data.userId) ? data.userId : null;
+
+          // Prepare extracted file objects across all items for atomic insertion
+          const extractedFiles: any[] = [];
+          sanitizedItems.forEach((item) => {
             if (item.uploadedFileUrl || item.uploadedFileName || item.selectedOptions?.storagePath) {
               const storagePath = item.selectedOptions?.storagePath || item.uploadedFileUrl || "";
-              await supabase.from("order_files").insert({
-                order_id: insertedOrder.id,
-                file_name: item.uploadedFileName || "Document",
-                file_path: storagePath,
-                file_url: item.uploadedFileUrl || "",
-                file_type: (item.selectedOptions as any)?.mimeType || "document",
-                uploaded_by: data.customerName,
+              extractedFiles.push({
+                name: item.uploadedFileName || "Document",
+                path: storagePath,
+                url: item.uploadedFileUrl || "",
+                type: (item.selectedOptions as any)?.mimeType || "application/pdf",
+                size: (item.selectedOptions as any)?.fileSize || 0,
               });
             }
-          }
-        }
-      } catch (err) {
-        console.warn("Supabase order cloud sync notice:", err);
-      }
-    }
+          });
 
-    return newOrder;
+          // Primary Path: Use atomic SECURITY DEFINER PostgreSQL RPC (1 single network roundtrip)
+          const { data: _rpcData, error: rpcErr } = await supabase.rpc("create_online_print_order", {
+            p_order_code: orderCode,
+            p_customer_name: data.customerName.trim(),
+            p_customer_phone: sanitizedPhone,
+            p_customer_email: data.customerEmail?.trim() || null,
+            p_fulfillment_type: data.fulfillmentType || "pickup",
+            p_delivery_address: data.deliveryAddress ? (data.deliveryAddress as any) : null,
+            p_order_notes: data.orderNotes?.trim() || null,
+            p_subtotal_amount: snapshot.subtotal,
+            p_delivery_fee: snapshot.deliveryFee,
+            p_total_amount: finalTotalAmount,
+            p_payment_method: normalizedPaymentMethod,
+            p_payment_status: normalizedPaymentStatus,
+            p_user_id: validUserId,
+            p_staff_notes: data.staffNotes || null,
+            p_items: sanitizedItems as any,
+            p_files: extractedFiles as any,
+          });
+
+          if (rpcErr) {
+            console.warn("[Palak Cloud] RPC notice, utilizing parallel batch fallback:", rpcErr.message || rpcErr);
+
+            // Resilient Fallback: Direct table batch insertion with parallel item/file execution
+            const orderInsertPayload: any = {
+              order_code: orderCode,
+              customer_name: data.customerName.trim(),
+              customer_phone: sanitizedPhone,
+              customer_email: data.customerEmail?.trim() || null,
+              fulfillment_type: data.fulfillmentType || "pickup",
+              delivery_address: data.deliveryAddress || null,
+              order_notes: data.orderNotes?.trim() || null,
+              subtotal_amount: snapshot.subtotal,
+              discount_amount: snapshot.discount,
+              delivery_fee: snapshot.deliveryFee,
+              total_amount: finalTotalAmount,
+              payment_method: normalizedPaymentMethod,
+              payment_status: normalizedPaymentStatus,
+              order_status: data.orderStatus || "NEW",
+              items: sanitizedItems,
+              staff_notes: data.staffNotes || null,
+            };
+            if (validUserId) orderInsertPayload.user_id = validUserId;
+
+            const { data: insertedOrder, error: orderErr } = await supabase
+              .from("orders")
+              .insert(orderInsertPayload)
+              .select("id")
+              .single();
+
+            if (!orderErr && insertedOrder?.id && sanitizedItems.length > 0) {
+              const itemRows = sanitizedItems.map((item) => ({
+                order_id: insertedOrder.id,
+                product_id: item.productId,
+                product_name: item.productName,
+                quantity: item.quantity,
+                unit_price: item.unitPrice,
+                total_price: item.totalPrice,
+                selected_options: item.selectedOptions || {},
+                selected_options_labels: item.selectedOptionsLabels || {},
+                uploaded_file_url: item.uploadedFileUrl,
+                uploaded_file_name: item.uploadedFileName,
+                design_assistance_requested: Boolean(item.designAssistanceRequested),
+                design_notes: item.designNotes,
+              }));
+
+              const fileRows = extractedFiles.map((f) => ({
+                order_id: insertedOrder.id,
+                file_name: f.name,
+                file_path: f.path,
+                file_url: f.url,
+                file_type: f.type,
+                file_size: f.size,
+                uploaded_by: data.customerName.trim(),
+              }));
+
+              // Execute item and file batch insertions in parallel (Promise.all)
+              await Promise.all([
+                supabase.from("order_items").insert(itemRows),
+                fileRows.length > 0 ? supabase.from("order_files").insert(fileRows) : Promise.resolve(),
+              ]);
+            }
+          }
+        } catch (err) {
+          console.warn("[Palak Cloud] Order sync notice (safely stored locally):", err);
+        }
+      }
+
+      if (typeof performance !== "undefined" && performance.mark && performance.measure) {
+        const markEnd = `order_submit_end_${Date.now()}`;
+        performance.mark(markEnd);
+        try {
+          performance.measure("order_submission_duration", markStart, markEnd);
+          const entries = performance.getEntriesByName("order_submission_duration");
+          const lastEntry = entries[entries.length - 1];
+          if (lastEntry) {
+            console.log(`⚡ [Performance] Order ${orderCode} submission completed in ${Math.round(lastEntry.duration)}ms`);
+          }
+        } catch {}
+      }
+
+      return newOrder;
+    })();
+
+    // Store in active mutex map
+    inFlightOrderSubmissions.set(idempotencyKey, orderExecutionPromise);
+    recentOrderSubmissionKeys.add(idempotencyKey);
+    setTimeout(() => {
+      recentOrderSubmissionKeys.delete(idempotencyKey);
+    }, 5000);
+
+    try {
+      return await orderExecutionPromise;
+    } finally {
+      inFlightOrderSubmissions.delete(idempotencyKey);
+    }
   }
 
   static getOrders(): StoredOrder[] {

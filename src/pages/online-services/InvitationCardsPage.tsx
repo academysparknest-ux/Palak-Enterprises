@@ -55,12 +55,6 @@ export const InvitationCardsPage: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (submittedCode) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [submittedCode]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);

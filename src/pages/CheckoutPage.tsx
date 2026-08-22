@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSquare, User, Sparkles, CreditCard, Building } from "lucide-react";
+import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSquare, User, Sparkles, CreditCard, Building, Loader2 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -43,12 +43,6 @@ export const CheckoutPage: React.FC = () => {
     fulfillmentType: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (placedOrder) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [placedOrder]);
 
   const chargesBreakdown = useMemo(() => {
     const config = PalakChargesStore.getChargesConfig();
@@ -653,12 +647,16 @@ export const CheckoutPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] py-3.5 text-xs sm:text-sm font-bold text-white hover:bg-[#0c274c] shadow-card transition-all cursor-pointer disabled:opacity-50"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] py-3.5 text-xs sm:text-sm font-bold text-white hover:bg-[#0c274c] shadow-card transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <Send className="h-4 w-4" />
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                   <span>
                     {isSubmitting
-                      ? "Placing Order..."
+                      ? (currentLang === "hi" ? "ऑर्डर दर्ज हो रहा है..." : "Placing Order...")
                       : currentLang === "hi"
                       ? "ऑर्डर कन्फर्म करें"
                       : "Confirm & Place Order"}

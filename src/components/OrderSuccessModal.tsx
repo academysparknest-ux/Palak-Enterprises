@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CheckCircle2,
@@ -45,22 +45,47 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
-  const [copied, setCopied] = React.useState(false);
+  const [copied, setCopied] = useState(false);
+  const modalScrollRef = useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isOpen) return;
 
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // 1. Capture current scroll position before locking background
+    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
 
+    // 2. Capture existing inline body styles
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+
+    // 3. Freeze body firmly in place without visual jumping
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
+    // 4. Ensure modal itself starts strictly at top 0
+    if (modalScrollRef.current) {
+      modalScrollRef.current.scrollTop = 0;
+    }
+
+    // 5. Escape key dismiss
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
+
     return () => {
+      // 6. Clean up: restore original body styles and exact background scroll position
       document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
+      window.scrollTo(0, scrollY);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
@@ -83,13 +108,15 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-xs animate-fadeIn"
+      ref={modalScrollRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-slate-950/80 backdrop-blur-xs animate-fadeIn focus:outline-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="order-success-title"
       onClick={onClose}
     >
-      <div className="min-h-full min-h-[100dvh] w-full flex items-center justify-center p-3 sm:p-4 md:p-6 py-6 sm:py-8">
+      <div className="min-h-full min-h-[100dvh] w-full flex items-start justify-center p-3 sm:p-4 md:p-6 py-6 sm:py-10">
         <div
           className="relative w-full max-w-lg rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 text-left transition-all my-auto"
           style={{ animation: "scaleIn 300ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
