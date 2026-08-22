@@ -280,6 +280,127 @@ let cachedDbProducts: LocalProduct[] | null = null;
 let cachedDbServices: LocalService[] | null = null;
 let cachedDbCategories: LocalCategory[] | null = null;
 
+export function normalizeOrder(raw: any): StoredOrder {
+  if (!raw) {
+    throw new Error("Cannot normalize null/undefined order");
+  }
+
+  const orderCode = String(raw.order_code || raw.orderCode || raw.order_id || raw.id || "ORD-NEW").trim().toUpperCase();
+  const id = String(raw.id || orderCode);
+  const createdAt = raw.created_at || raw.createdAt || new Date().toISOString();
+  const updatedAt = raw.updated_at || raw.updatedAt || createdAt;
+
+  let itemsList: OrderItemPayload[] = [];
+  if (Array.isArray(raw.items) && raw.items.length > 0) {
+    itemsList = raw.items;
+  } else if (typeof raw.items === "string") {
+    try {
+      const parsed = JSON.parse(raw.items);
+      if (Array.isArray(parsed)) itemsList = parsed;
+    } catch {}
+  }
+
+  if (itemsList.length === 0 && Array.isArray(raw.order_items) && raw.order_items.length > 0) {
+    itemsList = raw.order_items.map((it: any) => ({
+      productId: it.product_id || it.productId || "service",
+      productName: it.product_name || it.productName || "Print Service",
+      quantity: Number(it.quantity) || 1,
+      unitPrice: Number(it.unit_price || it.unitPrice) || 0,
+      totalPrice: Number(it.total_price || it.totalPrice) || 0,
+      selectedOptions: it.selected_options || it.selectedOptions || {},
+      selectedOptionsLabels: it.selected_options_labels || it.selectedOptionsLabels || {},
+      uploadedFileName: it.uploaded_file_name || it.uploadedFileName,
+      uploadedFileUrl: it.uploaded_file_url || it.uploadedFileUrl,
+      designAssistanceRequested: Boolean(it.design_assistance_requested || it.designAssistanceRequested),
+      designNotes: it.design_notes || it.designNotes,
+    }));
+  }
+
+  const normalizedItems: OrderItemPayload[] = itemsList.map((it: any) => ({
+    productId: it.productId || it.product_id || "print-service",
+    productName: it.productName || it.product_name || "Print Order",
+    quantity: Math.max(1, Number(it.quantity) || 1),
+    unitPrice: Math.max(0, Number(it.unitPrice || it.unit_price) || 0),
+    totalPrice: Math.max(0, Number(it.totalPrice || it.total_price) || 0),
+    selectedOptions: it.selectedOptions || it.selected_options || {},
+    selectedOptionsLabels: it.selectedOptionsLabels || it.selected_options_labels || {},
+    uploadedFileName: it.uploadedFileName || it.uploaded_file_name,
+    uploadedFileUrl: it.uploadedFileUrl || it.uploaded_file_url,
+    designAssistanceRequested: Boolean(it.designAssistanceRequested || it.design_assistance_requested),
+    designNotes: it.designNotes || it.design_notes,
+  }));
+
+  let payStatus = String(raw.payment_status || raw.paymentStatus || "pending").toLowerCase();
+  if (payStatus === "success" || payStatus === "completed" || payStatus === "captured") payStatus = "paid";
+  if (payStatus === "pay_at_shop" || payStatus === "pay_at_counter" || payStatus === "cash") payStatus = "pending";
+
+  let ordStatus = String(raw.order_status || raw.orderStatus || "NEW").toUpperCase();
+  if (ordStatus === "PENDING" || ordStatus === "SUBMITTED" || ordStatus === "RECEIVED") ordStatus = "NEW";
+  if (ordStatus === "PRINTING") ordStatus = "IN_PRODUCTION";
+  if (ordStatus === "READY" || ordStatus === "PRINTED") ordStatus = "READY_FOR_PICKUP";
+  if (ordStatus === "DELIVERED" || ordStatus === "FULFILLED") ordStatus = "COMPLETED";
+
+  const totalAmount = Math.max(0, Number(raw.total_amount ?? raw.totalAmount ?? 0));
+  const subtotalAmount = Math.max(0, Number(raw.subtotal_amount ?? raw.subtotalAmount ?? totalAmount));
+  const deliveryFee = Math.max(0, Number(raw.delivery_fee ?? raw.deliveryFee ?? 0));
+  const discountAmount = Math.max(0, Number(raw.discount_amount ?? raw.discountAmount ?? 0));
+
+  const custPhone = String(raw.customer_phone || raw.customerPhone || "").trim();
+  const custName = String(
+    raw.customer_name ||
+    raw.customerName ||
+    (custPhone ? `Customer (${custPhone})` : "Guest Customer")
+  ).trim();
+
+  const qMeta = getQueueClassification({
+    queueType: raw.queue_type || raw.queueType,
+    queuePriority: raw.queue_priority || raw.queuePriority,
+    submittedAt: raw.submitted_at || raw.submittedAt || createdAt,
+    priorityAt: raw.priority_at || raw.priorityAt,
+    paymentMethod: raw.payment_method || raw.paymentMethod || "pay_at_store",
+    paymentStatus: payStatus as StoredOrder["paymentStatus"],
+    orderNotes: raw.order_notes || raw.orderNotes,
+    createdAt: createdAt,
+  });
+
+  return {
+    id,
+    orderCode,
+    userId: raw.user_id || raw.userId || undefined,
+    customerName: custName,
+    customerPhone: custPhone,
+    customerEmail: raw.customer_email || raw.customerEmail || undefined,
+    fulfillmentType: (raw.fulfillment_type || raw.fulfillmentType || "pickup") as "pickup" | "delivery",
+    deliveryAddress: raw.delivery_address || raw.deliveryAddress || undefined,
+    orderNotes: raw.order_notes || raw.orderNotes || undefined,
+    subtotalAmount,
+    discountAmount,
+    deliveryFee,
+    platformFee: raw.platform_fee || raw.platformFee,
+    serviceCharge: raw.service_charge || raw.serviceCharge,
+    otherCharges: raw.other_charges || raw.otherCharges,
+    taxAmount: raw.tax_amount || raw.taxAmount,
+    taxRate: raw.tax_rate || raw.taxRate,
+    taxableAmount: raw.taxable_amount || raw.taxableAmount,
+    cgstAmount: raw.cgst_amount || raw.cgstAmount,
+    sgstAmount: raw.sgst_amount || raw.sgstAmount,
+    igstAmount: raw.igst_amount || raw.igstAmount,
+    chargesSnapshot: raw.charges_snapshot || raw.chargesSnapshot,
+    totalAmount,
+    paymentMethod: (raw.payment_method || raw.paymentMethod || "pay_at_store") as any,
+    paymentStatus: payStatus as any,
+    orderStatus: ordStatus as any,
+    items: normalizedItems,
+    staffNotes: raw.staff_notes || raw.staffNotes || undefined,
+    createdAt,
+    updatedAt,
+    queueType: qMeta.queueType,
+    queuePriority: qMeta.queuePriority,
+    submittedAt: qMeta.submittedAt,
+    priorityAt: qMeta.priorityAt,
+  };
+}
+
 export class PalakDataStore {
   // --- Dynamic Synchronization Setters ---
   static setProducts(list: LocalProduct[]): void {
@@ -902,15 +1023,13 @@ export class PalakDataStore {
 
   static getOrders(): StoredOrder[] {
     const raw = getLocal<StoredOrder[]>(ORDERS_KEY, []);
+    if (!Array.isArray(raw)) return [];
     return raw.map((o) => {
-      const qMeta = getQueueClassification(o);
-      return {
-        ...o,
-        queueType: o.queueType || qMeta.queueType,
-        queuePriority: o.queuePriority || qMeta.queuePriority,
-        submittedAt: o.submittedAt || qMeta.submittedAt,
-        priorityAt: o.priorityAt || qMeta.priorityAt,
-      };
+      try {
+        return normalizeOrder(o);
+      } catch {
+        return o;
+      }
     });
   }
 
@@ -933,7 +1052,11 @@ export class PalakDataStore {
 
       // 1. Existing local records
       existing.forEach((o) => {
-        if (o && o.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
+        if (o && o.orderCode) {
+          try {
+            mergedMap.set(o.orderCode.trim().toUpperCase(), normalizeOrder(o));
+          } catch {}
+        }
       });
 
       // 2. Cloud records take precedence
@@ -941,7 +1064,10 @@ export class PalakDataStore {
         if (o && o.orderCode) {
           const key = o.orderCode.trim().toUpperCase();
           const prev = mergedMap.get(key);
-          mergedMap.set(key, { ...prev, ...o });
+          try {
+            const normalized = normalizeOrder({ ...prev, ...o });
+            mergedMap.set(key, normalized);
+          } catch {}
         }
       });
 

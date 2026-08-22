@@ -30,10 +30,12 @@ import {
   Clock,
   Phone,
   MapPin,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
   PalakDataStore,
+  normalizeOrder,
   type StoredOrder,
   type StoredServiceRequest,
   type StoredQuoteRequest,
@@ -64,15 +66,15 @@ import { dispatchAdminToast } from "../lib/realtime/adminOrderEvents";
 import { getWhatsAppLink } from "../config/business";
 import { AdminFilePreviewModal, AdminFileActions, type DocumentItem } from "../components/AdminDocumentViewer";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
+import { AdminCreateBillModal } from "../components/admin/AdminCreateBillModal";
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
-import { downloadInvoicePDF, getWhatsAppInvoiceShareLink } from "../lib/invoice/pdfUtils";
+import { downloadInvoicePDF, instantPrintInvoice, getWhatsAppInvoiceShareLink } from "../lib/invoice/pdfUtils";
 import { cn } from "../lib/utils";
 import {
   sortPrintingQueue,
   calculateQueueStats,
   getQueueClassification,
-  isOrderInActivePrintingQueue,
   extractRazorpayId,
   isOrderPaidOnline,
 } from "../lib/queue";
@@ -380,7 +382,7 @@ export const AdminPage: React.FC = () => {
   }, [location.pathname, searchParams]);
 
   const [activeTab, setActiveTab] = useState<"orders" | "invoices" | "payments" | "pricing" | "services" | "quotes" | "designs">(getTabFromLocation);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(() => PalakDataStore.getOrders().length === 0);
 
   // Synchronize activeTab whenever location or search parameters change
   useEffect(() => {
@@ -419,6 +421,8 @@ export const AdminPage: React.FC = () => {
   // Invoice Modal & Search State
   const [selectedInvoiceForModal, setSelectedInvoiceForModal] = useState<StoredInvoice | null>(null);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [createBillModalOpen, setCreateBillModalOpen] = useState(false);
+  const [draftInvoiceToEdit, setDraftInvoiceToEdit] = useState<StoredInvoice | null>(null);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
   const [invoicePaymentFilter, setInvoicePaymentFilter] = useState<"ALL" | "PAID" | "PENDING">("ALL");
   const [invoiceDateFilter, setInvoiceDateFilter] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL");
@@ -460,7 +464,7 @@ export const AdminPage: React.FC = () => {
       const [cloudOrders, cloudInvoices, cloudServices, cloudQuotes, pricing] = await Promise.all([
         getStaffOrders().catch((err) => {
           console.warn("getStaffOrders notice:", err);
-          return [];
+          return PalakDataStore.getOrders();
         }),
         getStaffInvoices().catch((err) => {
           console.warn("getStaffInvoices notice:", err);
@@ -486,7 +490,11 @@ export const AdminPage: React.FC = () => {
 
       // 1. Seed from local cached store
       localOrders.forEach((o) => {
-        if (o && o.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
+        if (o && o.orderCode) {
+          try {
+            mergedMap.set(o.orderCode.trim().toUpperCase(), normalizeOrder(o));
+          } catch {}
+        }
       });
 
       // 2. Overlay cloud orders (authoritative for cloud-backed records)
@@ -494,7 +502,9 @@ export const AdminPage: React.FC = () => {
         if (o && o.orderCode) {
           const key = o.orderCode.trim().toUpperCase();
           const prev = mergedMap.get(key);
-          mergedMap.set(key, { ...prev, ...o });
+          try {
+            mergedMap.set(key, normalizeOrder({ ...prev, ...o }));
+          } catch {}
         }
       });
 
@@ -548,7 +558,7 @@ export const AdminPage: React.FC = () => {
       }
 
       // Ensure any completed order has an invoice automatically generated if not yet present
-      const invoiceOrderCodes = new Set(allInvoices.map((inv) => inv.orderCode.trim().toUpperCase()));
+      const invoiceOrderCodes = new Set(allInvoices.filter((inv) => !!inv.orderCode).map((inv) => inv.orderCode!.trim().toUpperCase()));
       for (const order of allOrders) {
         if (order.orderStatus === "COMPLETED" && !invoiceOrderCodes.has(order.orderCode.trim().toUpperCase())) {
           try {
@@ -558,7 +568,7 @@ export const AdminPage: React.FC = () => {
               invoiceOrderCodes.add(order.orderCode.trim().toUpperCase());
             }
           } catch (e) {
-            console.warn("Auto invoice check warning:", e);
+            console.warn("Auto-generate invoice notice for order:", order.orderCode, e);
           }
         }
       }
@@ -613,7 +623,7 @@ export const AdminPage: React.FC = () => {
   }, []);
 
   const handleOpenInvoiceModal = async (orderCode: string) => {
-    let inv = invoices.find((i) => i.orderCode.toUpperCase() === orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(orderCode);
+    let inv = invoices.find((i) => i.orderCode && i.orderCode.toUpperCase() === orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(orderCode);
     if (!inv) {
       const order = orders.find((o) => o.orderCode.toUpperCase() === orderCode.toUpperCase());
       if (order) {
@@ -667,14 +677,23 @@ export const AdminPage: React.FC = () => {
 
   // Real-time order handling without full page reload
   const handleRealtimeNewOrder = useCallback((newOrder: StoredOrder) => {
+    let normalized: StoredOrder;
+    try {
+      normalized = normalizeOrder(newOrder);
+    } catch {
+      normalized = newOrder;
+    }
+
+    PalakDataStore.syncOrdersFromCloud([normalized]);
+
     setOrders((prev) => {
-      const code = (newOrder.orderCode || "").trim().toUpperCase();
-      const id = newOrder.id;
+      const code = (normalized.orderCode || "").trim().toUpperCase();
+      const id = normalized.id;
       const exists = prev.some((o) => (code && o.orderCode.trim().toUpperCase() === code) || (id && o.id === id));
       if (exists) {
-        return prev.map((o) => ((code && o.orderCode.trim().toUpperCase() === code) || (id && o.id === id)) ? { ...o, ...newOrder } : o);
+        return prev.map((o) => ((code && o.orderCode.trim().toUpperCase() === code) || (id && o.id === id)) ? { ...o, ...normalized } : o);
       }
-      const updated = [newOrder, ...prev];
+      const updated = [normalized, ...prev];
       updated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       return updated;
     });
@@ -683,15 +702,24 @@ export const AdminPage: React.FC = () => {
     dispatchAdminToast(
       "New Order Received",
       "success",
-      `#${newOrder.orderCode} • ${newOrder.customerName || "Customer"} (₹${(Number(newOrder.totalAmount) || 0).toLocaleString("en-IN")})`
+      `#${normalized.orderCode} • ${normalized.customerName || "Customer"} (₹${(Number(normalized.totalAmount) || 0).toLocaleString("en-IN")})`
     );
   }, []);
 
   const handleRealtimeOrderUpdated = useCallback((updatedOrder: StoredOrder) => {
+    let normalized: StoredOrder;
+    try {
+      normalized = normalizeOrder(updatedOrder);
+    } catch {
+      normalized = updatedOrder;
+    }
+
+    PalakDataStore.syncOrdersFromCloud([normalized]);
+
     setOrders((prev) => {
-      const code = (updatedOrder.orderCode || "").trim().toUpperCase();
-      const id = updatedOrder.id;
-      return prev.map((o) => ((code && o.orderCode.trim().toUpperCase() === code) || (id && o.id === id)) ? { ...o, ...updatedOrder } : o);
+      const code = (normalized.orderCode || "").trim().toUpperCase();
+      const id = normalized.id;
+      return prev.map((o) => ((code && o.orderCode.trim().toUpperCase() === code) || (id && o.id === id)) ? { ...o, ...normalized } : o);
     });
   }, []);
 
@@ -930,11 +958,23 @@ export const AdminPage: React.FC = () => {
   const normalOrdersCount = queueStats.normalActiveCount;
   const totalOrdersCount = orders.length;
   const todayOrdersCount = orders.filter((o) => isToday(o.createdAt)).length;
-  const newOrdersCount = orders.filter((o) => o.orderStatus === "NEW" || o.orderStatus === "UNDER_REVIEW").length;
-  const printingOrdersCount = orders.filter((o) => o.orderStatus === "IN_PRODUCTION").length;
-  const readyOrdersCount = orders.filter((o) => o.orderStatus === "READY_FOR_PICKUP").length;
-  const completedOrdersCount = orders.filter((o) => o.orderStatus === "COMPLETED").length;
-  const unpaidOrdersCount = orders.filter((o) => o.paymentStatus === "pending" || !o.paymentStatus).length;
+  const newOrdersCount = orders.filter((o) => {
+    const s = (o.orderStatus || "").toUpperCase();
+    return s === "NEW" || s === "UNDER_REVIEW";
+  }).length;
+  const printingOrdersCount = orders.filter((o) => {
+    const s = (o.orderStatus || "").toUpperCase();
+    return s === "IN_PRODUCTION" || s === "DESIGN_REVIEW" || s === "PROCESSING";
+  }).length;
+  const readyOrdersCount = orders.filter((o) => {
+    const s = (o.orderStatus || "").toUpperCase();
+    return s === "READY_FOR_PICKUP" || s === "OUT_FOR_DELIVERY";
+  }).length;
+  const completedOrdersCount = orders.filter((o) => (o.orderStatus || "").toUpperCase() === "COMPLETED").length;
+  const unpaidOrdersCount = orders.filter((o) => {
+    const p = (o.paymentStatus || "").toLowerCase();
+    return p !== "paid" && p !== "confirmed";
+  }).length;
 
   // Payments & Revenue Financial Analytics
   const isPaidOrder = (o: StoredOrder) => isOrderPaidOnline(o);
@@ -958,11 +998,15 @@ export const AdminPage: React.FC = () => {
   const filteredPaymentOrders = orders.filter((o) => {
     const q = paymentSearchQuery.toLowerCase().trim();
     const rzpId = (extractRazorpayId(o.orderNotes) || "").toLowerCase();
+    const orderCode = (o.orderCode || "").toLowerCase();
+    const customerName = (o.customerName || "").toLowerCase();
+    const customerPhone = (o.customerPhone || "").toLowerCase();
+
     const matchesSearch =
       !q ||
-      o.orderCode.toLowerCase().includes(q) ||
-      o.customerName.toLowerCase().includes(q) ||
-      o.customerPhone.includes(q) ||
+      orderCode.includes(q) ||
+      customerName.includes(q) ||
+      customerPhone.includes(q) ||
       rzpId.includes(q);
 
     let matchesStatus = true;
@@ -1042,7 +1086,7 @@ export const AdminPage: React.FC = () => {
       const matchesSearch =
         !q ||
         inv.invoiceNumber.toLowerCase().includes(q) ||
-        inv.orderCode.toLowerCase().includes(q) ||
+        (inv.orderCode ? inv.orderCode.toLowerCase().includes(q) : false) ||
         (inv.customerSnapshot?.name || "").toLowerCase().includes(q) ||
         (inv.customerSnapshot?.phone || "").includes(q);
 
@@ -1099,36 +1143,46 @@ export const AdminPage: React.FC = () => {
 
   // Filtered & Deterministically Sorted Orders (Priority FIFO first, then Normal FIFO)
   const filteredOrders = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
     const matched = orders.filter((o) => {
-      const q = searchQuery.toLowerCase().trim();
+      const orderCode = (o.orderCode || "").toLowerCase();
+      const customerName = (o.customerName || "").toLowerCase();
+      const customerPhone = (o.customerPhone || "").toLowerCase();
+      const notes = (o.orderNotes || "").toLowerCase();
+      const itemNames = (o.items || []).map((it) => (it.productName || "").toLowerCase()).join(" ");
+
       const matchesQuery =
         !q ||
-        o.orderCode.toLowerCase().includes(q) ||
-        o.customerName.toLowerCase().includes(q) ||
-        o.customerPhone.includes(q);
+        orderCode.includes(q) ||
+        customerName.includes(q) ||
+        customerPhone.includes(q) ||
+        notes.includes(q) ||
+        itemNames.includes(q);
 
       const qMeta = getQueueClassification(o);
+      const ordStatus = (o.orderStatus || "NEW").toUpperCase();
+      const isPaid = o.paymentStatus === "paid" || o.paymentStatus === "confirmed" || isOrderPaidOnline(o);
 
       let matchesQuick = true;
       if (quickFilter === "TODAY") {
         matchesQuick = isToday(o.createdAt);
       } else if (quickFilter === "PRIORITY") {
-        matchesQuick = qMeta.queuePriority === 1 && isOrderInActivePrintingQueue(o.orderStatus);
+        matchesQuick = qMeta.queuePriority === 1;
       } else if (quickFilter === "NORMAL") {
-        matchesQuick = qMeta.queuePriority === 2 && isOrderInActivePrintingQueue(o.orderStatus);
+        matchesQuick = qMeta.queuePriority === 2;
       } else if (quickFilter === "NEW") {
-        matchesQuick = o.orderStatus === "NEW" || o.orderStatus === "UNDER_REVIEW";
+        matchesQuick = ordStatus === "NEW" || ordStatus === "UNDER_REVIEW";
       } else if (quickFilter === "IN_PRODUCTION") {
-        matchesQuick = o.orderStatus === "IN_PRODUCTION";
+        matchesQuick = ordStatus === "IN_PRODUCTION" || ordStatus === "DESIGN_REVIEW" || ordStatus === "PROCESSING";
       } else if (quickFilter === "READY_FOR_PICKUP") {
-        matchesQuick = o.orderStatus === "READY_FOR_PICKUP";
+        matchesQuick = ordStatus === "READY_FOR_PICKUP" || ordStatus === "OUT_FOR_DELIVERY";
       } else if (quickFilter === "COMPLETED") {
-        matchesQuick = o.orderStatus === "COMPLETED";
+        matchesQuick = ordStatus === "COMPLETED";
       } else if (quickFilter === "UNPAID") {
-        matchesQuick = o.paymentStatus === "pending" || !o.paymentStatus;
+        matchesQuick = !isPaid;
       }
 
-      const matchesStatus = statusFilter === "ALL" || o.orderStatus === statusFilter;
+      const matchesStatus = statusFilter === "ALL" || ordStatus === statusFilter.toUpperCase();
       return matchesQuery && matchesQuick && matchesStatus;
     });
 
@@ -1543,6 +1597,18 @@ export const AdminPage: React.FC = () => {
                       <option key={st} value={st}>{st}</option>
                     ))}
                   </select>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftInvoiceToEdit(null);
+                      setCreateBillModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Create Bill</span>
+                  </button>
                 </div>
               </div>
 
@@ -1780,7 +1846,7 @@ export const AdminPage: React.FC = () => {
 
                         {/* Invoice Indicator & Action Bar for Completed Orders */}
                         {order.orderStatus === "COMPLETED" && (() => {
-                          const inv = invoices.find((i) => i.orderCode.toUpperCase() === order.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(order.orderCode);
+                          const inv = invoices.find((i) => i.orderCode && i.orderCode.toUpperCase() === order.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(order.orderCode);
                           return (
                             <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2.5 border-t border-slate-100 bg-slate-50/60 -mx-3.5 -mb-3.5 p-2.5 rounded-b-xl">
                               <div className="flex items-center gap-1.5">
@@ -1861,9 +1927,14 @@ export const AdminPage: React.FC = () => {
                       </div>
                     );
                   })
+                ) : loading && orders.length === 0 ? (
+                  <div className="text-center py-12 space-y-2.5">
+                    <RefreshCw className="h-6 w-6 animate-spin text-[#123B70] mx-auto opacity-70" />
+                    <div className="text-xs font-semibold text-slate-500">Loading orders...</div>
+                  </div>
                 ) : (
                   <div className="text-center py-10 text-xs text-slate-400">
-                    No print orders matching your filter criteria.
+                    {orders.length === 0 ? "No orders found in the database." : "No print orders matching your filter criteria."}
                   </div>
                 )}
               </div>
@@ -2006,6 +2077,18 @@ export const AdminPage: React.FC = () => {
 
                   <button
                     type="button"
+                    onClick={() => {
+                      setDraftInvoiceToEdit(null);
+                      setCreateBillModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Create Bill</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={exportInvoicesCSV}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
                   >
@@ -2021,7 +2104,7 @@ export const AdminPage: React.FC = () => {
                   <thead>
                     <tr className="border-b border-slate-200 text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-50/50">
                       <th className="py-2 px-2.5">Invoice #</th>
-                      <th className="py-2 px-2.5">Order Ref</th>
+                      <th className="py-2 px-2.5">Type / Ref</th>
                       <th className="py-2 px-2.5">Date</th>
                       <th className="py-2 px-2.5">Customer</th>
                       <th className="py-2 px-2.5">Items Summary</th>
@@ -2034,6 +2117,8 @@ export const AdminPage: React.FC = () => {
                     {filteredInvoices.length > 0 ? (
                       filteredInvoices.map((inv) => {
                         const isPaid = inv.paymentStatus === "confirmed" || inv.paymentStatus === "paid";
+                        const isCancelled = inv.status === "CANCELLED";
+                        const isDraft = inv.status === "DRAFT";
                         const itemsSummary = inv.items?.map((it) => `${it.productName} (x${it.quantity})`).join(", ") || "Printing Service";
 
                         return (
@@ -2042,7 +2127,11 @@ export const AdminPage: React.FC = () => {
                               {inv.invoiceNumber}
                             </td>
                             <td className="py-2 px-2.5 font-mono text-slate-700">
-                              {inv.orderCode}
+                              {inv.orderCode || (
+                                <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-sans">
+                                  Counter Bill
+                                </span>
+                              )}
                             </td>
                             <td className="py-2 px-2.5 text-slate-600">
                               {new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString("en-IN", {
@@ -2062,16 +2151,26 @@ export const AdminPage: React.FC = () => {
                               ₹{Number(inv.totalAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                             </td>
                             <td className="py-2 px-2.5 text-center">
-                              <span
-                                className={cn(
-                                  "px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-0.5 border",
-                                  isPaid
-                                    ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                                    : "bg-amber-50 text-amber-900 border-amber-300"
-                                )}
-                              >
-                                {isPaid ? "PAID" : "DUE"}
-                              </span>
+                              {isCancelled ? (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-0.5 border bg-rose-50 text-rose-800 border-rose-300">
+                                  CANCELLED
+                                </span>
+                              ) : isDraft ? (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-0.5 border bg-amber-50 text-amber-900 border-amber-300">
+                                  DRAFT
+                                </span>
+                              ) : (
+                                <span
+                                  className={cn(
+                                    "px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-0.5 border",
+                                    isPaid
+                                      ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                      : "bg-amber-50 text-amber-900 border-amber-300"
+                                  )}
+                                >
+                                  {isPaid ? "PAID" : "DUE"}
+                                </span>
+                              )}
                             </td>
                             <td className="py-2 px-2.5 text-right">
                               <div className="flex items-center justify-end gap-1">
@@ -2082,9 +2181,19 @@ export const AdminPage: React.FC = () => {
                                     setInvoiceModalOpen(true);
                                   }}
                                   className="p-1 rounded-md text-[#123B70] hover:bg-blue-50 transition-colors cursor-pointer"
-                                  title="View Full Bill"
+                                  title="View / Print Full Bill"
                                 >
                                   <Eye className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await instantPrintInvoice(inv);
+                                  }}
+                                  className="p-1 rounded-md text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
+                                  title="Instant Print (A4)"
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
                                 </button>
                                 <button
                                   type="button"
@@ -2095,17 +2204,6 @@ export const AdminPage: React.FC = () => {
                                   title="Download PDF"
                                 >
                                   <Download className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedInvoiceForModal(inv);
-                                    setInvoiceModalOpen(true);
-                                  }}
-                                  className="p-1 rounded-md text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                                  title="Print Bill"
-                                >
-                                  <Printer className="h-3.5 w-3.5" />
                                 </button>
                                 <a
                                   href={getWhatsAppInvoiceShareLink(inv)}
@@ -3455,7 +3553,7 @@ export const AdminPage: React.FC = () => {
 
             {/* Official Tax Invoice Card in Order Modal */}
             {(() => {
-              const inv = invoices.find((i) => i.orderCode.toUpperCase() === selectedOrderForModal.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(selectedOrderForModal.orderCode);
+              const inv = invoices.find((i) => i.orderCode && i.orderCode.toUpperCase() === selectedOrderForModal.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(selectedOrderForModal.orderCode);
               return (
                 <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50/50 via-white to-slate-50 p-3 space-y-2">
                   <div className="flex items-center justify-between">
@@ -3606,9 +3704,41 @@ export const AdminPage: React.FC = () => {
             onClose={() => setInvoiceModalOpen(false)}
             invoice={selectedInvoiceForModal}
             isAdmin={true}
-            onRegenerate={selectedInvoiceForModal ? (reason?: string) => handleRegenerateInvoiceForOrder(selectedInvoiceForModal.orderCode, reason) : undefined}
+            onRegenerate={selectedInvoiceForModal && selectedInvoiceForModal.orderCode ? (reason?: string) => handleRegenerateInvoiceForOrder(selectedInvoiceForModal.orderCode!, reason) : undefined}
+            onInvoiceUpdated={(updated) => {
+              setSelectedInvoiceForModal(updated);
+              loadData();
+            }}
           />
         </React.Suspense>
+      )}
+
+      {/* Dedicated Admin Create Bill Modal */}
+      {createBillModalOpen && (
+        <AdminCreateBillModal
+          isOpen={createBillModalOpen}
+          onClose={() => {
+            setCreateBillModalOpen(false);
+            setDraftInvoiceToEdit(null);
+          }}
+          draftToEdit={draftInvoiceToEdit}
+          adminName={user?.name || "Palak Staff ERP"}
+          existingCustomers={orders.map((o) => ({
+            name: o.customerName || "Customer",
+            phone: o.customerPhone || "",
+            email: o.customerEmail,
+            address: o.deliveryAddress?.street,
+          }))}
+          onInvoiceCreated={(newInv) => {
+            setSelectedInvoiceForModal(newInv);
+            setInvoiceModalOpen(true);
+            loadData();
+          }}
+          onPreviewInvoice={(previewInv) => {
+            setSelectedInvoiceForModal(previewInv);
+            setInvoiceModalOpen(true);
+          }}
+        />
       )}
     </div>
   );

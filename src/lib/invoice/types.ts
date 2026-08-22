@@ -4,9 +4,11 @@ export interface InvoiceItem {
   productName: string;
   description?: string;
   quantity: number;
+  unit?: string; // e.g. "Pcs", "Copies", "Sq.Ft", "Sets", "Books", "Nos", "Pages"
   unitPrice: number;
   discount: number;
   tax: number;
+  taxRate?: number; // e.g. 0, 5, 12, 18, 28
   totalPrice: number;
   selectedOptions?: Record<string, any>;
   selectedOptionsLabels?: Record<string, string>;
@@ -17,7 +19,7 @@ export interface InvoiceCustomerSnapshot {
   name: string;
   phone: string;
   email?: string;
-  fulfillmentType?: "pickup" | "delivery";
+  fulfillmentType?: "pickup" | "delivery" | string;
   deliveryAddress?: {
     street?: string;
     landmark?: string;
@@ -60,8 +62,12 @@ export interface InvoiceBusinessSnapshot {
 export interface StoredInvoice {
   id: string;
   invoiceNumber: string;
+  source: "ONLINE" | "ADMIN" | "OFFLINE";
+  documentType: "TAX_INVOICE" | "RETAIL_BILL";
+  financialYear: string; // e.g. "2026-27"
+  temporaryNumber?: string; // e.g. "TEMP-2026-XXXXXX"
   orderId?: string;
-  orderCode: string;
+  orderCode?: string;
   userId?: string;
   invoiceDate: string;
   completionDate: string;
@@ -84,15 +90,44 @@ export interface StoredInvoice {
   amountPaid: number;
   amountDue: number;
   paymentStatus: "pending" | "confirmed" | "paid" | "failed" | "refunded" | "partially_paid";
-  paymentMethod: "pay_online" | "pay_at_shop" | "pay_at_store" | "pay_after_confirmation" | "upi_online";
-  status: "ISSUED" | "CANCELLED" | "VOID";
+  paymentMethod: "pay_online" | "pay_at_shop" | "pay_at_store" | "pay_after_confirmation" | "upi_online" | "cash" | "upi" | "card" | "bank_transfer" | "other" | string;
+  status: "DRAFT" | "ISSUED" | "CANCELLED" | "VOID" | "PENDING_SYNC";
+  signatureUrl?: string;
+  createdBy?: string;
   notes?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
   syncStatus?: "SYNCED" | "LOCAL_PENDING" | "RECONCILIATION_REQUIRED";
   isTemporary?: boolean;
   reconciledAt?: string;
   reconciliationNotes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminBillPayload {
+  action: "DRAFT" | "ISSUE";
+  draftId?: string;
+  documentType: "TAX_INVOICE" | "RETAIL_BILL";
+  customer: InvoiceCustomerSnapshot;
+  items: InvoiceItem[];
+  financials: {
+    subtotal: number;
+    discount: number;
+    taxableAmount: number;
+    taxAmount: number;
+    taxRate?: number;
+    cgstAmount?: number;
+    sgstAmount?: number;
+    igstAmount?: number;
+    grandTotal: number;
+  };
+  paymentMode: string;
+  paymentStatus: "paid" | "pending" | "partially_paid";
+  amountPaid?: number;
+  notes?: string;
+  performedBy?: string;
 }
 
 export interface InvoiceStats {

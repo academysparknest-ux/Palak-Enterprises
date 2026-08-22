@@ -10,7 +10,7 @@ import { getSingleOrderQueueInfo } from "../lib/queue";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
-import { downloadInvoicePDF } from "../lib/invoice/pdfUtils";
+import { downloadInvoicePDF, instantPrintInvoice } from "../lib/invoice/pdfUtils";
 
 export const TrackOrderPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -367,8 +367,10 @@ export const TrackOrderPage: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => setInvoiceModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                      onClick={async () => {
+                        await instantPrintInvoice(activeInvoice);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                     >
                       <Printer className="h-3.5 w-3.5" />
                       <span>Print</span>
@@ -508,7 +510,7 @@ export const TrackOrderPage: React.FC = () => {
 
               {/* Official Invoice Card for Local Order */}
               {(() => {
-                const orderInv = activeInvoice?.orderCode.toUpperCase() === order.orderCode.toUpperCase()
+                const orderInv = (activeInvoice && activeInvoice.orderCode && activeInvoice.orderCode.toUpperCase() === order.orderCode.toUpperCase())
                   ? activeInvoice
                   : PalakInvoiceStore.getLocalInvoiceByOrderCode(order.orderCode);
 

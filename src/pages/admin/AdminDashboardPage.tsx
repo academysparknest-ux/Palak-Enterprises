@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { PalakDataStore } from '../../lib/storage/store';
+import { getStaffOrders } from '../../lib/supabase/database';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { AdminContentContainer } from '../../components/admin/AdminContentContainer';
@@ -208,6 +209,8 @@ export const AdminDashboardPage: React.FC = () => {
             .select('id, order_code, customer_name, customer_phone, total_amount, order_status, created_at, items, order_items(product_name, quantity, total_price)')
             .order('created_at', { ascending: false })
             .limit(6),
+          // 10. Synchronize full canonical staff orders to PalakDataStore
+          getStaffOrders().catch(() => []),
         ]);
 
         // Evaluate error

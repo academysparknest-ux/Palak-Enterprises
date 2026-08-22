@@ -6,7 +6,7 @@ import {
   type LocalService,
   type LocalCategory,
 } from "../storage/catalogData";
-import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type OrderItemPayload } from "../storage/store";
+import { PalakDataStore, normalizeOrder, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest } from "../storage/store";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 import { getQueueClassification, type QueueType, type QueuePriority } from "../queue";
 import type { StoredInvoice } from "../invoice/types";
@@ -304,93 +304,83 @@ export async function fetchPublicTracking(
 // ==============================================================================
 
 export function mapOrderRowToStoredOrder(o: any): StoredOrder {
-  let orderItems: OrderItemPayload[] = [];
-  if (Array.isArray(o.items) && o.items.length > 0) {
-    orderItems = o.items;
-  } else if (typeof o.items === "string") {
-    try {
-      const parsed = JSON.parse(o.items);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        orderItems = parsed;
-      }
-    } catch {}
-  }
-  
-  if (orderItems.length === 0 && Array.isArray(o.order_items) && o.order_items.length > 0) {
-    orderItems = o.order_items.map((it: any) => ({
-      productId: it.product_id || "service",
-      productName: it.product_name,
-      quantity: Number(it.quantity) || 1,
-      unitPrice: Number(it.unit_price) || 0,
-      totalPrice: Number(it.total_price) || 0,
-      selectedOptions: it.selected_options || {},
-      selectedOptionsLabels: it.selected_options_labels || {},
-      uploadedFileName: it.uploaded_file_name,
-      uploadedFileUrl: it.uploaded_file_url,
-      designAssistanceRequested: Boolean(it.design_assistance_requested),
-      designNotes: it.design_notes,
-    }));
-  }
-
-  const queueMeta = getQueueClassification({
-    queueType: o.queue_type || o.queueType,
-    queuePriority: o.queue_priority || o.queuePriority,
-    submittedAt: o.submitted_at || o.submittedAt || o.created_at,
-    priorityAt: o.priority_at || o.priorityAt,
-    paymentMethod: o.payment_method || o.paymentMethod,
-    paymentStatus: o.payment_status || o.paymentStatus,
-    orderNotes: o.order_notes || o.orderNotes,
-    createdAt: o.created_at,
-  });
-
-  return {
-    id: o.id,
-    orderCode: o.order_code,
-    userId: o.user_id,
-    customerName: o.customer_name,
-    customerPhone: o.customer_phone,
-    customerEmail: o.customer_email,
-    fulfillmentType: o.fulfillment_type || "pickup",
-    deliveryAddress: o.delivery_address,
-    orderNotes: o.order_notes,
-    subtotalAmount: Number(o.subtotal_amount) || 0,
-    deliveryFee: Number(o.delivery_fee) || 0,
-    totalAmount: Number(o.total_amount) || 0,
-    paymentMethod: o.payment_method || "pay_at_store",
-    paymentStatus: o.payment_status || "pending",
-    orderStatus: o.order_status || "NEW",
-    items: orderItems,
-    staffNotes: o.staff_notes,
-    createdAt: o.created_at,
-    updatedAt: o.updated_at,
-    queueType: queueMeta.queueType,
-    queuePriority: queueMeta.queuePriority,
-    submittedAt: queueMeta.submittedAt,
-    priorityAt: queueMeta.priorityAt,
-  };
+  return normalizeOrder(o);
 }
 
 export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]> {
-  if (!isSupabaseConfigured || !supabase) return [];
-
-  // Query orders with order_items join so items are fully populated
-  let query = supabase
-    .from("orders")
-    .select("*, order_items(*)")
-    .order("created_at", { ascending: false });
-
-  if (limit > 0) {
-    query = query.limit(limit);
+  if (!isSupabaseConfigured || !supabase) {
+    return PalakDataStore.getOrders();
   }
 
-  const { data, error } = await query;
+  let data: any[] | null = null;
+  let queryError: any = null;
 
-  if (error) {
-    console.warn("getStaffOrders query error:", error.message || error);
-    throw error;
+  // 1. First attempt: Query orders with order_items joined
+  try {
+    let query = supabase
+      .from("orders")
+      .select("*, order_items(*)")
+      .order("created_at", { ascending: false });
+
+    if (limit > 0) {
+      query = query.limit(limit);
+    }
+
+    const res = await query;
+    if (res.error) {
+      queryError = res.error;
+    } else {
+      data = res.data;
+    }
+  } catch (err) {
+    queryError = err;
   }
 
-  return (data || []).map(mapOrderRowToStoredOrder);
+  // 2. Fallback attempt: If relation query failed, try simple select("*")
+  if (queryError || !data) {
+    console.warn("getStaffOrders primary query notice, attempting flat select fallback:", queryError?.message || queryError);
+    try {
+      let flatQuery = supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (limit > 0) {
+        flatQuery = flatQuery.limit(limit);
+      }
+
+      const flatRes = await flatQuery;
+      if (!flatRes.error && flatRes.data) {
+        data = flatRes.data;
+        queryError = null;
+      } else if (flatRes.error) {
+        queryError = flatRes.error;
+      }
+    } catch (err) {
+      queryError = err;
+    }
+  }
+
+  if (queryError && (!data || data.length === 0)) {
+    console.warn("getStaffOrders database notice:", queryError?.message || queryError);
+    // Return local cache rather than failing
+    return PalakDataStore.getOrders();
+  }
+
+  const normalizedList: StoredOrder[] = [];
+  (data || []).forEach((row) => {
+    try {
+      normalizedList.push(normalizeOrder(row));
+    } catch (e) {
+      console.warn("Row normalization notice for order:", row?.id || row?.order_code, e);
+    }
+  });
+
+  if (normalizedList.length > 0) {
+    PalakDataStore.syncOrdersFromCloud(normalizedList);
+  }
+
+  return normalizedList;
 }
 
 export async function getStaffOrderByCodeOrId(codeOrId: string): Promise<StoredOrder | null> {
@@ -536,6 +526,9 @@ export async function updateStaffOrderStatus(
           orderId: inv.order_id,
           orderCode: inv.order_code,
           userId: inv.user_id,
+          source: (inv.source as any) || "ONLINE",
+          documentType: (inv.document_type as any) || "TAX_INVOICE",
+          financialYear: inv.financial_year || "2026-27",
           invoiceDate: inv.invoice_date,
           completionDate: inv.completion_date,
           customerSnapshot: inv.customer_snapshot,
@@ -553,6 +546,11 @@ export async function updateStaffOrderStatus(
           paymentStatus: inv.payment_status || "pending",
           paymentMethod: inv.payment_method || "pay_at_store",
           status: inv.status || "ISSUED",
+          signatureUrl: inv.signature_url || undefined,
+          cancelledAt: inv.cancelled_at || undefined,
+          cancelledBy: inv.cancelled_by || undefined,
+          cancellationReason: inv.cancellation_reason || undefined,
+          createdBy: inv.created_by || undefined,
           notes: inv.notes,
           createdAt: inv.created_at,
           updatedAt: inv.updated_at,
@@ -1192,6 +1190,9 @@ export async function getStaffInvoices(validOrderCodes?: Set<string>): Promise<S
       orderId: inv.order_id,
       orderCode: inv.order_code,
       userId: inv.user_id,
+      source: (inv.source as any) || "ONLINE",
+      documentType: (inv.document_type as any) || "TAX_INVOICE",
+      financialYear: inv.financial_year || "2026-27",
       invoiceDate: inv.invoice_date,
       completionDate: inv.completion_date,
       customerSnapshot: inv.customer_snapshot || {},
@@ -1209,6 +1210,11 @@ export async function getStaffInvoices(validOrderCodes?: Set<string>): Promise<S
       paymentStatus: inv.payment_status || "pending",
       paymentMethod: inv.payment_method || "pay_at_store",
       status: inv.status || "ISSUED",
+      signatureUrl: inv.signature_url || undefined,
+      cancelledAt: inv.cancelled_at || undefined,
+      cancelledBy: inv.cancelled_by || undefined,
+      cancellationReason: inv.cancellation_reason || undefined,
+      createdBy: inv.created_by || undefined,
       notes: inv.notes,
       syncStatus: "SYNCED",
       isTemporary: false,
@@ -1254,6 +1260,9 @@ export async function getInvoiceByOrderCode(
           orderId: inv.order_id,
           orderCode: inv.order_code,
           userId: inv.user_id,
+          source: (inv.source as any) || "ONLINE",
+          documentType: (inv.document_type as any) || "TAX_INVOICE",
+          financialYear: inv.financial_year || "2026-27",
           invoiceDate: inv.invoice_date,
           completionDate: inv.completion_date,
           customerSnapshot: inv.customer_snapshot || {},
@@ -1271,6 +1280,11 @@ export async function getInvoiceByOrderCode(
           paymentStatus: inv.payment_status || "pending",
           paymentMethod: inv.payment_method || "pay_at_store",
           status: inv.status || "ISSUED",
+          signatureUrl: inv.signature_url || undefined,
+          cancelledAt: inv.cancelled_at || undefined,
+          cancelledBy: inv.cancelled_by || undefined,
+          cancellationReason: inv.cancellation_reason || undefined,
+          createdBy: inv.created_by || undefined,
           notes: inv.notes,
           syncStatus: "SYNCED",
           isTemporary: false,
@@ -1317,6 +1331,9 @@ export async function regenerateStaffInvoice(
           orderId: inv.order_id,
           orderCode: inv.order_code,
           userId: inv.user_id,
+          source: (inv.source as any) || "ONLINE",
+          documentType: (inv.document_type as any) || "TAX_INVOICE",
+          financialYear: inv.financial_year || "2026-27",
           invoiceDate: inv.invoice_date,
           completionDate: inv.completion_date,
           customerSnapshot: inv.customer_snapshot || {},
@@ -1334,6 +1351,11 @@ export async function regenerateStaffInvoice(
           paymentStatus: inv.payment_status || "pending",
           paymentMethod: inv.payment_method || "pay_at_store",
           status: inv.status || "ISSUED",
+          signatureUrl: inv.signature_url || undefined,
+          cancelledAt: inv.cancelled_at || undefined,
+          cancelledBy: inv.cancelled_by || undefined,
+          cancellationReason: inv.cancellation_reason || undefined,
+          createdBy: inv.created_by || undefined,
           notes: inv.notes,
           syncStatus: "SYNCED",
           isTemporary: false,

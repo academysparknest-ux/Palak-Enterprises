@@ -7,6 +7,7 @@ import type {
   InvoiceCustomerSnapshot,
   InvoiceBusinessSnapshot,
   InvoiceStats,
+  AdminBillPayload,
 } from "./types";
 
 const INVOICES_STORAGE_KEY = "palak_invoices_v1";
@@ -31,6 +32,28 @@ function setLocal<T>(key: string, val: T): void {
   }
 }
 
+/**
+ * Computes Indian Financial Year (1 April – 31 March).
+ * e.g. August 2026 -> FY 2026-27 (startYear = 2026, formattedFY = "2026-27")
+ * e.g. February 2027 -> FY 2026-27 (startYear = 2026, formattedFY = "2026-27")
+ */
+export function getIndianFinancialYear(date: Date = new Date()): {
+  startYear: number;
+  endYear: number;
+  formattedFY: string;
+} {
+  const month = date.getMonth(); // 0 is Jan, 3 is April
+  const fullYear = date.getFullYear();
+  const startYear = month < 3 ? fullYear - 1 : fullYear;
+  const endYear = startYear + 1;
+  const shortEnd = String((endYear % 100)).padStart(2, "0");
+  return {
+    startYear,
+    endYear,
+    formattedFY: `${startYear}-${shortEnd}`,
+  };
+}
+
 export function normalizeInvoicePaymentStatus(st?: string): StoredInvoice["paymentStatus"] {
   if (st === "confirmed" || st === "paid") return "paid";
   if (st === "partially_paid") return "partially_paid";
@@ -40,12 +63,18 @@ export function normalizeInvoicePaymentStatus(st?: string): StoredInvoice["payme
 }
 
 export function normalizeInvoicePaymentMethod(m?: string): StoredInvoice["paymentMethod"] {
-  if (m === "pay_online" || m === "upi_online") return "pay_online";
-  if (m === "pay_after_confirmation") return "pay_after_confirmation";
+  if (!m) return "pay_at_store";
+  const clean = m.toLowerCase().replace(/\s+/g, "_");
+  if (clean === "pay_online" || clean === "upi_online" || clean === "online") return "pay_online";
+  if (clean === "cash") return "cash";
+  if (clean === "upi") return "upi";
+  if (clean === "card") return "card";
+  if (clean === "bank_transfer" || clean === "bank") return "bank_transfer";
+  if (clean === "pay_after_confirmation") return "pay_after_confirmation";
   return "pay_at_store";
 }
 
-/** Converts numeric amount to Indian Currency words (e.g. 520 -> "Five Hundred Twenty Rupees Only") */
+/** Converts numeric amount to Indian Currency words (e.g. 847 -> "Eight Hundred Forty Seven Rupees Only") */
 export function numberToIndianRupeesWords(amount: number): string {
   if (!amount || isNaN(amount) || amount <= 0) return "Zero Rupees Only";
 
@@ -142,7 +171,7 @@ export function getBusinessSnapshot(): InvoiceBusinessSnapshot {
 }
 
 /** Generates local temporary invoice number (e.g. TEMP-2026-A8F92D) that cannot conflict with cloud PE-* series */
-function generateLocalTemporaryNumber(year: number = new Date().getFullYear()): string {
+export function generateLocalTemporaryNumber(year: number = new Date().getFullYear()): string {
   const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
   return `TEMP-${year}-${randomSuffix}`;
 }
@@ -156,16 +185,17 @@ export function buildInvoiceItems(items: OrderItemPayload[], fallbackTotal: numb
         productName: "Printing & Documentation Service",
         description: "Custom Service Execution",
         quantity: 1,
+        unit: "Pcs",
         unitPrice: validTotal,
         discount: 0,
         tax: 0,
+        taxRate: 0,
         totalPrice: validTotal,
       },
     ];
   }
 
   return items.map((item, idx) => {
-    // Generate detailed description from selected options
     const descParts: string[] = [];
     if (item.selectedOptions) {
       if (item.selectedOptions.paperSize) descParts.push(`Paper: ${String(item.selectedOptions.paperSize).toUpperCase()}`);
@@ -199,9 +229,11 @@ export function buildInvoiceItems(items: OrderItemPayload[], fallbackTotal: numb
       productName: item.productName || "Print Item",
       description,
       quantity: qty,
+      unit: (item as any).unit || "Pcs",
       unitPrice,
-      discount: 0,
-      tax: 0,
+      discount: (item as any).discount || 0,
+      tax: (item as any).tax || 0,
+      taxRate: (item as any).taxRate || 0,
       totalPrice: total,
       selectedOptions: item.selectedOptions,
       selectedOptionsLabels: item.selectedOptionsLabels,
@@ -307,10 +339,13 @@ export class PalakInvoiceStore {
   static pruneOrphanedInvoices(validOrderCodes: Set<string>): StoredInvoice[] {
     const list = this.getAllLocalInvoices();
     if (!validOrderCodes || validOrderCodes.size === 0) {
-      // Do not purge local invoices if order list is empty / during initial loading
       return list;
     }
-    const filtered = list.filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()));
+    // Only prune online invoices whose order codes disappeared; keep admin bills (where orderId is null/undefined)
+    const filtered = list.filter((inv) => {
+      if (inv.source === "ADMIN" || !inv.orderCode) return true;
+      return validOrderCodes.has(inv.orderCode.trim().toUpperCase());
+    });
     setLocal(INVOICES_STORAGE_KEY, filtered);
     return filtered;
   }
@@ -319,7 +354,7 @@ export class PalakInvoiceStore {
   static getLocalInvoiceByOrderCode(orderCode: string): StoredInvoice | undefined {
     const clean = orderCode.trim().toUpperCase();
     const list = this.getAllLocalInvoices();
-    return list.find((inv) => inv.orderCode.toUpperCase() === clean && inv.status === "ISSUED");
+    return list.find((inv) => inv.orderCode && inv.orderCode.toUpperCase() === clean && inv.status === "ISSUED");
   }
 
   /** Fetch single invoice by invoice number from local store */
@@ -332,7 +367,11 @@ export class PalakInvoiceStore {
   /** Save or update invoice in local storage */
   static saveInvoiceToLocal(invoice: StoredInvoice): void {
     const list = this.getAllLocalInvoices();
-    const idx = list.findIndex((inv) => inv.orderCode.toUpperCase() === invoice.orderCode.toUpperCase());
+    const idx = list.findIndex(
+      (inv) =>
+        inv.invoiceNumber.toUpperCase() === invoice.invoiceNumber.toUpperCase() ||
+        (inv.id && inv.id === invoice.id)
+    );
     if (idx >= 0) {
       list[idx] = invoice;
     } else {
@@ -342,10 +381,10 @@ export class PalakInvoiceStore {
   }
 
   /**
-   * Primary generator for completed orders.
-   * - Supabase is Authoritative Source whenever online (RPC: create_or_regenerate_invoice).
-   * - If genuinely offline, creates local temporary invoice marked 'LOCAL_PENDING' (e.g. TEMP-2026-XXXXXX).
-   * - Ensures exactly 1 invoice per order (Idempotent).
+   * Primary generator for completed online orders.
+   * - Supabase is Authoritative Source (RPC: create_or_regenerate_invoice).
+   * - Shared atomic financial-year sequential numbering.
+   * - If offline, generates local TEMP-YYYY-XXXXXX marked LOCAL_PENDING.
    */
   static async generateInvoiceForOrder(
     order: StoredOrder,
@@ -371,6 +410,8 @@ export class PalakInvoiceStore {
       return { success: true, invoice: existingLocal, isNew: false };
     }
 
+    const fyInfo = getIndianFinancialYear();
+
     // 2. Cloud Supabase RPC generation (Atomic Authoritative Generator)
     if (isSupabaseConfigured && supabase) {
       try {
@@ -386,6 +427,10 @@ export class PalakInvoiceStore {
           const mappedInvoice: StoredInvoice = {
             id: invData.id,
             invoiceNumber: invData.invoice_number,
+            source: invData.source || "ONLINE",
+            documentType: invData.document_type || "TAX_INVOICE",
+            financialYear: invData.financial_year || fyInfo.formattedFY,
+            temporaryNumber: invData.temporary_number,
             orderId: invData.order_id,
             orderCode: invData.order_code,
             userId: invData.user_id,
@@ -405,7 +450,9 @@ export class PalakInvoiceStore {
             amountDue: Number(invData.amount_due) || (order.paymentStatus === "confirmed" || order.paymentStatus === "paid" ? 0 : order.totalAmount),
             paymentStatus: normalizeInvoicePaymentStatus(order.paymentStatus),
             paymentMethod: normalizeInvoicePaymentMethod(order.paymentMethod),
-            status: "ISSUED",
+            status: invData.status || "ISSUED",
+            signatureUrl: invData.signature_url,
+            createdBy: invData.created_by || performedBy,
             notes: invData.notes,
             syncStatus: "SYNCED",
             isTemporary: false,
@@ -425,10 +472,9 @@ export class PalakInvoiceStore {
 
     // 3. Fallback: Local Temporary Invoice Engine (Offline only)
     try {
-      const year = new Date().getFullYear();
+      const year = fyInfo.startYear;
       let invoiceNumber = existingLocal?.invoiceNumber;
       
-      // Never create a fake PE-* number locally; use TEMP-* series
       if (!invoiceNumber || forceRegenerate || invoiceNumber.startsWith("PE-")) {
         invoiceNumber = generateLocalTemporaryNumber(year);
       }
@@ -464,6 +510,10 @@ export class PalakInvoiceStore {
       const tempInvoice: StoredInvoice = {
         id: existingLocal?.id || (crypto.randomUUID ? crypto.randomUUID() : `temp_${Date.now()}`),
         invoiceNumber,
+        source: "ONLINE",
+        documentType: "TAX_INVOICE",
+        financialYear: fyInfo.formattedFY,
+        temporaryNumber: invoiceNumber,
         orderId: order.id,
         orderCode,
         userId: order.userId,
@@ -491,6 +541,8 @@ export class PalakInvoiceStore {
         paymentMethod: normalizeInvoicePaymentMethod(order.paymentMethod),
         status: "ISSUED",
         syncStatus: "LOCAL_PENDING",
+        isTemporary: true,
+        createdBy: performedBy,
         notes: forceRegenerate
           ? `Locally regenerated by ${performedBy}: ${reason || "No reason specified"}`
           : `Temporary offline bill created by ${performedBy}`,
@@ -504,6 +556,193 @@ export class PalakInvoiceStore {
       console.error("Local temporary invoice generation error:", localErr);
       return { success: false, error: localErr?.message || "Failed to generate invoice", isNew: false };
     }
+  }
+
+  /**
+   * Admin Create Bill API:
+   * Supports 'DRAFT' (does NOT consume sequential numbers) or 'ISSUE' (allocates official number).
+   */
+  static async createAdminBill(
+    payload: AdminBillPayload
+  ): Promise<{ success: boolean; invoice?: StoredInvoice; error?: string }> {
+    const now = new Date().toISOString();
+    const fyInfo = getIndianFinancialYear();
+    const performedBy = payload.performedBy || "Admin Staff";
+
+    // 1. Cloud Execution via RPC
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc("create_admin_bill", {
+          p_action: payload.action,
+          p_document_type: payload.documentType,
+          p_customer: payload.customer,
+          p_items: payload.items,
+          p_financials: payload.financials,
+          p_payment_mode: payload.paymentMode,
+          p_payment_status: payload.paymentStatus,
+          p_amount_paid: payload.amountPaid !== undefined ? payload.amountPaid : null,
+          p_notes: payload.notes || null,
+          p_performed_by: performedBy,
+          p_draft_id: payload.draftId || null,
+        });
+
+        if (!rpcErr && rpcRes && rpcRes.success && rpcRes.invoice) {
+          const invData = rpcRes.invoice;
+          const mappedInvoice: StoredInvoice = {
+            id: invData.id,
+            invoiceNumber: invData.invoice_number,
+            source: "ADMIN",
+            documentType: invData.document_type || payload.documentType,
+            financialYear: invData.financial_year || fyInfo.formattedFY,
+            temporaryNumber: invData.temporary_number,
+            orderId: undefined,
+            orderCode: invData.order_code || undefined,
+            userId: invData.user_id,
+            invoiceDate: invData.invoice_date || now,
+            completionDate: invData.completion_date || now,
+            customerSnapshot: invData.customer_snapshot || payload.customer,
+            businessSnapshot: invData.business_snapshot || getBusinessSnapshot(),
+            items: invData.items || payload.items,
+            subtotalAmount: Number(invData.subtotal_amount) || payload.financials.subtotal,
+            discountAmount: Number(invData.discount_amount) || payload.financials.discount,
+            taxableAmount: Number(invData.taxable_amount) || payload.financials.taxableAmount,
+            taxAmount: Number(invData.tax_amount) || payload.financials.taxAmount,
+            taxRate: payload.financials.taxRate || 0,
+            deliveryFee: Number(invData.delivery_fee) || 0,
+            otherCharges: Number(invData.other_charges) || 0,
+            totalAmount: Number(invData.total_amount) || payload.financials.grandTotal,
+            amountPaid: Number(invData.amount_paid) || (payload.amountPaid ?? payload.financials.grandTotal),
+            amountDue: Number(invData.amount_due) || 0,
+            paymentStatus: invData.payment_status || payload.paymentStatus,
+            paymentMethod: invData.payment_method || payload.paymentMode,
+            status: invData.status || (payload.action === "DRAFT" ? "DRAFT" : "ISSUED"),
+            signatureUrl: invData.signature_url,
+            createdBy: invData.created_by || performedBy,
+            notes: invData.notes || payload.notes,
+            syncStatus: "SYNCED",
+            isTemporary: false,
+            createdAt: invData.created_at || now,
+            updatedAt: invData.updated_at || now,
+          };
+
+          this.saveInvoiceToLocal(mappedInvoice);
+          return { success: true, invoice: mappedInvoice };
+        } else if (rpcErr) {
+          console.warn("create_admin_bill RPC warning:", rpcErr);
+        }
+      } catch (err: any) {
+        console.warn("Admin bill cloud exception:", err);
+      }
+    }
+
+    // 2. Offline / Local Fallback
+    try {
+      const isDraft = payload.action === "DRAFT";
+      const invoiceNumber = isDraft
+        ? `DRAFT-${Date.now()}`
+        : generateLocalTemporaryNumber(fyInfo.startYear);
+
+      const fin = payload.financials;
+      const amountPaid = payload.amountPaid !== undefined
+        ? payload.amountPaid
+        : (payload.paymentStatus === "paid" ? fin.grandTotal : (payload.paymentStatus === "partially_paid" ? roundCurrency(fin.grandTotal / 2) : 0));
+      const amountDue = Math.max(0, roundCurrency(fin.grandTotal - amountPaid));
+
+      const localInvoice: StoredInvoice = {
+        id: payload.draftId || (crypto.randomUUID ? crypto.randomUUID() : `local_${Date.now()}`),
+        invoiceNumber,
+        source: "ADMIN",
+        documentType: payload.documentType,
+        financialYear: fyInfo.formattedFY,
+        temporaryNumber: isDraft ? undefined : invoiceNumber,
+        invoiceDate: now,
+        completionDate: now,
+        customerSnapshot: payload.customer,
+        businessSnapshot: getBusinessSnapshot(),
+        items: payload.items,
+        subtotalAmount: fin.subtotal,
+        discountAmount: fin.discount,
+        taxableAmount: fin.taxableAmount,
+        taxAmount: fin.taxAmount,
+        taxRate: fin.taxRate,
+        cgstAmount: fin.cgstAmount,
+        sgstAmount: fin.sgstAmount,
+        igstAmount: fin.igstAmount,
+        deliveryFee: 0,
+        otherCharges: 0,
+        totalAmount: fin.grandTotal,
+        amountPaid,
+        amountDue,
+        paymentStatus: payload.paymentStatus,
+        paymentMethod: payload.paymentMode,
+        status: isDraft ? "DRAFT" : "ISSUED",
+        syncStatus: isDraft ? "SYNCED" : "LOCAL_PENDING",
+        isTemporary: !isDraft,
+        createdBy: performedBy,
+        notes: payload.notes,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      this.saveInvoiceToLocal(localInvoice);
+      return { success: true, invoice: localInvoice };
+    } catch (e: any) {
+      return { success: false, error: e?.message || "Failed to create bill" };
+    }
+  }
+
+  /**
+   * Cancels an issued invoice atomically.
+   * Number is marked CANCELLED and never deleted or reused.
+   */
+  static async cancelInvoice(
+    invoiceNumber: string,
+    cancelledBy: string,
+    reason: string
+  ): Promise<{ success: boolean; invoice?: StoredInvoice; error?: string }> {
+    const cleanNum = invoiceNumber.trim().toUpperCase();
+    const now = new Date().toISOString();
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc("cancel_invoice", {
+          p_invoice_number: cleanNum,
+          p_cancelled_by: cancelledBy,
+          p_reason: reason,
+        });
+
+        if (!rpcErr && rpcRes && rpcRes.success && rpcRes.invoice) {
+          const invData = rpcRes.invoice;
+          const existing = this.getLocalInvoiceByNumber(cleanNum);
+          const updated: StoredInvoice = {
+            ...(existing || (invData as any)),
+            status: "CANCELLED",
+            cancelledAt: invData.cancelled_at || now,
+            cancelledBy: invData.cancelled_by || cancelledBy,
+            cancellationReason: invData.cancellation_reason || reason,
+            updatedAt: invData.updated_at || now,
+          };
+          this.saveInvoiceToLocal(updated);
+          return { success: true, invoice: updated };
+        }
+      } catch (err: any) {
+        console.warn("Cloud cancel invoice error:", err);
+      }
+    }
+
+    // Local fallback
+    const existing = this.getLocalInvoiceByNumber(cleanNum);
+    if (existing) {
+      existing.status = "CANCELLED";
+      existing.cancelledAt = now;
+      existing.cancelledBy = cancelledBy;
+      existing.cancellationReason = reason;
+      existing.updatedAt = now;
+      this.saveInvoiceToLocal(existing);
+      return { success: true, invoice: existing };
+    }
+
+    return { success: false, error: "Invoice not found to cancel" };
   }
 
   /**
@@ -524,29 +763,67 @@ export class PalakInvoiceStore {
 
     for (const inv of pending) {
       try {
-        const { data: rpcRes, error: rpcErr } = await supabase.rpc("create_or_regenerate_invoice", {
-          p_order_code: inv.orderCode,
-          p_force_regenerate: false,
-          p_performed_by: "Cloud Reconciliation Engine",
-          p_reason: "Automated offline bill reconciliation",
-        });
+        if (inv.source === "ADMIN" && inv.temporaryNumber) {
+          const { data: syncRes, error: syncErr } = await supabase.rpc("sync_offline_invoice", {
+            p_temp_number: inv.temporaryNumber,
+            p_document_type: inv.documentType,
+            p_customer: inv.customerSnapshot,
+            p_items: inv.items,
+            p_financials: {
+              subtotal: inv.subtotalAmount,
+              discount: inv.discountAmount,
+              taxableAmount: inv.taxableAmount,
+              taxAmount: inv.taxAmount,
+              grandTotal: inv.totalAmount,
+            },
+            p_payment_mode: inv.paymentMethod,
+            p_payment_status: inv.paymentStatus,
+            p_amount_paid: inv.amountPaid,
+            p_performed_by: "Cloud Reconciliation Engine",
+          });
 
-        if (!rpcErr && rpcRes && rpcRes.success && rpcRes.invoice) {
-          const cloudInv = rpcRes.invoice;
-          const reconciledInvoice: StoredInvoice = {
-            ...inv,
-            id: cloudInv.id,
-            invoiceNumber: cloudInv.invoice_number,
-            orderId: cloudInv.order_id,
-            syncStatus: "SYNCED",
-            isTemporary: false,
-            reconciledAt: new Date().toISOString(),
-            updatedAt: cloudInv.updated_at || new Date().toISOString(),
-          };
-          this.saveInvoiceToLocal(reconciledInvoice);
-          reconciled++;
-        } else {
-          errors++;
+          if (!syncErr && syncRes && syncRes.success && syncRes.invoice) {
+            const cloudInv = syncRes.invoice;
+            const reconciledInvoice: StoredInvoice = {
+              ...inv,
+              id: cloudInv.id,
+              invoiceNumber: cloudInv.invoice_number,
+              syncStatus: "SYNCED",
+              isTemporary: false,
+              reconciledAt: new Date().toISOString(),
+              updatedAt: cloudInv.updated_at || new Date().toISOString(),
+            };
+            this.saveInvoiceToLocal(reconciledInvoice);
+            reconciled++;
+            continue;
+          }
+        }
+
+        if (inv.orderCode) {
+          const { data: rpcRes, error: rpcErr } = await supabase.rpc("create_or_regenerate_invoice", {
+            p_order_code: inv.orderCode,
+            p_force_regenerate: false,
+            p_performed_by: "Cloud Reconciliation Engine",
+            p_reason: "Automated offline bill reconciliation",
+          });
+
+          if (!rpcErr && rpcRes && rpcRes.success && rpcRes.invoice) {
+            const cloudInv = rpcRes.invoice;
+            const reconciledInvoice: StoredInvoice = {
+              ...inv,
+              id: cloudInv.id,
+              invoiceNumber: cloudInv.invoice_number,
+              orderId: cloudInv.order_id,
+              syncStatus: "SYNCED",
+              isTemporary: false,
+              reconciledAt: new Date().toISOString(),
+              updatedAt: cloudInv.updated_at || new Date().toISOString(),
+            };
+            this.saveInvoiceToLocal(reconciledInvoice);
+            reconciled++;
+          } else {
+            errors++;
+          }
         }
       } catch {
         errors++;
@@ -573,7 +850,7 @@ export class PalakInvoiceStore {
     let pendingReconciliations = 0;
 
     list.forEach((inv) => {
-      if (inv.status === "VOID" || inv.status === "CANCELLED") return;
+      if (inv.status === "VOID" || inv.status === "CANCELLED" || inv.status === "DRAFT") return;
 
       if (inv.syncStatus === "LOCAL_PENDING" || inv.isTemporary) {
         pendingReconciliations++;
@@ -617,7 +894,7 @@ export class PalakInvoiceStore {
     });
 
     return {
-      totalInvoices: Math.max(list.length, completedOrdersCount),
+      totalInvoices: Math.max(list.filter((i) => i.status === "ISSUED").length, completedOrdersCount),
       todayInvoices: todayCount,
       monthInvoices: monthCount,
       pendingInvoices: pendingCount,
