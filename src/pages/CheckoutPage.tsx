@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSquare, User, Sparkles, CreditCard, Building, Loader2 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
@@ -9,6 +9,31 @@ import { getWhatsAppLink } from "../config/business";
 import { initiateRazorpayPayment } from "../lib/razorpay";
 import { calculateOrderCharges } from "../lib/charges/pricingEngine";
 import { PalakChargesStore } from "../lib/charges/chargesStore";
+
+const CHECKOUT_SUBMISSION_KEY = "palak_checkout_submission_id_v1";
+
+function getOrInitCheckoutSubmissionId(): string {
+  if (typeof window === "undefined") {
+    return `PE-SUB-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+  try {
+    let existing = sessionStorage.getItem(CHECKOUT_SUBMISSION_KEY);
+    if (!existing || !existing.startsWith("PE-SUB-")) {
+      existing = `PE-SUB-${Date.now()}-${crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10)}`;
+      sessionStorage.setItem(CHECKOUT_SUBMISSION_KEY, existing);
+    }
+    return existing;
+  } catch {
+    return `PE-SUB-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+function clearCheckoutSubmissionId(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(CHECKOUT_SUBMISSION_KEY);
+  } catch {}
+}
 
 export const CheckoutPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -55,6 +80,16 @@ export const CheckoutPage: React.FC = () => {
     });
   }, [subtotal, items, fulfillmentType]);
 
+  // If cart contents change, reset checkout submission ID so the modified order receives a fresh submission attempt
+  const itemsSignature = useMemo(() => items.map((i) => `${i.id}_${i.quantity}_${i.unitPrice}_${i.totalPrice}`).join("|"), [items]);
+  const prevItemsSigRef = useRef(itemsSignature);
+  useEffect(() => {
+    if (prevItemsSigRef.current !== itemsSignature) {
+      prevItemsSigRef.current = itemsSignature;
+      clearCheckoutSubmissionId();
+    }
+  }, [itemsSignature]);
+
   if (itemCount === 0 && !placedOrder) {
     return (
       <div className="mx-auto max-w-md px-4 py-20 text-center space-y-4">
@@ -86,9 +121,12 @@ export const CheckoutPage: React.FC = () => {
     }
 
     setIsSubmitting(true);
+    const activeSubmissionId = getOrInitCheckoutSubmissionId();
+
     try {
       const completeOrderCreation = async (razorpayPaymentId?: string) => {
         const order = await PalakDataStore.createOrder({
+          clientSubmissionId: activeSubmissionId,
           userId: user?.id,
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
@@ -133,6 +171,7 @@ export const CheckoutPage: React.FC = () => {
           totalAmount: order.totalAmount,
           fulfillmentType: order.fulfillmentType,
         });
+        clearCheckoutSubmissionId();
         clearCart();
         setIsSubmitting(false);
       };
@@ -167,7 +206,17 @@ export const CheckoutPage: React.FC = () => {
         await completeOrderCreation();
       }
     } catch (err: any) {
-      setError(err.message || "Failed to place order. Please try again.");
+      const rawMsg = err?.message || "";
+      const isNetworkTimeout = /network|timeout|connection|failed to fetch/i.test(rawMsg);
+      if (isNetworkTimeout) {
+        setError(
+          currentLang === "hi"
+            ? "नेटवर्क कनेक्शन में देरी हुई। आपका ऑर्डर सुरक्षित हो सकता है — पुनः 'पुष्टिकरण' दबाने से कोई डुप्लिकेट ऑर्डर नहीं बनेगा।"
+            : "We couldn't confirm the connection. Your order may already be received. Retrying is safe and will not create duplicate orders."
+        );
+      } else {
+        setError(rawMsg || (currentLang === "hi" ? "ऑर्डर दर्ज करने में समस्या आई। कृपया पुनः प्रयास करें।" : "Failed to place order. Please try again."));
+      }
       setIsSubmitting(false);
     }
   };

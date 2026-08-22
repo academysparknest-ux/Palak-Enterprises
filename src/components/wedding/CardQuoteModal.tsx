@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { X, Sparkles, Send, CheckCircle2, AlertCircle, MessageSquare, ArrowRight } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { PalakDataStore } from "../../lib/storage/store";
 import { type LocalProduct } from "../../lib/storage/catalogData";
 import { getWhatsAppLink } from "../../config/business";
+import { useScrollLock } from "../../hooks/useScrollLock";
 
 interface CardQuoteModalProps {
   isOpen: boolean;
@@ -19,6 +21,19 @@ export const CardQuoteModal: React.FC<CardQuoteModalProps> = ({
 }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
+
+  useScrollLock(isOpen && Boolean(product));
+
+  useEffect(() => {
+    if (!isOpen || !product) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, product, onClose]);
 
   const [quantity, setQuantity] = useState("100");
   const [printingRequirements, setPrintingRequirements] = useState<string[]>([
@@ -100,15 +115,23 @@ export const CardQuoteModal: React.FC<CardQuoteModalProps> = ({
       )
     : "";
 
-  return (
+  if (!isOpen || !product || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-fadeUp overflow-y-auto"
+      className="fixed inset-0 z-[140] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden my-6">
+      <div 
+        className="relative flex flex-col w-full max-w-lg max-h-[calc(100dvh-1.25rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[min(90vh,820px)] rounded-2xl sm:rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Top Header */}
-        <div className="bg-gradient-to-r from-[#881337] to-[#4c0519] text-white p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[#881337] to-[#4c0519] text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold">
               <Sparkles className="h-4 w-4" />
@@ -132,7 +155,7 @@ export const CardQuoteModal: React.FC<CardQuoteModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 max-h-[80vh] overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
           {submittedQuoteCode ? (
             <div className="text-center space-y-4 py-4">
               <div className="h-16 w-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
@@ -367,7 +390,8 @@ export const CardQuoteModal: React.FC<CardQuoteModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

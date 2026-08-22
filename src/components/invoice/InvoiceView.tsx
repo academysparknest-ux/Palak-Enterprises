@@ -1,8 +1,9 @@
 import React from "react";
 import type { StoredInvoice } from "../../lib/invoice/types";
 import { numberToIndianRupeesWords, roundCurrency } from "../../lib/invoice/invoiceStore";
-import { CheckCircle2, AlertCircle, Phone, Mail, MapPin, QrCode, Clock, ShieldCheck } from "lucide-react";
+import { CheckCircle2, AlertCircle, Phone, Mail, MapPin, Clock, ShieldCheck } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { InvoiceQRCode } from "./InvoiceQRCode";
 
 export interface InvoiceViewProps {
   invoice: StoredInvoice;
@@ -35,7 +36,6 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
 }) => {
   const isPaid = invoice.paymentStatus === "confirmed" || invoice.paymentStatus === "paid";
   const isPartiallyPaid = invoice.paymentStatus === "partially_paid";
-  const isTemporary = Boolean(invoice.isTemporary || invoice.syncStatus === "LOCAL_PENDING");
   const isDraft = invoice.status === "DRAFT";
   const isCancelled = invoice.status === "CANCELLED";
 
@@ -61,11 +61,6 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
   const effectiveDocType = invoice.documentType === "RETAIL_BILL" ? "RETAIL BILL" : "TAX INVOICE / RETAIL BILL";
   const activeSignature = signatureUrl || invoice.signatureUrl;
 
-  const originUrl = typeof window !== "undefined" && window.location.origin
-    ? window.location.origin
-    : "https://palakenterprises.in";
-  const verificationUrl = `${originUrl}/track-order?code=${encodeURIComponent(invoice.orderCode || invoice.invoiceNumber)}`;
-
   return (
     <div
       id={elementId}
@@ -84,22 +79,10 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
           <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 flex items-center justify-between text-amber-900 text-[11px] font-semibold print:hidden">
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-              <span>DRAFT BILL — Unissued. Generating invoice will assign an official sequential number.</span>
+              <span>DRAFT BILL — Unissued. Saving or issuing will assign an official sequential permanent number.</span>
             </div>
             <span className="bg-amber-200 text-amber-900 text-[9px] px-2 py-0.5 rounded font-black uppercase">
               DRAFT
-            </span>
-          </div>
-        )}
-
-        {isTemporary && !isDraft && (
-          <div className="bg-blue-50 border border-blue-300 rounded-lg px-3 py-1.5 flex items-center justify-between text-blue-900 text-[11px] font-semibold print:hidden">
-            <div className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-              <span>Offline Bill ({invoice.invoiceNumber}) — Will synchronize official PE number automatically upon reconnect.</span>
-            </div>
-            <span className="bg-blue-200 text-blue-900 text-[9px] px-2 py-0.5 rounded font-black uppercase">
-              Pending Cloud Sync
             </span>
           </div>
         )}
@@ -376,18 +359,8 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
             </div>
           </div>
 
-          {/* Center Column (2 cols): QR Verification Section */}
-          <div className="col-span-2 flex flex-col items-center justify-center p-1.5 rounded-lg border border-slate-200 bg-white text-center">
-            <div className="p-1 border border-slate-300 rounded bg-white shadow-2xs">
-              <QrCode className="h-12 w-12 text-[#123B70]" />
-            </div>
-            <span className="text-[8px] font-bold text-slate-600 mt-1 uppercase tracking-tight">
-              Scan To Verify
-            </span>
-            <span className="text-[7px] font-mono text-slate-400 truncate max-w-[85px]" title={verificationUrl}>
-              {invoice.invoiceNumber}
-            </span>
-          </div>
+          {/* Center Column (2 cols): Official Verification QR Code */}
+          <InvoiceQRCode invoice={invoice} size={58} className="col-span-2" />
 
           {/* Right Column (5 cols): Financial Calculations */}
           <div className="col-span-5 space-y-0.5 text-[11px]">

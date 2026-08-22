@@ -3,9 +3,10 @@ import { PRODUCTS, DIGITAL_SERVICES, CATEGORIES, type LocalProduct, type LocalSe
 import { getQueueClassification, type QueueType, type QueuePriority } from "../queue";
 import { PalakInvoiceStore } from "../invoice/invoiceStore";
 import type { StoredInvoice } from "../invoice/types";
-import { dispatchNewOrderLocally, dispatchOrderUpdatedLocally, dispatchOrderDeletedLocally } from "../realtime/adminOrderEvents";
 import type { OrderChargesBreakdown } from "../charges/types";
 import { calculateOrderCharges } from "../charges/pricingEngine";
+import type { OrderPrintSnapshot } from "../../types/printJob";
+import { dispatchNewOrderLocally, dispatchOrderUpdatedLocally, dispatchOrderDeletedLocally } from "../realtime/adminOrderEvents";
 
 export interface OrderItemPayload {
   productId: string;
@@ -24,6 +25,7 @@ export interface OrderItemPayload {
 export interface StoredOrder {
   id: string;
   orderCode: string;
+  clientSubmissionId?: string;
   userId?: string;
   customerName: string;
   customerPhone: string;
@@ -49,6 +51,7 @@ export interface StoredOrder {
   sgstAmount?: number;
   igstAmount?: number;
   chargesSnapshot?: OrderChargesBreakdown;
+  printSnapshot?: OrderPrintSnapshot;
   totalAmount: number;
   paymentMethod: "pay_online" | "pay_at_shop" | "pay_at_store" | "pay_after_confirmation" | "upi_online";
   paymentStatus: "pending" | "confirmed" | "paid" | "pay_at_shop" | "failed" | "refunded" | "partially_paid";
@@ -170,6 +173,29 @@ const PRODUCTS_CATALOG_KEY = "palak_products_catalog_v2";
 const SERVICES_CATALOG_KEY = "palak_services_catalog_v2";
 const CATEGORIES_CATALOG_KEY = "palak_categories_catalog_v2";
 
+let memoryOrders: StoredOrder[] | null = null;
+let memoryServiceRequests: StoredServiceRequest[] | null = null;
+let memoryQuoteRequests: StoredQuoteRequest[] | null = null;
+let memoryDesignRequests: StoredDesignRequest[] | null = null;
+let memoryStatusLogs: StatusHistoryLog[] | null = null;
+let cachedDbProducts: LocalProduct[] | null = null;
+let cachedDbServices: LocalService[] | null = null;
+let cachedDbCategories: LocalCategory[] | null = null;
+
+export type DataTrustLevel = "AUTHORITATIVE" | "SYNCED_CACHE" | "OFFLINE_CACHE" | "STALE" | "LOADING" | "ERROR";
+
+export interface SyncMetadata {
+  lastSyncedAt: string | null;
+  lastRealtimeEventAt: string | null;
+  trustLevel: DataTrustLevel;
+}
+
+let syncMetadata: SyncMetadata = {
+  lastSyncedAt: null,
+  lastRealtimeEventAt: null,
+  trustLevel: "LOADING",
+};
+
 // Helper to safely access localStorage
 function getLocal<T>(key: string, defaultVal: T): T {
   if (typeof window === "undefined") return defaultVal;
@@ -190,12 +216,41 @@ function setLocal<T>(key: string, val: T): void {
   }
 }
 
+function setLocalOrders(list: StoredOrder[]): void {
+  memoryOrders = list;
+  setLocal(ORDERS_KEY, list);
+}
+
+function setLocalServiceRequests(list: StoredServiceRequest[]): void {
+  memoryServiceRequests = list;
+  setLocal(SERVICE_REQUESTS_KEY, list);
+}
+
+function setLocalQuoteRequests(list: StoredQuoteRequest[]): void {
+  memoryQuoteRequests = list;
+  setLocal(QUOTE_REQUESTS_KEY, list);
+}
+
+function setLocalDesignRequests(list: StoredDesignRequest[]): void {
+  memoryDesignRequests = list;
+  setLocal(DESIGN_REQUESTS_KEY, list);
+}
+
+function setLocalStatusLogs(list: StatusHistoryLog[]): void {
+  memoryStatusLogs = list;
+  setLocal(STATUS_HISTORY_KEY, list);
+}
+
 // Helper to load stored products merging with base PRODUCTS catalog
 function loadStoredProducts(): LocalProduct[] {
+  if (cachedDbProducts !== null) return cachedDbProducts;
   if (typeof window === "undefined") return PRODUCTS;
   try {
     const raw = localStorage.getItem(PRODUCTS_CATALOG_KEY);
-    if (!raw) return PRODUCTS;
+    if (!raw) {
+      cachedDbProducts = PRODUCTS;
+      return PRODUCTS;
+    }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
       const storedMap = new Map<string, LocalProduct>();
@@ -213,19 +268,26 @@ function loadStoredProducts(): LocalProduct[] {
           merged.push(p);
         }
       });
+      cachedDbProducts = merged;
       return merged;
     }
+    cachedDbProducts = PRODUCTS;
     return PRODUCTS;
   } catch {
+    cachedDbProducts = PRODUCTS;
     return PRODUCTS;
   }
 }
 
 function loadStoredServices(): LocalService[] {
+  if (cachedDbServices !== null) return cachedDbServices;
   if (typeof window === "undefined") return DIGITAL_SERVICES;
   try {
     const raw = localStorage.getItem(SERVICES_CATALOG_KEY);
-    if (!raw) return DIGITAL_SERVICES;
+    if (!raw) {
+      cachedDbServices = DIGITAL_SERVICES;
+      return DIGITAL_SERVICES;
+    }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
       const storedMap = new Map<string, LocalService>();
@@ -242,22 +304,32 @@ function loadStoredServices(): LocalService[] {
           merged.push(s);
         }
       });
+      cachedDbServices = merged;
       return merged;
     }
+    cachedDbServices = DIGITAL_SERVICES;
     return DIGITAL_SERVICES;
   } catch {
+    cachedDbServices = DIGITAL_SERVICES;
     return DIGITAL_SERVICES;
   }
 }
 
 function loadStoredCategories(): LocalCategory[] {
+  if (cachedDbCategories !== null) return cachedDbCategories;
   if (typeof window === "undefined") return CATEGORIES;
   try {
     const raw = localStorage.getItem(CATEGORIES_CATALOG_KEY);
-    if (!raw) return CATEGORIES;
+    if (!raw) {
+      cachedDbCategories = CATEGORIES;
+      return CATEGORIES;
+    }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : CATEGORIES;
+    const result = Array.isArray(parsed) && parsed.length > 0 ? parsed : CATEGORIES;
+    cachedDbCategories = result;
+    return result;
   } catch {
+    cachedDbCategories = CATEGORIES;
     return CATEGORIES;
   }
 }
@@ -281,11 +353,6 @@ function isValidSupabaseUUID(id?: string): boolean {
   if (!id) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
-
-// In-memory synchronized catalog cache
-let cachedDbProducts: LocalProduct[] | null = null;
-let cachedDbServices: LocalService[] | null = null;
-let cachedDbCategories: LocalCategory[] | null = null;
 
 export function normalizeOrder(raw: any): StoredOrder {
   if (!raw) {
@@ -393,6 +460,7 @@ export function normalizeOrder(raw: any): StoredOrder {
     sgstAmount: raw.sgst_amount || raw.sgstAmount,
     igstAmount: raw.igst_amount || raw.igstAmount,
     chargesSnapshot: raw.charges_snapshot || raw.chargesSnapshot,
+    printSnapshot: raw.print_snapshot || raw.printSnapshot || undefined,
     totalAmount,
     paymentMethod: (raw.payment_method || raw.paymentMethod || "pay_at_store") as any,
     paymentStatus: payStatus as any,
@@ -432,6 +500,30 @@ export class PalakDataStore {
       setLocal(CATEGORIES_CATALOG_KEY, list);
       this.notifyCatalogChange();
     }
+  }
+
+  static resetMemoryCaches(): void {
+    memoryOrders = null;
+    memoryServiceRequests = null;
+    memoryQuoteRequests = null;
+    memoryDesignRequests = null;
+    memoryStatusLogs = null;
+    cachedDbProducts = null;
+    cachedDbServices = null;
+    cachedDbCategories = null;
+    syncMetadata = {
+      lastSyncedAt: null,
+      lastRealtimeEventAt: null,
+      trustLevel: "LOADING",
+    };
+  }
+
+  static getSyncMetadata(): SyncMetadata {
+    return { ...syncMetadata };
+  }
+
+  static setSyncMetadata(meta: Partial<SyncMetadata>): void {
+    syncMetadata = { ...syncMetadata, ...meta };
   }
 
   static notifyCatalogChange(): void {
@@ -688,6 +780,7 @@ export class PalakDataStore {
    */
   static saveOrderToLocal(data: {
     orderCode: string;
+    clientSubmissionId?: string;
     customerName: string;
     customerPhone: string;
     customerEmail?: string;
@@ -714,6 +807,7 @@ export class PalakDataStore {
     userId?: string;
     staffNotes?: string;
     items: OrderItemPayload[];
+    printSnapshot?: OrderPrintSnapshot;
     queueType?: QueueType;
     queuePriority?: QueuePriority;
     submittedAt?: string;
@@ -742,6 +836,7 @@ export class PalakDataStore {
     const newOrder: StoredOrder = {
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
       orderCode: data.orderCode,
+      clientSubmissionId: data.clientSubmissionId,
       userId: data.userId,
       customerName: data.customerName,
       customerPhone: data.customerPhone,
@@ -762,6 +857,7 @@ export class PalakDataStore {
       sgstAmount: snapshot.sgstAmount,
       igstAmount: snapshot.igstAmount,
       chargesSnapshot: snapshot,
+      printSnapshot: data.printSnapshot,
       totalAmount: snapshot.grandTotal > 0 ? snapshot.grandTotal : data.totalAmount,
       paymentMethod: data.paymentMethod as any,
       paymentStatus: (data.paymentStatus as any) || "pending",
@@ -776,9 +872,9 @@ export class PalakDataStore {
       priorityAt: queueMeta.priorityAt,
     };
 
-    const list = getLocal<StoredOrder[]>(ORDERS_KEY, []);
+    const list = [...this.getOrders()];
     list.unshift(newOrder);
-    setLocal(ORDERS_KEY, list);
+    setLocalOrders(list);
 
     this.addStatusHistory({
       entityType: "order",
@@ -793,6 +889,7 @@ export class PalakDataStore {
   }
   static async createOrder(data: {
     orderCode?: string;
+    clientSubmissionId?: string;
     customerName: string;
     customerPhone: string;
     customerEmail?: string;
@@ -817,6 +914,7 @@ export class PalakDataStore {
     sgstAmount?: number;
     igstAmount?: number;
     chargesSnapshot?: OrderChargesBreakdown;
+    printSnapshot?: OrderPrintSnapshot;
     totalAmount: number;
     paymentMethod: "pay_at_store" | "pay_after_confirmation" | "upi_online" | "pay_at_shop" | "pay_online";
     paymentStatus?: "pending" | "confirmed" | "paid" | "partial" | "refunded";
@@ -834,18 +932,31 @@ export class PalakDataStore {
       performance.mark(markStart);
     }
 
-    // 1. Idempotency Lock: Build unique signature to deduplicate rapid duplicate clicks
-    const sanitizedPhone = data.customerPhone.trim();
-    const itemsSig = (data.items || []).map((i) => `${i.productId}_${i.quantity}_${i.totalPrice}`).join("|");
-    const idempotencyKey = `${sanitizedPhone}_${itemsSig}_${data.totalAmount}_${data.paymentMethod}`;
+    // 1. Client-Side Idempotency Key Generation
+    const clientSubmissionId =
+      data.clientSubmissionId ||
+      `PE-SUB-${Date.now()}-${crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10)}`;
 
-    if (inFlightOrderSubmissions.has(idempotencyKey)) {
-      console.warn("[PalakDataStore] In-flight order deduplication triggered for key:", idempotencyKey);
-      return inFlightOrderSubmissions.get(idempotencyKey)!;
+    const sanitizedPhone = data.customerPhone.replace(/\D/g, "");
+    if (sanitizedPhone.length < 10) {
+      throw new Error("Please enter a valid 10-digit mobile number.");
+    }
+    if (!data.customerName || data.customerName.trim().length < 2) {
+      throw new Error("Please enter a valid customer name (at least 2 characters).");
+    }
+    if (!data.items || data.items.length === 0) {
+      throw new Error("Cannot place an order with an empty cart.");
+    }
+
+    // In-flight mutex to prevent duplicate clicks from the same browser tab
+    if (inFlightOrderSubmissions.has(clientSubmissionId)) {
+      console.warn("[PalakDataStore] In-flight order deduplication triggered for submission:", clientSubmissionId);
+      return inFlightOrderSubmissions.get(clientSubmissionId)!;
     }
 
     const orderExecutionPromise = (async () => {
-      const orderCode = data.orderCode || generateCode("O");
+      let finalOrderCode = data.orderCode || generateCode("O");
+      let finalOrderId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
       const now = new Date().toISOString();
 
       const sanitizedItems = (data.items || []).map((item) => ({
@@ -879,9 +990,169 @@ export class PalakDataStore {
 
       const finalTotalAmount = snapshot.grandTotal > 0 ? snapshot.grandTotal : data.totalAmount;
 
+      // 2. Critical Database Persistence (Authoritative Atomic RPC)
+      if (isSupabaseConfigured && supabase) {
+        const normalizedPaymentMethod =
+          data.paymentMethod === "upi_online" || data.paymentMethod === "pay_online"
+            ? "upi_online"
+            : data.paymentMethod === "pay_after_confirmation"
+            ? "pay_after_confirmation"
+            : "pay_at_store";
+
+        const currentPaymentStatus = String(data.paymentStatus || "").toLowerCase();
+        const normalizedPaymentStatus =
+          currentPaymentStatus === "confirmed" || currentPaymentStatus === "paid"
+            ? "confirmed"
+            : currentPaymentStatus === "refunded"
+            ? "refunded"
+            : currentPaymentStatus === "failed"
+            ? "failed"
+            : "pending";
+
+        const validUserId = isValidSupabaseUUID(data.userId) ? data.userId : null;
+
+        // Prepare extracted file objects across all items for atomic insertion
+        const extractedFiles: any[] = [];
+        sanitizedItems.forEach((item) => {
+          if (item.uploadedFileUrl || item.uploadedFileName || item.selectedOptions?.storagePath) {
+            const storagePath = item.selectedOptions?.storagePath || item.uploadedFileUrl || "";
+            extractedFiles.push({
+              name: item.uploadedFileName || "Document",
+              path: storagePath,
+              url: item.uploadedFileUrl || "",
+              type: (item.selectedOptions as any)?.mimeType || "application/pdf",
+              size: (item.selectedOptions as any)?.fileSize || 0,
+            });
+          }
+        });
+
+        // Execute PostgreSQL RPC: 1 Single Atomic Transaction (All or Nothing) with direct table fallback
+        let rpcSucceeded = false;
+        try {
+          const { data: rpcData, error: rpcErr } = await supabase.rpc("create_online_print_order", {
+            p_order_code: finalOrderCode,
+            p_customer_name: data.customerName.trim(),
+            p_customer_phone: sanitizedPhone,
+            p_customer_email: data.customerEmail?.trim() || null,
+            p_fulfillment_type: data.fulfillmentType || "pickup",
+            p_delivery_address: data.deliveryAddress ? (data.deliveryAddress as any) : null,
+            p_order_notes: data.orderNotes?.trim() || null,
+            p_subtotal_amount: snapshot.subtotal,
+            p_delivery_fee: snapshot.deliveryFee,
+            p_total_amount: finalTotalAmount,
+            p_payment_method: normalizedPaymentMethod,
+            p_payment_status: normalizedPaymentStatus,
+            p_user_id: validUserId,
+            p_staff_notes: data.staffNotes || null,
+            p_items: sanitizedItems as any,
+            p_files: extractedFiles as any,
+            p_client_submission_id: clientSubmissionId,
+          });
+
+          if (!rpcErr && rpcData) {
+            rpcSucceeded = true;
+            if (rpcData.orderCode) finalOrderCode = rpcData.orderCode;
+            if (rpcData.orderId) finalOrderId = rpcData.orderId;
+          } else if (rpcErr) {
+            console.warn("[Palak Cloud] RPC submission note, falling back to direct table insertion:", rpcErr.message || rpcErr);
+          }
+        } catch (rpcCallErr) {
+          console.warn("[Palak Cloud] RPC call exception, falling back to direct insertion:", rpcCallErr);
+        }
+
+        if (!rpcSucceeded) {
+          try {
+            const orderInsertData: any = {
+              order_code: finalOrderCode,
+              user_id: validUserId,
+              customer_name: data.customerName.trim(),
+              customer_phone: sanitizedPhone,
+              customer_email: data.customerEmail?.trim() || null,
+              fulfillment_type: data.fulfillmentType || "pickup",
+              delivery_address: data.deliveryAddress ? (data.deliveryAddress as any) : null,
+              order_notes: data.orderNotes?.trim() || null,
+              subtotal_amount: snapshot.subtotal,
+              discount_amount: snapshot.discount || 0,
+              delivery_fee: snapshot.deliveryFee || 0,
+              total_amount: finalTotalAmount,
+              payment_method: normalizedPaymentMethod,
+              payment_status: normalizedPaymentStatus,
+              order_status: "NEW",
+              items: sanitizedItems,
+              staff_notes: data.staffNotes || null,
+              client_submission_id: clientSubmissionId,
+            };
+
+            let { data: insertedOrder, error: insertErr } = await supabase
+              .from("orders")
+              .insert(orderInsertData)
+              .select("id, order_code")
+              .maybeSingle();
+
+            if (insertErr && (insertErr.message?.includes("column") || insertErr.code === "42703")) {
+              delete orderInsertData.client_submission_id;
+              const retryRes = await supabase.from("orders").insert(orderInsertData).select("id, order_code").maybeSingle();
+              insertedOrder = retryRes.data;
+              insertErr = retryRes.error;
+            }
+
+            if (insertErr) {
+              console.error("[Palak Cloud] Direct table insertion failed:", insertErr);
+              throw new Error(insertErr.message || "Failed to confirm order with server. Please try again.");
+            }
+
+            if (insertedOrder) {
+              finalOrderId = insertedOrder.id;
+              finalOrderCode = insertedOrder.order_code || finalOrderCode;
+
+              if (sanitizedItems && sanitizedItems.length > 0) {
+                try {
+                  const itemRows = sanitizedItems.map((item) => ({
+                    order_id: finalOrderId,
+                    product_id: item.productId || null,
+                    product_name: item.productName || "Print Item",
+                    quantity: item.quantity || 1,
+                    unit_price: item.unitPrice || 0,
+                    total_price: item.totalPrice || 0,
+                    selected_options: item.selectedOptions || {},
+                    selected_options_labels: item.selectedOptionsLabels || {},
+                    uploaded_file_url: item.uploadedFileUrl || null,
+                    uploaded_file_name: item.uploadedFileName || null,
+                    design_notes: item.designNotes || null,
+                  }));
+                  await supabase.from("order_items").insert(itemRows);
+                } catch (itemInsertErr) {
+                  console.warn("[Palak Cloud] order_items insert warning:", itemInsertErr);
+                }
+              }
+
+              if (extractedFiles && extractedFiles.length > 0) {
+                try {
+                  const fileRows = extractedFiles.map((f) => ({
+                    order_id: finalOrderId,
+                    file_name: f.name,
+                    file_path: f.path || f.url || "",
+                    file_url: f.url || "",
+                    file_type: f.type || "application/pdf",
+                    file_size: f.size || 0,
+                  }));
+                  await supabase.from("order_files").insert(fileRows);
+                } catch (fileInsertErr) {
+                  console.warn("[Palak Cloud] order_files insert warning:", fileInsertErr);
+                }
+              }
+            }
+          } catch (directInsertErr: any) {
+            console.error("[Palak Cloud] Direct order insertion failed:", directInsertErr);
+            throw new Error(directInsertErr.message || "Failed to confirm order with server. Please try again.");
+          }
+        }
+      }
+
       const newOrder: StoredOrder = {
-        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-        orderCode,
+        id: finalOrderId,
+        orderCode: finalOrderCode,
+        clientSubmissionId,
         userId: data.userId,
         customerName: data.customerName.trim(),
         customerPhone: sanitizedPhone,
@@ -902,6 +1173,7 @@ export class PalakDataStore {
         sgstAmount: snapshot.sgstAmount,
         igstAmount: snapshot.igstAmount,
         chargesSnapshot: snapshot,
+        printSnapshot: data.printSnapshot,
         totalAmount: finalTotalAmount,
         paymentMethod: data.paymentMethod,
         paymentStatus: (data.paymentStatus as any) || "pending",
@@ -916,22 +1188,28 @@ export class PalakDataStore {
         priorityAt: queueMeta.priorityAt,
       };
 
-      // 2. Persist locally first for offline-first instant durability
-      const list = getLocal<StoredOrder[]>(ORDERS_KEY, []);
-      list.unshift(newOrder);
-      setLocal(ORDERS_KEY, list);
+      // 3. Persist locally for instant offline/client cache
+      const list = [...this.getOrders()];
+      // Deduplicate if already present locally
+      const existingIdx = list.findIndex((o) => o.orderCode === finalOrderCode || (o.clientSubmissionId && o.clientSubmissionId === clientSubmissionId));
+      if (existingIdx > -1) {
+        list[existingIdx] = newOrder;
+      } else {
+        list.unshift(newOrder);
+      }
+      setLocalOrders(list);
 
-      // Local status history entry
+      // 4. Local status history entry
       this.addStatusHistory({
         entityType: "order",
-        entityCode: orderCode,
+        entityCode: finalOrderCode,
         newStatus: "NEW",
         messageEn: "Order placed successfully. Palak team is reviewing specifications.",
         messageHi: "ऑर्डर सफलतापूर्वक दर्ज हुआ। पालक टीम विवरण की समीक्षा कर रही है।",
         performedBy: "Customer",
       });
 
-      // 3. Dispatch realtime event locally (non-blocking for UI)
+      // 5. Dispatch realtime event locally (non-blocking for UI)
       try {
         const firstItem = sanitizedItems.length > 0 ? sanitizedItems[0] : null;
         let serviceTitle = firstItem ? firstItem.productName : "Print Order";
@@ -957,131 +1235,6 @@ export class PalakDataStore {
         console.debug("[Realtime Bus] Local dispatch notice:", e);
       }
 
-      // 4. Critical Database Persistence (Fast-path: Single Atomic Supabase RPC Round-Trip)
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const normalizedPaymentMethod =
-            data.paymentMethod === "upi_online" || data.paymentMethod === "pay_online"
-              ? "upi_online"
-              : data.paymentMethod === "pay_after_confirmation"
-              ? "pay_after_confirmation"
-              : "pay_at_store";
-
-          const currentPaymentStatus = String(data.paymentStatus || "").toLowerCase();
-          const normalizedPaymentStatus =
-            currentPaymentStatus === "confirmed" || currentPaymentStatus === "paid"
-              ? "confirmed"
-              : currentPaymentStatus === "refunded"
-              ? "refunded"
-              : currentPaymentStatus === "failed"
-              ? "failed"
-              : "pending";
-
-          const validUserId = isValidSupabaseUUID(data.userId) ? data.userId : null;
-
-          // Prepare extracted file objects across all items for atomic insertion
-          const extractedFiles: any[] = [];
-          sanitizedItems.forEach((item) => {
-            if (item.uploadedFileUrl || item.uploadedFileName || item.selectedOptions?.storagePath) {
-              const storagePath = item.selectedOptions?.storagePath || item.uploadedFileUrl || "";
-              extractedFiles.push({
-                name: item.uploadedFileName || "Document",
-                path: storagePath,
-                url: item.uploadedFileUrl || "",
-                type: (item.selectedOptions as any)?.mimeType || "application/pdf",
-                size: (item.selectedOptions as any)?.fileSize || 0,
-              });
-            }
-          });
-
-          // Primary Path: Use atomic SECURITY DEFINER PostgreSQL RPC (1 single network roundtrip)
-          const { data: _rpcData, error: rpcErr } = await supabase.rpc("create_online_print_order", {
-            p_order_code: orderCode,
-            p_customer_name: data.customerName.trim(),
-            p_customer_phone: sanitizedPhone,
-            p_customer_email: data.customerEmail?.trim() || null,
-            p_fulfillment_type: data.fulfillmentType || "pickup",
-            p_delivery_address: data.deliveryAddress ? (data.deliveryAddress as any) : null,
-            p_order_notes: data.orderNotes?.trim() || null,
-            p_subtotal_amount: snapshot.subtotal,
-            p_delivery_fee: snapshot.deliveryFee,
-            p_total_amount: finalTotalAmount,
-            p_payment_method: normalizedPaymentMethod,
-            p_payment_status: normalizedPaymentStatus,
-            p_user_id: validUserId,
-            p_staff_notes: data.staffNotes || null,
-            p_items: sanitizedItems as any,
-            p_files: extractedFiles as any,
-          });
-
-          if (rpcErr) {
-            console.warn("[Palak Cloud] RPC notice, utilizing parallel batch fallback:", rpcErr.message || rpcErr);
-
-            // Resilient Fallback: Direct table batch insertion with parallel item/file execution
-            const orderInsertPayload: any = {
-              order_code: orderCode,
-              customer_name: data.customerName.trim(),
-              customer_phone: sanitizedPhone,
-              customer_email: data.customerEmail?.trim() || null,
-              fulfillment_type: data.fulfillmentType || "pickup",
-              delivery_address: data.deliveryAddress || null,
-              order_notes: data.orderNotes?.trim() || null,
-              subtotal_amount: snapshot.subtotal,
-              discount_amount: snapshot.discount,
-              delivery_fee: snapshot.deliveryFee,
-              total_amount: finalTotalAmount,
-              payment_method: normalizedPaymentMethod,
-              payment_status: normalizedPaymentStatus,
-              order_status: data.orderStatus || "NEW",
-              items: sanitizedItems,
-              staff_notes: data.staffNotes || null,
-            };
-            if (validUserId) orderInsertPayload.user_id = validUserId;
-
-            const { data: insertedOrder, error: orderErr } = await supabase
-              .from("orders")
-              .insert(orderInsertPayload)
-              .select("id")
-              .single();
-
-            if (!orderErr && insertedOrder?.id && sanitizedItems.length > 0) {
-              const itemRows = sanitizedItems.map((item) => ({
-                order_id: insertedOrder.id,
-                product_id: item.productId,
-                product_name: item.productName,
-                quantity: item.quantity,
-                unit_price: item.unitPrice,
-                total_price: item.totalPrice,
-                selected_options: item.selectedOptions || {},
-                selected_options_labels: item.selectedOptionsLabels || {},
-                uploaded_file_url: item.uploadedFileUrl,
-                uploaded_file_name: item.uploadedFileName,
-                design_assistance_requested: Boolean(item.designAssistanceRequested),
-                design_notes: item.designNotes,
-              }));
-
-              const fileRows = extractedFiles.map((f) => ({
-                order_id: insertedOrder.id,
-                file_name: f.name,
-                file_path: f.path,
-                file_url: f.url,
-                file_type: f.type,
-                file_size: f.size,
-                uploaded_by: data.customerName.trim(),
-              }));
-
-              // Execute item and file batch insertions in parallel (Promise.all)
-              await Promise.all([
-                supabase.from("order_items").insert(itemRows),
-                fileRows.length > 0 ? supabase.from("order_files").insert(fileRows) : Promise.resolve(),
-              ]);
-            }
-          }
-        } catch (err) {
-          console.warn("[Palak Cloud] Order sync notice (safely stored locally):", err);
-        }
-      }
-
       if (typeof performance !== "undefined" && performance.mark && performance.measure) {
         const markEnd = `order_submit_end_${Date.now()}`;
         performance.mark(markEnd);
@@ -1090,7 +1243,7 @@ export class PalakDataStore {
           const entries = performance.getEntriesByName("order_submission_duration");
           const lastEntry = entries[entries.length - 1];
           if (lastEntry) {
-            console.log(`⚡ [Performance] Order ${orderCode} submission completed in ${Math.round(lastEntry.duration)}ms`);
+            console.log(`⚡ [Performance] Order ${finalOrderCode} confirmed in ${Math.round(lastEntry.duration)}ms`);
           }
         } catch {}
       }
@@ -1098,37 +1251,43 @@ export class PalakDataStore {
       return newOrder;
     })();
 
-    // Store in active mutex map
-    inFlightOrderSubmissions.set(idempotencyKey, orderExecutionPromise);
-    recentOrderSubmissionKeys.add(idempotencyKey);
+    // Store in active in-flight mutex map
+    inFlightOrderSubmissions.set(clientSubmissionId, orderExecutionPromise);
+    recentOrderSubmissionKeys.add(clientSubmissionId);
     setTimeout(() => {
-      recentOrderSubmissionKeys.delete(idempotencyKey);
-    }, 5000);
+      recentOrderSubmissionKeys.delete(clientSubmissionId);
+    }, 6000);
 
     try {
       return await orderExecutionPromise;
     } finally {
-      inFlightOrderSubmissions.delete(idempotencyKey);
+      inFlightOrderSubmissions.delete(clientSubmissionId);
     }
   }
 
   static getOrders(): StoredOrder[] {
-    const raw = getLocal<StoredOrder[]>(ORDERS_KEY, []);
-    if (!Array.isArray(raw)) return [];
-    return raw.map((o) => {
-      try {
-        return normalizeOrder(o);
-      } catch {
-        return o;
+    if (memoryOrders === null) {
+      const raw = getLocal<StoredOrder[]>(ORDERS_KEY, []);
+      if (!Array.isArray(raw)) {
+        memoryOrders = [];
+      } else {
+        memoryOrders = raw.map((o) => {
+          try {
+            return normalizeOrder(o);
+          } catch {
+            return o;
+          }
+        });
       }
-    });
+    }
+    return memoryOrders;
   }
 
   static clearAllOrders(): void {
-    setLocal(ORDERS_KEY, []);
+    setLocalOrders([]);
     // Also clear status history for orders
-    const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
-    setLocal(STATUS_HISTORY_KEY, logs.filter((l) => l.entityType !== "order"));
+    const logs = this.getStatusHistoryLogs();
+    setLocalStatusLogs(logs.filter((l) => l.entityType !== "order"));
     // Prune all orphaned invoices
     PalakInvoiceStore.pruneOrphanedInvoices(new Set());
     try {
@@ -1166,11 +1325,11 @@ export class PalakDataStore {
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
 
-      setLocal(ORDERS_KEY, mergedList);
+      setLocalOrders(mergedList);
 
       const validCodes = new Set(mergedList.map((o) => o.orderCode.trim().toUpperCase()));
-      const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
-      setLocal(STATUS_HISTORY_KEY, logs.filter((l) => l.entityType !== "order" || validCodes.has(l.entityCode.toUpperCase())));
+      const logs = this.getStatusHistoryLogs();
+      setLocalStatusLogs(logs.filter((l) => l.entityType !== "order" || validCodes.has(l.entityCode.toUpperCase())));
       PalakInvoiceStore.pruneOrphanedInvoices(validCodes);
     }
   }
@@ -1182,11 +1341,11 @@ export class PalakDataStore {
     if (!target) return false;
 
     const filtered = list.filter((o) => o.orderCode.toUpperCase() !== clean);
-    setLocal(ORDERS_KEY, filtered);
+    setLocalOrders(filtered);
 
     const validCodes = new Set(filtered.map((o) => o.orderCode.toUpperCase()));
-    const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
-    setLocal(STATUS_HISTORY_KEY, logs.filter((l) => l.entityType !== "order" || validCodes.has(l.entityCode.toUpperCase())));
+    const logs = this.getStatusHistoryLogs();
+    setLocalStatusLogs(logs.filter((l) => l.entityType !== "order" || validCodes.has(l.entityCode.toUpperCase())));
     PalakInvoiceStore.pruneOrphanedInvoices(validCodes);
 
     try {
@@ -1212,7 +1371,7 @@ export class PalakDataStore {
     newStatus: StoredOrder["orderStatus"],
     staffNotes?: string
   ): StoredOrder | null {
-    const list = this.getOrders();
+    const list = [...this.getOrders()];
     const idx = list.findIndex((o) => o.orderCode === orderCode);
     if (idx === -1) return null;
 
@@ -1220,7 +1379,7 @@ export class PalakDataStore {
     list[idx].orderStatus = newStatus;
     list[idx].updatedAt = new Date().toISOString();
     if (staffNotes !== undefined) list[idx].staffNotes = staffNotes;
-    setLocal(ORDERS_KEY, list);
+    setLocalOrders(list);
 
     const statusMessages: Record<string, { en: string; hi: string }> = {
       NEW: { en: "Order placed and waiting for review.", hi: "ऑर्डर प्राप्त हुआ, समीक्षा प्रतीक्षा में।" },
@@ -1280,13 +1439,13 @@ export class PalakDataStore {
     orderCode: string,
     paymentStatus: StoredOrder["paymentStatus"]
   ): StoredOrder | null {
-    const list = this.getOrders();
+    const list = [...this.getOrders()];
     const idx = list.findIndex((o) => o.orderCode === orderCode);
     if (idx === -1) return null;
 
     list[idx].paymentStatus = paymentStatus;
     list[idx].updatedAt = new Date().toISOString();
-    setLocal(ORDERS_KEY, list);
+    setLocalOrders(list);
 
     this.addStatusHistory({
       entityType: "order",
@@ -1321,14 +1480,14 @@ export class PalakDataStore {
     orderCode: string,
     note: string
   ): StoredOrder | null {
-    const list = this.getOrders();
+    const list = [...this.getOrders()];
     const idx = list.findIndex((o) => o.orderCode === orderCode);
     if (idx === -1) return null;
 
     const existingNotes = list[idx].staffNotes || "";
     list[idx].staffNotes = existingNotes ? `${existingNotes} | ${note}` : note;
     list[idx].updatedAt = new Date().toISOString();
-    setLocal(ORDERS_KEY, list);
+    setLocalOrders(list);
 
     this.addStatusHistory({
       entityType: "order",
@@ -1379,9 +1538,9 @@ export class PalakDataStore {
       updatedAt: now,
     };
 
-    const list = getLocal<StoredServiceRequest[]>(SERVICE_REQUESTS_KEY, []);
+    const list = [...this.getServiceRequests()];
     list.unshift(newReq);
-    setLocal(SERVICE_REQUESTS_KEY, list);
+    setLocalServiceRequests(list);
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -1418,7 +1577,10 @@ export class PalakDataStore {
   }
 
   static getServiceRequests(): StoredServiceRequest[] {
-    return getLocal<StoredServiceRequest[]>(SERVICE_REQUESTS_KEY, []);
+    if (memoryServiceRequests === null) {
+      memoryServiceRequests = getLocal<StoredServiceRequest[]>(SERVICE_REQUESTS_KEY, []);
+    }
+    return memoryServiceRequests;
   }
 
   static getServiceRequestByCode(code: string): StoredServiceRequest | undefined {
@@ -1432,7 +1594,7 @@ export class PalakDataStore {
     staffNotes?: string,
     ackNumber?: string
   ): StoredServiceRequest | null {
-    const list = this.getServiceRequests();
+    const list = [...this.getServiceRequests()];
     const idx = list.findIndex((r) => r.requestCode === requestCode);
     if (idx === -1) return null;
 
@@ -1441,7 +1603,7 @@ export class PalakDataStore {
     list[idx].updatedAt = new Date().toISOString();
     if (staffNotes !== undefined) list[idx].staffNotes = staffNotes;
     if (ackNumber !== undefined) list[idx].acknowledgementNumber = ackNumber;
-    setLocal(SERVICE_REQUESTS_KEY, list);
+    setLocalServiceRequests(list);
 
     const msgs: Record<string, { en: string; hi: string }> = {
       NEW: { en: "Application registered.", hi: "आवेदन दर्ज किया गया।" },
@@ -1507,9 +1669,9 @@ export class PalakDataStore {
       updatedAt: now,
     };
 
-    const list = getLocal<StoredQuoteRequest[]>(QUOTE_REQUESTS_KEY, []);
+    const list = [...this.getQuoteRequests()];
     list.unshift(newQuote);
-    setLocal(QUOTE_REQUESTS_KEY, list);
+    setLocalQuoteRequests(list);
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -1548,7 +1710,10 @@ export class PalakDataStore {
   }
 
   static getQuoteRequests(): StoredQuoteRequest[] {
-    return getLocal<StoredQuoteRequest[]>(QUOTE_REQUESTS_KEY, []);
+    if (memoryQuoteRequests === null) {
+      memoryQuoteRequests = getLocal<StoredQuoteRequest[]>(QUOTE_REQUESTS_KEY, []);
+    }
+    return memoryQuoteRequests;
   }
 
   static getQuoteRequestByCode(code: string): StoredQuoteRequest | undefined {
@@ -1562,7 +1727,7 @@ export class PalakDataStore {
     quotedAmount?: number,
     staffNotes?: string
   ): StoredQuoteRequest | null {
-    const list = this.getQuoteRequests();
+    const list = [...this.getQuoteRequests()];
     const idx = list.findIndex((q) => q.quoteCode === quoteCode);
     if (idx === -1) return null;
 
@@ -1570,7 +1735,7 @@ export class PalakDataStore {
     list[idx].updatedAt = new Date().toISOString();
     if (quotedAmount !== undefined) list[idx].quotedAmount = quotedAmount;
     if (staffNotes !== undefined) list[idx].staffNotes = staffNotes;
-    setLocal(QUOTE_REQUESTS_KEY, list);
+    setLocalQuoteRequests(list);
 
     this.addStatusHistory({
       entityType: "quote_request",
@@ -1615,9 +1780,9 @@ export class PalakDataStore {
       updatedAt: now,
     };
 
-    const list = getLocal<StoredDesignRequest[]>(DESIGN_REQUESTS_KEY, []);
+    const list = [...this.getDesignRequests()];
     list.unshift(newDesign);
-    setLocal(DESIGN_REQUESTS_KEY, list);
+    setLocalDesignRequests(list);
 
     this.addStatusHistory({
       entityType: "design_request",
@@ -1632,7 +1797,10 @@ export class PalakDataStore {
   }
 
   static getDesignRequests(): StoredDesignRequest[] {
-    return getLocal<StoredDesignRequest[]>(DESIGN_REQUESTS_KEY, []);
+    if (memoryDesignRequests === null) {
+      memoryDesignRequests = getLocal<StoredDesignRequest[]>(DESIGN_REQUESTS_KEY, []);
+    }
+    return memoryDesignRequests;
   }
 
   static getDesignRequestByCode(code: string): StoredDesignRequest | undefined {
@@ -1646,7 +1814,7 @@ export class PalakDataStore {
     proofUrl?: string,
     staffNotes?: string
   ): StoredDesignRequest | null {
-    const list = this.getDesignRequests();
+    const list = [...this.getDesignRequests()];
     const idx = list.findIndex((d) => d.designCode === designCode);
     if (idx === -1) return null;
 
@@ -1654,7 +1822,7 @@ export class PalakDataStore {
     list[idx].updatedAt = new Date().toISOString();
     if (proofUrl) list[idx].proofFileUrl = proofUrl;
     if (staffNotes !== undefined) list[idx].staffNotes = staffNotes;
-    setLocal(DESIGN_REQUESTS_KEY, list);
+    setLocalDesignRequests(list);
 
     this.addStatusHistory({
       entityType: "design_request",
@@ -1669,6 +1837,13 @@ export class PalakDataStore {
   }
 
   // --- Universal Status History ---
+  static getStatusHistoryLogs(): StatusHistoryLog[] {
+    if (memoryStatusLogs === null) {
+      memoryStatusLogs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
+    }
+    return memoryStatusLogs;
+  }
+
   static addStatusHistory(entry: {
     entityType: StatusHistoryLog["entityType"];
     entityCode: string;
@@ -1690,9 +1865,9 @@ export class PalakDataStore {
       createdAt: new Date().toISOString(),
     };
 
-    const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
+    const logs = [...this.getStatusHistoryLogs()];
     logs.unshift(log);
-    setLocal(STATUS_HISTORY_KEY, logs);
+    setLocalStatusLogs(logs);
 
     if (isSupabaseConfigured && supabase) {
       Promise.resolve(
@@ -1711,7 +1886,7 @@ export class PalakDataStore {
 
   static getStatusHistory(entityCode: string): StatusHistoryLog[] {
     const clean = entityCode.trim().toUpperCase();
-    const logs = getLocal<StatusHistoryLog[]>(STATUS_HISTORY_KEY, []);
+    const logs = this.getStatusHistoryLogs();
     return logs.filter((l) => l.entityCode.toUpperCase() === clean);
   }
 

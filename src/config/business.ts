@@ -32,6 +32,7 @@ export interface BusinessConfig {
     displaySecondary: string;
   };
   whatsappNumber: string;
+  upiId?: string;
   address: {
     street: string;
     landmark: {
@@ -89,6 +90,7 @@ export const businessConfig: BusinessConfig = {
     displaySecondary: "+91 73249 64770",
   },
   whatsappNumber: "919905238015",
+  upiId: "9905238015@okbizaxis",
   address: {
     street: "Ward No. 7, Saniganj Mohalla",
     landmark: {
@@ -120,6 +122,7 @@ export interface BusinessInfo {
   phones: string[];
   primaryPhone: string;
   whatsappNumber: string;
+  upiId?: string;
   address: {
     line1: { en: string; hi: string };
     landmark: { en: string; hi: string };
@@ -159,6 +162,7 @@ export const business: BusinessInfo = {
   phones: ["9905238015", "7324964770"],
   primaryPhone: "9905238015",
   whatsappNumber: "919905238015",
+  upiId: "9905238015@okbizaxis",
   address: {
     line1: {
       en: "Ward No. 7, Saniganj Mohalla",

@@ -157,7 +157,7 @@ class RealtimeOrdersManager {
             if (!raw || (!raw.id && !raw.order_code)) return;
 
             const code = (raw.order_code || raw.id || "").trim().toUpperCase();
-            const dedupKey = `update:${code}:${raw.order_status}:${raw.payment_status}`;
+            const dedupKey = `update:${code}:${raw.order_status}:${raw.payment_status}:${raw.updated_at || ""}`;
             if (isDuplicateDispatch(dedupKey)) return;
 
             console.info(`[Realtime Orders] UPDATE received: ${code} → ${raw.order_status}`);
@@ -328,15 +328,43 @@ class RealtimeOrdersManager {
       const dedupKey = `delete:${code}`;
       if (isDuplicateDispatch(dedupKey)) return;
 
-      this.notifySubscribers("deleted", { orderCode: detail.orderCode, id: detail.id });
+      this.notifySubscribers("deleted", {
+        orderCode: code,
+        id: detail.id || code,
+      } as any);
+    };
+
+    this.boundOnOnline = () => {
+      console.info("[Realtime Orders] Network returned online — reconnecting and reconciling...");
+      this.reconnectAttempts = 0;
+      if (this.channel) {
+        this.dispatchReconnectSignal();
+      } else {
+        this.connect();
+      }
+    };
+
+    this.boundOnVisibility = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        console.debug("[Realtime Orders] Tab regained focus — verifying realtime connection...");
+        if (!this.channel) {
+          this.connect();
+        }
+        this.dispatchReconnectSignal();
+      }
     };
 
     window.addEventListener("palak:new-order", this.boundOnLocalNew);
     window.addEventListener("palak:order-updated", this.boundOnLocalUpdated);
     window.addEventListener("palak:order-deleted", this.boundOnLocalDeleted);
+    window.addEventListener("online", this.boundOnOnline);
+    document.addEventListener("visibilitychange", this.boundOnVisibility);
 
     this.localListenersAttached = true;
   }
+
+  private boundOnOnline: (() => void) | null = null;
+  private boundOnVisibility: (() => void) | null = null;
 
   private detachLocalListeners(): void {
     if (!this.localListenersAttached || typeof window === "undefined") return;
@@ -344,10 +372,14 @@ class RealtimeOrdersManager {
     if (this.boundOnLocalNew) window.removeEventListener("palak:new-order", this.boundOnLocalNew);
     if (this.boundOnLocalUpdated) window.removeEventListener("palak:order-updated", this.boundOnLocalUpdated);
     if (this.boundOnLocalDeleted) window.removeEventListener("palak:order-deleted", this.boundOnLocalDeleted);
+    if (this.boundOnOnline) window.removeEventListener("online", this.boundOnOnline);
+    if (this.boundOnVisibility) document.removeEventListener("visibilitychange", this.boundOnVisibility);
 
     this.boundOnLocalNew = null;
     this.boundOnLocalUpdated = null;
     this.boundOnLocalDeleted = null;
+    this.boundOnOnline = null;
+    this.boundOnVisibility = null;
     this.localListenersAttached = false;
   }
 

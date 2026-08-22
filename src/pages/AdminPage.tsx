@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link, useSearchParams, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Package,
@@ -65,8 +66,10 @@ import { useRealtimeOrders } from "../hooks/useRealtimeOrders";
 import { dispatchAdminToast } from "../lib/realtime/adminOrderEvents";
 import { getWhatsAppLink } from "../config/business";
 import { AdminFilePreviewModal, AdminFileActions, type DocumentItem } from "../components/AdminDocumentViewer";
+import { AdminPrintCenterModal } from "../components/admin/AdminPrintCenterModal";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import { AdminCreateBillModal } from "../components/admin/AdminCreateBillModal";
+import { useScrollLock } from "../hooks/useScrollLock";
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
 import { downloadInvoicePDF, instantPrintInvoice, getWhatsAppInvoiceShareLink } from "../lib/invoice/pdfUtils";
@@ -431,21 +434,53 @@ export const AdminPage: React.FC = () => {
   // Active Document Preview in Modal
   const [activePreviewDoc, setActivePreviewDoc] = useState<DocumentItem | null>(null);
 
+  // Active Print Center Order Modal
+  const [activePrintCenterOrder, setActivePrintCenterOrder] = useState<StoredOrder | null>(null);
+
   // Search & Filter for Orders
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [quickFilter, setQuickFilter] = useState<"ALL" | "PRIORITY" | "NORMAL" | "TODAY" | "NEW" | "IN_PRODUCTION" | "READY_FOR_PICKUP" | "COMPLETED" | "UNPAID">("ALL");
 
   // Search & Filter for Payments Dashboard
   const [paymentSearchQuery, setPaymentSearchQuery] = useState("");
+  const [debouncedPaymentSearchQuery, setDebouncedPaymentSearchQuery] = useState("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<"ALL" | "PAID" | "PENDING" | "FAILED">("ALL");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<"ALL" | "ONLINE" | "SHOP">("ALL");
   const [paymentDateFilter, setPaymentDateFilter] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL");
   const [copiedPaymentId, setCopiedPaymentId] = useState<string | null>(null);
 
+  // Debounced search for smooth 60fps interaction
+  const [debouncedInvoiceSearchQuery, setDebouncedInvoiceSearchQuery] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedInvoiceSearchQuery(invoiceSearchQuery);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [invoiceSearchQuery]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedPaymentSearchQuery(paymentSearchQuery);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [paymentSearchQuery]);
+
   // Selected Order Drawer / Modal State (Derived dynamically to eliminate stale snapshots)
   const [selectedOrderCode, setSelectedOrderCode] = useState<string | null>(null);
   const selectedOrderForModal = orders.find((o) => o.orderCode === selectedOrderCode) || null;
+
+  useScrollLock(Boolean(selectedOrderForModal));
+
   const [orderHistoryTimeline, setOrderHistoryTimeline] = useState<any[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
   const [staffNoteInput, setStaffNoteInput] = useState("");
@@ -457,29 +492,52 @@ export const AdminPage: React.FC = () => {
   const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
   const [pricingSaving, setPricingSaving] = useState(false);
   const [pricingSavedNotice, setPricingSavedNotice] = useState(false);
+  const loadRequestIdRef = useRef<number>(0);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (targetTab?: string) => {
+    const tabToLoad = targetTab || activeTab;
+    const currentRequestId = ++loadRequestIdRef.current;
     setLoading(true);
     try {
+      const needsOrders = tabToLoad === "orders" || tabToLoad === "invoices" || tabToLoad === "payments";
+      const needsInvoices = tabToLoad === "invoices" || tabToLoad === "orders" || tabToLoad === "payments";
+      const needsServices = tabToLoad === "services";
+      const needsQuotes = tabToLoad === "quotes";
+      const needsPricing = tabToLoad === "pricing";
+
       const [cloudOrders, cloudInvoices, cloudServices, cloudQuotes, pricing] = await Promise.all([
-        getStaffOrders().catch((err) => {
-          console.warn("getStaffOrders notice:", err);
-          return PalakDataStore.getOrders();
-        }),
-        getStaffInvoices().catch((err) => {
-          console.warn("getStaffInvoices notice:", err);
-          return [];
-        }),
-        getStaffServiceRequests().catch((err) => {
-          console.warn("getStaffServiceRequests notice:", err);
-          return [];
-        }),
-        getStaffQuoteRequests().catch((err) => {
-          console.warn("getStaffQuoteRequests notice:", err);
-          return [];
-        }),
-        getPrintPricingConfig().catch(() => DEFAULT_PRINT_PRICING),
+        needsOrders
+          ? getStaffOrders().catch((err) => {
+              console.warn("getStaffOrders notice:", err);
+              return PalakDataStore.getOrders();
+            })
+          : Promise.resolve(PalakDataStore.getOrders()),
+        needsInvoices
+          ? getStaffInvoices().catch((err) => {
+              console.warn("getStaffInvoices notice:", err);
+              return PalakInvoiceStore.getAllLocalInvoices();
+            })
+          : Promise.resolve(PalakInvoiceStore.getAllLocalInvoices()),
+        needsServices
+          ? getStaffServiceRequests().catch((err) => {
+              console.warn("getStaffServiceRequests notice:", err);
+              return PalakDataStore.getServiceRequests();
+            })
+          : Promise.resolve(PalakDataStore.getServiceRequests()),
+        needsQuotes
+          ? getStaffQuoteRequests().catch((err) => {
+              console.warn("getStaffQuoteRequests notice:", err);
+              return PalakDataStore.getQuoteRequests();
+            })
+          : Promise.resolve(PalakDataStore.getQuoteRequests()),
+        needsPricing
+          ? getPrintPricingConfig().catch(() => DEFAULT_PRINT_PRICING)
+          : Promise.resolve(pricingConfig),
       ]);
+
+      if (currentRequestId !== loadRequestIdRef.current) {
+        return;
+      }
 
       // Authoritative Cloud Orders & Local Cache Synchronization
       const localOrders = PalakDataStore.getOrders();
@@ -603,8 +661,15 @@ export const AdminPage: React.FC = () => {
 
       setDesignRequests(PalakDataStore.getDesignRequests());
       setPricingConfig(pricing);
+      PalakDataStore.setSyncMetadata({
+        lastSyncedAt: new Date().toISOString(),
+        trustLevel: "AUTHORITATIVE",
+      });
     } catch (err) {
       console.error("Admin loadData error:", err);
+      PalakDataStore.setSyncMetadata({
+        trustLevel: typeof navigator !== "undefined" && !navigator.onLine ? "OFFLINE_CACHE" : "ERROR",
+      });
       // Always fall back to locally cached data — never wipe the display to zero
       const fallbackOrders = PalakDataStore.getOrders();
       if (fallbackOrders.length > 0) {
@@ -620,7 +685,7 @@ export const AdminPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTab, pricingConfig]);
 
   const handleOpenInvoiceModal = async (orderCode: string) => {
     let inv = invoices.find((i) => i.orderCode && i.orderCode.toUpperCase() === orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(orderCode);
@@ -629,9 +694,15 @@ export const AdminPage: React.FC = () => {
       if (order) {
         setGeneratingInvoiceCode(orderCode);
         const res = await PalakDataStore.generateInvoiceForOrder(order, false, user?.name || "Palak Staff ERP");
-        inv = res.invoice;
+        if (res.success && res.invoice) {
+          inv = res.invoice;
+          await loadData();
+        } else {
+          setGeneratingInvoiceCode(null);
+          alert(res.error || "Failed to generate official permanent invoice.");
+          return;
+        }
         setGeneratingInvoiceCode(null);
-        await loadData();
       }
     }
     if (inv) {
@@ -685,6 +756,10 @@ export const AdminPage: React.FC = () => {
     }
 
     PalakDataStore.syncOrdersFromCloud([normalized]);
+    PalakDataStore.setSyncMetadata({
+      lastRealtimeEventAt: new Date().toISOString(),
+      trustLevel: "AUTHORITATIVE",
+    });
 
     setOrders((prev) => {
       const code = (normalized.orderCode || "").trim().toUpperCase();
@@ -715,6 +790,10 @@ export const AdminPage: React.FC = () => {
     }
 
     PalakDataStore.syncOrdersFromCloud([normalized]);
+    PalakDataStore.setSyncMetadata({
+      lastRealtimeEventAt: new Date().toISOString(),
+      trustLevel: "AUTHORITATIVE",
+    });
 
     setOrders((prev) => {
       const code = (normalized.orderCode || "").trim().toUpperCase();
@@ -793,6 +872,17 @@ export const AdminPage: React.FC = () => {
     }
   }, [searchParams, setSearchParams, params.orderCode, navigate]);
 
+  useEffect(() => {
+    if (!selectedOrderForModal) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleCloseOrderModal();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [selectedOrderForModal, handleCloseOrderModal]);
+
   // Deep Link & Notification Auto-Selection / Highlighting
   const targetOrderCode = params.orderCode || searchParams.get("selected") || searchParams.get("order") || searchParams.get("orderCode");
 
@@ -834,33 +924,57 @@ export const AdminPage: React.FC = () => {
 
   const handleUpdateOrderStatus = async (orderCode: string, newStatus: StoredOrder["orderStatus"]) => {
     if (updatingStatus) return; // Prevent double-clicks / concurrent updates
-    setUpdatingStatus(orderCode);
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      dispatchAdminToast("Offline", "error", "Cannot update order status while offline. Active connection required.");
+      return;
+    }
+    const cleanCode = orderCode.trim().toUpperCase();
+    const previousOrder = orders.find((o) => o.orderCode.toUpperCase() === cleanCode);
+    setUpdatingStatus(cleanCode);
     try {
-      await updateStaffOrderStatus(orderCode, newStatus);
-      // Update local store + UI
-      PalakDataStore.updateOrderStatus(orderCode, newStatus);
+      await updateStaffOrderStatus(cleanCode, newStatus);
+      // Update local store + UI upon database success
+      PalakDataStore.updateOrderStatus(cleanCode, newStatus);
       await loadData();
-      const history = await getOrderStatusHistory(orderCode);
+      const history = await getOrderStatusHistory(cleanCode);
       setOrderHistoryTimeline(history);
-    } catch (e) {
-      console.error("Status update failed — database not updated:", e);
+      dispatchAdminToast("Status Updated", "success", `Order #${cleanCode} set to ${newStatus}`);
+    } catch (e: any) {
+      console.error("Status update failed — rolling back:", e);
+      if (previousOrder) {
+        PalakDataStore.updateOrderStatus(cleanCode, previousOrder.orderStatus);
+        setOrders((prev) => prev.map((o) => o.orderCode.toUpperCase() === cleanCode ? { ...o, orderStatus: previousOrder.orderStatus } : o));
+      }
+      dispatchAdminToast("Update Failed", "error", e?.message || "Failed to update order status on server. Rolled back.");
+      await loadData();
     } finally {
       setUpdatingStatus(null);
     }
   };
 
   const handleTogglePaymentStatus = async (order: StoredOrder) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      dispatchAdminToast("Offline", "error", "Cannot update payment status while offline. Database connection required.");
+      return;
+    }
     const isCurrentlyPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
     const nextStatus = isCurrentlyPaid ? "pending" : "confirmed";
+    const previousStatus = order.paymentStatus;
+    const cleanCode = order.orderCode.trim().toUpperCase();
     setUpdatingPayment(true);
     try {
-      await updateStaffOrderPaymentStatus(order.orderCode, nextStatus);
-      PalakDataStore.updateOrderPaymentStatus(order.orderCode, nextStatus);
+      await updateStaffOrderPaymentStatus(cleanCode, nextStatus);
+      PalakDataStore.updateOrderPaymentStatus(cleanCode, nextStatus);
       await loadData();
-      const history = await getOrderStatusHistory(order.orderCode);
+      const history = await getOrderStatusHistory(cleanCode);
       setOrderHistoryTimeline(history);
-    } catch (e) {
-      console.error("Payment status update error:", e);
+      dispatchAdminToast("Payment Updated", "success", `Order #${cleanCode} marked as ${nextStatus.toUpperCase()}`);
+    } catch (e: any) {
+      console.error("Payment status update error — rolling back:", e);
+      PalakDataStore.updateOrderPaymentStatus(cleanCode, previousStatus);
+      setOrders((prev) => prev.map((o) => o.orderCode.toUpperCase() === cleanCode ? { ...o, paymentStatus: previousStatus } : o));
+      dispatchAdminToast("Payment Update Failed", "error", e?.message || "Failed to update payment on server. Rolled back.");
+      await loadData();
     } finally {
       setUpdatingPayment(false);
     }
@@ -868,38 +982,56 @@ export const AdminPage: React.FC = () => {
 
   const handleSaveStaffNote = async (orderCode: string) => {
     if (!staffNoteInput.trim()) return;
+    const cleanCode = orderCode.trim().toUpperCase();
     setSavingNote(true);
     try {
-      await addStaffOrderNote(orderCode, staffNoteInput.trim());
-      PalakDataStore.addStaffOrderNote(orderCode, staffNoteInput.trim());
+      await addStaffOrderNote(cleanCode, staffNoteInput.trim());
+      PalakDataStore.addStaffOrderNote(cleanCode, staffNoteInput.trim());
       await loadData();
-      const history = await getOrderStatusHistory(orderCode);
+      const history = await getOrderStatusHistory(cleanCode);
       setOrderHistoryTimeline(history);
-    } catch (e) {
+      dispatchAdminToast("Note Saved", "success", `Staff note added to #${cleanCode}`);
+    } catch (e: any) {
       console.error("Save note error:", e);
+      dispatchAdminToast("Save Failed", "error", e?.message || "Could not save staff note on server.");
+      await loadData();
     } finally {
       setSavingNote(false);
     }
   };
 
   const handleUpdateServiceStatus = async (requestCode: string, newStatus: StoredServiceRequest["requestStatus"]) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      dispatchAdminToast("Offline", "error", "Cannot update service request while offline. Active connection required.");
+      return;
+    }
     try {
       await updateStaffServiceStatus(requestCode, newStatus);
-    } catch (e) {
-      console.warn("Cloud update notice:", e);
+      PalakDataStore.updateServiceRequestStatus(requestCode, newStatus);
+      await loadData();
+      dispatchAdminToast("Service Updated", "success", `Request #${requestCode} set to ${newStatus}`);
+    } catch (e: any) {
+      console.warn("Cloud update error:", e);
+      dispatchAdminToast("Update Failed", "error", e?.message || "Failed to update service request.");
+      await loadData();
     }
-    PalakDataStore.updateServiceRequestStatus(requestCode, newStatus);
-    await loadData();
   };
 
   const handleUpdateQuoteStatus = async (quoteCode: string, newStatus: StoredQuoteRequest["quoteStatus"], amount?: number) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      dispatchAdminToast("Offline", "error", "Cannot update quote request while offline. Active connection required.");
+      return;
+    }
     try {
       await updateStaffQuoteStatus(quoteCode, newStatus, amount);
-    } catch (e) {
-      console.warn("Cloud update notice:", e);
+      PalakDataStore.updateQuoteStatus(quoteCode, newStatus, amount);
+      await loadData();
+      dispatchAdminToast("Quote Updated", "success", `Quote #${quoteCode} updated.`);
+    } catch (e: any) {
+      console.warn("Cloud update error:", e);
+      dispatchAdminToast("Update Failed", "error", e?.message || "Failed to update quote request.");
+      await loadData();
     }
-    PalakDataStore.updateQuoteStatus(quoteCode, newStatus, amount);
-    await loadData();
   };
 
   const handleUpdateDesignStatus = (designCode: string, newStatus: StoredDesignRequest["designStatus"]) => {
@@ -995,49 +1127,51 @@ export const AdminPage: React.FC = () => {
     return now - d <= days * 24 * 60 * 60 * 1000;
   };
 
-  const filteredPaymentOrders = orders.filter((o) => {
-    const q = paymentSearchQuery.toLowerCase().trim();
-    const rzpId = (extractRazorpayId(o.orderNotes) || "").toLowerCase();
-    const orderCode = (o.orderCode || "").toLowerCase();
-    const customerName = (o.customerName || "").toLowerCase();
-    const customerPhone = (o.customerPhone || "").toLowerCase();
+  const filteredPaymentOrders = React.useMemo(() => {
+    return orders.filter((o) => {
+      const q = debouncedPaymentSearchQuery.toLowerCase().trim();
+      const rzpId = (extractRazorpayId(o.orderNotes) || "").toLowerCase();
+      const orderCode = (o.orderCode || "").toLowerCase();
+      const customerName = (o.customerName || "").toLowerCase();
+      const customerPhone = (o.customerPhone || "").toLowerCase();
 
-    const matchesSearch =
-      !q ||
-      orderCode.includes(q) ||
-      customerName.includes(q) ||
-      customerPhone.includes(q) ||
-      rzpId.includes(q);
+      const matchesSearch =
+        !q ||
+        orderCode.includes(q) ||
+        customerName.includes(q) ||
+        customerPhone.includes(q) ||
+        rzpId.includes(q);
 
-    let matchesStatus = true;
-    const isPaid = isPaidOrder(o);
-    if (paymentStatusFilter === "PAID") {
-      matchesStatus = isPaid;
-    } else if (paymentStatusFilter === "PENDING") {
-      matchesStatus = !isPaid;
-    } else if (paymentStatusFilter === "FAILED") {
-      matchesStatus = o.paymentStatus === "failed" || o.paymentStatus === "refunded";
-    }
+      let matchesStatus = true;
+      const isPaid = isPaidOrder(o);
+      if (paymentStatusFilter === "PAID") {
+        matchesStatus = isPaid;
+      } else if (paymentStatusFilter === "PENDING") {
+        matchesStatus = !isPaid;
+      } else if (paymentStatusFilter === "FAILED") {
+        matchesStatus = o.paymentStatus === "failed" || o.paymentStatus === "refunded";
+      }
 
-    let matchesMethod = true;
-    const isOnline = o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online";
-    if (paymentMethodFilter === "ONLINE") {
-      matchesMethod = isOnline;
-    } else if (paymentMethodFilter === "SHOP") {
-      matchesMethod = !isOnline;
-    }
+      let matchesMethod = true;
+      const isOnline = o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online";
+      if (paymentMethodFilter === "ONLINE") {
+        matchesMethod = isOnline;
+      } else if (paymentMethodFilter === "SHOP") {
+        matchesMethod = !isOnline;
+      }
 
-    let matchesDate = true;
-    if (paymentDateFilter === "TODAY") {
-      matchesDate = isToday(o.createdAt);
-    } else if (paymentDateFilter === "WEEK") {
-      matchesDate = isWithinPastDays(o.createdAt, 7);
-    } else if (paymentDateFilter === "MONTH") {
-      matchesDate = isWithinPastDays(o.createdAt, 30);
-    }
+      let matchesDate = true;
+      if (paymentDateFilter === "TODAY") {
+        matchesDate = isToday(o.createdAt);
+      } else if (paymentDateFilter === "WEEK") {
+        matchesDate = isWithinPastDays(o.createdAt, 7);
+      } else if (paymentDateFilter === "MONTH") {
+        matchesDate = isWithinPastDays(o.createdAt, 30);
+      }
 
-    return matchesSearch && matchesStatus && matchesMethod && matchesDate;
-  });
+      return matchesSearch && matchesStatus && matchesMethod && matchesDate;
+    });
+  }, [orders, debouncedPaymentSearchQuery, paymentStatusFilter, paymentMethodFilter, paymentDateFilter]);
 
   const exportPaymentsCSV = () => {
     const headers = [
@@ -1082,7 +1216,7 @@ export const AdminPage: React.FC = () => {
 
   const filteredInvoices = React.useMemo(() => {
     return invoices.filter((inv) => {
-      const q = invoiceSearchQuery.toLowerCase().trim();
+      const q = debouncedInvoiceSearchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
         inv.invoiceNumber.toLowerCase().includes(q) ||
@@ -1103,7 +1237,7 @@ export const AdminPage: React.FC = () => {
 
       return matchesSearch && matchesPayment && matchesDate;
     });
-  }, [invoices, invoiceSearchQuery, invoicePaymentFilter, invoiceDateFilter]);
+  }, [invoices, debouncedInvoiceSearchQuery, invoicePaymentFilter, invoiceDateFilter]);
 
   const exportInvoicesCSV = () => {
     const headers = [
@@ -1143,7 +1277,7 @@ export const AdminPage: React.FC = () => {
 
   // Filtered & Deterministically Sorted Orders (Priority FIFO first, then Normal FIFO)
   const filteredOrders = React.useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = debouncedSearchQuery.toLowerCase().trim();
     const matched = orders.filter((o) => {
       const orderCode = (o.orderCode || "").toLowerCase();
       const customerName = (o.customerName || "").toLowerCase();
@@ -1187,7 +1321,7 @@ export const AdminPage: React.FC = () => {
     });
 
     return sortPrintingQueue(matched);
-  }, [orders, searchQuery, quickFilter, statusFilter]);
+  }, [orders, debouncedSearchQuery, quickFilter, statusFilter]);
 
   if (!isStaff && !isNestedInLayout) {
     return (
@@ -1772,6 +1906,16 @@ export const AdminPage: React.FC = () => {
                               <Eye className="h-3.5 w-3.5" />
                             </button>
 
+                            <button
+                              type="button"
+                              onClick={() => setActivePrintCenterOrder(order)}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-[11px] font-black transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
+                              title="Open Admin Print Center & Jobs"
+                            >
+                              <Printer className="h-3.5 w-3.5 text-indigo-700" />
+                              <span>Print Center</span>
+                            </button>
+
                             <a
                               href={getWhatsAppLink(
                                 `Hello ${order.customerName}, this is Palak Enterprises regarding your order *${order.orderCode}* (Status: ${order.orderStatus}).`
@@ -1931,6 +2075,16 @@ export const AdminPage: React.FC = () => {
                   <div className="text-center py-12 space-y-2.5">
                     <RefreshCw className="h-6 w-6 animate-spin text-[#123B70] mx-auto opacity-70" />
                     <div className="text-xs font-semibold text-slate-500">Loading orders...</div>
+                  </div>
+                ) : PalakDataStore.getSyncMetadata().trustLevel === "ERROR" && orders.length === 0 ? (
+                  <div className="text-center py-12 space-y-3">
+                    <div className="text-xs font-bold text-rose-600">Unable to connect to database. Showing offline/fallback mode.</div>
+                    <button
+                      onClick={() => loadData()}
+                      className="px-3 py-1.5 rounded-lg bg-[#123B70] text-white text-xs font-bold hover:bg-[#0c274c] transition-colors cursor-pointer"
+                    >
+                      Retry Connection
+                    </button>
                   </div>
                 ) : (
                   <div className="text-center py-10 text-xs text-slate-400">
@@ -3185,23 +3339,29 @@ export const AdminPage: React.FC = () => {
       </div>
 
       {/* Full Order Detail Drawer / Modal */}
-      {selectedOrderForModal && (
+      {selectedOrderForModal && typeof document !== "undefined" && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in print:hidden admin-order-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Order Details ${selectedOrderForModal.orderCode}`}
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200 print:hidden admin-order-modal-backdrop"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleCloseOrderModal();
           }}
         >
-          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xl space-y-3.5">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2.5">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-black text-lg text-[#123B70]">
+          <div 
+            className="relative flex flex-col w-full max-w-2xl max-h-[calc(100dvh-1.25rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[min(90vh,860px)] bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header — Pinned at Top */}
+            <div className="flex items-start justify-between gap-3 px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 bg-white shrink-0 z-10">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-black text-base sm:text-lg text-[#123B70] tracking-tight">
                     {selectedOrderForModal.orderCode}
                   </span>
                   <span className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
+                    "rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide shrink-0",
                     selectedOrderForModal.orderStatus === "READY_FOR_PICKUP"
                       ? "bg-emerald-100 text-emerald-800"
                       : selectedOrderForModal.orderStatus === "IN_PRODUCTION"
@@ -3213,7 +3373,7 @@ export const AdminPage: React.FC = () => {
                     {selectedOrderForModal.orderStatus}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                   Placed: {new Date(selectedOrderForModal.createdAt).toLocaleString()} • Fulfillment: {selectedOrderForModal.fulfillmentType}
                 </p>
               </div>
@@ -3221,472 +3381,476 @@ export const AdminPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCloseOrderModal}
-                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer shrink-0 ml-1"
                 aria-label="Close Order Details Modal"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Customer & Payment Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Customer Card */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Customer & Delivery</span>
-                  <span className={cn(
-                    "text-[9px] font-bold px-1.5 py-0.2 rounded-full",
-                    selectedOrderForModal.fulfillmentType === "delivery" ? "bg-amber-100 text-amber-900" : "bg-slate-200 text-slate-700"
-                  )}>
-                    {selectedOrderForModal.fulfillmentType === "delivery" ? "🚚 Home Delivery" : "🏬 Store Pickup"}
-                  </span>
-                </div>
-                <div className="space-y-0.5 text-xs">
-                  <div><strong>Name:</strong> {selectedOrderForModal.customerName}</div>
-                  <div>
-                    <strong>Phone:</strong>{" "}
-                    <a href={`tel:${selectedOrderForModal.customerPhone}`} className="text-blue-700 font-semibold hover:underline">
-                      {selectedOrderForModal.customerPhone}
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-3.5">
+              {/* Customer & Payment Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Customer Card */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Customer & Delivery</span>
+                    <span className={cn(
+                      "text-[9px] font-bold px-1.5 py-0.2 rounded-full",
+                      selectedOrderForModal.fulfillmentType === "delivery" ? "bg-amber-100 text-amber-900" : "bg-slate-200 text-slate-700"
+                    )}>
+                      {selectedOrderForModal.fulfillmentType === "delivery" ? "🚚 Home Delivery" : "🏬 Store Pickup"}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5 text-xs">
+                    <div><strong>Name:</strong> {selectedOrderForModal.customerName}</div>
+                    <div>
+                      <strong>Phone:</strong>{" "}
+                      <a href={`tel:${selectedOrderForModal.customerPhone}`} className="text-blue-700 font-semibold hover:underline">
+                        {selectedOrderForModal.customerPhone}
+                      </a>
+                    </div>
+                    {selectedOrderForModal.customerEmail && (
+                      <div><strong>Email:</strong> {selectedOrderForModal.customerEmail}</div>
+                    )}
+                    {selectedOrderForModal.fulfillmentType === "delivery" && selectedOrderForModal.deliveryAddress && (
+                      <div className="mt-1 pt-1 border-t border-slate-200 text-[11px] text-slate-700">
+                        <strong>Delivery Address:</strong>
+                        <p className="mt-0.5">
+                          {selectedOrderForModal.deliveryAddress.street}
+                          {selectedOrderForModal.deliveryAddress.landmark ? `, ${selectedOrderForModal.deliveryAddress.landmark}` : ""}
+                          {`, ${selectedOrderForModal.deliveryAddress.city || "Chakia"} - ${selectedOrderForModal.deliveryAddress.pincode || "845412"}`}
+                        </p>
+                      </div>
+                    )}
+                    {selectedOrderForModal.userId && (
+                      <div><strong>User ID:</strong> <span className="font-mono text-[10px] text-slate-600">{selectedOrderForModal.userId}</span></div>
+                    )}
+                  </div>
+                  <div className="pt-1 flex flex-wrap items-center gap-2.5">
+                    <a
+                      href={getWhatsAppLink(`Hello ${selectedOrderForModal.customerName}, regarding your Palak Enterprises order (${selectedOrderForModal.orderCode}): `)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline"
+                    >
+                      <MessageSquare className="h-3 w-3" />
+                      <span>WhatsApp Chat</span>
+                    </a>
+                    <a
+                      href={`tel:${selectedOrderForModal.customerPhone}`}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline"
+                    >
+                      <Phone className="h-3 w-3" />
+                      <span>Call Customer</span>
                     </a>
                   </div>
-                  {selectedOrderForModal.customerEmail && (
-                    <div><strong>Email:</strong> {selectedOrderForModal.customerEmail}</div>
-                  )}
-                  {selectedOrderForModal.fulfillmentType === "delivery" && selectedOrderForModal.deliveryAddress && (
-                    <div className="mt-1 pt-1 border-t border-slate-200 text-[11px] text-slate-700">
-                      <strong>Delivery Address:</strong>
-                      <p className="mt-0.5">
-                        {selectedOrderForModal.deliveryAddress.street}
-                        {selectedOrderForModal.deliveryAddress.landmark ? `, ${selectedOrderForModal.deliveryAddress.landmark}` : ""}
-                        {`, ${selectedOrderForModal.deliveryAddress.city || "Chakia"} - ${selectedOrderForModal.deliveryAddress.pincode || "845412"}`}
-                      </p>
-                    </div>
-                  )}
-                  {selectedOrderForModal.userId && (
-                    <div><strong>User ID:</strong> <span className="font-mono text-[10px] text-slate-600">{selectedOrderForModal.userId}</span></div>
-                  )}
-                </div>
-                <div className="pt-1 flex items-center gap-3">
-                  <a
-                    href={getWhatsAppLink(`Hello ${selectedOrderForModal.customerName}, regarding your Palak Enterprises order (${selectedOrderForModal.orderCode}): `)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline"
-                  >
-                    <MessageSquare className="h-3 w-3" />
-                    <span>WhatsApp Chat</span>
-                  </a>
-                  <a
-                    href={`tel:${selectedOrderForModal.customerPhone}`}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline"
-                  >
-                    <Phone className="h-3 w-3" />
-                    <span>Call Customer</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Payment & Financial Snapshot Card */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Financial Breakdown</span>
-                  <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-slate-200 text-slate-700">Order Snapshot</span>
-                </div>
-                <div className="space-y-0.5 text-xs">
-                  {selectedOrderForModal.subtotalAmount !== undefined && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>Subtotal:</span>
-                      <span className="font-semibold text-slate-900">₹{selectedOrderForModal.subtotalAmount}</span>
-                    </div>
-                  )}
-                  {selectedOrderForModal.discountAmount !== undefined && selectedOrderForModal.discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-700">
-                      <span>Discount:</span>
-                      <span className="font-semibold">-₹{selectedOrderForModal.discountAmount}</span>
-                    </div>
-                  )}
-                  {selectedOrderForModal.platformFee !== undefined && selectedOrderForModal.platformFee > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>Platform Fee:</span>
-                      <span className="font-semibold text-slate-900">₹{selectedOrderForModal.platformFee}</span>
-                    </div>
-                  )}
-                  {selectedOrderForModal.deliveryFee !== undefined && selectedOrderForModal.deliveryFee > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>Delivery Fee:</span>
-                      <span className="font-semibold text-slate-900">₹{selectedOrderForModal.deliveryFee}</span>
-                    </div>
-                  )}
-                  {selectedOrderForModal.otherCharges !== undefined && selectedOrderForModal.otherCharges > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>Other Charges:</span>
-                      <span className="font-semibold text-slate-900">₹{selectedOrderForModal.otherCharges}</span>
-                    </div>
-                  )}
-                  {selectedOrderForModal.taxAmount !== undefined && selectedOrderForModal.taxAmount > 0 && (
-                    <div className="flex justify-between text-slate-600">
-                      <span>GST / Tax {selectedOrderForModal.taxRate ? `(${selectedOrderForModal.taxRate}%)` : ''}:</span>
-                      <span className="font-semibold text-slate-900">₹{selectedOrderForModal.taxAmount}</span>
-                    </div>
-                  )}
-                  <div className="pt-1 border-t border-slate-200 flex justify-between items-baseline">
-                    <strong>Grand Total:</strong>
-                    <span className="text-sm font-black text-slate-900">₹{selectedOrderForModal.totalAmount}</span>
-                  </div>
-                  <div><strong>Method:</strong> {selectedOrderForModal.paymentMethod === "upi_online" || selectedOrderForModal.paymentMethod === "pay_online" ? "UPI / Online Payment" : "Pay at Shop Counter"}</div>
-                  <div className="flex items-center gap-1.5 pt-0.5">
-                    <strong>Status:</strong>
-                    <span className={cn(
-                      "rounded-md px-1.5 py-0.2 text-[10px] font-bold",
-                      selectedOrderForModal.paymentStatus === "confirmed"
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-amber-100 text-amber-900"
-                    )}>
-                      {selectedOrderForModal.paymentStatus === "confirmed" ? "Paid / Verified" : "Pending (Unpaid)"}
-                    </span>
-                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleTogglePaymentStatus(selectedOrderForModal)}
-                  disabled={updatingPayment}
-                  className="w-full mt-1.5 py-1 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-[11px] font-bold text-slate-700 transition-colors cursor-pointer"
-                >
-                  {selectedOrderForModal.paymentStatus === "confirmed" ? "Mark as Pending / Unpaid" : "✓ Mark as Paid / Verified"}
-                </button>
-              </div>
-            </div>
-
-            {/* Queue & Dispatch Metadata Card */}
-            {(() => {
-              const modalQMeta = getQueueClassification(selectedOrderForModal);
-              const isModalPriority = modalQMeta.queuePriority === 1;
-              const modalQPos = queueStats.positionsMap.get(selectedOrderForModal.orderCode);
-              return (
-                <div className={cn(
-                  "rounded-xl border p-3 space-y-1.5",
-                  isModalPriority ? "bg-amber-500/10 border-amber-400/60" : "bg-slate-50 border-slate-200"
-                )}>
+                {/* Payment & Financial Snapshot Card */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-extrabold uppercase text-slate-500 tracking-wider">Printing Queue Dispatch Status</span>
-                    <span className={cn(
-                      "text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full border",
-                      isModalPriority ? "bg-amber-400 text-slate-950 border-amber-500" : "bg-slate-200 text-slate-800 border-slate-300"
-                    )}>
-                      {isModalPriority ? "🔥 Priority Queue (Level 1)" : "📄 Normal Queue (Level 2)"}
-                    </span>
+                    <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider">Financial Breakdown</span>
+                    <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-slate-200 text-slate-700">Order Snapshot</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
-                    <div>
-                      <span className="text-slate-500 block text-[10px]">Queue Position:</span>
-                      <strong className="text-slate-900 font-black">
-                        {modalQPos ? `#${modalQPos.positionInQueue} in ${isModalPriority ? "Priority" : "Normal"} Queue` : "Completed / Ready"}
-                      </strong>
+                  <div className="space-y-0.5 text-xs">
+                    {selectedOrderForModal.subtotalAmount !== undefined && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Subtotal:</span>
+                        <span className="font-semibold text-slate-900">₹{selectedOrderForModal.subtotalAmount}</span>
+                      </div>
+                    )}
+                    {selectedOrderForModal.discountAmount !== undefined && selectedOrderForModal.discountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-700">
+                        <span>Discount:</span>
+                        <span className="font-semibold">-₹{selectedOrderForModal.discountAmount}</span>
+                      </div>
+                    )}
+                    {selectedOrderForModal.platformFee !== undefined && selectedOrderForModal.platformFee > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Platform Fee:</span>
+                        <span className="font-semibold text-slate-900">₹{selectedOrderForModal.platformFee}</span>
+                      </div>
+                    )}
+                    {selectedOrderForModal.deliveryFee !== undefined && selectedOrderForModal.deliveryFee > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Delivery Fee:</span>
+                        <span className="font-semibold text-slate-900">₹{selectedOrderForModal.deliveryFee}</span>
+                      </div>
+                    )}
+                    {selectedOrderForModal.otherCharges !== undefined && selectedOrderForModal.otherCharges > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Other Charges:</span>
+                        <span className="font-semibold text-slate-900">₹{selectedOrderForModal.otherCharges}</span>
+                      </div>
+                    )}
+                    {selectedOrderForModal.taxAmount !== undefined && selectedOrderForModal.taxAmount > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>GST / Tax {selectedOrderForModal.taxRate ? `(${selectedOrderForModal.taxRate}%)` : ''}:</span>
+                        <span className="font-semibold text-slate-900">₹{selectedOrderForModal.taxAmount}</span>
+                      </div>
+                    )}
+                    <div className="pt-1 border-t border-slate-200 flex justify-between items-baseline">
+                      <strong>Grand Total:</strong>
+                      <span className="text-sm font-black text-slate-900">₹{selectedOrderForModal.totalAmount}</span>
                     </div>
-                    <div>
-                      <span className="text-slate-500 block text-[10px]">Submitted At:</span>
-                      <span className="text-slate-700 font-mono text-[10px]">
-                        {new Date(selectedOrderForModal.submittedAt || selectedOrderForModal.createdAt).toLocaleString("en-IN")}
+                    <div><strong>Method:</strong> {selectedOrderForModal.paymentMethod === "upi_online" || selectedOrderForModal.paymentMethod === "pay_online" ? "UPI / Online Payment" : "Pay at Shop Counter"}</div>
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <strong>Status:</strong>
+                      <span className={cn(
+                        "rounded-md px-1.5 py-0.2 text-[10px] font-bold",
+                        selectedOrderForModal.paymentStatus === "confirmed"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-900"
+                      )}>
+                        {selectedOrderForModal.paymentStatus === "confirmed" ? "Paid / Verified" : "Pending (Unpaid)"}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-slate-500 block text-[10px]">Payment Verified At:</span>
-                      <span className="text-slate-700 font-mono text-[10px]">
-                        {selectedOrderForModal.priorityAt ? new Date(selectedOrderForModal.priorityAt).toLocaleString("en-IN") : "N/A (Pending at Counter)"}
-                      </span>
-                    </div>
                   </div>
-                </div>
-              );
-            })()}
 
-            {/* Print Specifications & Options */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
-                  Ordered Products & Specifications ({(selectedOrderForModal.items || []).length})
-                </span>
-              </div>
-              {(selectedOrderForModal.items || []).length > 0 ? (
-                (selectedOrderForModal.items || []).map((item, idx) => (
-                  <AdminOrderItemSpecs
-                    key={idx}
-                    item={item}
-                    itemIndex={idx}
-                    totalItems={(selectedOrderForModal.items || []).length}
-                    orderCode={selectedOrderForModal.orderCode}
-                    isModal={true}
-                    onOpenPreview={(doc) => setActivePreviewDoc(doc)}
-                  />
-                ))
-              ) : (
-                <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-500 italic">
-                  No items listed for order #{selectedOrderForModal.orderCode}
-                </div>
-              )}
-            </div>
-
-            {/* Order Notes & Staff Notes Editor */}
-            <div className="space-y-2">
-              {selectedOrderForModal.orderNotes && (
-                <div className="rounded-lg bg-amber-50/70 border border-amber-200 p-2.5 text-xs text-amber-900">
-                  <strong>Customer Instructions:</strong> "{selectedOrderForModal.orderNotes}"
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-800">
-                  Staff Notes & Production Remarks
-                </label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    value={staffNoteInput}
-                    onChange={(e) => setStaffNoteInput(e.target.value)}
-                    placeholder="e.g. Printed on 100 GSM paper, front glossy laminated..."
-                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs focus:bg-white focus:outline-hidden"
-                  />
                   <button
                     type="button"
-                    onClick={() => handleSaveStaffNote(selectedOrderForModal.orderCode)}
-                    disabled={savingNote}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                    onClick={() => handleTogglePaymentStatus(selectedOrderForModal)}
+                    disabled={updatingPayment}
+                    className="w-full mt-1.5 py-1 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-[11px] font-bold text-slate-700 transition-colors cursor-pointer"
                   >
-                    {savingNote ? "Saving..." : "Save Note"}
+                    {selectedOrderForModal.paymentStatus === "confirmed" ? "Mark as Pending / Unpaid" : "✓ Mark as Paid / Verified"}
                   </button>
                 </div>
               </div>
-            </div>
 
-            {/* Status Transition Action Buttons */}
-            <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
-              <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider block">
-                Update Production Status (Auto-notifies Customer)
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  disabled={Boolean(updatingStatus)}
-                  onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "UNDER_REVIEW")}
-                  className={cn(
-                    "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
-                    selectedOrderForModal.orderStatus === "UNDER_REVIEW"
-                      ? "bg-amber-500 text-white border-amber-600"
-                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
-                  )}
-                >
-                  1. Under Review
-                </button>
-
-                <button
-                  type="button"
-                  disabled={Boolean(updatingStatus)}
-                  onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "CONFIRMED")}
-                  className={cn(
-                    "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
-                    selectedOrderForModal.orderStatus === "CONFIRMED"
-                      ? "bg-blue-600 text-white border-blue-700"
-                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
-                  )}
-                >
-                  2. Confirm Order
-                </button>
-
-                <button
-                  type="button"
-                  disabled={Boolean(updatingStatus)}
-                  onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "IN_PRODUCTION")}
-                  className={cn(
-                    "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
-                    selectedOrderForModal.orderStatus === "IN_PRODUCTION"
-                      ? "bg-indigo-600 text-white border-indigo-700"
-                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
-                  )}
-                >
-                  3. Start Printing
-                </button>
-
-                <button
-                  type="button"
-                  disabled={Boolean(updatingStatus)}
-                  onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "READY_FOR_PICKUP")}
-                  className={cn(
-                    "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
-                    selectedOrderForModal.orderStatus === "READY_FOR_PICKUP"
-                      ? "bg-emerald-600 text-white border-emerald-700"
-                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
-                  )}
-                >
-                  4. Ready Pickup
-                </button>
-
-                <button
-                  type="button"
-                  disabled={Boolean(updatingStatus)}
-                  onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "COMPLETED")}
-                  className={cn(
-                    "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
-                    selectedOrderForModal.orderStatus === "COMPLETED"
-                      ? "bg-slate-900 text-white border-black"
-                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
-                  )}
-                >
-                  5. Mark Completed
-                </button>
-
-                <button
-                  type="button"
-                  disabled={Boolean(updatingStatus)}
-                  onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "CANCELLED")}
-                  className={cn(
-                    "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
-                    selectedOrderForModal.orderStatus === "CANCELLED"
-                      ? "bg-rose-600 text-white border-rose-700"
-                      : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-rose-700"
-                  )}
-                >
-                  Cancel Order
-                </button>
-              </div>
-            </div>
-
-            {/* Official Tax Invoice Card in Order Modal */}
-            {(() => {
-              const inv = invoices.find((i) => i.orderCode && i.orderCode.toUpperCase() === selectedOrderForModal.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(selectedOrderForModal.orderCode);
-              return (
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50/50 via-white to-slate-50 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-extrabold uppercase text-[#123B70] tracking-wider flex items-center gap-1">
-                      <Receipt className="h-3.5 w-3.5 text-[#123B70]" />
-                      Official Tax Invoice & Billing
-                    </span>
-                    {inv ? (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 rounded">
-                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
-                        <span>#{inv.invoiceNumber}</span>
+              {/* Queue & Dispatch Metadata Card */}
+              {(() => {
+                const modalQMeta = getQueueClassification(selectedOrderForModal);
+                const isModalPriority = modalQMeta.queuePriority === 1;
+                const modalQPos = queueStats.positionsMap.get(selectedOrderForModal.orderCode);
+                return (
+                  <div className={cn(
+                    "rounded-xl border p-3 space-y-1.5",
+                    isModalPriority ? "bg-amber-500/10 border-amber-400/60" : "bg-slate-50 border-slate-200"
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-extrabold uppercase text-slate-500 tracking-wider">Printing Queue Dispatch Status</span>
+                      <span className={cn(
+                        "text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full border",
+                        isModalPriority ? "bg-amber-400 text-slate-950 border-amber-500" : "bg-slate-200 text-slate-800 border-slate-300"
+                      )}>
+                        {isModalPriority ? "🔥 Priority Queue (Level 1)" : "📄 Normal Queue (Level 2)"}
                       </span>
-                    ) : (
-                      <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
-                        {selectedOrderForModal.orderStatus === "COMPLETED" ? "Ready to Generate" : "Auto-generates on Completion"}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    {inv ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedInvoiceForModal(inv);
-                            setInvoiceModalOpen(true);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0c274c] text-white text-[11px] font-bold transition-all shadow-xs cursor-pointer"
-                        >
-                          <Eye className="h-3 w-3" />
-                          <span>View Bill</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await downloadInvoicePDF(inv);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer"
-                        >
-                          <Download className="h-3 w-3" />
-                          <span>PDF</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedInvoiceForModal(inv);
-                            setInvoiceModalOpen(true);
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer"
-                        >
-                          <Printer className="h-3 w-3" />
-                          <span>Print</span>
-                        </button>
-
-                        <a
-                          href={getWhatsAppInvoiceShareLink(inv)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition-colors cursor-pointer"
-                        >
-                          <MessageSquare className="h-3 w-3" />
-                          <span>Send Bill</span>
-                        </a>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRegenerateInvoiceForOrder(selectedOrderForModal.orderCode)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[11px] font-bold transition-colors cursor-pointer ml-auto"
-                          title="Regenerate bill snapshot from latest order values"
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                          <span>Regenerate</span>
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={generatingInvoiceCode === selectedOrderForModal.orderCode}
-                        onClick={async () => {
-                          setGeneratingInvoiceCode(selectedOrderForModal.orderCode);
-                          await PalakDataStore.generateInvoiceForOrder(selectedOrderForModal, false, user?.name || "Palak Staff ERP");
-                          await loadData();
-                          setGeneratingInvoiceCode(null);
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
-                      >
-                        <RefreshCw className={cn("h-3 w-3", generatingInvoiceCode === selectedOrderForModal.orderCode && "animate-spin")} />
-                        <span>Generate Official Bill Now</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Audit Trail: Status History Timeline */}
-            <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
-              <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1">
-                <History className="h-3 w-3" />
-                Audit Trail & Status History
-              </span>
-
-              {loadingTimeline ? (
-                <div className="text-center py-2 text-xs text-slate-400">Loading history...</div>
-              ) : orderHistoryTimeline.length > 0 ? (
-                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                  {orderHistoryTimeline.map((h, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs bg-slate-50 p-2 rounded-lg border border-slate-100">
-                      <div className="h-1.5 w-1.5 rounded-full bg-[#123B70] mt-1 shrink-0" />
-                      <div className="flex-1 space-y-0.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800 text-[11px]">{h.new_status || h.newStatus}</span>
-                          <span className="text-[9px] text-slate-400">
-                            {new Date(h.created_at || h.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-slate-600 text-[10px]">{h.message_en || h.messageEn}</p>
-                        {h.performed_by && (
-                          <span className="text-[9px] text-slate-400 block">By: {h.performed_by}</span>
-                        )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">Queue Position:</span>
+                        <strong className="text-slate-900 font-black">
+                          {modalQPos ? `#${modalQPos.positionInQueue} in ${isModalPriority ? "Priority" : "Normal"} Queue` : "Completed / Ready"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">Submitted At:</span>
+                        <span className="text-slate-700 font-mono text-[10px]">
+                          {new Date(selectedOrderForModal.submittedAt || selectedOrderForModal.createdAt).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">Payment Verified At:</span>
+                        <span className="text-slate-700 font-mono text-[10px]">
+                          {selectedOrderForModal.priorityAt ? new Date(selectedOrderForModal.priorityAt).toLocaleString("en-IN") : "N/A (Pending at Counter)"}
+                        </span>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                );
+              })()}
+
+              {/* Print Specifications & Options */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">
+                    Ordered Products & Specifications ({(selectedOrderForModal.items || []).length})
+                  </span>
                 </div>
-              ) : (
-                <div className="text-xs text-slate-400 italic">No history records found for this order.</div>
-              )}
+                {(selectedOrderForModal.items || []).length > 0 ? (
+                  (selectedOrderForModal.items || []).map((item, idx) => (
+                    <AdminOrderItemSpecs
+                      key={idx}
+                      item={item}
+                      itemIndex={idx}
+                      totalItems={(selectedOrderForModal.items || []).length}
+                      orderCode={selectedOrderForModal.orderCode}
+                      isModal={true}
+                      onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                    />
+                  ))
+                ) : (
+                  <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-500 italic">
+                    No items listed for order #{selectedOrderForModal.orderCode}
+                  </div>
+                )}
+              </div>
+
+              {/* Order Notes & Staff Notes Editor */}
+              <div className="space-y-2">
+                {selectedOrderForModal.orderNotes && (
+                  <div className="rounded-lg bg-amber-50/70 border border-amber-200 p-2.5 text-xs text-amber-900">
+                    <strong>Customer Instructions:</strong> "{selectedOrderForModal.orderNotes}"
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-slate-800">
+                    Staff Notes & Production Remarks
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-1.5">
+                    <input
+                      type="text"
+                      value={staffNoteInput}
+                      onChange={(e) => setStaffNoteInput(e.target.value)}
+                      placeholder="e.g. Printed on 100 GSM paper, front glossy laminated..."
+                      className="flex-1 min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs focus:bg-white focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveStaffNote(selectedOrderForModal.orderCode)}
+                      disabled={savingNote}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold cursor-pointer disabled:opacity-50 shrink-0 whitespace-nowrap"
+                    >
+                      {savingNote ? "Saving..." : "Save Note"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Transition Action Buttons */}
+              <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider block">
+                  Update Production Status (Auto-notifies Customer)
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingStatus)}
+                    onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "UNDER_REVIEW")}
+                    className={cn(
+                      "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
+                      selectedOrderForModal.orderStatus === "UNDER_REVIEW"
+                        ? "bg-amber-500 text-white border-amber-600"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
+                    )}
+                  >
+                    1. Under Review
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingStatus)}
+                    onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "CONFIRMED")}
+                    className={cn(
+                      "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
+                      selectedOrderForModal.orderStatus === "CONFIRMED"
+                        ? "bg-blue-600 text-white border-blue-700"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
+                    )}
+                  >
+                    2. Confirm Order
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingStatus)}
+                    onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "IN_PRODUCTION")}
+                    className={cn(
+                      "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
+                      selectedOrderForModal.orderStatus === "IN_PRODUCTION"
+                        ? "bg-indigo-600 text-white border-indigo-700"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
+                    )}
+                  >
+                    3. Start Printing
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingStatus)}
+                    onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "READY_FOR_PICKUP")}
+                    className={cn(
+                      "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
+                      selectedOrderForModal.orderStatus === "READY_FOR_PICKUP"
+                        ? "bg-emerald-600 text-white border-emerald-700"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
+                    )}
+                  >
+                    4. Ready Pickup
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingStatus)}
+                    onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "COMPLETED")}
+                    className={cn(
+                      "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
+                      selectedOrderForModal.orderStatus === "COMPLETED"
+                        ? "bg-slate-900 text-white border-black"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700"
+                    )}
+                  >
+                    5. Mark Completed
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingStatus)}
+                    onClick={() => handleUpdateOrderStatus(selectedOrderForModal.orderCode, "CANCELLED")}
+                    className={cn(
+                      "py-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer disabled:opacity-50",
+                      selectedOrderForModal.orderStatus === "CANCELLED"
+                        ? "bg-rose-600 text-white border-rose-700"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-rose-700"
+                    )}
+                  >
+                    Cancel Order
+                  </button>
+                </div>
+              </div>
+
+              {/* Official Tax Invoice Card in Order Modal */}
+              {(() => {
+                const inv = invoices.find((i) => i.orderCode && i.orderCode.toUpperCase() === selectedOrderForModal.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(selectedOrderForModal.orderCode);
+                return (
+                  <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50/50 via-white to-slate-50 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-extrabold uppercase text-[#123B70] tracking-wider flex items-center gap-1">
+                        <Receipt className="h-3.5 w-3.5 text-[#123B70]" />
+                        Official Tax Invoice & Billing
+                      </span>
+                      {inv ? (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 rounded">
+                          <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
+                          <span>#{inv.invoiceNumber}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
+                          {selectedOrderForModal.orderStatus === "COMPLETED" ? "Ready to Generate" : "Auto-generates on Completion"}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      {inv ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedInvoiceForModal(inv);
+                              setInvoiceModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#123B70] hover:bg-[#0c274c] text-white text-[11px] font-bold transition-all shadow-xs cursor-pointer"
+                          >
+                            <Eye className="h-3 w-3" />
+                            <span>View Bill</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await downloadInvoicePDF(inv);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer"
+                          >
+                            <Download className="h-3 w-3" />
+                            <span>PDF</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedInvoiceForModal(inv);
+                              setInvoiceModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer"
+                          >
+                            <Printer className="h-3 w-3" />
+                            <span>Print</span>
+                          </button>
+
+                          <a
+                            href={getWhatsAppInvoiceShareLink(inv)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition-colors cursor-pointer"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                            <span>Send Bill</span>
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRegenerateInvoiceForOrder(selectedOrderForModal.orderCode)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[11px] font-bold transition-colors cursor-pointer ml-auto"
+                            title="Regenerate bill snapshot from latest order values"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            <span>Regenerate</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={generatingInvoiceCode === selectedOrderForModal.orderCode}
+                          onClick={async () => {
+                            setGeneratingInvoiceCode(selectedOrderForModal.orderCode);
+                            await PalakDataStore.generateInvoiceForOrder(selectedOrderForModal, false, user?.name || "Palak Staff ERP");
+                            await loadData();
+                            setGeneratingInvoiceCode(null);
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={cn("h-3 w-3", generatingInvoiceCode === selectedOrderForModal.orderCode && "animate-spin")} />
+                          <span>Generate Official Bill Now</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Audit Trail: Status History Timeline */}
+              <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                  <History className="h-3 w-3" />
+                  Audit Trail & Status History
+                </span>
+
+                {loadingTimeline ? (
+                  <div className="text-center py-2 text-xs text-slate-400">Loading history...</div>
+                ) : orderHistoryTimeline.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {orderHistoryTimeline.map((h, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <div className="h-1.5 w-1.5 rounded-full bg-[#123B70] mt-1 shrink-0" />
+                        <div className="flex-1 space-y-0.5 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-slate-800 text-[11px] truncate">{h.new_status || h.newStatus}</span>
+                            <span className="text-[9px] text-slate-400 shrink-0">
+                              {new Date(h.created_at || h.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-slate-600 text-[10px] break-words">{h.message_en || h.messageEn}</p>
+                          {h.performed_by && (
+                            <span className="text-[9px] text-slate-400 block">By: {h.performed_by}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-400 italic">No history records found for this order.</div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Dedicated Inline Document & PDF Preview Modal */}
@@ -3738,6 +3902,17 @@ export const AdminPage: React.FC = () => {
             setSelectedInvoiceForModal(previewInv);
             setInvoiceModalOpen(true);
           }}
+        />
+      )}
+
+      {/* Dedicated Admin Print Center Modal */}
+      {activePrintCenterOrder && (
+        <AdminPrintCenterModal
+          isOpen={!!activePrintCenterOrder}
+          onClose={() => setActivePrintCenterOrder(null)}
+          order={activePrintCenterOrder}
+          adminName={user?.name || "Admin Staff"}
+          onOrderUpdated={() => loadData()}
         />
       )}
     </div>

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 export interface AdminModalProps {
   isOpen: boolean;
@@ -25,6 +27,8 @@ export function AdminModal({
 }: AdminModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
+  useScrollLock(isOpen);
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -34,16 +38,14 @@ export function AdminModal({
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -58,8 +60,10 @@ export function AdminModal({
     xl: 'max-w-3xl'
   };
 
-  return (
+  return createPortal(
     <div
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200"
       onClick={handleBackdropClick}
     >
@@ -84,7 +88,7 @@ export function AdminModal({
           </button>
         </div>
 
-        <div className="p-4 sm:p-4.5 overflow-y-auto">
+        <div className="p-4 sm:p-4.5 overflow-y-auto overscroll-contain">
           {children}
         </div>
 
@@ -94,6 +98,7 @@ export function AdminModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

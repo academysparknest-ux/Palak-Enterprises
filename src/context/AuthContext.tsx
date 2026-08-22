@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { getOAuthRedirectUrl, getPasswordResetRedirectUrl } from "../lib/supabase/authRedirect";
+import { PalakDataStore } from "../lib/storage/store";
+import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
 
 export interface UserProfile {
   id: string;
@@ -177,6 +179,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(null);
         setUser(null);
         localStorage.removeItem(AUTH_STORAGE_KEY);
+        try {
+          PalakDataStore.resetMemoryCaches();
+          PalakInvoiceStore.resetMemoryCaches();
+        } catch {}
       } else if (newSession?.user) {
         setSession(newSession);
         await syncUserProfile(newSession.user);
@@ -414,6 +420,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);
+      PalakDataStore.resetMemoryCaches();
+      PalakInvoiceStore.resetMemoryCaches();
       if (isSupabaseConfigured && supabase) {
         await supabase.auth.signOut();
       }

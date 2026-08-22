@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
   CheckCircle2,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { business, getWhatsAppLink } from "../config/business";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { cn } from "../lib/utils";
 
 export interface OrderSuccessModalProps {
@@ -49,41 +51,21 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   const modalScrollRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
 
+  useScrollLock(isOpen);
+
   useEffect(() => {
     if (!isOpen) return;
 
     // 1. Save reference to previously active element for focus restoration
     previousActiveElement.current = document.activeElement as HTMLElement | null;
 
-    // 2. Capture current scroll position before locking background
-    const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
-
-    // 3. Capture existing inline body styles to restore faithfully
-    const originalOverflow = document.body.style.overflow;
-    const originalPosition = document.body.style.position;
-    const originalTop = document.body.style.top;
-    const originalWidth = document.body.style.width;
-    const originalPaddingRight = document.body.style.paddingRight;
-
-    // 4. Calculate desktop scrollbar width to prevent horizontal layout shift
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-    // 5. Freeze body firmly in place without visual jumping
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    // 6. Ensure modal itself starts strictly at top 0 and receives focus
+    // 2. Ensure modal starts at top and receives focus
     if (modalScrollRef.current) {
       modalScrollRef.current.scrollTop = 0;
       modalScrollRef.current.focus?.();
     }
 
-    // 7. Escape key dismiss
+    // 3. Escape key dismiss
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
@@ -92,16 +74,9 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      // 8. Clean up: restore original body styles and exact background scroll position
-      document.body.style.overflow = originalOverflow;
-      document.body.style.position = originalPosition;
-      document.body.style.top = originalTop;
-      document.body.style.width = originalWidth;
-      document.body.style.paddingRight = originalPaddingRight;
-      window.scrollTo(0, scrollY);
       window.removeEventListener("keydown", handleKeyDown);
 
-      // 9. Restore focus to the trigger element
+      // Restore focus to the trigger element
       if (previousActiveElement.current && typeof previousActiveElement.current.focus === "function") {
         previousActiveElement.current.focus();
       }
@@ -124,258 +99,285 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   const waSupportMsg = `Hello Palak Enterprises,\n\nI have a question regarding my order.\n\nOrder ID: ${orderCode}\nService: ${serviceName}\nQueue: ${isPriority ? "Priority (Paid Online)" : "Normal (Send Document)"}\nCustomer: ${customerName} (${customerPhone})\n\nThank you!`;
   const waLink = getWhatsAppLink(waSupportMsg);
 
-  return (
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      ref={modalScrollRef}
       tabIndex={-1}
-      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-slate-950/80 backdrop-blur-xs animate-fadeIn focus:outline-none"
+      className="fixed inset-0 z-[150] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200 focus:outline-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="order-success-title"
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="min-h-full min-h-[100dvh] w-full flex items-start justify-center p-3 sm:p-4 md:p-6 py-6 sm:py-10">
-        <div
-          className="relative w-full max-w-lg rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 text-left transition-all"
-          style={{ animation: "scaleIn 300ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Close Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active-press transition-colors cursor-pointer"
-            aria-label="Close dialog"
-          >
-            <X className="h-5 w-5" />
-          </button>
-
-          {/* Success Icon Header */}
-          <div className="text-center space-y-1.5 sm:space-y-2 pt-1 sm:pt-0">
+      <div
+        className="relative flex flex-col w-full max-w-xl max-h-[calc(100dvh-1.25rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[min(92vh,860px)] bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 text-left"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* ─── Pinned Top Action Bar ──────────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-3.5 bg-slate-900 text-white shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
             <div className={cn(
-              "h-12 w-12 sm:h-16 sm:w-16 rounded-full flex items-center justify-center mx-auto ring-4 sm:ring-8 animate-popIn",
-              isPriority ? "bg-amber-100 text-amber-600 ring-amber-50" : "bg-blue-100 text-blue-600 ring-blue-50"
+              "h-9 w-9 rounded-xl flex items-center justify-center shrink-0 border",
+              isPriority ? "bg-amber-500/20 border-amber-400/30 text-amber-300" : "bg-blue-500/20 border-blue-400/30 text-blue-300"
             )}>
-              <CheckCircle2 className="h-7 w-7 sm:h-9 sm:w-9" />
+              <CheckCircle2 className="h-5 w-5" />
             </div>
-
-            <h2 id="order-success-title" className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
-            {isPriority
-              ? (currentLang === "hi" ? "🎉 भुगतान सफल! (Priority Print)" : "🎉 Payment Successful!")
-              : (currentLang === "hi" ? "📄 दस्तावेज सफलतापूर्वक भेजा गया" : "📄 Document Sent Successfully")}
-          </h2>
-
-          <p className="text-xs sm:text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
-            {isPriority
-              ? (currentLang === "hi"
-                  ? "आपका ऑर्डर PRIORITY PRINTING QUEUE में है। आपको सामान्य कतार में प्रतीक्षा नहीं करनी होगी। हम आपके दस्तावेज पहले तैयार करेंगे। दुकान पहुँचकर तैयार प्रिंट प्राप्त करें।"
-                  : "Your order is in the PRIORITY PRINTING QUEUE. You don't need to wait in the normal queue. We'll prepare your documents first. Come to the shop and collect your ready prints.")
-              : (currentLang === "hi"
-                  ? "आपके दस्तावेज सामान्य कतार में प्राप्त हो गए हैं। दुकान काउंटर पर आपकी मौजूदगी/सत्यापन होते ही प्रिंट शुरू कर दिया जाएगा और आप काउंटर पर भुगतान करेंगे।"
-                  : "Your documents have been received in the normal queue. Printing starts once your arrival/availability is confirmed at the shop counter, and you pay at pickup.")}
-          </p>
-        </div>
-
-        {/* Queue Classification Alert Banner */}
-        <div className={cn(
-          "rounded-xl p-3 border text-xs flex items-center justify-between gap-3",
-          isPriority
-            ? "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300 text-amber-950"
-            : "bg-gradient-to-r from-slate-50 to-blue-50 border-slate-300 text-slate-900"
-        )}>
-          <div className="flex items-center gap-2">
-            <span className="text-base">{isPriority ? "🔥" : "📄"}</span>
-            <div>
-              <span className="font-extrabold uppercase tracking-wide block text-[11px]">
-                {isPriority ? "PRIORITY PRINTING QUEUE" : "NORMAL PRINTING QUEUE"}
-              </span>
-              <span className="text-[10px] text-slate-600">
-                {isPriority
-                  ? (currentLang === "hi" ? "प्राथमिकता क्रम: पहले प्रिंट होगा" : "Express processing: printed ahead of normal queue")
-                  : (currentLang === "hi" ? "सामान्य क्रम: पहले आओ, पहले पाओ" : "Standard processing: first come, first served")}
-              </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-black tracking-tight text-white">
+                  {isPriority
+                    ? (currentLang === "hi" ? "ऑर्डर सफलतापूर्वक दर्ज" : "Order Confirmed")
+                    : (currentLang === "hi" ? "दस्तावेज सफलतापूर्वक भेजा गया" : "Document Received")}
+                </h3>
+                <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-blue-900/70 border border-blue-400/30 text-blue-200 font-bold">
+                  {orderCode}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 truncate">
+                {serviceName} • {customerName}
+              </p>
             </div>
           </div>
-          <span className={cn(
-            "text-[9px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 border",
-            isPriority ? "bg-amber-400 text-slate-950 border-amber-500" : "bg-slate-200 text-slate-800 border-slate-300"
-          )}>
-            {isPriority ? "PRIORITY" : "NORMAL"}
-          </span>
-        </div>
 
-        {/* Order ID Banner */}
-        <div className="rounded-xl sm:rounded-2xl border-2 border-dashed border-[#123B70]/30 bg-blue-50/50 p-3 sm:p-4 text-center space-y-1.5">
-          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-            {currentLang === "hi" ? "यूनिक ऑर्डर ट्रैकिंग आईडी (Order ID)" : "Official Order Tracking ID"}
-          </span>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <span className="text-base sm:text-xl font-mono font-black text-[#123B70] tracking-wide break-all">
-              {orderCode}
-            </span>
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={handleCopyCode}
-              className="rounded-lg p-1.5 bg-white border border-blue-200 text-slate-700 hover:bg-blue-100 text-xs flex items-center gap-1 font-semibold cursor-pointer shadow-xs transition-colors shrink-0"
-              title="Copy Order ID"
+              onClick={onClose}
+              className="h-8 w-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Close modal"
+              aria-label="Close dialog"
             >
-              {copied ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-emerald-600" />
-                  <span className="text-[11px] text-emerald-700 font-bold">Copied</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5 text-slate-600" />
-                  <span className="text-[11px]">Copy</span>
-                </>
-              )}
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* Status & Payment Badges */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5 sm:p-3 space-y-1">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              {currentLang === "hi" ? "ऑर्डर स्थिति" : "Order Status"}
+        {/* ─── Pinned Sub-Header Status Strip ─────────────────────────────── */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 sm:px-6 py-2.5 bg-slate-50 border-b border-slate-200 shrink-0 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn(
+              "text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border flex items-center gap-1",
+              isPriority 
+                ? "bg-amber-400 text-slate-950 border-amber-500 shadow-2xs" 
+                : "bg-blue-100 text-blue-900 border-blue-200"
+            )}>
+              <span>{isPriority ? "🔥" : "📄"}</span>
+              <span>{isPriority ? "Priority Printing Queue" : "Normal Printing Queue"}</span>
             </span>
-            <span className="font-bold text-[#123B70] flex items-center gap-1.5 text-xs sm:text-sm">
-              <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse shrink-0"></span>
-              <span>{currentLang === "hi" ? "ऑर्डर प्राप्त (Order Received)" : "Order Received"}</span>
+
+            <span className={cn(
+              "text-[10px] font-bold px-2 py-0.5 rounded-md border",
+              isPaid
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-amber-50 text-amber-800 border-amber-200"
+            )}>
+              {isPaid
+                ? (currentLang === "hi" ? "✓ भुगतान पूर्ण" : "✓ Paid Online")
+                : (currentLang === "hi" ? "दुकान पर भुगतान (Pending)" : "Pay at Shop Counter")}
             </span>
           </div>
 
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5 sm:p-3 space-y-1">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              {currentLang === "hi" ? "भुगतान माध्यम एवं स्थिति" : "Payment Details"}
-            </span>
-            <div className="flex items-center justify-between gap-1.5 text-xs sm:text-sm">
-              <span className="font-bold text-emerald-900 truncate">
-                {isOnlinePayment
-                  ? (currentLang === "hi" ? "ऑनलाइन भुगतान" : "Paid Online")
-                  : (currentLang === "hi" ? "दस्तावेज भेजा • दुकान पर भुगतान" : "Send Document (Pay at Shop)")}
-              </span>
-              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-white border border-emerald-300 shrink-0 uppercase">
-                {isPaid ? (currentLang === "hi" ? "भुगतान पूर्ण" : "Paid") : (currentLang === "hi" ? "बाकी (Pending)" : "Pending")}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Order Quick Summary Box */}
-        <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4 space-y-2 sm:space-y-2.5 text-xs text-slate-700">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-200 gap-2">
-            <span className="font-bold text-slate-900 truncate">{serviceName}</span>
-            {documentType && (
-              <span className="rounded-md bg-blue-100 text-blue-900 px-2 py-0.5 font-semibold text-[10px] sm:text-[11px] shrink-0">
-                {documentType}
-              </span>
+          <button
+            type="button"
+            onClick={handleCopyCode}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-emerald-600" />
+                <span className="text-emerald-700 font-bold">Copied ID</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3 text-slate-500" />
+                <span>Copy ID</span>
+              </>
             )}
-          </div>
-
-          {Object.entries(specifications).length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-1">
-              {Object.entries(specifications).map(([key, val]) => (
-                <div key={key} className="truncate">
-                  <span className="font-semibold text-slate-700">{key}:</span> {val}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {finishingSelected.length > 0 && (
-            <div className="pt-2 border-t border-slate-200 text-[11px]">
-              <span className="font-bold text-slate-800 block mb-1">
-                {currentLang === "hi" ? "चयनित फिनिशिंग:" : "Selected Finishing:"}
-              </span>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-emerald-800 font-medium">
-                {finishingSelected.map((f, i) => (
-                  <li key={i} className="flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs sm:text-sm font-extrabold text-slate-900">
-            <span>{currentLang === "hi" ? "कुल अनुमानित राशि:" : "Estimated Total:"}</span>
-            <span className="text-sm sm:text-base text-[#123B70] font-black">
-              {totalAmount > 0 ? `₹${totalAmount}` : "Price upon review"}
-            </span>
-          </div>
+          </button>
         </div>
 
-        {/* Clear Shop Pickup & Express Zero-Wait Queue Notice */}
-        <div className="rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50/60 to-blue-50/70 border-2 border-emerald-500/40 p-3 sm:p-4 space-y-2 sm:space-y-2.5 text-xs text-slate-800 shadow-xs">
-          <div className="flex items-center gap-2 font-black text-emerald-950 text-xs sm:text-sm">
-            <MapPin className="h-4 w-4 text-emerald-700 shrink-0" />
-            <span>{currentLang === "hi" ? "📍 दुकान से संग्रह (Shop Collection):" : "📍 Collect Order at Our Shop (Store Pickup):"}</span>
+        {/* ─── Scrollable Modal Body ──────────────────────────────────────── */}
+        <div
+          ref={modalScrollRef}
+          className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 text-xs text-slate-700"
+        >
+          {/* Main Success Announcement Card */}
+          <div className="text-center space-y-2 py-2">
+            <div className={cn(
+              "h-14 w-14 rounded-2xl flex items-center justify-center mx-auto ring-4 animate-popIn",
+              isPriority ? "bg-amber-100 text-amber-600 ring-amber-50" : "bg-blue-100 text-blue-600 ring-blue-50"
+            )}>
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+
+            <h2 id="order-success-title" className="text-base sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
+              {isPriority
+                ? (currentLang === "hi" ? "🎉 आपका भुगतान सफल रहा!" : "🎉 Order Placed & Paid Successfully!")
+                : (currentLang === "hi" ? "📄 दस्तावेज सफलतापूर्वक प्राप्त हुआ" : "📄 Order & Document Received")}
+            </h2>
+
+            <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+              {isPriority
+                ? (currentLang === "hi"
+                    ? "आपका ऑर्डर PRIORITY PRINTING QUEUE में है। हम आपके दस्तावेज प्राथमिकता से तैयार कर रहे हैं। दुकान पहुँचकर तैयार प्रिंट तुरंत प्राप्त करें।"
+                    : "Your order is registered in our PRIORITY PRINTING QUEUE. Your prints will be processed first with zero waiting.")
+                : (currentLang === "hi"
+                    ? "आपके दस्तावेज सामान्य कतार में प्राप्त हो गए हैं। दुकान काउंटर पर आपकी मौजूदगी होते ही प्रिंट शुरू कर दिया जाएगा और आप काउंटर पर भुगतान करेंगे।"
+                    : "Your documents are in the normal queue. Printing starts once confirmed at the counter, and you can pay at pickup.")}
+            </p>
           </div>
 
-          <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
-            <strong>{business.name[currentLang]}</strong>: {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]} (Near Block Gate).
-          </p>
-
-          <div className="rounded-lg sm:rounded-xl bg-white/90 border border-emerald-200 p-2 sm:p-2.5 text-[11px] text-slate-700 space-y-1">
-            <span className="font-extrabold text-emerald-900 flex items-center gap-1.5">
-              <span>⚡ {currentLang === "hi" ? "ऑनलाइन ऑर्डर का फायदा (Zero Waiting):" : "Why Ordering Online Saves Your Time:"}</span>
+          {/* Tracking ID & Queue Summary Box */}
+          <div className="rounded-xl border-2 border-dashed border-[#123B70]/30 bg-gradient-to-br from-blue-50/70 via-white to-slate-50 p-3.5 text-center space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+              {currentLang === "hi" ? "यूनिक ऑर्डर ट्रैकिंग आईडी" : "Official Order Tracking ID"}
             </span>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-lg sm:text-xl font-mono font-black text-[#123B70] tracking-wide break-all">
+                {orderCode}
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-500">
               {currentLang === "hi"
-                ? "दुकान पर फ़ाइल भेजने या प्रिंटिंग के लिए लाइन में इंतज़ार नहीं करना पड़ेगा! आपका प्रिंट पहले से तैयार व पैक रहेगा — बस दुकान पहुँचकर ऑर्डर आईडी बताएं और तुरंत प्राप्त करें।"
-                : "No need to wait in line or wait for your turn to send files via WhatsApp/Bluetooth! Your documents are pre-printed and packed. Just show your Order ID at the counter and collect in seconds!"}
+                ? "दुकान काउंटर पर यह कोड दिखाकर अपना प्रिंट प्राप्त करें"
+                : "Quote this ID at the shop counter to collect your ready prints"}
+            </p>
+          </div>
+
+          {/* Status & Payment Badges */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                {currentLang === "hi" ? "ऑर्डर स्थिति" : "Order Status"}
+              </span>
+              <span className="font-bold text-[#123B70] flex items-center gap-1.5 text-xs sm:text-sm">
+                <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse shrink-0"></span>
+                <span>{currentLang === "hi" ? "ऑर्डर प्राप्त (Order Received)" : "Order Received"}</span>
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                {currentLang === "hi" ? "भुगतान विवरण" : "Payment Breakdown"}
+              </span>
+              <div className="flex items-center justify-between gap-1.5 text-xs">
+                <span className="font-bold text-slate-800 truncate">
+                  {isOnlinePayment
+                    ? (currentLang === "hi" ? "ऑनलाइन भुगतान" : "Online Payment")
+                    : (currentLang === "hi" ? "काउंटर पर भुगतान" : "Pay at Counter")}
+                </span>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-white border border-slate-300 shrink-0 uppercase">
+                  {isPaid ? (currentLang === "hi" ? "Paid" : "Paid") : (currentLang === "hi" ? "Pending" : "Pending")}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Ordered Specifications */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-2">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-200 gap-2">
+              <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">{serviceName}</span>
+              {documentType && (
+                <span className="rounded-md bg-blue-100 text-blue-900 px-2 py-0.5 font-bold text-[10px] shrink-0">
+                  {documentType}
+                </span>
+              )}
+            </div>
+
+            {Object.entries(specifications).length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-1">
+                {Object.entries(specifications).map(([key, val]) => (
+                  <div key={key} className="truncate">
+                    <span className="font-semibold text-slate-700">{key}:</span> {val}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {finishingSelected.length > 0 && (
+              <div className="pt-2 border-t border-slate-200 text-[11px]">
+                <span className="font-bold text-slate-800 block mb-1">
+                  {currentLang === "hi" ? "चयनित फिनिशिंग:" : "Selected Finishing:"}
+                </span>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-emerald-800 font-medium">
+                  {finishingSelected.map((f, i) => (
+                    <li key={i} className="flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs sm:text-sm font-extrabold text-slate-900">
+              <span>{currentLang === "hi" ? "कुल अनुमानित राशि:" : "Estimated Total:"}</span>
+              <span className="text-sm sm:text-base text-[#123B70] font-black">
+                {totalAmount > 0 ? `₹${totalAmount}` : "Price upon review"}
+              </span>
+            </div>
+          </div>
+
+          {/* Shop Collection Guide */}
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 sm:p-3.5 space-y-1.5 text-xs text-slate-800">
+            <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
+              <MapPin className="h-4 w-4 text-emerald-700 shrink-0" />
+              <span>{currentLang === "hi" ? "दुकान संग्रह पता:" : "Store Pickup Location:"}</span>
+            </div>
+            <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
+              <strong>{business.name[currentLang]}</strong>: {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]} (Near Block Gate).
             </p>
           </div>
         </div>
 
-        {/* Primary Action Buttons */}
-        <div className="space-y-2 sm:space-y-3 pt-1">
-          {/* Primary CTA: Track Order */}
-          <Link
-            to={`/order-status?code=${orderCode}`}
-            onClick={onClose}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-extrabold text-white shadow-card transition-all cursor-pointer"
-          >
-            <span>{currentLang === "hi" ? "ऑर्डर लाइव ट्रैक करें" : "Track Order Status"}</span>
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-
+        {/* ─── Pinned Modal Footer ────────────────────────────────────────── */}
+        <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2.5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Link
+              to={`/order-status?code=${orderCode}`}
+              onClick={onClose}
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all cursor-pointer text-center"
+            >
+              <span>{currentLang === "hi" ? "ऑर्डर लाइव ट्रैक करें" : "Track Order Status"}</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+
             <Link
               to="/account/orders"
               onClick={onClose}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2 sm:py-2.5 text-xs font-bold text-slate-800 transition-colors text-center cursor-pointer"
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-800 transition-colors text-center cursor-pointer"
             >
               <span>{currentLang === "hi" ? "मेरे ऑर्डर्स देखें" : "View My Orders"}</span>
             </Link>
+          </div>
 
+          <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-xs text-slate-500">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 px-3 py-2 sm:py-2.5 text-xs font-bold text-slate-700 transition-colors text-center cursor-pointer"
+              className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
             >
               {currentLang === "hi" ? "नया ऑर्डर करें" : "Order More"}
             </button>
-          </div>
 
-          {/* Secondary Support Option: Chat on WhatsApp */}
-          <div className="pt-1.5 sm:pt-2 border-t border-slate-100 text-center">
             <a
               href={waLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
             >
               <MessageSquare className="h-3.5 w-3.5" />
-              <span>{currentLang === "hi" ? "मदद चाहिए? व्हाट्सएप पर पूछें" : "Need help? Chat on WhatsApp"}</span>
+              <span>{currentLang === "hi" ? "मदद चाहिए? WhatsApp पर पूछें" : "Chat on WhatsApp"}</span>
             </a>
           </div>
         </div>
       </div>
-    </div>
-  </div>
-);
+    </div>,
+    document.body
+  );
 };
+
+export default OrderSuccessModal;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { SEO } from "../components/SEO";
 import { PageHero } from "../components/PageHero";
 import { useLanguage } from "../context/LanguageContext";
@@ -13,6 +14,7 @@ import {
   ImageOff,
 } from "lucide-react";
 import { businessConfig } from "../config/business";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface WorkPageProps {
   onOpenRequestModal: (serviceId?: string) => void;
@@ -28,6 +30,8 @@ export const WorkPage: React.FC<WorkPageProps> = ({ onOpenRequestModal }) => {
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
+  useScrollLock(activeItemIndex !== null);
+
   const filteredData =
     activeCategory === "all"
       ? galleryData
@@ -35,17 +39,7 @@ export const WorkPage: React.FC<WorkPageProps> = ({ onOpenRequestModal }) => {
 
   const activeItem = activeItemIndex !== null ? filteredData[activeItemIndex] : null;
 
-  const handlePrevItem = useCallback(() => {
-    if (activeItemIndex === null || filteredData.length === 0) return;
-    setActiveItemIndex((prev) => (prev === 0 ? filteredData.length - 1 : (prev as number) - 1));
-  }, [activeItemIndex, filteredData.length]);
-
-  const handleNextItem = useCallback(() => {
-    if (activeItemIndex === null || filteredData.length === 0) return;
-    setActiveItemIndex((prev) => (prev === filteredData.length - 1 ? 0 : (prev as number) + 1));
-  }, [activeItemIndex, filteredData.length]);
-
-  const handleOpenLightbox = (index: number, e: React.SyntheticEvent) => {
+  const handleOpenLightbox = (index: number, e: React.MouseEvent) => {
     lastFocusedElementRef.current = e.currentTarget as HTMLElement;
     setActiveItemIndex(index);
   };
@@ -59,12 +53,19 @@ export const WorkPage: React.FC<WorkPageProps> = ({ onOpenRequestModal }) => {
     }
   };
 
-  // Keyboard navigation & scroll lock for Lightbox
+  const handlePrevItem = useCallback(() => {
+    if (activeItemIndex === null) return;
+    setActiveItemIndex((prev) => (prev! === 0 ? filteredData.length - 1 : prev! - 1));
+  }, [activeItemIndex, filteredData.length]);
+
+  const handleNextItem = useCallback(() => {
+    if (activeItemIndex === null) return;
+    setActiveItemIndex((prev) => (prev! === filteredData.length - 1 ? 0 : prev! + 1));
+  }, [activeItemIndex, filteredData.length]);
+
+  // Keyboard navigation for Lightbox
   useEffect(() => {
     if (activeItemIndex === null) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     if (closeButtonRef.current) {
       closeButtonRef.current.focus();
@@ -82,7 +83,6 @@ export const WorkPage: React.FC<WorkPageProps> = ({ onOpenRequestModal }) => {
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [activeItemIndex, handlePrevItem, handleNextItem]);
@@ -244,15 +244,20 @@ export const WorkPage: React.FC<WorkPageProps> = ({ onOpenRequestModal }) => {
       </div>
 
       {/* Accessible Lightbox Modal */}
-      {activeItem && (
+      {activeItem && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          className="fixed inset-0 z-[140] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-200"
           role="dialog"
           aria-modal="true"
+          aria-label={activeItem.title[currentLang]}
+          onClick={handleCloseLightbox}
         >
-          <div className="relative max-w-4xl w-full bg-slate-900 text-white rounded-3xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col max-h-[90vh]">
+          <div
+            className="relative flex flex-col w-full max-w-4xl max-h-[calc(100dvh-1.25rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[min(90vh,860px)] bg-slate-900 text-white rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-800 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Lightbox Header */}
-            <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+            <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded-full">
                   {activeItem.badge[currentLang]}
@@ -344,7 +349,8 @@ export const WorkPage: React.FC<WorkPageProps> = ({ onOpenRequestModal }) => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

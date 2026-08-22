@@ -14,6 +14,12 @@ export default defineConfig({
             if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('purify')) {
               return 'vendor-pdf';
             }
+            if (id.includes('qrcode')) {
+              return 'vendor-qr';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
             if (id.includes('@supabase')) {
               return 'vendor-supabase';
             }

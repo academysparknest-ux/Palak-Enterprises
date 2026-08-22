@@ -28,11 +28,15 @@ export const WebsiteAnalyticsPage: React.FC = () => {
       }
 
       try {
-        // Fetch order items to aggregate top services
-        const { data: orderItems } = await supabase
-          .from('order_items')
-          .select('product_name');
-        
+        // Fetch order items and products in parallel
+        const [orderItemsRes, productsRes] = await Promise.all([
+          supabase.from('order_items').select('product_name'),
+          supabase.from('products').select('id, name_en, name_hi, is_active, starting_price, image_url, updated_at'),
+        ]);
+
+        const orderItems = orderItemsRes.data;
+        const products = productsRes.data;
+
         const counts: Record<string, number> = {};
         if (orderItems) {
           orderItems.forEach(item => {
@@ -46,11 +50,6 @@ export const WebsiteAnalyticsPage: React.FC = () => {
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count)
           .slice(0, 10);
-
-        // Fetch all products for other metrics
-        const { data: products } = await supabase
-          .from('products')
-          .select('id, name_en, name_hi, is_active, starting_price, image_url, updated_at');
 
         let activeProducts = 0;
         let inactiveProducts = 0;

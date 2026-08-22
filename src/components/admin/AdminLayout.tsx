@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { AdminHeader } from "./AdminHeader";
@@ -15,28 +15,46 @@ export const AdminLayout: React.FC = () => {
   const [dataLoading, setDataLoading] = useState(false);
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const location = useLocation();
+  const badgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
 
-  // Fetch new orders count for sidebar badge
-  const fetchNewOrdersCount = useCallback(async () => {
+  // Fetch new orders count for sidebar badge with batching/debounce
+  const fetchNewOrdersCount = useCallback((immediate: boolean = false) => {
     if (!isSupabaseConfigured || !supabase) return;
-    try {
-      const { count } = await supabase
-        .from("orders")
-        .select("id", { count: "exact", head: true })
-        .in("order_status", ["NEW", "UNDER_REVIEW"]);
-      setNewOrdersCount(count || 0);
-    } catch {}
+    const client = supabase;
+
+    if (badgeTimerRef.current) {
+      clearTimeout(badgeTimerRef.current);
+    }
+
+    const execute = async () => {
+      try {
+        const { count } = await client
+          .from("orders")
+          .select("id", { count: "exact", head: true })
+          .in("order_status", ["NEW", "UNDER_REVIEW"]);
+        setNewOrdersCount(count || 0);
+      } catch {}
+    };
+
+    if (immediate) {
+      execute();
+    } else {
+      badgeTimerRef.current = setTimeout(execute, 200);
+    }
   }, []);
 
   useEffect(() => {
     if (isStaff) {
-      fetchNewOrdersCount();
+      fetchNewOrdersCount(true);
     }
+    return () => {
+      if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
+    };
   }, [isStaff, fetchNewOrdersCount]);
 
   // Listen to realtime orders for sidebar badge count
@@ -45,13 +63,13 @@ export const AdminLayout: React.FC = () => {
       if (order.orderStatus === "NEW" || order.orderStatus === "UNDER_REVIEW") {
         setNewOrdersCount((prev) => prev + 1);
       }
-      fetchNewOrdersCount();
+      fetchNewOrdersCount(false);
     },
     onOrderUpdated: () => {
-      fetchNewOrdersCount();
+      fetchNewOrdersCount(false);
     },
     onOrderDeleted: () => {
-      fetchNewOrdersCount();
+      fetchNewOrdersCount(false);
     },
   });
 

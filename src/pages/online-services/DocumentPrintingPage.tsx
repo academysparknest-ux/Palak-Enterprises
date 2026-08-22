@@ -2,24 +2,24 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import {
   Upload,
-  CheckCircle2,
   AlertCircle,
   Calculator,
-  File as FileIcon,
   Plus,
   Minus,
   ShieldCheck,
   Trash2,
   Sparkles,
-  Layers,
-  FileText,
+  Settings2,
+  ChevronDown,
+  ChevronUp,
+  Bookmark,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import {
   DEFAULT_PRINT_PRICING,
-  calculateDocumentPrintPrice,
-  type DocumentPrintOrderOptions,
   type PrintPricingConfig,
 } from "../../config/printPricing";
 import {
@@ -31,6 +31,22 @@ import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { cn } from "../../lib/utils";
+import type {
+  DocumentPrintConfig,
+  OrderPrintSnapshot,
+  UserSavedPrintPreferences,
+  PaperSize,
+  ColorMode,
+  PrintOrientation,
+  PaperGSM,
+  BindingType,
+  CoverOption,
+} from "../../types/printJob";
+import {
+  calculateDocumentPrintPriceComplete,
+  buildOrderPrintSnapshot,
+} from "../../lib/pricing/printPricingEngine";
+import { UserPrintPreferencesStore } from "../../lib/storage/userPrintPreferencesStore";
 
 const DOCUMENT_TYPES = [
   { id: "notes", labelEn: "Notes", labelHi: "नोट्स (Notes)", icon: "📚" },
@@ -47,7 +63,7 @@ const DOCUMENT_TYPES = [
   { id: "other", labelEn: "Other Document", labelHi: "अन्य दस्तावेज (Other Document)", icon: "🗂️" },
 ];
 
-export interface UploadedDocument {
+export interface UploadedConfiguredDocument {
   id: string;
   file: File;
   name: string;
@@ -55,27 +71,25 @@ export interface UploadedDocument {
   pages: number;
   previewUrl?: string;
   isCounting?: boolean;
+  isExpanded?: boolean;
+  config: DocumentPrintConfig;
 }
 
 /**
  * Robust Client-Side Document Page Counter
- * Automatically parses PDF files using binary/latin1 inspection of /Type /Pages /Count and /Type /Page
  */
 async function countDocumentPages(file: File): Promise<number> {
   const extension = "." + (file.name.split(".").pop() || "").toLowerCase();
 
-  // 1. Image formats: 1 page
   if (file.type.startsWith("image/") || [".jpg", ".jpeg", ".png", ".webp"].includes(extension)) {
     return 1;
   }
 
-  // 2. PDF formats: parse page dictionary
   if (extension === ".pdf" || file.type === "application/pdf") {
     try {
       const buffer = await file.arrayBuffer();
       const text = new TextDecoder("latin1").decode(buffer);
 
-      // Match /Type /Pages ... /Count N
       const countMatches = [...text.matchAll(/\/Type\s*\/Pages[\s\S]*?\/Count\s+(\d+)/gi)];
       if (countMatches.length > 0) {
         let maxCount = 0;
@@ -86,7 +100,6 @@ async function countDocumentPages(file: File): Promise<number> {
         if (maxCount > 0) return maxCount;
       }
 
-      // Alternate order /Count N ... /Type /Pages
       const altCountMatches = [...text.matchAll(/\/Count\s+(\d+)[\s\S]*?\/Type\s*\/Pages/gi)];
       if (altCountMatches.length > 0) {
         let maxCount = 0;
@@ -97,7 +110,6 @@ async function countDocumentPages(file: File): Promise<number> {
         if (maxCount > 0) return maxCount;
       }
 
-      // Match individual /Type /Page objects (excluding /Type /Pages)
       const pageMatches = text.match(/\/Type\s*\/Page\b(?!\s*s)/gi);
       if (pageMatches && pageMatches.length > 0) {
         return pageMatches.length;
@@ -110,39 +122,54 @@ async function countDocumentPages(file: File): Promise<number> {
   return 1;
 }
 
+const DOCPRINT_SUBMISSION_KEY = "palak_docprint_submission_id_v1";
+
+function getOrInitDocPrintSubmissionId(): string {
+  if (typeof window === "undefined") {
+    return `PE-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+  try {
+    let existing = sessionStorage.getItem(DOCPRINT_SUBMISSION_KEY);
+    if (!existing || !existing.startsWith("PE-DOC-")) {
+      existing = `PE-DOC-${Date.now()}-${crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10)}`;
+      sessionStorage.setItem(DOCPRINT_SUBMISSION_KEY, existing);
+    }
+    return existing;
+  } catch {
+    return `PE-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+function clearDocPrintSubmissionId(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(DOCPRINT_SUBMISSION_KEY);
+  } catch {}
+}
+
 export const DocumentPrintingPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
   const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
 
+  // Saved user preferences
+  const [savedPrefs, setSavedPrefs] = useState<UserSavedPrintPreferences>(() =>
+    UserPrintPreferencesStore.getLocalPreferences()
+  );
+  const [savedPrefsSavedToast, setSavedPrefsSavedToast] = useState<boolean>(false);
+
   // Step 1: Document Type
   const [selectedDocType, setSelectedDocType] = useState<string>("assignment");
   const [customDocTypeName, setCustomDocTypeName] = useState<string>("");
 
-  // Step 2: Upload (Multiple Documents Support)
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedDocument[]>([]);
-  const [totalPages, setTotalPages] = useState<number>(1);
+  // Step 2: Uploaded Documents with Independent Configurations
+  const [documents, setDocuments] = useState<UploadedConfiguredDocument[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addMoreInputRef = useRef<HTMLInputElement>(null);
 
-  // Step 3: Printing Options
-  const [paperSize, setPaperSize] = useState<"a4" | "a3" | "a5">("a4");
-  const [colorMode, setColorMode] = useState<"bw" | "color">("bw");
-  const [sides, setSides] = useState<"single" | "double">("single");
-  const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
-  const [copies, setCopies] = useState<number>(1);
-  const [pageRangeType, setPageRangeType] = useState<"all" | "custom">("all");
-  const [customPageRange, setCustomPageRange] = useState<string>("");
-
-  // Step 4: Finishing Options
-  const [spiralBinding, setSpiralBinding] = useState<boolean>(false);
-  const [combBinding, setCombBinding] = useState<boolean>(false);
-  const [lamination, setLamination] = useState<boolean>(false);
-  const [stapling, setStapling] = useState<boolean>(false);
-
-  // Step 5: Customer Details & Auth
+  // Step 3: Customer Details & Auth
   const { user } = useAuth();
   const [customerName, setCustomerName] = useState<string>(user?.name || "");
   const [customerPhone, setCustomerPhone] = useState<string>(user?.phone || "");
@@ -155,6 +182,11 @@ export const DocumentPrintingPage: React.FC = () => {
       setCustomerName((prev) => prev || user.name || "");
       setCustomerPhone((prev) => prev || user.phone || "");
       setCustomerEmail((prev) => prev || user.email || "");
+
+      // Load user preferences from cloud
+      UserPrintPreferencesStore.loadUserPreferences(user.id).then((prefs) => {
+        setSavedPrefs(prefs);
+      });
     }
   }, [user]);
 
@@ -162,33 +194,39 @@ export const DocumentPrintingPage: React.FC = () => {
   const location = useLocation();
 
   const resolvePaymentMethod = (): "pay_at_shop" | "pay_online" => {
-    const payParam = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay") || (location.state as any)?.paymentMethod;
+    const payParam =
+      searchParams.get("payment") ||
+      searchParams.get("paymentMethod") ||
+      searchParams.get("pay") ||
+      (location.state as any)?.paymentMethod;
     if (payParam) {
       const p = String(payParam).toLowerCase();
-      if (p === "pay_online" || p === "online" || p === "pay-online" || p === "priority" || p === "upi_online" || p === "paid") {
+      if (
+        p === "pay_online" ||
+        p === "online" ||
+        p === "pay-online" ||
+        p === "priority" ||
+        p === "upi_online" ||
+        p === "paid"
+      ) {
         return "pay_online";
       }
-      if (p === "pay_at_shop" || p === "send_document" || p === "send-document" || p === "pay_at_store" || p === "shop" || p === "store" || p === "normal") {
+      if (
+        p === "pay_at_shop" ||
+        p === "send_document" ||
+        p === "send-document" ||
+        p === "pay_at_store" ||
+        p === "shop" ||
+        p === "store" ||
+        p === "normal"
+      ) {
         return "pay_at_shop";
       }
     }
     return "pay_at_shop";
   };
 
-  // Step 6: Payment Method
   const [paymentMethod, setPaymentMethod] = useState<"pay_at_shop" | "pay_online">(resolvePaymentMethod);
-
-  useEffect(() => {
-    const payParam = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay") || (location.state as any)?.paymentMethod;
-    if (payParam) {
-      const p = String(payParam).toLowerCase();
-      if (p === "pay_online" || p === "online" || p === "pay-online" || p === "priority" || p === "upi_online" || p === "paid") {
-        setPaymentMethod("pay_online");
-      } else if (p === "pay_at_shop" || p === "send_document" || p === "send-document" || p === "pay_at_store" || p === "shop" || p === "store" || p === "normal") {
-        setPaymentMethod("pay_at_shop");
-      }
-    }
-  }, [searchParams, location.state]);
 
   // Submission & Success Modal State
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -204,7 +242,7 @@ export const DocumentPrintingPage: React.FC = () => {
     paymentStatus: string;
   } | null>(null);
 
-  // Fetch pricing on load and listen for real-time local updates
+  // Fetch pricing on load
   useEffect(() => {
     getPrintPricingConfig().then(setPricingConfig).catch(() => setPricingConfig(DEFAULT_PRINT_PRICING));
     const handleUpdate = (e: any) => {
@@ -214,126 +252,259 @@ export const DocumentPrintingPage: React.FC = () => {
     return () => window.removeEventListener("palak_print_pricing_updated", handleUpdate);
   }, []);
 
-  // Sync totalPages automatically from uploaded documents
-  useEffect(() => {
-    if (uploadedFiles.length > 0) {
-      const sum = uploadedFiles.reduce((acc, doc) => acc + (doc.pages || 1), 0);
-      setTotalPages(sum > 0 ? sum : 1);
-    }
-  }, [uploadedFiles]);
+  // Helper to construct a DocumentPrintConfig from preferences
+  const createInitialConfig = (
+    docId: string,
+    fileName: string,
+    fileSize: number,
+    pages: number,
+    prefs: UserSavedPrintPreferences = savedPrefs
+  ): DocumentPrintConfig => {
+    const rawConfig: Partial<DocumentPrintConfig> = {
+      documentId: docId,
+      fileName,
+      fileSize,
+      totalPages: pages,
+      pageRangeType: "all",
+      customPageRange: "",
+      colorMode: prefs.colorMode,
+      colorPagesRange: "",
+      copies: prefs.copies || 1,
+      paperSize: prefs.paperSize,
+      paperType: prefs.paperType,
+      gsm: prefs.gsm,
+      orientation: prefs.orientation,
+      sides: prefs.sides,
+      pagesPerSheet: prefs.pagesPerSheet,
+      scaling: prefs.scaling,
+      binding: prefs.binding,
+      frontCover: prefs.frontCover,
+      backCover: prefs.backCover,
+      finishing: { ...prefs.finishing },
+    };
 
-  // Handle Multi-File Selection
-  const handleFilesAdd = async (newFiles: FileList | File[] | null) => {
+    const calculated = calculateDocumentPrintPriceComplete(rawConfig, pricingConfig);
+
+    return {
+      documentId: docId,
+      fileName,
+      fileSize,
+      totalPages: pages,
+      pageRangeType: "all",
+      customPageRange: "",
+      colorMode: prefs.colorMode,
+      colorPagesRange: "",
+      copies: prefs.copies || 1,
+      paperSize: prefs.paperSize,
+      paperType: prefs.paperType,
+      gsm: prefs.gsm,
+      orientation: prefs.orientation,
+      sides: prefs.sides,
+      pagesPerSheet: prefs.pagesPerSheet,
+      scaling: prefs.scaling,
+      binding: prefs.binding,
+      frontCover: prefs.frontCover,
+      backCover: prefs.backCover,
+      finishing: { ...prefs.finishing },
+      selectedPageCount: calculated.selectedPageCount,
+      bwPageCount: calculated.bwPageCount,
+      colorPageCount: calculated.colorPageCount,
+      physicalSheetsPerCopy: calculated.physicalSheetsPerCopy,
+      totalPhysicalSheets: calculated.totalPhysicalSheets,
+      itemPrice: calculated.itemPrice,
+      totalPrice: calculated.totalPrice,
+      priceBreakdown: calculated.priceBreakdown,
+    };
+  };
+
+  // Handle Multi-File Upload
+  const handleFilesChosen = async (files: FileList | File[]) => {
     setFileError(null);
-    if (!newFiles || newFiles.length === 0) return;
+    const newItems: UploadedConfiguredDocument[] = [];
 
-    const allowedExtensions = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp"];
-    const validFiles: File[] = [];
-
-    for (let i = 0; i < newFiles.length; i++) {
-      const file = newFiles[i];
-      const extension = "." + (file.name.split(".").pop() || "").toLowerCase();
-
-      if (!allowedExtensions.includes(extension)) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.size > 100 * 1024 * 1024) {
         setFileError(
           currentLang === "hi"
-            ? `फ़ाइल "${file.name}" समर्थित नहीं है। केवल PDF, DOC, DOCX, JPG, PNG फ़ाइलें समर्थित हैं।`
-            : `File "${file.name}" is not supported. Only PDF, DOC, DOCX, JPG, PNG files are allowed.`
+            ? `फ़ाइल "${file.name}" 100MB से बड़ी है।`
+            : `File "${file.name}" exceeds maximum allowed size of 100MB.`
         );
         continue;
       }
 
-      if (file.size > 50 * 1024 * 1024) {
-        setFileError(
-          currentLang === "hi"
-            ? `फ़ाइल "${file.name}" 50MB से बड़ी है।`
-            : `File "${file.name}" exceeds 50MB size limit.`
-        );
-        continue;
+      let previewUrl: string | undefined = undefined;
+      if (file.type.startsWith("image/")) {
+        previewUrl = URL.createObjectURL(file);
       }
 
-      validFiles.push(file);
+      const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const docItem: UploadedConfiguredDocument = {
+        id: docId,
+        file,
+        name: file.name,
+        size: file.size,
+        pages: 1,
+        previewUrl,
+        isCounting: true,
+        isExpanded: false,
+        config: createInitialConfig(docId, file.name, file.size, 1),
+      };
+
+      newItems.push(docItem);
     }
 
-    if (validFiles.length === 0) return;
+    if (newItems.length === 0) return;
 
-    // Create preliminary document items
-    const newDocs: UploadedDocument[] = validFiles.map((file) => ({
-      id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      file,
-      name: file.name,
-      size: file.size,
-      pages: 1,
-      previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
-      isCounting: true,
-    }));
+    setDocuments((prev) => [...prev, ...newItems]);
 
-    setUploadedFiles((prev) => [...prev, ...newDocs]);
-
-    // Asynchronously count pages for each document
-    for (const doc of newDocs) {
+    // Count pages in background
+    for (const item of newItems) {
       try {
-        const detected = await countDocumentPages(doc.file);
-        setUploadedFiles((prev) =>
-          prev.map((d) =>
-            d.id === doc.id ? { ...d, pages: Math.max(1, detected), isCounting: false } : d
-          )
+        const detected = await countDocumentPages(item.file);
+        const safePages = Math.max(1, detected);
+        setDocuments((prev) =>
+          prev.map((d) => {
+            if (d.id !== item.id) return d;
+            const updatedConfig = { ...d.config, totalPages: safePages };
+            const calc = calculateDocumentPrintPriceComplete(updatedConfig, pricingConfig);
+            return {
+              ...d,
+              pages: safePages,
+              isCounting: false,
+              config: {
+                ...updatedConfig,
+                selectedPageCount: calc.selectedPageCount,
+                bwPageCount: calc.bwPageCount,
+                colorPageCount: calc.colorPageCount,
+                physicalSheetsPerCopy: calc.physicalSheetsPerCopy,
+                totalPhysicalSheets: calc.totalPhysicalSheets,
+                itemPrice: calc.itemPrice,
+                totalPrice: calc.totalPrice,
+                priceBreakdown: calc.priceBreakdown,
+              },
+            };
+          })
         );
-      } catch (err) {
-        setUploadedFiles((prev) =>
-          prev.map((d) => (d.id === doc.id ? { ...d, isCounting: false } : d))
+      } catch {
+        setDocuments((prev) =>
+          prev.map((d) => (d.id === item.id ? { ...d, isCounting: false } : d))
         );
       }
     }
   };
 
-  const handleUpdateDocPages = (id: string, newPages: number) => {
-    const safe = Math.max(1, newPages);
-    setUploadedFiles((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, pages: safe } : d))
+  // Update specific document configuration
+  const updateDocumentConfig = (docId: string, updates: Partial<DocumentPrintConfig>) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        if (d.id !== docId) return d;
+        const merged = { ...d.config, ...updates };
+        const calc = calculateDocumentPrintPriceComplete(merged, pricingConfig);
+        return {
+          ...d,
+          config: {
+            ...merged,
+            selectedPageCount: calc.selectedPageCount,
+            bwPageCount: calc.bwPageCount,
+            colorPageCount: calc.colorPageCount,
+            physicalSheetsPerCopy: calc.physicalSheetsPerCopy,
+            totalPhysicalSheets: calc.totalPhysicalSheets,
+            itemPrice: calc.itemPrice,
+            totalPrice: calc.totalPrice,
+            priceBreakdown: calc.priceBreakdown,
+          },
+        };
+      })
     );
   };
 
+  // Apply one document's settings to all documents
+  const applySettingsToAllDocuments = (sourceConfig: DocumentPrintConfig) => {
+    setDocuments((prev) =>
+      prev.map((d) => {
+        const merged: Partial<DocumentPrintConfig> = {
+          ...d.config,
+          colorMode: sourceConfig.colorMode,
+          paperSize: sourceConfig.paperSize,
+          paperType: sourceConfig.paperType,
+          gsm: sourceConfig.gsm,
+          orientation: sourceConfig.orientation,
+          sides: sourceConfig.sides,
+          pagesPerSheet: sourceConfig.pagesPerSheet,
+          scaling: sourceConfig.scaling,
+          binding: sourceConfig.binding,
+          frontCover: sourceConfig.frontCover,
+          backCover: sourceConfig.backCover,
+          finishing: { ...sourceConfig.finishing },
+          copies: sourceConfig.copies,
+        };
+        const calc = calculateDocumentPrintPriceComplete(merged, pricingConfig);
+        return {
+          ...d,
+          config: {
+            ...d.config,
+            ...merged,
+            selectedPageCount: calc.selectedPageCount,
+            bwPageCount: calc.bwPageCount,
+            colorPageCount: calc.colorPageCount,
+            physicalSheetsPerCopy: calc.physicalSheetsPerCopy,
+            totalPhysicalSheets: calc.totalPhysicalSheets,
+            itemPrice: calc.itemPrice,
+            totalPrice: calc.totalPrice,
+            priceBreakdown: calc.priceBreakdown,
+          },
+        };
+      })
+    );
+  };
+
+  // Save current preferences as default
+  const handleSaveAsDefault = async (configToSave: DocumentPrintConfig) => {
+    const newPrefs: UserSavedPrintPreferences = {
+      paperSize: configToSave.paperSize,
+      colorMode: configToSave.colorMode,
+      sides: configToSave.sides,
+      orientation: configToSave.orientation,
+      copies: configToSave.copies,
+      pagesPerSheet: configToSave.pagesPerSheet,
+      scaling: configToSave.scaling,
+      paperType: configToSave.paperType,
+      gsm: configToSave.gsm,
+      binding: configToSave.binding,
+      frontCover: configToSave.frontCover,
+      backCover: configToSave.backCover,
+      finishing: { ...configToSave.finishing },
+    };
+
+    setSavedPrefs(newPrefs);
+    await UserPrintPreferencesStore.savePreferences(newPrefs, user?.id);
+    setSavedPrefsSavedToast(true);
+    setTimeout(() => setSavedPrefsSavedToast(false), 3000);
+  };
+
   const handleRemoveDoc = (id: string) => {
-    setUploadedFiles((prev) => {
+    setDocuments((prev) => {
       const target = prev.find((d) => d.id === id);
-      if (target?.previewUrl) {
-        URL.revokeObjectURL(target.previewUrl);
-      }
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((d) => d.id !== id);
     });
   };
 
   const handleClearAllDocs = () => {
-    uploadedFiles.forEach((doc) => {
-      if (doc.previewUrl) URL.revokeObjectURL(doc.previewUrl);
+    documents.forEach((d) => {
+      if (d.previewUrl) URL.revokeObjectURL(d.previewUrl);
     });
-    setUploadedFiles([]);
+    setDocuments([]);
     setFileError(null);
-    setTotalPages(1);
   };
 
-  // Live Price Calculation
-  const printOptions: DocumentPrintOrderOptions = {
-    docType: selectedDocType,
-    customDocType: customDocTypeName,
-    paperSize,
-    colorMode,
-    sides,
-    orientation,
-    copies,
-    pageRangeType,
-    customPageRange,
-    totalPagesInDoc: totalPages,
-    finishing: {
-      spiralBinding,
-      combBinding,
-      lamination,
-      stapling,
-    },
-  };
-
-  const priceResult = calculateDocumentPrintPrice(printOptions, pricingConfig);
+  // Recalculate Order Snapshot Live
+  const orderSnapshot: OrderPrintSnapshot = buildOrderPrintSnapshot(
+    documents.map((d) => d.config),
+    0,
+    "2026-08-22-v1"
+  );
 
   const getDocTypeLabel = () => {
     const found = DOCUMENT_TYPES.find((d) => d.id === selectedDocType);
@@ -347,7 +518,7 @@ export const DocumentPrintingPage: React.FC = () => {
     e.preventDefault();
     setSubmitError(null);
 
-    if (uploadedFiles.length === 0) {
+    if (documents.length === 0) {
       setSubmitError(
         currentLang === "hi"
           ? "कृपया प्रिंट करने के लिए कम से कम एक दस्तावेज फ़ाइल अपलोड करें।"
@@ -383,18 +554,20 @@ export const DocumentPrintingPage: React.FC = () => {
     }
 
     setSubmitting(true);
+    const activeSubmissionId = getOrInitDocPrintSubmissionId();
 
     try {
-      // 1. Prepare multiple file uploads
-      const uploadPromises = uploadedFiles.map(async (doc) => {
+      // 1. Upload files with submission deduplication
+      const uploadPromises = documents.map(async (doc) => {
         try {
-          const res = await uploadOrderFile(doc.file, `DOC-${Date.now()}`);
+          const res = await uploadOrderFile(doc.file, activeSubmissionId, activeSubmissionId);
           return {
             name: doc.name,
             size: doc.size,
             pages: doc.pages,
             url: res?.url || "",
             storagePath: res?.storagePath || "",
+            mimeType: doc.file.type || "application/pdf",
           };
         } catch (err) {
           console.warn("Upload file notice:", err);
@@ -404,51 +577,45 @@ export const DocumentPrintingPage: React.FC = () => {
             pages: doc.pages,
             url: "",
             storagePath: "",
+            mimeType: doc.file.type || "application/pdf",
           };
         }
       });
 
       const uploadedResults = await Promise.all(uploadPromises);
+
+      // Attach storage paths & URLs to snapshot documents
+      const snapshotDocsWithUrls: DocumentPrintConfig[] = documents.map((doc, idx) => ({
+        ...doc.config,
+        fileUrl: uploadedResults[idx]?.url || "",
+        storagePath: uploadedResults[idx]?.storagePath || "",
+        mimeType: uploadedResults[idx]?.mimeType || "application/pdf",
+      }));
+
+      const finalSnapshot = buildOrderPrintSnapshot(snapshotDocsWithUrls, 0, "2026-08-22-v1");
+
       const primaryFile = uploadedResults[0] || {
-        name: uploadedFiles[0]?.name || "Document",
-        size: uploadedFiles[0]?.size || 0,
+        name: documents[0]?.name || "Document",
+        size: documents[0]?.size || 0,
         url: "",
         storagePath: "",
+        mimeType: "application/pdf",
       };
-
-      const combinedFileName =
-        uploadedFiles.length === 1
-          ? uploadedFiles[0].name
-          : `${uploadedFiles.length} Documents (${totalPages} pages total): ${uploadedFiles
-              .map((d) => `${d.name} [${d.pages}p]`)
-              .join(", ")}`;
-
-      const totalSizeBytes = uploadedFiles.reduce((sum, d) => sum + d.size, 0);
-
-      // 2. Finishing names for record
-      const finishingList: string[] = [];
-      if (spiralBinding) finishingList.push("Spiral Binding");
-      if (combBinding) finishingList.push("Comb Binding");
-      if (lamination) finishingList.push("Lamination");
-      if (stapling) finishingList.push("Stapling");
 
       const specifications: Record<string, string> = {
-        Paper: paperSize.toUpperCase(),
-        Color: colorMode === "bw" ? "Black & White" : "Vibrant Color",
-        Side: sides === "single" ? "Single Side" : "Double Side (Front & Back)",
-        Orientation: orientation === "portrait" ? "Portrait" : "Landscape",
-        "Documents Count": `${uploadedFiles.length} file(s)`,
-        Pages: `${priceResult.pagesToPrint} pages (${pageRangeType === "all" ? "All" : customPageRange})`,
-        Copies: `${copies}`,
+        "Total Documents": `${documents.length} file(s)`,
+        "Total Printed Pages": `${finalSnapshot.totalPrintedPages} pages`,
+        "Color Breakdown": `${finalSnapshot.totalBwPages} B/W, ${finalSnapshot.totalColorPages} Color`,
+        "Physical Sheets": `${finalSnapshot.totalPhysicalSheets} sheets`,
       };
 
-      // 3. Helper to create order
       const processOrderCreation = async (razorpayPaymentId?: string) => {
         const orderNotesWithPayment = razorpayPaymentId
           ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
-          : (instructions.trim() || undefined);
+          : instructions.trim() || undefined;
 
         const res = await submitPrintOrder({
+          clientSubmissionId: activeSubmissionId,
           serviceId: "document-printing",
           serviceName: "Document Printing",
           documentType: getDocTypeLabel(),
@@ -461,68 +628,48 @@ export const DocumentPrintingPage: React.FC = () => {
           paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_store",
           paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
           pricingSnapshot: {
-            unitPrice: priceResult.unitPrice,
-            subtotal: priceResult.subtotal,
-            totalAmount: priceResult.total,
-            breakdown: priceResult.breakdown,
+            unitPrice: finalSnapshot.subtotal,
+            subtotal: finalSnapshot.subtotal,
+            totalAmount: finalSnapshot.grandTotal,
+            breakdown: { snapshot: finalSnapshot },
           },
           options: {
-            paperSize,
-            colorMode,
-            sides,
-            orientation,
-            copies,
-            pageRangeType,
-            customPageRange,
-            pagesToPrint: priceResult.pagesToPrint,
+            documentType: getDocTypeLabel(),
+            totalDocuments: documents.length,
+            totalPages: finalSnapshot.totalPrintedPages,
+            printSnapshot: finalSnapshot,
           },
           optionsLabels: specifications,
-          finishingOptions: {
-            spiralBinding,
-            combBinding,
-            lamination,
-            stapling,
-          },
-          file: {
-            name: combinedFileName,
-            size: totalSizeBytes,
-            url: primaryFile.url,
-            storagePath: primaryFile.storagePath,
-            pageCount: priceResult.pagesToPrint,
-            mimeType: uploadedFiles[0]?.file?.type || "application/pdf",
-          },
-          files: uploadedResults.map((u, i) => ({
-            name: u.name,
-            size: u.size,
-            url: u.url,
-            storagePath: u.storagePath,
-            pageCount: u.pages,
-            mimeType: uploadedFiles[i]?.file?.type || "application/pdf",
-          })),
+          printSnapshot: finalSnapshot,
+          file: primaryFile,
+          files: uploadedResults,
         });
 
-        if (res.success) {
-          setSuccessData({
-            isOpen: true,
-            orderCode: res.orderCode,
-            totalAmount: priceResult.total,
-            docType: getDocTypeLabel(),
-            specifications,
-            finishingSelected: finishingList,
-            paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_shop",
-            paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
-          });
-        } else {
-          setSubmitError(res.error || "Failed to submit order. Please try again.");
+        if (!res.success) {
+          throw new Error(res.error || "Order submission failed on server.");
         }
+
+        clearDocPrintSubmissionId();
+
+        setSuccessData({
+          isOpen: true,
+          orderCode: res.orderCode,
+          totalAmount: finalSnapshot.grandTotal,
+          docType: getDocTypeLabel(),
+          specifications,
+          finishingSelected: [],
+          paymentMethod: paymentMethod === "pay_online" ? "Online Payment (UPI/Card)" : "Pay on Pickup",
+          paymentStatus: razorpayPaymentId ? "Paid & Confirmed" : "Pending (Pay at Store)",
+        });
+
         setSubmitting(false);
       };
 
       if (paymentMethod === "pay_online") {
         await initiateRazorpayPayment({
-          amount: priceResult.total,
+          amount: finalSnapshot.grandTotal,
           name: "Palak Enterprises",
-          description: `Document Print Order (${priceResult.pagesToPrint * copies} pages)`,
+          description: `Document Print Order (${finalSnapshot.totalPrintedPages} pages)`,
           prefill: {
             name: customerName.trim(),
             email: customerEmail.trim(),
@@ -558,7 +705,6 @@ export const DocumentPrintingPage: React.FC = () => {
     <div className="min-h-screen bg-[#F7F8FA] pb-20">
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
-        {/* Ambient background glows */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-20"
@@ -567,7 +713,6 @@ export const DocumentPrintingPage: React.FC = () => {
               "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
           }}
         />
-        {/* Subtle geometric dot grid pattern */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-[0.06]"
@@ -578,9 +723,14 @@ export const DocumentPrintingPage: React.FC = () => {
         />
         <div className="relative mx-auto max-w-5xl space-y-2.5">
           <div className="text-xs text-slate-300">
-            <Link to="/" className="hover:underline">Home</Link> /{" "}
-            <Link to="/online-services" className="hover:underline">Instant Online Services</Link> /{" "}
-            <span className="text-amber-300">Document Printing</span>
+            <Link to="/" className="hover:underline">
+              Home
+            </Link>{" "}
+            /{" "}
+            <Link to="/online-services" className="hover:underline">
+              Instant Online Services
+            </Link>{" "}
+            / <span className="text-amber-300">Document Printing</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -588,14 +738,14 @@ export const DocumentPrintingPage: React.FC = () => {
               📄 {currentLang === "hi" ? "दस्तावेज प्रिंटिंग (Document Printing)" : "Document Printing"}
             </h1>
             <span className="rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 px-3 py-0.5 text-xs font-bold">
-              ⚡ Instant Online Workflow
+              ⚡ Multi-Document Configurator
             </span>
           </div>
 
           <p className="text-xs sm:text-sm text-slate-200 max-w-2xl leading-relaxed">
             {currentLang === "hi"
-              ? "नोट्स, असाइनमेंट, फॉर्म, रिपोर्ट या दस्तावेज अपलोड करें, बाइंडिंग व लैमिनेशन चुनें, ऑनलाइन ऑर्डर सबमिट करें और तैयार होने पर दुकान से सीधे कलेक्ट करें।"
-              : "Upload your PDF or document, customize paper & color, add spiral binding or lamination, and submit your order for quick pickup at our Chakia center."}
+              ? "प्रत्येक दस्तावेज के लिए अलग कलर, पेपर और बाइंडिंग सेटिंग्स चुनें। आपके द्वारा चुनी गई सभी सेटिंग्स सीधे प्रिंटर जॉब में सुरक्षित रहेंगी।"
+              : "Configure independent color, duplex, paper and finishing settings per document. All specifications are immutably saved with your order."}
           </p>
         </div>
       </div>
@@ -603,18 +753,18 @@ export const DocumentPrintingPage: React.FC = () => {
       {/* Main Order Form */}
       <div className="mx-auto max-w-5xl px-4 sm:px-6 -mt-4">
         <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left 2 Columns: 5-Step Configurator */}
+          {/* Left 2 Columns: Document Upload & Configurator Cards */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Step 1: Document Type Selector */}
+            {/* Step 1: Document Type */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
                     1
                   </span>
-                  <span>{currentLang === "hi" ? "आप क्या प्रिंट करना चाहते हैं?" : "What do you want to print?"}</span>
+                  <span>{currentLang === "hi" ? "दस्तावेज श्रेणी चुनें" : "Select Document Category"}</span>
                 </div>
-                <span className="text-[11px] font-semibold text-slate-400">Document Type</span>
+                <span className="text-[11px] font-semibold text-slate-400">Category</span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -656,188 +806,59 @@ export const DocumentPrintingPage: React.FC = () => {
               )}
             </section>
 
-            {/* Step 2: Document Upload */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+            {/* Step 2: Upload Documents & Per-Document Cards */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
                     2
                   </span>
-                  <span>{currentLang === "hi" ? "दस्तावेज फ़ाइलें अपलोड करें" : "Upload Your Document(s)"}</span>
+                  <span>{currentLang === "hi" ? "दस्तावेज अपलोड व स्वतंत्र सेटिंग्स" : "Upload & Document Settings"}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    ⚡ Auto-Page Counter
-                  </span>
-                </div>
+                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  ⚡ Independent Document Controls
+                </span>
               </div>
 
-              {/* Uploaded Documents List */}
-              {uploadedFiles.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="space-y-2.5">
-                    {uploadedFiles.map((doc, idx) => (
-                      <div
-                        key={doc.id}
-                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 hover:bg-slate-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          {doc.previewUrl ? (
-                            <img
-                              src={doc.previewUrl}
-                              alt="Preview"
-                              className="h-11 w-11 rounded-lg object-cover border border-slate-200 shrink-0"
-                            />
-                          ) : (
-                            <div className="h-11 w-11 rounded-lg bg-blue-100 flex items-center justify-center text-[#123B70] shrink-0 font-bold">
-                              <FileIcon className="h-5 w-5" />
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-bold text-slate-400">#{idx + 1}</span>
-                              <p className="text-xs sm:text-sm font-bold text-slate-900 truncate">
-                                {doc.name}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                              <span>{(doc.size / (1024 * 1024)).toFixed(2)} MB</span>
-                              <span>•</span>
-                              {doc.isCounting ? (
-                                <span className="inline-flex items-center gap-1 text-amber-600 font-semibold animate-pulse">
-                                  <Sparkles className="h-3 w-3" />
-                                  <span>{currentLang === "hi" ? "पेज गिने जा रहे हैं..." : "Counting pages..."}</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.2 rounded">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  <span>{doc.pages} {doc.pages === 1 ? "page" : "pages"} detected</span>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+              {/* Upload Dropzone */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files) handleFilesChosen(e.dataTransfer.files);
+                }}
+                className={cn(
+                  "relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 sm:p-8 text-center transition-all cursor-pointer",
+                  documents.length > 0
+                    ? "border-slate-300 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-400"
+                    : "border-blue-300 bg-blue-50/40 hover:bg-blue-50/70 hover:border-[#123B70]"
+                )}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  onChange={(e) => {
+                    if (e.target.files) handleFilesChosen(e.target.files);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="hidden"
+                />
 
-                        {/* Page Stepper per Document & Remove */}
-                        <div className="flex items-center justify-between w-full sm:w-auto gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-                          <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-slate-200 shadow-2xs">
-                            <span className="text-[10px] font-bold text-slate-500 mr-1">
-                              {currentLang === "hi" ? "पेज:" : "Pages:"}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateDocPages(doc.id, doc.pages - 1)}
-                              className="h-6 w-6 rounded bg-slate-100 flex items-center justify-center font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
-                              title="Decrease pages"
-                            >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <input
-                              type="number"
-                              min={1}
-                              value={doc.pages}
-                              onChange={(e) => handleUpdateDocPages(doc.id, parseInt(e.target.value) || 1)}
-                              className="w-12 h-6 text-center font-black text-slate-900 border border-slate-200 rounded bg-slate-50 focus:bg-white focus:outline-hidden text-xs"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateDocPages(doc.id, doc.pages + 1)}
-                              className="h-6 w-6 rounded bg-slate-100 flex items-center justify-center font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
-                              title="Increase pages"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveDoc(doc.id)}
-                            className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
-                            title={currentLang === "hi" ? "फ़ाइल हटाएं" : "Remove file"}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Add More Documents Dropzone / Button */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                    <label className="inline-flex items-center gap-2 rounded-xl border border-dashed border-[#123B70]/40 bg-blue-50/40 hover:bg-blue-50 hover:border-[#123B70] px-4 py-2.5 text-xs font-bold text-[#123B70] transition-colors cursor-pointer">
-                      <Plus className="h-4 w-4" />
-                      <span>{currentLang === "hi" ? "+ और दस्तावेज जोड़ें (Add More)" : "+ Add More Documents"}</span>
-                      <input
-                        ref={addMoreInputRef}
-                        type="file"
-                        multiple
-                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
-                        onChange={(e) => {
-                          handleFilesAdd(e.target.files);
-                          if (e.target) e.target.value = "";
-                        }}
-                        className="hidden"
-                      />
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={handleClearAllDocs}
-                      className="text-[11px] font-semibold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                    >
-                      {currentLang === "hi" ? "सभी फ़ाइलें हटाएं" : "Clear All Files"}
-                    </button>
-                  </div>
-
-                  {/* Multi-Document Summary Strip */}
-                  <div className="flex flex-wrap items-center justify-between rounded-xl bg-slate-900 text-white p-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Layers className="h-4 w-4 text-amber-400" />
-                      <span className="font-semibold text-slate-200">
-                        {uploadedFiles.length} {uploadedFiles.length === 1 ? "File" : "Files"} Uploaded
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-slate-400">
-                        Size: {(uploadedFiles.reduce((sum, d) => sum + d.size, 0) / (1024 * 1024)).toFixed(2)} MB
-                      </span>
-                      <span className="font-black text-amber-300 bg-white/10 px-2.5 py-0.5 rounded-lg border border-white/10">
-                        Total {totalPages} {totalPages === 1 ? "Page" : "Pages"}
-                      </span>
-                    </div>
-                  </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-[#123B70] mb-3 font-bold shadow-xs">
+                  <Upload className="h-6 w-6" />
                 </div>
-              ) : (
-                <label className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-8 text-center hover:border-[#123B70] hover:bg-blue-50/30 transition-all cursor-pointer">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-blue-50 text-[#123B70] group-hover:scale-110 transition-transform mb-3">
-                    <Upload className="h-6 w-6" />
-                  </div>
-                  <span className="text-sm font-extrabold text-slate-800">
-                    {currentLang === "hi"
-                      ? "दस्तावेज चुनने के लिए क्लिक करें या यहाँ ड्रैग करें"
-                      : "Click to select document(s) or drag & drop"}
-                  </span>
-                  <span className="text-xs text-slate-500 mt-1">
-                    {currentLang === "hi"
-                      ? "एक या अधिक PDF, DOC, JPG, PNG फ़ाइलें चुनें (पेज संख्या स्वतः गिनी जाएगी)"
-                      : "Select one or multiple files • Pages are automatically counted"}
-                  </span>
-                  <span className="text-[11px] text-slate-400 mt-2 bg-slate-200/60 px-2.5 py-0.5 rounded-full">
-                    PDF • DOC • DOCX • JPG • PNG (Max 50MB each)
-                  </span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
-                    onChange={(e) => {
-                      handleFilesAdd(e.target.files);
-                      if (e.target) e.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-                </label>
-              )}
+                <p className="text-xs sm:text-sm font-extrabold text-slate-900">
+                  {currentLang === "hi"
+                    ? "फ़ाइलें यहाँ ड्रैग करें या चुनने के लिए क्लिक करें"
+                    : "Drag & drop files here or click to browse"}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  PDF, Word (DOC/DOCX), JPG, PNG • Max 100MB per file
+                </p>
+              </div>
 
               {fileError && (
                 <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700 border border-rose-200">
@@ -846,586 +867,712 @@ export const DocumentPrintingPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Number of Total Combined Pages in Document */}
-              <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 text-xs">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                    <FileText className="h-4 w-4 text-[#123B70]" />
-                    <span>{currentLang === "hi" ? "कुल पृष्ठ संख्या (Combined Total Pages)" : "Combined Total Pages in Order"}</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500">
+              {/* Toast for Saved Preferences */}
+              {savedPrefsSavedToast && (
+                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800 border border-emerald-200 animate-in fade-in">
+                  <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>
                     {currentLang === "hi"
-                      ? "सभी अपलोड किए गए दस्तावेजों के पेजों का योग (सटीक बिलिंग हेतु)"
-                      : "Sum of pages across all uploaded documents for accurate live pricing"}
-                  </p>
+                      ? "सफलतापूर्वक डिफॉल्ट प्रिंट प्राथमिकताएं सुरक्षित कर ली गईं!"
+                      : "Default print preferences saved successfully!"}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setTotalPages((p) => Math.max(1, p - 1))}
-                    className="h-8 w-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
-                    value={totalPages}
-                    onChange={(e) => setTotalPages(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-16 h-8 text-center font-black text-slate-900 border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:border-[#123B70] focus:outline-hidden text-xs shadow-2xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setTotalPages((p) => p + 1)}
-                    className="h-8 w-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
+              )}
+
+              {/* Uploaded Documents List */}
+              {documents.length > 0 && (
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-900">
+                      Uploaded Documents ({documents.length})
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => addMoreInputRef.current?.click()}
+                        className="text-xs font-bold text-[#123B70] hover:underline flex items-center gap-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Add More Files</span>
+                      </button>
+                      <input
+                        ref={addMoreInputRef}
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          if (e.target.files) handleFilesChosen(e.target.files);
+                          if (addMoreInputRef.current) addMoreInputRef.current.value = "";
+                        }}
+                        className="hidden"
+                      />
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={handleClearAllDocs}
+                        className="text-xs font-bold text-rose-600 hover:underline"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {documents.map((doc, idx) => {
+                    const c = doc.config;
+
+                    return (
+                      <div
+                        key={doc.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-slate-300 transition-all space-y-4"
+                      >
+                        {/* Card Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-[#123B70] shrink-0 font-extrabold text-xs">
+                              #{idx + 1}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                                {doc.name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                                <span>{(doc.size / (1024 * 1024)).toFixed(2)} MB</span>
+                                <span>•</span>
+                                {doc.isCounting ? (
+                                  <span className="text-amber-600 font-semibold animate-pulse">
+                                    Counting pages...
+                                  </span>
+                                ) : (
+                                  <span className="text-emerald-700 font-bold">
+                                    {doc.pages} total pages in file
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Top Actions: Price & Remove */}
+                          <div className="flex items-center justify-between sm:justify-end gap-3">
+                            <div className="text-right">
+                              <span className="text-xs font-black text-[#123B70] block">
+                                ₹{c.totalPrice.toFixed(2)}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                (₹{c.itemPrice.toFixed(2)} × {c.copies})
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDoc(doc.id)}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Quick Controls Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                          {/* 1. Color Mode */}
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1.5">
+                              {currentLang === "hi" ? "कलर मोड" : "Color Mode"}
+                            </label>
+                            <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl">
+                              {(["bw", "color", "mixed"] as ColorMode[]).map((mode) => (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  onClick={() => updateDocumentConfig(doc.id, { colorMode: mode })}
+                                  className={cn(
+                                    "py-1.5 rounded-lg text-center font-bold capitalize transition-all",
+                                    c.colorMode === mode
+                                      ? "bg-white text-[#123B70] shadow-xs"
+                                      : "text-slate-600 hover:text-slate-900"
+                                  )}
+                                >
+                                  {mode === "bw" ? "B/W" : mode === "color" ? "Color" : "Mixed"}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 2. Sides / Duplex */}
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1.5">
+                              {currentLang === "hi" ? "प्रिंट साइड्स" : "Sides"}
+                            </label>
+                            <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+                              <button
+                                type="button"
+                                onClick={() => updateDocumentConfig(doc.id, { sides: "single" })}
+                                className={cn(
+                                  "py-1.5 rounded-lg text-center font-bold transition-all",
+                                  c.sides === "single"
+                                    ? "bg-white text-[#123B70] shadow-xs"
+                                    : "text-slate-600 hover:text-slate-900"
+                                )}
+                              >
+                                Single
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateDocumentConfig(doc.id, { sides: "double_long" })}
+                                className={cn(
+                                  "py-1.5 rounded-lg text-center font-bold transition-all",
+                                  c.sides !== "single"
+                                    ? "bg-white text-[#123B70] shadow-xs"
+                                    : "text-slate-600 hover:text-slate-900"
+                                )}
+                              >
+                                Double
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 3. Paper Size */}
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1.5">
+                              {currentLang === "hi" ? "पेपर साइज" : "Paper Size"}
+                            </label>
+                            <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl">
+                              {(["a4", "a3", "a5"] as PaperSize[]).map((sz) => (
+                                <button
+                                  key={sz}
+                                  type="button"
+                                  onClick={() => updateDocumentConfig(doc.id, { paperSize: sz })}
+                                  className={cn(
+                                    "py-1.5 rounded-lg text-center font-bold uppercase transition-all",
+                                    c.paperSize === sz
+                                      ? "bg-white text-[#123B70] shadow-xs"
+                                      : "text-slate-600 hover:text-slate-900"
+                                  )}
+                                >
+                                  {sz}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 4. Copies Counter */}
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1.5">
+                              {currentLang === "hi" ? "प्रतियां (Copies)" : "Copies"}
+                            </label>
+                            <div className="flex items-center justify-between bg-slate-100 p-1 rounded-xl">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateDocumentConfig(doc.id, { copies: Math.max(1, c.copies - 1) })
+                                }
+                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-white text-slate-700 font-bold hover:bg-slate-200 transition-colors shadow-xs"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="font-extrabold text-slate-900 px-2">{c.copies}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateDocumentConfig(doc.id, { copies: c.copies + 1 })}
+                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-white text-slate-700 font-bold hover:bg-slate-200 transition-colors shadow-xs"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Mixed Color Range Specification */}
+                        {c.colorMode === "mixed" && (
+                          <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <label className="font-bold text-amber-900 flex items-center gap-1.5">
+                                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                                <span>{currentLang === "hi" ? "कलर पेजों के नंबर दर्ज करें *" : "Specify Color Pages (e.g. 1, 4-7, 10) *"}</span>
+                              </label>
+                              <span className="text-[11px] font-bold text-amber-800">
+                                🌈 {c.colorPageCount} Color • ⚫ {c.bwPageCount} B/W
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              value={c.colorPagesRange || ""}
+                              onChange={(e) =>
+                                updateDocumentConfig(doc.id, { colorPagesRange: e.target.value })
+                              }
+                              placeholder="e.g. 1, 3, 5-8"
+                              className="w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-slate-900 font-mono focus:border-amber-500 focus:outline-hidden"
+                            />
+                            <p className="text-[11px] text-amber-700">
+                              {currentLang === "hi"
+                                ? "केवल निर्दिष्ट पेज फुल कलर में प्रिंट होंगे, बाकी पेज ब्लैक & व्हाइट में प्रिंट होंगे।"
+                                : "Only specified pages will be printed in full color. Remaining pages will be printed in B/W to save cost."}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Custom Page Range (Print subset of document) */}
+                        <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+                          <span className="font-bold text-slate-700">
+                            {currentLang === "hi" ? "पेज रेंज:" : "Page Range:"}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700">
+                              <input
+                                type="radio"
+                                name={`rangeType_${doc.id}`}
+                                checked={c.pageRangeType === "all"}
+                                onChange={() => updateDocumentConfig(doc.id, { pageRangeType: "all" })}
+                                className="accent-[#123B70]"
+                              />
+                              <span>All Pages ({doc.pages})</span>
+                            </label>
+                            <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 ml-2">
+                              <input
+                                type="radio"
+                                name={`rangeType_${doc.id}`}
+                                checked={c.pageRangeType === "custom"}
+                                onChange={() => updateDocumentConfig(doc.id, { pageRangeType: "custom" })}
+                                className="accent-[#123B70]"
+                              />
+                              <span>Custom Range</span>
+                            </label>
+                          </div>
+
+                          {c.pageRangeType === "custom" && (
+                            <input
+                              type="text"
+                              value={c.customPageRange || ""}
+                              onChange={(e) =>
+                                updateDocumentConfig(doc.id, { customPageRange: e.target.value })
+                              }
+                              placeholder="e.g. 1-10, 15"
+                              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-mono w-32 focus:bg-white focus:border-[#123B70]"
+                            />
+                          )}
+                        </div>
+
+                        {/* Collapsible Advanced Finishing & Settings */}
+                        <div className="border-t border-slate-100 pt-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDocuments((prev) =>
+                                prev.map((d) => (d.id === doc.id ? { ...d, isExpanded: !d.isExpanded } : d))
+                              )
+                            }
+                            className="flex items-center justify-between w-full text-left text-xs font-bold text-slate-600 hover:text-[#123B70] transition-colors cursor-pointer"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <Settings2 className="h-3.5 w-3.5" />
+                              <span>
+                                {currentLang === "hi"
+                                  ? "एडवांस्ड सेटिंग्स (GSM, बाइंडिंग, कवर्स, फिनिशिंग)"
+                                  : "Advanced Options (Paper GSM, Binding, Covers & Finishing)"}
+                              </span>
+                            </span>
+                            {doc.isExpanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </button>
+
+                          {doc.isExpanded && (
+                            <div className="mt-3 p-3 bg-slate-50 rounded-xl space-y-3 text-xs animate-in fade-in">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {/* Paper GSM */}
+                                <div>
+                                  <label className="block font-bold text-slate-700 mb-1">
+                                    Paper Weight (GSM)
+                                  </label>
+                                  <select
+                                    value={c.gsm}
+                                    onChange={(e) =>
+                                      updateDocumentConfig(doc.id, {
+                                        gsm: parseInt(e.target.value, 10) as PaperGSM,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
+                                  >
+                                    <option value={70}>70 GSM (Standard Lightweight)</option>
+                                    <option value={75}>75 GSM (Everyday Standard +₹0.20)</option>
+                                    <option value={80}>80 GSM (Executive Quality +₹0.50)</option>
+                                    <option value={100}>100 GSM (Heavyweight +₹1.00)</option>
+                                    <option value={120}>120 GSM (Presentation Paper +₹2.00)</option>
+                                    <option value={160}>160 GSM (Cardstock +₹4.00)</option>
+                                    <option value={200}>200 GSM (Heavy Cardstock +₹6.00)</option>
+                                    <option value={250}>250 GSM (Thick Artboard +₹8.00)</option>
+                                  </select>
+                                </div>
+
+                                {/* Binding */}
+                                <div>
+                                  <label className="block font-bold text-slate-700 mb-1">
+                                    Binding Option
+                                  </label>
+                                  <select
+                                    value={c.binding}
+                                    onChange={(e) =>
+                                      updateDocumentConfig(doc.id, {
+                                        binding: e.target.value as BindingType,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
+                                  >
+                                    <option value="none">None (Loose Sheets)</option>
+                                    <option value="staple">Corner / Saddle Staple (₹5)</option>
+                                    <option value="spiral">Spiral Binding (₹30)</option>
+                                    <option value="comb">Comb Binding (₹25)</option>
+                                    <option value="soft">Soft Binding (₹80)</option>
+                                    <option value="hard">Hard Binding (₹150)</option>
+                                  </select>
+                                </div>
+
+                                {/* Orientation */}
+                                <div>
+                                  <label className="block font-bold text-slate-700 mb-1">
+                                    Orientation
+                                  </label>
+                                  <select
+                                    value={c.orientation}
+                                    onChange={(e) =>
+                                      updateDocumentConfig(doc.id, {
+                                        orientation: e.target.value as PrintOrientation,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
+                                  >
+                                    <option value="auto">Auto (Match File)</option>
+                                    <option value="portrait">Portrait (Vertical)</option>
+                                    <option value="landscape">Landscape (Horizontal)</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* Covers and Finishing */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                                <div>
+                                  <label className="block font-bold text-slate-700 mb-1">Front Cover</label>
+                                  <select
+                                    value={c.frontCover}
+                                    onChange={(e) =>
+                                      updateDocumentConfig(doc.id, {
+                                        frontCover: e.target.value as CoverOption,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
+                                  >
+                                    <option value="none">No Cover Sheet</option>
+                                    <option value="transparent">Transparent Plastic Sheet (+₹10)</option>
+                                    <option value="white">Opaque White Sheet (+₹10)</option>
+                                    <option value="black">Matte Black Sheet (+₹15)</option>
+                                    <option value="color">Color Card Sheet (+₹20)</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="block font-bold text-slate-700 mb-1">Back Cover</label>
+                                  <select
+                                    value={c.backCover}
+                                    onChange={(e) =>
+                                      updateDocumentConfig(doc.id, {
+                                        backCover: e.target.value as CoverOption,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
+                                  >
+                                    <option value="none">No Back Cover</option>
+                                    <option value="transparent">Transparent Plastic Sheet (+₹10)</option>
+                                    <option value="white">Opaque White Sheet (+₹10)</option>
+                                    <option value="black">Matte Black Sheet (+₹15)</option>
+                                    <option value="color">Color Card Sheet (+₹20)</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* Checkboxes: Lamination, Hole Punching, Booklet */}
+                              <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-200/60">
+                                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(c.finishing?.lamination)}
+                                    onChange={(e) =>
+                                      updateDocumentConfig(doc.id, {
+                                        finishing: { ...c.finishing, lamination: e.target.checked },
+                                      })
+                                    }
+                                    className="rounded text-[#123B70] accent-[#123B70]"
+                                  />
+                                  <span>Thermal Lamination (+₹15/sheet)</span>
+                                </label>
+
+                                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(c.finishing?.holePunching)}
+                                    onChange={(e) =>
+                                      updateDocumentConfig(doc.id, {
+                                        finishing: { ...c.finishing, holePunching: e.target.checked },
+                                      })
+                                    }
+                                    className="rounded text-[#123B70] accent-[#123B70]"
+                                  />
+                                  <span>2/4 Hole Punching (+₹2/sheet)</span>
+                                </label>
+
+                                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(c.finishing?.bookletMode)}
+                                    onChange={(e) =>
+                                      updateDocumentConfig(doc.id, {
+                                        finishing: { ...c.finishing, bookletMode: e.target.checked },
+                                      })
+                                    }
+                                    className="rounded text-[#123B70] accent-[#123B70]"
+                                  />
+                                  <span>Booklet Fold & Saddle (+₹15)</span>
+                                </label>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Card Footer: Batch Actions */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => applySettingsToAllDocuments(c)}
+                            className="flex items-center gap-1 font-bold text-[#123B70] hover:underline"
+                          >
+                            <Copy className="h-3 w-3" />
+                            <span>Apply this configuration to all files</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSaveAsDefault(c)}
+                            className="flex items-center gap-1 font-bold text-amber-700 hover:underline"
+                          >
+                            <Bookmark className="h-3 w-3" />
+                            <span>Save as my default preferences</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </section>
 
-            {/* Step 3: Printing Options */}
+            {/* Step 3: Customer Details */}
             <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
                     3
                   </span>
-                  <span>{currentLang === "hi" ? "प्रिंटिंग ऑप्शंस (Printing Options)" : "Printing Options"}</span>
+                  <span>{currentLang === "hi" ? "ग्राहक विवरण" : "Customer Details"}</span>
                 </div>
+                <span className="text-[11px] font-semibold text-slate-400">Contact</span>
               </div>
 
-              {/* Paper Size & Color Mode */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Paper Size */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-800">
-                    {currentLang === "hi" ? "कागज का आकार (Paper Size)" : "Paper Size"}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {currentLang === "hi" ? "पूरा नाम *" : "Full Name *"}
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["a4", "a3", "a5"] as const).map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => setPaperSize(size)}
-                        className={cn(
-                          "rounded-xl border py-2.5 text-center text-xs font-bold uppercase transition-all cursor-pointer",
-                          paperSize === size
-                            ? "border-[#123B70] bg-[#123B70] text-white shadow-xs"
-                            : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                        )}
-                      >
-                        {size.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                  />
                 </div>
 
-                {/* Color Mode */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-800">
-                    {currentLang === "hi" ? "कलर मोड (Color Mode)" : "Color Mode"}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {currentLang === "hi" ? "मोबाइल नंबर *" : "Mobile Number *"}
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setColorMode("bw")}
-                      className={cn(
-                        "rounded-xl border py-2.5 text-center text-xs font-bold transition-all cursor-pointer",
-                        colorMode === "bw"
-                          ? "border-[#123B70] bg-[#123B70] text-white shadow-xs"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                      )}
-                    >
-                      {currentLang === "hi" ? "Black & White (B/W)" : "Black & White"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setColorMode("color")}
-                      className={cn(
-                        "rounded-xl border py-2.5 text-center text-xs font-bold transition-all cursor-pointer",
-                        colorMode === "color"
-                          ? "border-[#123B70] bg-[#123B70] text-white shadow-xs"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                      )}
-                    >
-                      {currentLang === "hi" ? "कलर (Color)" : "Vibrant Color"}
-                    </button>
-                  </div>
+                  <input
+                    type="tel"
+                    required
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="e.g. 9876543210"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                  />
                 </div>
-              </div>
 
-              {/* Sides, Orientation & Copies */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
-                {/* Sides */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-800">
-                    {currentLang === "hi" ? "प्रिंटिंग साइड" : "Sides"}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    WhatsApp Number (Optional)
                   </label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setSides("single")}
-                      className={cn(
-                        "rounded-xl border py-2 text-center text-xs font-bold transition-all cursor-pointer",
-                        sides === "single"
-                          ? "border-[#123B70] bg-blue-50 text-[#123B70] ring-1 ring-[#123B70]"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                      )}
-                    >
-                      Single Side
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSides("double")}
-                      className={cn(
-                        "rounded-xl border py-2 text-center text-xs font-bold transition-all cursor-pointer",
-                        sides === "double"
-                          ? "border-[#123B70] bg-blue-50 text-[#123B70] ring-1 ring-[#123B70]"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                      )}
-                    >
-                      Double Side
-                    </button>
-                  </div>
+                  <input
+                    type="tel"
+                    value={customerWhatsApp}
+                    onChange={(e) => setCustomerWhatsApp(e.target.value)}
+                    placeholder="e.g. 9876543210"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                  />
                 </div>
 
-                {/* Orientation */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-800">
-                    {currentLang === "hi" ? "ओरिएंटेशन" : "Orientation"}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Email Address (Optional)
                   </label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setOrientation("portrait")}
-                      className={cn(
-                        "rounded-xl border py-2 text-center text-xs font-bold transition-all cursor-pointer",
-                        orientation === "portrait"
-                          ? "border-[#123B70] bg-blue-50 text-[#123B70] ring-1 ring-[#123B70]"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                      )}
-                    >
-                      Portrait
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOrientation("landscape")}
-                      className={cn(
-                        "rounded-xl border py-2 text-center text-xs font-bold transition-all cursor-pointer",
-                        orientation === "landscape"
-                          ? "border-[#123B70] bg-blue-50 text-[#123B70] ring-1 ring-[#123B70]"
-                          : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                      )}
-                    >
-                      Landscape
-                    </button>
-                  </div>
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="e.g. rahul@example.com"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                  />
                 </div>
 
-                {/* Copies Counter */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-800">
-                    {currentLang === "hi" ? "प्रतियों की संख्या (Copies)" : "Number of Copies"}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {currentLang === "hi"
+                      ? "विशेष निर्देश या बाइंडिंग नोट्स (वैकल्पिक)"
+                      : "Special Instructions or Finishing Notes (Optional)"}
                   </label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCopies((c) => Math.max(1, c - 1))}
-                      className="h-10 w-10 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <input
-                      type="number"
-                      min={1}
-                      value={copies}
-                      onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="flex-1 h-10 text-center font-bold text-slate-900 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-[#123B70] focus:outline-hidden text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setCopies((c) => c + 1)}
-                      className="h-10 w-10 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <textarea
+                    rows={2}
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    placeholder="e.g. Please bind document #1 and #2 separately with blue covers."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
+                  />
                 </div>
-              </div>
-
-              {/* Page Range Selection */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-800">
-                    {currentLang === "hi" ? "पृष्ठ रेंज (Page Range)" : "Page Range to Print"}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="pageRangeType"
-                        checked={pageRangeType === "all"}
-                        onChange={() => setPageRangeType("all")}
-                        className="text-[#123B70]"
-                      />
-                      <span className="text-slate-700 font-semibold">{currentLang === "hi" ? "सभी पृष्ठ" : "All Pages"}</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="pageRangeType"
-                        checked={pageRangeType === "custom"}
-                        onChange={() => setPageRangeType("custom")}
-                        className="text-[#123B70]"
-                      />
-                      <span className="text-slate-700 font-semibold">{currentLang === "hi" ? "कस्टम रेंज" : "Custom Range"}</span>
-                    </label>
-                  </div>
-                </div>
-
-                {pageRangeType === "custom" && (
-                  <div className="animate-in fade-in">
-                    <input
-                      type="text"
-                      value={customPageRange}
-                      onChange={(e) => setCustomPageRange(e.target.value)}
-                      placeholder="e.g. 1-5, 8, 11-15"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
-                    />
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      {currentLang === "hi" ? "जैसे: 1-5, 8-12 (अल्पविराम से अलग करें)" : "Format: 1-5, 8, 11-15 (separated by commas)"}
-                    </p>
-                  </div>
-                )}
               </div>
             </section>
 
-            {/* Step 4: Finishing Options */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
+            {/* Auth Gate Banner if not logged in */}
+            {!user && (
+              <OrderAuthGate
+                customerName={customerName}
+                setCustomerName={setCustomerName}
+                customerPhone={customerPhone}
+                setCustomerPhone={setCustomerPhone}
+                customerEmail={customerEmail}
+                setCustomerEmail={setCustomerEmail}
+                customerWhatsApp={customerWhatsApp}
+                setCustomerWhatsApp={setCustomerWhatsApp}
+                instructions={instructions}
+                setInstructions={setInstructions}
+              />
+            )}
+          </div>
+
+          {/* Right 1 Column: Authoritative Order Summary & Payment */}
+          <div className="space-y-6">
+            <div className="sticky top-20 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-md space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
-                    4
-                  </span>
-                  <span>✨ {currentLang === "hi" ? "फिनिशिंग ऑप्शंस (Finishing Options)" : "Finishing Options"}</span>
+                  <Calculator className="h-5 w-5 text-[#123B70]" />
+                  <span>{currentLang === "hi" ? "ऑर्डर सारांश" : "Order Summary"}</span>
                 </div>
-                <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Optional Add-on
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                  Live Snapshot
                 </span>
               </div>
 
-              <p className="text-xs text-slate-500">
-                {currentLang === "hi"
-                  ? "प्रिंट होने के बाद बाइंडिंग या लैमिनेशन जोड़ें। पालक टीम प्रिंट करके तैयार रखेगी।"
-                  : "Select post-print finishing. We print your document first, then bind or laminate it."}
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Spiral Binding */}
-                <label
-                  className={cn(
-                    "flex items-start gap-3 rounded-xl border p-3.5 transition-all cursor-pointer",
-                    spiralBinding
-                      ? "border-blue-500 bg-blue-50/60 ring-1 ring-blue-500"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={spiralBinding}
-                    onChange={(e) => {
-                      setSpiralBinding(e.target.checked);
-                      if (e.target.checked) setCombBinding(false);
-                    }}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#123B70] focus:ring-[#123B70]"
-                  />
-                  <div className="space-y-0.5 min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "स्पाइरल बाइंडिंग" : "Spiral Binding"}
-                      </span>
-                      <span className="text-xs font-extrabold text-[#123B70]">
-                        +₹{pricingConfig.documentPrinting.finishing.spiralBinding.price}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
-                      {currentLang === "hi" ? "प्लास्टिक कॉइल + पारदर्शी कवर" : "Plastic coil spine with clear protective sheet"}
-                    </p>
-                  </div>
-                </label>
-
-                {/* Comb Binding */}
-                <label
-                  className={cn(
-                    "flex items-start gap-3 rounded-xl border p-3.5 transition-all cursor-pointer",
-                    combBinding
-                      ? "border-blue-500 bg-blue-50/60 ring-1 ring-blue-500"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={combBinding}
-                    onChange={(e) => {
-                      setCombBinding(e.target.checked);
-                      if (e.target.checked) setSpiralBinding(false);
-                    }}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#123B70] focus:ring-[#123B70]"
-                  />
-                  <div className="space-y-0.5 min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "कॉम्ब बाइंडिंग" : "Comb Binding"}
-                      </span>
-                      <span className="text-xs font-extrabold text-[#123B70]">
-                        +₹{pricingConfig.documentPrinting.finishing.combBinding.price}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
-                      {currentLang === "hi" ? "रिंग स्पाइन बाइंडिंग" : "Plastic comb spine for reports & manuals"}
-                    </p>
-                  </div>
-                </label>
-
-                {/* Lamination */}
-                <label
-                  className={cn(
-                    "flex items-start gap-3 rounded-xl border p-3.5 transition-all cursor-pointer",
-                    lamination
-                      ? "border-blue-500 bg-blue-50/60 ring-1 ring-blue-500"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={lamination}
-                    onChange={(e) => setLamination(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#123B70] focus:ring-[#123B70]"
-                  />
-                  <div className="space-y-0.5 min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "थर्मल लैमिनेशन" : "Thermal Lamination"}
-                      </span>
-                      <span className="text-xs font-extrabold text-[#123B70]">
-                        +₹{pricingConfig.documentPrinting.finishing.lamination.pricePerPage}/page
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
-                      {currentLang === "hi" ? "वॉटरप्रूफ टिकाऊ सुरक्षा सील" : "Waterproof gloss laminate seal"}
-                    </p>
-                  </div>
-                </label>
-
-                {/* Stapling */}
-                <label
-                  className={cn(
-                    "flex items-start gap-3 rounded-xl border p-3.5 transition-all cursor-pointer",
-                    stapling
-                      ? "border-blue-500 bg-blue-50/60 ring-1 ring-blue-500"
-                      : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={stapling}
-                    onChange={(e) => setStapling(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#123B70] focus:ring-[#123B70]"
-                  />
-                  <div className="space-y-0.5 min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">
-                        {currentLang === "hi" ? "स्टेपलिंग (Stapling)" : "Corner Stapling"}
-                      </span>
-                      <span className="text-xs font-extrabold text-[#123B70]">
-                        +₹{pricingConfig.documentPrinting.finishing.stapling.price}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">
-                      {currentLang === "hi" ? "कॉर्नर पिन लगाना" : "Neat corner pin / booklet staple"}
-                    </p>
-                  </div>
-                </label>
-              </div>
-            </section>
-
-            {/* Step 5: Customer Account & Contact Details */}
-            <OrderAuthGate
-              stepNumber={5}
-              customerName={customerName}
-              setCustomerName={setCustomerName}
-              customerPhone={customerPhone}
-              setCustomerPhone={setCustomerPhone}
-              customerEmail={customerEmail}
-              setCustomerEmail={setCustomerEmail}
-              customerWhatsApp={customerWhatsApp}
-              setCustomerWhatsApp={setCustomerWhatsApp}
-              instructions={instructions}
-              setInstructions={setInstructions}
-            />
-
-              {/* Step 6: Choose Payment Method */}
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm sm:text-base">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#123B70] text-white text-xs font-bold">
-                      6
-                    </span>
-                    <span>{currentLang === "hi" ? "भुगतान माध्यम चुनें (Choose Payment Method)" : "Choose Payment Method"}</span>
-                  </div>
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                    📍 Shop Pickup
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label
-                    className={cn(
-                      "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
-                      paymentMethod === "pay_online"
-                        ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600 shadow-xs"
-                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="pay_online"
-                      checked={paymentMethod === "pay_online"}
-                      onChange={() => setPaymentMethod("pay_online")}
-                      className="mt-1 text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">
-                          {currentLang === "hi" ? "ऑनलाइन भुगतान (Pay Online)" : "Pay Online (UPI / QR)"}
-                        </span>
-                        <span className="rounded-full bg-emerald-600 text-white text-[10px] font-black px-2 py-0.2 uppercase">
-                          {currentLang === "hi" ? "0 इंतज़ार" : "FASTEST"}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                        {currentLang === "hi"
-                          ? "⚡ दुकान पर लाइन लगे बिना सीधे तैयार प्रिंट लें! आपके पहुँचने से पहले ही दस्तावेज प्रिंट व पैक रहेंगे।"
-                          : "⚡ Skip the line! Pre-printed and packed before you arrive. Walk in, show Order ID, and collect instantly."}
-                      </p>
-                    </div>
-                  </label>
-
-                  <label
-                    className={cn(
-                      "flex items-start gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer",
-                      paymentMethod === "pay_at_shop"
-                        ? "border-[#123B70] bg-blue-50/50 ring-2 ring-[#123B70]/10"
-                        : "border-slate-200 bg-slate-50/50 hover:bg-slate-50"
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="pay_at_shop"
-                      checked={paymentMethod === "pay_at_shop"}
-                      onChange={() => setPaymentMethod("pay_at_shop")}
-                      className="mt-1 text-[#123B70] focus:ring-[#123B70]"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">
-                          {currentLang === "hi" ? "दस्तावेज भेजें (दुकान पर भुगतान)" : "Send Document (Pay on Pickup)"}
-                        </span>
-                        <span className="rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.2">
-                          PAY ON PICKUP
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                        {currentLang === "hi"
-                          ? "दस्तावेज अभी भेजें ताकि समय बचे। दुकान काउंटर पर आपकी मौजूदगी सत्यापित होते ही प्रिंट शुरू होगा और आप काउंटर पर भुगतान करेंगे।"
-                          : "Send your files in advance. Printing begins once your arrival/availability is verified at the counter, and you pay at pickup."}
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </section>
-          </div>
-
-          {/* Right 1 Column: Price Summary & Submit Sidebar */}
-          <div className="space-y-4">
-            <div className="sticky top-20 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-card space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <Calculator className="h-5 w-5 text-[#123B70]" />
-                  <h3 className="text-base font-extrabold text-slate-900">
-                    {currentLang === "hi" ? "ऑर्डर सारांश एवं मूल्य" : "Price Breakdown"}
-                  </h3>
-                </div>
-                <span className="text-[11px] font-semibold text-slate-400">Live Quote</span>
-              </div>
-
-              {/* Document Info */}
-              <div className="space-y-2 text-xs">
+              {/* Order Stats Breakdown */}
+              <div className="space-y-2.5 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">{currentLang === "hi" ? "दस्तावेज प्रकार:" : "Doc Type:"}</span>
-                  <span className="font-bold text-slate-900">{getDocTypeLabel()}</span>
+                  <span className="text-slate-500">{currentLang === "hi" ? "दस्तावेज संख्या:" : "Total Documents:"}</span>
+                  <span className="font-bold text-slate-900">{orderSnapshot.totalDocuments} file(s)</span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-slate-500">{currentLang === "hi" ? "साइज व कलर:" : "Specs:"}</span>
+                  <span className="text-slate-500">{currentLang === "hi" ? "कुल प्रिंट पेज:" : "Printed Pages:"}</span>
+                  <span className="font-bold text-slate-900">{orderSnapshot.totalPrintedPages} pages</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-slate-500">{currentLang === "hi" ? "कलर ब्रेकडाउन:" : "Color Breakdown:"}</span>
                   <span className="font-semibold text-slate-800">
-                    {paperSize.toUpperCase()} • {colorMode === "bw" ? "B/W" : "Color"} • {sides === "single" ? "Single" : "Double"}
+                    ⚫ {orderSnapshot.totalBwPages} B/W • 🌈 {orderSnapshot.totalColorPages} Color
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-slate-500">{currentLang === "hi" ? "प्रिंट पृष्ठ संख्या:" : "Pages to Print:"}</span>
-                  <span className="font-semibold text-slate-800">{priceResult.pagesToPrint} pages</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-slate-500">{currentLang === "hi" ? "प्रतियां (Copies):" : "Copies:"}</span>
-                  <span className="font-bold text-slate-900">{copies}</span>
+                  <span className="text-slate-500">{currentLang === "hi" ? "कागज की शीट (Physical Sheets):" : "Physical Sheets:"}</span>
+                  <span className="font-bold text-slate-900">📑 {orderSnapshot.totalPhysicalSheets} sheets</span>
                 </div>
               </div>
 
-              {/* Price Details */}
-              <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">{currentLang === "hi" ? "प्रिंटिंग शुल्क:" : "Print Cost (Base):"}</span>
-                  <span className="font-semibold text-slate-900">₹{priceResult.breakdown.basePrint}</span>
+              {/* Document List in Summary */}
+              {documents.length > 0 && (
+                <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
+                  <span className="text-[11px] font-bold text-slate-400 block uppercase">
+                    Document Breakdown
+                  </span>
+                  {documents.map((d, i) => (
+                    <div key={d.id} className="flex justify-between items-center text-slate-700">
+                      <span className="truncate max-w-[150px] font-medium">
+                        #{i + 1} {d.name}
+                      </span>
+                      <span className="font-bold text-slate-900">₹{d.config.totalPrice.toFixed(2)}</span>
+                    </div>
+                  ))}
                 </div>
+              )}
 
-                {priceResult.breakdown.spiral > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>+ {currentLang === "hi" ? "स्पाइरल बाइंडिंग" : "Spiral Binding"}:</span>
-                    <span>₹{priceResult.breakdown.spiral}</span>
-                  </div>
-                )}
+              {/* Payment Mode Selection */}
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  {currentLang === "hi" ? "भुगतान विधि चुनें" : "Select Payment Method"}
+                </label>
 
-                {priceResult.breakdown.comb > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>+ {currentLang === "hi" ? "कॉम्ब बाइंडिंग" : "Comb Binding"}:</span>
-                    <span>₹{priceResult.breakdown.comb}</span>
-                  </div>
-                )}
+                <div className="space-y-2 text-xs">
+                  <label
+                    onClick={() => setPaymentMethod("pay_at_shop")}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
+                      paymentMethod === "pay_at_shop"
+                        ? "border-[#123B70] bg-blue-50/60 text-[#123B70] font-bold ring-1 ring-[#123B70]"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="payMethod"
+                        checked={paymentMethod === "pay_at_shop"}
+                        onChange={() => setPaymentMethod("pay_at_shop")}
+                        className="accent-[#123B70]"
+                      />
+                      <span>{currentLang === "hi" ? "दुकान पर भुगतान (Pay on Pickup)" : "Pay on Pickup (At Counter)"}</span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-400">Cash / UPI</span>
+                  </label>
 
-                {priceResult.breakdown.lamination > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>+ {currentLang === "hi" ? "लैमिनेशन" : "Lamination"}:</span>
-                    <span>₹{priceResult.breakdown.lamination}</span>
-                  </div>
-                )}
-
-                {priceResult.breakdown.stapling > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>+ {currentLang === "hi" ? "स्टेपलिंग" : "Stapling"}:</span>
-                    <span>₹{priceResult.breakdown.stapling}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between text-[11px] text-slate-400 pt-1">
-                  <span>{currentLang === "hi" ? "प्रति कॉपी दर:" : "Rate per Copy:"}</span>
-                  <span>₹{priceResult.unitPrice} / copy</span>
+                  <label
+                    onClick={() => setPaymentMethod("pay_online")}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
+                      paymentMethod === "pay_online"
+                        ? "border-[#123B70] bg-blue-50/60 text-[#123B70] font-bold ring-1 ring-[#123B70]"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="payMethod"
+                        checked={paymentMethod === "pay_online"}
+                        onChange={() => setPaymentMethod("pay_online")}
+                        className="accent-[#123B70]"
+                      />
+                      <span>{currentLang === "hi" ? "तुरंत ऑनलाइन भुगतान (Razorpay UPI)" : "Instant Online Pay (Razorpay)"}</span>
+                    </div>
+                    <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                      Fastest
+                    </span>
+                  </label>
                 </div>
               </div>
 
@@ -1435,7 +1582,7 @@ export const DocumentPrintingPage: React.FC = () => {
                   {currentLang === "hi" ? "कुल अनुमानित राशि" : "Estimated Total"}
                 </span>
                 <span className="text-2xl font-black text-[#123B70]">
-                  ₹{priceResult.total}
+                  ₹{orderSnapshot.grandTotal.toFixed(2)}
                 </span>
               </div>
 

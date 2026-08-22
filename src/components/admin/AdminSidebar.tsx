@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react';
+import { useScrollLock } from '../../hooks/useScrollLock';
 import { cn } from '../../lib/utils';
 
 interface AdminSidebarProps {
@@ -32,6 +33,19 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const [isWebsiteMgmtOpen, setIsWebsiteMgmtOpen] = useState(
     location.pathname.startsWith('/admin/website')
   );
+
+  useScrollLock(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
 
   const isActive = (path: string) => {
     if (path === '/admin') {
@@ -97,7 +111,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-2.5 px-2 space-y-0.5 scrollbar-thin scrollbar-thumb-slate-700">
+        <nav className="flex-1 overflow-y-auto overscroll-contain py-2.5 px-2 space-y-0.5 scrollbar-thin scrollbar-thumb-slate-700">
           {navItems.map((item) => {
             const active = isActive(item.path);
             return (

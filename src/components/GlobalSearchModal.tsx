@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Search, X, Printer, Globe, Sparkles, HelpCircle, ArrowRight } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { PalakDataStore } from "../lib/storage/store";
 import { faqData, type FAQItem } from "../config/faqs";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -17,17 +19,14 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
+  useScrollLock(isOpen);
+
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
-      document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = "unset";
       setQuery("");
     }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -102,14 +101,24 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   const hasResults = products.length > 0 || services.length > 0 || faqs.length > 0;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-900/60 p-4 sm:p-6 md:p-20 backdrop-blur-xs animate-fadeUp">
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Global Search"
+      className="fixed inset-0 z-[100] flex items-start justify-center p-3 sm:p-6 md:p-12 lg:p-20 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
-        className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]"
+        className="relative flex flex-col w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] md:max-h-[min(85vh,740px)] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input header */}
-        <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-5">
+        <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3.5 sm:px-5 shrink-0 bg-white">
           <Search className="h-5 w-5 text-slate-400 shrink-0" />
           <input
             ref={inputRef}
@@ -141,7 +150,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         </div>
 
         {/* Search body */}
-        <div className="overflow-y-auto p-4 sm:p-6 space-y-6 flex-1">
+        <div className="overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-6 flex-1">
           {!query && (
             <div className="space-y-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -313,7 +322,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         </div>
 
         {/* Footer info */}
-        <div className="border-t border-slate-100 bg-slate-50 px-4 py-2.5 text-xs text-slate-500 flex items-center justify-between">
+        <div className="border-t border-slate-100 bg-slate-50 px-4 py-2.5 text-xs text-slate-500 flex items-center justify-between shrink-0">
           <span>
             {currentLang === "hi" ? "चकिया, पूर्वी चंपारण में त्वरित सेवा" : "Fast local delivery in Chakia & Bihar"}
           </span>
@@ -322,6 +331,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

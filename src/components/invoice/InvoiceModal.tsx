@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { StoredInvoice } from "../../lib/invoice/types";
 import { InvoiceView } from "./InvoiceView";
 import { downloadInvoicePDF, printInvoiceElement, instantPrintInvoice, getWhatsAppInvoiceShareLink } from "../../lib/invoice/pdfUtils";
 import { PalakInvoiceStore } from "../../lib/invoice/invoiceStore";
+import { useScrollLock } from "../../hooks/useScrollLock";
 import {
   X,
   Download,
@@ -35,6 +37,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   isAdmin = false,
   onRegenerate,
   onInvoiceUpdated,
+  loading = false,
 }) => {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -48,6 +51,27 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   const [cancellationReason, setCancellationReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useScrollLock(isOpen);
+
+  useEffect(() => {
+    if (isOpen && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [isOpen, invoice]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
+
   // Isolate print view to ONLY this invoice while modal is open
   useEffect(() => {
     if (isOpen && invoice) {
@@ -58,7 +82,43 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     }
   }, [isOpen, invoice]);
 
-  if (!isOpen || !invoice) return null;
+  if (!isOpen) return null;
+
+  if (loading || !invoice) {
+    if (typeof document === "undefined") return null;
+    return createPortal(
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-200 text-center space-y-4">
+          <div className="h-14 w-14 rounded-2xl bg-blue-50 border border-blue-200 text-[#123B70] flex items-center justify-center mx-auto animate-pulse">
+            <RefreshCw className="h-7 w-7 animate-spin" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">
+              {loading ? "Generating invoice…" : "Loading invoice…"}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Communicating with database to retrieve confirmed permanent invoice record.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  }
 
   const targetInvoiceId = "invoice-print-root";
 
@@ -138,14 +198,22 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     }
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 invoice-modal-overlay print:p-0 print:bg-white print:static print:z-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-label={invoice ? `${invoice.documentType === "RETAIL_BILL" ? "Retail Bill" : "Tax Invoice"} ${invoice.invoiceNumber}` : "Invoice Details"}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200 invoice-modal-overlay print:p-0 print:bg-white print:static print:z-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-4xl max-h-[95vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 print:border-none print:shadow-none print:max-h-none print:w-full print:rounded-none">
+      <div 
+        className="relative flex flex-col w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] md:max-h-[min(94vh,940px)] bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 print:border-none print:shadow-none print:max-h-none print:w-full print:rounded-none"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* ─── Top Modal Action Bar (Hidden on Print) ─────────────────────── */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 bg-slate-900 text-white shrink-0 print:hidden">
           <div className="flex items-center gap-3">
@@ -387,7 +455,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         )}
 
         {/* ─── Scrollable Invoice View Area (Responsive Scaling for A4) ───── */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-100/70 print:p-0 print:bg-white print:overflow-visible flex justify-center">
+        <div 
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6 bg-slate-100/70 print:p-0 print:bg-white print:overflow-visible flex justify-center"
+        >
           <div className="bg-white shadow-sm print:shadow-none w-full max-w-[794px]">
             <InvoiceView
               invoice={invoice}
@@ -396,7 +467,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

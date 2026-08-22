@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { servicesData, type ServiceItem } from "../config/services";
@@ -8,6 +9,7 @@ import { PalakDataStore } from "../lib/storage/store";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { uploadOrderFile } from "../lib/supabase/database";
 import { X, Upload, CheckCircle2, MessageSquare, Phone, Send, AlertTriangle, ShieldCheck, Eye } from "lucide-react";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface ServiceRequestModalProps {
   isOpen: boolean;
@@ -36,12 +38,11 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
 
-  // Lock background body scroll & support Escape key closing
+  useScrollLock(isOpen);
+
+  // Support Escape key closing
   useEffect(() => {
     if (!isOpen) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -51,7 +52,6 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
@@ -244,19 +244,23 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
     setIsSuccess(false);
   };
 
-  return (
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/75 backdrop-blur-sm p-3 sm:p-4 md:p-6 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="request-modal-title"
-      onClick={() => {
-        onClose();
-        if (isSuccess) resetForm();
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+          if (isSuccess) resetForm();
+        }
       }}
     >
       <div
-        className="relative flex flex-col max-h-[92vh] sm:max-h-[88vh] max-w-xl lg:max-w-2xl xl:max-w-3xl w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden my-auto transition-all animate-fadeUp"
+        className="relative flex flex-col max-h-[calc(100dvh-1.25rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[min(90vh,860px)] max-w-xl lg:max-w-2xl xl:max-w-3xl w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden transition-all animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -647,6 +651,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   FileText,
   FileCode,
@@ -20,6 +21,7 @@ import {
   openDocumentInNewTab,
   type FileCategory,
 } from "../lib/documentUtils";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { cn } from "../lib/utils";
 
 export interface DocumentItem {
@@ -46,6 +48,19 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useScrollLock(isOpen && Boolean(doc));
+
+  useEffect(() => {
+    if (!isOpen || !doc) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, doc, onClose]);
 
   const category: FileCategory = doc
     ? getFileCategory(doc.name, doc.url, doc.mimeType)
@@ -190,9 +205,19 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in print:hidden">
-      <div className="relative flex flex-col w-full max-w-5xl h-[92vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+  if (!isOpen || !doc || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={doc ? doc.name : "Document Preview"}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in print:hidden"
+    >
+      <div 
+        className="relative flex flex-col w-full max-w-5xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] md:max-h-[92vh] h-full rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header Toolbar */}
         <div className="flex items-center justify-between px-4 py-3 bg-[#0F172A] text-white border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -418,7 +443,8 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

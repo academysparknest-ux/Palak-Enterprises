@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Sparkles, MessageSquare } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import type { Service } from "../config/services";
@@ -5,6 +7,7 @@ import type { SampleItem } from "../config/samples";
 import { sampleItems, getSamplesByServiceId } from "../config/samples";
 import SampleImage from "./SampleImage";
 import { getWhatsAppLink } from "../config/business";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { cn } from "../lib/utils";
 
 interface ServiceSamplesModalProps {
@@ -20,6 +23,19 @@ export default function ServiceSamplesModal({
 }: ServiceSamplesModalProps) {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
+
+  useScrollLock(Boolean(service));
+
+  useEffect(() => {
+    if (!service) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [service, onClose]);
 
   if (!service) return null;
 
@@ -56,20 +72,24 @@ export default function ServiceSamplesModal({
     samples = sampleItems.slice(0, 4);
   }
 
-  return (
+  if (!service || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-[140] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-label={`${service.name[currentLang]} Samples`}
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
-        className="relative flex flex-col max-h-[90vh] max-w-3xl w-full overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200 animate-fadeUp"
+        className="relative flex flex-col w-full max-w-3xl max-h-[calc(100dvh-1.25rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[min(90vh,860px)] overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 sm:px-6 py-4 bg-slate-50 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-navy/10 text-navy">
               <Sparkles size={18} className="text-amber-500" />
@@ -102,7 +122,7 @@ export default function ServiceSamplesModal({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {samples.map((item) => {
               const message =
@@ -202,6 +222,7 @@ export default function ServiceSamplesModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

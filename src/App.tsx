@@ -50,6 +50,7 @@ const RequestQuotePage = lazyWithRetry(() => import("./pages/RequestQuotePage").
 const CartPage = lazyWithRetry(() => import("./pages/CartPage").then((m) => ({ default: m.CartPage })));
 const CheckoutPage = lazyWithRetry(() => import("./pages/CheckoutPage").then((m) => ({ default: m.CheckoutPage })));
 const TrackOrderPage = lazyWithRetry(() => import("./pages/TrackOrderPage").then((m) => ({ default: m.TrackOrderPage })));
+const VerifyInvoicePage = lazyWithRetry(() => import("./pages/VerifyInvoicePage").then((m) => ({ default: m.VerifyInvoicePage })));
 const AccountPage = lazyWithRetry(() => import("./pages/AccountPage").then((m) => ({ default: m.AccountPage })));
 // Admin Panel — Route-based layout with nested pages
 const AdminLayout = lazyWithRetry(() => import("./components/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })));
@@ -230,6 +231,12 @@ export function AppContent() {
                 {/* Order Tracking & Status */}
                 <Route path="/track-order" element={<TrackOrderPage />} />
                 <Route path="/track" element={<TrackOrderPage />} />
+
+                {/* Public Invoice Authenticity Verification */}
+                <Route path="/verify-invoice/:invoiceNumber" element={<VerifyInvoicePage />} />
+                <Route path="/verify-invoice" element={<VerifyInvoicePage />} />
+                <Route path="/invoice/verify/:invoiceNumber" element={<VerifyInvoicePage />} />
+                <Route path="/verify" element={<VerifyInvoicePage />} />
 
                 {/* User Account & History */}
                 <Route path="/account" element={<AccountPage />} />

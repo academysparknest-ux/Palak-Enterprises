@@ -11,6 +11,13 @@ import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/pri
 import { getQueueClassification, type QueueType, type QueuePriority } from "../queue";
 import type { StoredInvoice } from "../invoice/types";
 import { PalakInvoiceStore } from "../invoice/invoiceStore";
+import type {
+  OrderPrintSnapshot,
+  PrintJob,
+  PrintJobStatus,
+  AdminPrintOverride,
+  PrintAuditLog,
+} from "../../types/printJob";
 
 /** Returns true only for valid UUID strings that can be stored in Supabase user_id columns */
 function isValidSupabaseUUID(id?: string): boolean {
@@ -21,6 +28,8 @@ function isValidSupabaseUUID(id?: string): boolean {
 export interface PrintOrderPayload {
   serviceId: "document-printing" | "passport-photo" | "visiting-cards" | "id-cards" | "poster-banner" | "custom-print" | "invitation-cards" | string;
   serviceName: string;
+  clientSubmissionId?: string;
+  printSnapshot?: OrderPrintSnapshot;
   documentType?: string;
   customerName: string;
   customerPhone: string;
@@ -826,22 +835,69 @@ export async function getSecureSignedUrl(
   }
 }
 
+// In-memory cache for file uploads to eliminate duplicate uploads during session retries
+const uploadedFilesCache = new Map<string, { url: string; storagePath: string }>();
+
 export async function uploadOrderFile(
   file: File,
-  orderCode: string
+  orderCode: string,
+  clientSubmissionId?: string
 ): Promise<{ url: string; storagePath: string } | null> {
   if (!file) return null;
+
+  const cacheKey = `${clientSubmissionId || orderCode}_${file.name}_${file.size}`;
+  if (uploadedFilesCache.has(cacheKey)) {
+    return uploadedFilesCache.get(cacheKey)!;
+  }
+
+  // Check if this logical file was already uploaded & associated with an existing order for this submission
+  if (isSupabaseConfigured && supabase && clientSubmissionId) {
+    try {
+      const { data: existingOrder } = await supabase
+        .from("orders")
+        .select("id, order_code")
+        .eq("client_submission_id", clientSubmissionId.trim())
+        .maybeSingle();
+
+      if (existingOrder?.id) {
+        const { data: existingFiles } = await supabase
+          .from("order_files")
+          .select("file_name, file_path, file_url, file_size")
+          .eq("order_id", existingOrder.id);
+
+        const matched = (existingFiles || []).find(
+          (f) => f.file_name === file.name && (Number(f.file_size) === file.size || !f.file_size)
+        );
+
+        if (matched?.file_path) {
+          const result = {
+            url: matched.file_url || matched.file_path,
+            storagePath: matched.file_path,
+          };
+          uploadedFilesCache.set(cacheKey, result);
+          return result;
+        }
+      }
+    } catch (chkErr) {
+      console.debug("[uploadOrderFile] Existing order file lookup note:", chkErr);
+    }
+  }
+
+  // Sanitize filename & extension to prevent path traversal
+  const rawExt = file.name.split(".").pop() || "dat";
+  const safeExt = rawExt.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "dat";
+  const cleanOrderCode = orderCode.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40) || `ORDER_${Date.now()}`;
+  const fileUniqueId = crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10);
+  const filePath = `orders/${cleanOrderCode}/${Date.now()}_${fileUniqueId}.${safeExt}`;
 
   // 1. Attempt upload to Supabase Storage if configured
   if (isSupabaseConfigured && supabase) {
     try {
-      const fileExt = file.name.split(".").pop() || "dat";
-      const filePath = `orders/${orderCode}/${Date.now()}.${fileExt}`;
       const { error } = await supabase.storage
         .from("customer-documents")
         .upload(filePath, file, {
           cacheControl: "3600",
-          upsert: true,
+          upsert: false,
         });
 
       if (!error) {
@@ -850,15 +906,17 @@ export async function uploadOrderFile(
           .from("customer-documents")
           .getPublicUrl(filePath);
 
-        return {
+        const uploadResult = {
           url: publicUrlData?.publicUrl || filePath,
           storagePath: filePath,
         };
+        uploadedFilesCache.set(cacheKey, uploadResult);
+        return uploadResult;
       } else {
-        console.warn("Storage upload error, generating offline/local data fallback:", error);
+        console.warn("[uploadOrderFile] Storage upload note, falling back to local data URL:", error.message || error);
       }
     } catch (err) {
-      console.error("Storage upload exception, generating offline/local data fallback:", err);
+      console.warn("[uploadOrderFile] Storage exception, falling back to local data URL:", err);
     }
   }
 
@@ -872,10 +930,12 @@ export async function uploadOrderFile(
     });
 
     if (dataUrl) {
-      return {
+      const fallbackResult = {
         url: dataUrl,
-        storagePath: `local/${file.name}`,
+        storagePath: `local/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`,
       };
+      uploadedFilesCache.set(cacheKey, fallbackResult);
+      return fallbackResult;
     }
   } catch (readerErr) {
     console.error("FileReader fallback exception:", readerErr);
@@ -1001,15 +1061,18 @@ export async function submitPrintOrder(
     performance.mark(markStart);
   }
 
-  // Generate idempotency signature based on customer, service, total and timestamp window
-  const subKey = `${payload.customerPhone.trim()}_${payload.serviceId}_${payload.pricingSnapshot.totalAmount}_${payload.instructions || ""}`;
-  if (inFlightPrintSubmissions.has(subKey)) {
-    console.warn("[submitPrintOrder] Deduplicating in-flight order submission:", subKey);
-    return inFlightPrintSubmissions.get(subKey)!;
+  const clientSubmissionId =
+    payload.clientSubmissionId ||
+    `PE-SUB-${Date.now()}-${crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10)}`;
+
+  if (inFlightPrintSubmissions.has(clientSubmissionId)) {
+    console.warn("[submitPrintOrder] Deduplicating in-flight order submission:", clientSubmissionId);
+    return inFlightPrintSubmissions.get(clientSubmissionId)!;
   }
 
   const executionPromise = (async () => {
-    const orderCode = generatePrintOrderCode();
+    let finalOrderCode = generatePrintOrderCode();
+    let finalOrderId: string | undefined = undefined;
 
     // Normalize payment method and status
     const paymentMethod =
@@ -1035,9 +1098,9 @@ export async function submitPrintOrder(
     const orderItem = {
       productId: payload.serviceId,
       productName: payload.serviceName,
-      quantity: Number(payload.options.copies) || Number(payload.options.quantity) || 1,
-      unitPrice: payload.pricingSnapshot.unitPrice,
-      totalPrice: payload.pricingSnapshot.totalAmount,
+      quantity: Math.max(1, Number(payload.options.copies) || Number(payload.options.quantity) || 1),
+      unitPrice: Math.max(0, payload.pricingSnapshot.unitPrice || 0),
+      totalPrice: Math.max(0, payload.pricingSnapshot.totalAmount || 0),
       selectedOptions: {
         ...payload.options,
         documentType: payload.documentType || "General Document",
@@ -1071,10 +1134,229 @@ export async function submitPrintOrder(
       createdAt: now,
     });
 
-    // 1. Save to localStorage for instant local durability
+    // 1. Authoritative Persistence (Single Atomic PostgreSQL RPC with multi-tier fallback)
+    if (isSupabaseConfigured && supabase) {
+      const validUserId = isValidSupabaseUUID(payload.userId) ? payload.userId : null;
+      let rpcSucceeded = false;
+
+      // Tier 1: Try full RPC with print snapshot (18 arguments)
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc("create_online_print_order", {
+          p_order_code: finalOrderCode,
+          p_customer_name: payload.customerName.trim(),
+          p_customer_phone: payload.customerPhone.trim(),
+          p_customer_email: payload.customerEmail?.trim() || null,
+          p_fulfillment_type: "pickup",
+          p_delivery_address: null,
+          p_order_notes: payload.instructions?.trim() || null,
+          p_subtotal_amount: payload.pricingSnapshot.subtotal,
+          p_delivery_fee: 0,
+          p_total_amount: payload.pricingSnapshot.totalAmount,
+          p_payment_method: paymentMethod,
+          p_payment_status: paymentStatus,
+          p_user_id: validUserId,
+          p_staff_notes: `Online Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+          p_items: [orderItem] as any,
+          p_files: allFiles.map((f) => ({
+            name: f.name,
+            path: f.storagePath || f.url || "",
+            url: f.url || "",
+            type: f.mimeType || "application/pdf",
+            size: f.size || 0,
+          })) as any,
+          p_client_submission_id: clientSubmissionId,
+          p_print_snapshot: payload.printSnapshot || null,
+        });
+
+        if (!rpcErr && rpcData) {
+          rpcSucceeded = true;
+          if (rpcData.orderCode) finalOrderCode = rpcData.orderCode;
+          if (rpcData.orderId) finalOrderId = rpcData.orderId;
+        } else if (rpcErr) {
+          console.warn("[submitPrintOrder] Tier 1 RPC error, attempting Tier 2 (legacy params):", rpcErr.message || rpcErr);
+        }
+      } catch (err) {
+        console.warn("[submitPrintOrder] Tier 1 RPC invocation failed:", err);
+      }
+
+      // Tier 2: Try legacy 17-argument RPC (without p_print_snapshot) if Tier 1 had schema cache mismatch
+      if (!rpcSucceeded) {
+        try {
+          const { data: rpcData, error: rpcErr } = await supabase.rpc("create_online_print_order", {
+            p_order_code: finalOrderCode,
+            p_customer_name: payload.customerName.trim(),
+            p_customer_phone: payload.customerPhone.trim(),
+            p_customer_email: payload.customerEmail?.trim() || null,
+            p_fulfillment_type: "pickup",
+            p_delivery_address: null,
+            p_order_notes: payload.instructions?.trim() || null,
+            p_subtotal_amount: payload.pricingSnapshot.subtotal,
+            p_delivery_fee: 0,
+            p_total_amount: payload.pricingSnapshot.totalAmount,
+            p_payment_method: paymentMethod,
+            p_payment_status: paymentStatus,
+            p_user_id: validUserId,
+            p_staff_notes: `Online Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+            p_items: [orderItem] as any,
+            p_files: allFiles.map((f) => ({
+              name: f.name,
+              path: f.storagePath || f.url || "",
+              url: f.url || "",
+              type: f.mimeType || "application/pdf",
+              size: f.size || 0,
+            })) as any,
+            p_client_submission_id: clientSubmissionId,
+          });
+
+          if (!rpcErr && rpcData) {
+            rpcSucceeded = true;
+            if (rpcData.orderCode) finalOrderCode = rpcData.orderCode;
+            if (rpcData.orderId) finalOrderId = rpcData.orderId;
+          } else if (rpcErr) {
+            console.warn("[submitPrintOrder] Tier 2 RPC error, falling back to direct table insertion:", rpcErr.message || rpcErr);
+          }
+        } catch (err) {
+          console.warn("[submitPrintOrder] Tier 2 RPC invocation failed:", err);
+        }
+      }
+
+      // Tier 3: Resilient Direct PostgreSQL Table Insertion Fallback
+      if (!rpcSucceeded) {
+        try {
+          // Check if order already committed under this clientSubmissionId
+          const { data: existingOrder } = await supabase
+            .from("orders")
+            .select("id, order_code")
+            .eq("client_submission_id", clientSubmissionId)
+            .maybeSingle();
+
+          if (existingOrder?.order_code) {
+            finalOrderCode = existingOrder.order_code;
+            finalOrderId = existingOrder.id;
+            rpcSucceeded = true;
+          } else {
+            const orderInsertData: any = {
+              order_code: finalOrderCode,
+              customer_name: payload.customerName.trim(),
+              customer_phone: payload.customerPhone.trim(),
+              customer_email: payload.customerEmail?.trim() || null,
+              fulfillment_type: "pickup",
+              order_notes: payload.instructions?.trim() || null,
+              subtotal_amount: payload.pricingSnapshot.subtotal,
+              delivery_fee: 0,
+              total_amount: payload.pricingSnapshot.totalAmount,
+              payment_method: paymentMethod,
+              payment_status: paymentStatus,
+              order_status: "NEW",
+              user_id: validUserId,
+              staff_notes: `Online Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
+              items: [orderItem],
+              client_submission_id: clientSubmissionId,
+              print_snapshot: payload.printSnapshot || null,
+            };
+
+            let { data: insertedOrder, error: insertErr } = await supabase
+              .from("orders")
+              .insert(orderInsertData)
+              .select("id, order_code")
+              .maybeSingle();
+
+            // Column compatibility retry if database schema is missing newer columns
+            if (insertErr && (insertErr.message?.includes("column") || insertErr.code === "42703")) {
+              delete orderInsertData.client_submission_id;
+              delete orderInsertData.print_snapshot;
+              const retryRes = await supabase
+                .from("orders")
+                .insert(orderInsertData)
+                .select("id, order_code")
+                .maybeSingle();
+              insertedOrder = retryRes.data;
+              insertErr = retryRes.error;
+            }
+
+            if (insertErr) {
+              console.error("[submitPrintOrder] Direct table insertion failed:", insertErr);
+              return { success: false, orderCode: "", error: insertErr.message || "Failed to confirm order with server." };
+            }
+
+            if (insertedOrder) {
+              finalOrderId = insertedOrder.id;
+              finalOrderCode = insertedOrder.order_code || finalOrderCode;
+              rpcSucceeded = true;
+
+              // Insert order_items
+              try {
+                await supabase.from("order_items").insert({
+                  order_id: finalOrderId,
+                  product_id: payload.serviceId || "document-printing",
+                  product_name: payload.serviceName || "Document Printing",
+                  quantity: Math.max(1, Number(payload.options.copies) || Number(payload.options.quantity) || 1),
+                  unit_price: Math.max(0, payload.pricingSnapshot.unitPrice || 0),
+                  total_price: Math.max(0, payload.pricingSnapshot.totalAmount || 0),
+                  selected_options: orderItem.selectedOptions,
+                  selected_options_labels: orderItem.selectedOptionsLabels,
+                  uploaded_file_url: primaryFile?.url || null,
+                  uploaded_file_name: primaryFile?.name || null,
+                  design_notes: payload.instructions || null,
+                });
+              } catch (itemErr) {
+                console.warn("[submitPrintOrder] order_items fallback insert note:", itemErr);
+              }
+
+              // Insert order_files
+              if (allFiles.length > 0) {
+                try {
+                  const fileRows = allFiles.map((f) => ({
+                    order_id: finalOrderId,
+                    file_name: f.name,
+                    file_path: f.storagePath || f.url || "",
+                    file_url: f.url || "",
+                    file_type: f.mimeType || "application/pdf",
+                    file_size: f.size || 0,
+                  }));
+                  await supabase.from("order_files").insert(fileRows);
+                } catch (fileErr) {
+                  console.warn("[submitPrintOrder] order_files fallback insert note:", fileErr);
+                }
+              }
+
+              // Create print job tracking entry if table exists
+              try {
+                await supabase.from("print_jobs").insert({
+                  order_id: finalOrderId,
+                  order_code: finalOrderCode,
+                  customer_name: payload.customerName.trim(),
+                  customer_phone: payload.customerPhone.trim(),
+                  status: "PENDING",
+                  items: [orderItem],
+                  overrides: [],
+                  audit_logs: [{
+                    action: "ORDER_PLACED",
+                    timestamp: new Date().toISOString(),
+                    details: "Order created via online document printing",
+                  }],
+                });
+              } catch (jobErr) {
+                console.debug("[submitPrintOrder] print_jobs fallback insert note:", jobErr);
+              }
+            }
+          }
+        } catch (directInsertException) {
+          console.error("[submitPrintOrder] Direct table fallback failed:", directInsertException);
+          return {
+            success: false,
+            orderCode: "",
+            error: (directInsertException as any)?.message || "Failed to confirm order with server.",
+          };
+        }
+      }
+    }
+
+    // 2. Save to local storage for offline durability & instant cache
     try {
       PalakDataStore.saveOrderToLocal({
-        orderCode,
+        orderCode: finalOrderCode,
+        clientSubmissionId,
         userId: payload.userId,
         customerName: payload.customerName,
         customerPhone: payload.customerPhone,
@@ -1088,6 +1370,7 @@ export async function submitPrintOrder(
         paymentStatus,
         orderStatus: "NEW",
         items: [orderItem],
+        printSnapshot: payload.printSnapshot,
         staffNotes: `Online Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
         queueType: queueMeta.queueType,
         queuePriority: queueMeta.queuePriority,
@@ -1098,69 +1381,6 @@ export async function submitPrintOrder(
       console.warn("Local store fallback sync notice:", e);
     }
 
-    // 2. Persist to Supabase Database (Authoritative Source of Truth: 1 Atomic RPC Round-Trip)
-    let orderId: string | undefined = undefined;
-
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const validUserId = isValidSupabaseUUID(payload.userId) ? payload.userId : null;
-
-        // Primary Path: Atomic SECURITY DEFINER RPC (1 single round-trip)
-        const { data: rpcData, error: rpcErr } = await supabase.rpc("create_online_print_order", {
-          p_order_code: orderCode,
-          p_customer_name: payload.customerName.trim(),
-          p_customer_phone: payload.customerPhone.trim(),
-          p_customer_email: payload.customerEmail?.trim() || null,
-          p_fulfillment_type: "pickup",
-          p_delivery_address: null,
-          p_order_notes: payload.instructions?.trim() || null,
-          p_subtotal_amount: payload.pricingSnapshot.subtotal,
-          p_delivery_fee: 0,
-          p_total_amount: payload.pricingSnapshot.totalAmount,
-          p_payment_method: paymentMethod,
-          p_payment_status: paymentStatus,
-          p_user_id: validUserId,
-          p_staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
-          p_items: [orderItem] as any,
-          p_files: allFiles.map((f) => ({
-            name: f.name,
-            path: f.storagePath || f.url || "",
-            url: f.url || "",
-            type: f.mimeType || "application/pdf",
-            size: f.size || 0,
-          })) as any,
-        });
-
-        if (!rpcErr && rpcData && rpcData.orderId) {
-          orderId = rpcData.orderId;
-        } else if (rpcErr) {
-          console.warn("create_online_print_order RPC notice, attempting fallback insert:", rpcErr);
-
-          // Fallback: direct table insert
-          const insertPayload: any = {
-            order_code: orderCode,
-            customer_name: payload.customerName,
-            customer_phone: payload.customerPhone,
-            customer_email: payload.customerEmail || null,
-            fulfillment_type: "pickup",
-            order_notes: payload.instructions || null,
-            subtotal_amount: payload.pricingSnapshot.subtotal,
-            total_amount: payload.pricingSnapshot.totalAmount,
-            payment_method: paymentMethod,
-            payment_status: paymentStatus,
-            order_status: "NEW",
-            items: [orderItem],
-            staff_notes: `Service: ${payload.serviceName} | Doc: ${payload.documentType || "N/A"}`,
-          };
-          if (validUserId) insertPayload.user_id = validUserId;
-
-          await supabase.from("orders").insert(insertPayload);
-        }
-      } catch (dbErr) {
-        console.error("Supabase insert exception:", dbErr);
-      }
-    }
-
     if (typeof performance !== "undefined" && performance.mark && performance.measure) {
       const markEnd = `print_order_submit_end_${Date.now()}`;
       performance.mark(markEnd);
@@ -1169,23 +1389,23 @@ export async function submitPrintOrder(
         const entries = performance.getEntriesByName("print_order_submission_duration");
         const lastEntry = entries[entries.length - 1];
         if (lastEntry) {
-          console.log(`⚡ [Performance] Print order ${orderCode} submission completed in ${Math.round(lastEntry.duration)}ms`);
+          console.log(`⚡ [Performance] Print order ${finalOrderCode} confirmed in ${Math.round(lastEntry.duration)}ms`);
         }
       } catch {}
     }
 
-    return { success: true, orderCode, orderId };
+    return { success: true, orderCode: finalOrderCode, orderId: finalOrderId };
   })();
 
-  inFlightPrintSubmissions.set(subKey, executionPromise);
+  inFlightPrintSubmissions.set(clientSubmissionId, executionPromise);
   setTimeout(() => {
-    inFlightPrintSubmissions.delete(subKey);
-  }, 4000);
+    inFlightPrintSubmissions.delete(clientSubmissionId);
+  }, 6000);
 
   try {
     return await executionPromise;
   } finally {
-    inFlightPrintSubmissions.delete(subKey);
+    inFlightPrintSubmissions.delete(clientSubmissionId);
   }
 }
 
@@ -1473,4 +1693,310 @@ export async function logAdminAudit(payload: AdminAuditPayload): Promise<void> {
   } catch (err) {
     console.warn("[Palak Audit Engine] Failed to record audit log:", err);
   }
+}
+
+// ==============================================================================
+// 8. PRINT JOB ORCHESTRATION & ADMIN PRINT CENTER
+// ==============================================================================
+
+const PRINT_JOBS_LOCAL_KEY = "palak_print_jobs_v1";
+
+function getLocalPrintJobs(): PrintJob[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(PRINT_JOBS_LOCAL_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalPrintJobs(jobs: PrintJob[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(PRINT_JOBS_LOCAL_KEY, JSON.stringify(jobs));
+  } catch (e) {
+    console.warn("Local print jobs cache note:", e);
+  }
+}
+
+export async function getPrintJobs(): Promise<PrintJob[]> {
+  const localList = getLocalPrintJobs();
+  if (!isSupabaseConfigured || !supabase) {
+    return localList;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("print_jobs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.warn("getPrintJobs error, returning local cache:", error.message);
+      return localList;
+    }
+
+    const mapped: PrintJob[] = (data || []).map((row: any) => ({
+      id: row.id,
+      orderId: row.order_id,
+      orderCode: row.order_code,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      status: row.status,
+      items: Array.isArray(row.items) ? row.items : [],
+      overrides: Array.isArray(row.overrides) ? row.overrides : [],
+      auditLogs: Array.isArray(row.audit_logs) ? row.audit_logs : [],
+      createdByName: row.created_by_name,
+      startedAt: row.started_at,
+      completedAt: row.completed_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    saveLocalPrintJobs(mapped);
+    return mapped;
+  } catch (err) {
+    console.warn("getPrintJobs exception, returning local cache:", err);
+    return localList;
+  }
+}
+
+export async function getPrintJobByOrderCode(orderCode: string): Promise<PrintJob | null> {
+  const clean = orderCode.trim().toUpperCase();
+  const allJobs = await getPrintJobs();
+  const found = allJobs.find((j) => j.orderCode.toUpperCase() === clean);
+  return found || null;
+}
+
+export async function createOrUpdatePrintJob(
+  jobData: Partial<PrintJob> & { orderId: string; orderCode: string; customerName: string; customerPhone: string }
+): Promise<PrintJob | null> {
+  const localJobs = getLocalPrintJobs();
+  const existingIdx = localJobs.findIndex((j) => j.orderCode.toUpperCase() === jobData.orderCode.toUpperCase());
+
+  const newJob: PrintJob = {
+    id: jobData.id || (existingIdx !== -1 ? localJobs[existingIdx].id : `pj_${Date.now()}`),
+    orderId: jobData.orderId,
+    orderCode: jobData.orderCode,
+    customerName: jobData.customerName,
+    customerPhone: jobData.customerPhone,
+    status: jobData.status || (existingIdx !== -1 ? localJobs[existingIdx].status : "PENDING"),
+    items: jobData.items || (existingIdx !== -1 ? localJobs[existingIdx].items : []),
+    overrides: jobData.overrides || (existingIdx !== -1 ? localJobs[existingIdx].overrides : []),
+    auditLogs: jobData.auditLogs || (existingIdx !== -1 ? localJobs[existingIdx].auditLogs : []),
+    createdByName: jobData.createdByName || "Admin Staff",
+    startedAt: jobData.startedAt,
+    completedAt: jobData.completedAt,
+    createdAt: existingIdx !== -1 ? localJobs[existingIdx].createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (existingIdx !== -1) {
+    localJobs[existingIdx] = newJob;
+  } else {
+    localJobs.unshift(newJob);
+  }
+  saveLocalPrintJobs(localJobs);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("print_jobs")
+        .upsert(
+          {
+            order_id: jobData.orderId,
+            order_code: jobData.orderCode,
+            customer_name: jobData.customerName,
+            customer_phone: jobData.customerPhone,
+            status: newJob.status,
+            items: newJob.items as any,
+            overrides: newJob.overrides as any,
+            audit_logs: newJob.auditLogs as any,
+            created_by_name: newJob.createdByName,
+            started_at: newJob.startedAt,
+            completed_at: newJob.completedAt,
+            updated_at: newJob.updatedAt,
+          },
+          { onConflict: "order_id" }
+        )
+        .select()
+        .single();
+
+      if (!error && data) {
+        return {
+          id: data.id,
+          orderId: data.order_id,
+          orderCode: data.order_code,
+          customerName: data.customer_name,
+          customerPhone: data.customer_phone,
+          status: data.status,
+          items: data.items || [],
+          overrides: data.overrides || [],
+          auditLogs: data.audit_logs || [],
+          createdByName: data.created_by_name,
+          startedAt: data.started_at,
+          completedAt: data.completed_at,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+        };
+      }
+    } catch (err) {
+      console.warn("createOrUpdatePrintJob cloud sync notice:", err);
+    }
+  }
+
+  return newJob;
+}
+
+export const VALID_PRINT_JOB_TRANSITIONS: Record<PrintJobStatus, PrintJobStatus[]> = {
+  PENDING: ["READY_TO_PRINT", "CANCELLED"],
+  READY_TO_PRINT: ["PRINTING", "PENDING", "CANCELLED"],
+  PRINTING: ["PRINTED", "FAILED", "READY_TO_PRINT", "CANCELLED"],
+  PRINTED: ["QUALITY_CHECK", "PRINTING", "FAILED", "CANCELLED"],
+  QUALITY_CHECK: ["READY", "PRINTING", "FAILED", "CANCELLED"],
+  READY: ["COMPLETED", "QUALITY_CHECK", "CANCELLED"],
+  FAILED: ["READY_TO_PRINT", "PRINTING", "CANCELLED"],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
+export async function updatePrintJobStatus(
+  orderCode: string,
+  newStatus: PrintJobStatus,
+  performedBy: string,
+  notes?: string
+): Promise<{ success: boolean; error?: string }> {
+  const jobs = getLocalPrintJobs();
+  const idx = jobs.findIndex((j) => j.orderCode.toUpperCase() === orderCode.trim().toUpperCase());
+  const currentStatus: PrintJobStatus = idx !== -1 ? jobs[idx].status : "PENDING";
+  const now = new Date().toISOString();
+
+  // Validate state transition
+  if (currentStatus !== newStatus) {
+    const allowed = VALID_PRINT_JOB_TRANSITIONS[currentStatus] || [];
+    if (!allowed.includes(newStatus)) {
+      const msg = `Invalid print job status transition from ${currentStatus} to ${newStatus}.`;
+      console.warn(`[updatePrintJobStatus] ${msg}`);
+      return { success: false, error: msg };
+    }
+  }
+
+  const auditEntry: PrintAuditLog = {
+    id: `log_${Date.now()}`,
+    jobId: idx !== -1 ? jobs[idx].id : `pj_${Date.now()}`,
+    orderCode,
+    action: `STATUS_CHANGED_${newStatus}`,
+    performedBy: performedBy || "Admin Staff",
+    timestamp: now,
+    notes: notes || `Print job status transitioned from ${currentStatus} to ${newStatus}`,
+  };
+
+  if (idx !== -1) {
+    jobs[idx].status = newStatus;
+    jobs[idx].updatedAt = now;
+    if (newStatus === "PRINTING" && !jobs[idx].startedAt) {
+      jobs[idx].startedAt = now;
+    }
+    if ((newStatus === "COMPLETED" || newStatus === "PRINTED") && !jobs[idx].completedAt) {
+      jobs[idx].completedAt = now;
+    }
+    jobs[idx].auditLogs = [auditEntry, ...(jobs[idx].auditLogs || [])];
+    saveLocalPrintJobs(jobs);
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: currentJob } = await supabase
+        .from("print_jobs")
+        .select("id, status, audit_logs")
+        .eq("order_code", orderCode.trim().toUpperCase())
+        .maybeSingle();
+
+      if (currentJob?.id) {
+        const dbStatus = (currentJob.status as PrintJobStatus) || "PENDING";
+        if (dbStatus !== newStatus && !VALID_PRINT_JOB_TRANSITIONS[dbStatus]?.includes(newStatus)) {
+          return { success: false, error: `Database rejected transition from ${dbStatus} to ${newStatus}` };
+        }
+
+        const existingLogs = Array.isArray(currentJob.audit_logs) ? currentJob.audit_logs : [];
+        const updatePayload: Record<string, any> = {
+          status: newStatus,
+          audit_logs: [auditEntry, ...existingLogs],
+          updated_at: now,
+        };
+        if (newStatus === "PRINTING") updatePayload.started_at = now;
+        if (newStatus === "COMPLETED" || newStatus === "PRINTED") updatePayload.completed_at = now;
+
+        await supabase
+          .from("print_jobs")
+          .update(updatePayload)
+          .eq("id", currentJob.id);
+      }
+    } catch (err: any) {
+      console.warn("updatePrintJobStatus notice:", err);
+    }
+  }
+
+  return { success: true };
+}
+
+export async function addPrintJobOverride(
+  orderCode: string,
+  override: AdminPrintOverride,
+  performedBy: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!override.reason || !override.reason.trim()) {
+    return { success: false, error: "Override reason is strictly required." };
+  }
+
+  const jobs = getLocalPrintJobs();
+  const idx = jobs.findIndex((j) => j.orderCode.toUpperCase() === orderCode.trim().toUpperCase());
+  const now = new Date().toISOString();
+
+  const auditEntry: PrintAuditLog = {
+    id: `log_${Date.now()}`,
+    jobId: idx !== -1 ? jobs[idx].id : `pj_${Date.now()}`,
+    orderCode,
+    action: "ADMIN_OVERRIDE",
+    performedBy: performedBy || "Admin Staff",
+    timestamp: now,
+    notes: `Changed ${override.field} for ${override.fileName} from "${String(override.requestedValue)}" to "${String(override.actualValue)}". Reason: ${override.reason.trim()}`,
+    details: { override },
+  };
+
+  if (idx !== -1) {
+    jobs[idx].overrides = [override, ...(jobs[idx].overrides || [])];
+    jobs[idx].auditLogs = [auditEntry, ...(jobs[idx].auditLogs || [])];
+    jobs[idx].updatedAt = now;
+    saveLocalPrintJobs(jobs);
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: currentJob } = await supabase
+        .from("print_jobs")
+        .select("id, overrides, audit_logs")
+        .eq("order_code", orderCode.trim().toUpperCase())
+        .maybeSingle();
+
+      if (currentJob?.id) {
+        const existingOverrides = Array.isArray(currentJob.overrides) ? currentJob.overrides : [];
+        const existingLogs = Array.isArray(currentJob.audit_logs) ? currentJob.audit_logs : [];
+
+        await supabase
+          .from("print_jobs")
+          .update({
+            overrides: [override, ...existingOverrides],
+            audit_logs: [auditEntry, ...existingLogs],
+            updated_at: now,
+          })
+          .eq("id", currentJob.id);
+      }
+    } catch (err: any) {
+      console.warn("addPrintJobOverride notice:", err);
+    }
+  }
+
+  return { success: true };
 }

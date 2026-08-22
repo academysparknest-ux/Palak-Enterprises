@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   ChevronLeft,
@@ -19,6 +20,7 @@ import {
 } from "../config/samples";
 import SampleImage from "./SampleImage";
 import { getWhatsAppLink } from "../config/business";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { cn } from "../lib/utils";
 
 interface GalleryProps {
@@ -106,6 +108,8 @@ export default function Gallery({
     lightboxIndex !== null && filteredItems[lightboxIndex]
       ? filteredItems[lightboxIndex]
       : null;
+
+  useScrollLock(Boolean(activeItem));
 
   return (
     <section id="gallery" className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
@@ -301,19 +305,22 @@ export default function Gallery({
       </div>
 
       {/* Lightbox Modal */}
-      {activeItem && (
+      {activeItem && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm animate-fadeIn"
+          className="fixed inset-0 z-[140] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/90 backdrop-blur-sm animate-in fade-in duration-200"
           role="dialog"
           aria-modal="true"
           aria-label={activeItem.title[currentLang]}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeLightbox();
+          }}
         >
           {/* Close button */}
           <button
             type="button"
             onClick={closeLightbox}
             aria-label={t.close[currentLang]}
-            className="absolute right-4 top-4 z-10 rounded-full bg-white/20 p-2.5 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
+            className="absolute right-4 top-4 z-20 rounded-full bg-white/20 p-2.5 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
           >
             <X size={24} />
           </button>
@@ -323,7 +330,7 @@ export default function Gallery({
             type="button"
             onClick={prevLightbox}
             aria-label={t.previous[currentLang]}
-            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-10 rounded-full bg-white/20 p-3 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
+            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 rounded-full bg-white/20 p-3 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
           >
             <ChevronLeft size={28} />
           </button>
@@ -333,14 +340,14 @@ export default function Gallery({
             type="button"
             onClick={nextLightbox}
             aria-label={t.next[currentLang]}
-            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-10 rounded-full bg-white/20 p-3 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
+            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 rounded-full bg-white/20 p-3 text-white backdrop-blur hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
           >
             <ChevronRight size={28} />
           </button>
 
           {/* Modal Card Box */}
           <div
-            className="relative flex flex-col lg:flex-row max-h-[90vh] max-w-4xl w-full overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="relative flex flex-col lg:flex-row max-h-[calc(100dvh-1.25rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[min(90vh,860px)] max-w-4xl w-full overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Image Section */}
@@ -367,7 +374,7 @@ export default function Gallery({
             </div>
 
             {/* Information & Action Sidebar */}
-            <div className="flex flex-col justify-between p-6 lg:w-80 bg-white border-t lg:border-t-0 lg:border-l border-slate-200">
+            <div className="flex flex-col justify-between p-6 lg:w-80 bg-white border-t lg:border-t-0 lg:border-l border-slate-200 overflow-y-auto overscroll-contain">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   {currentLang === "hi" ? "नमूना डिज़ाइन" : "Sample Design"}
@@ -425,7 +432,8 @@ export default function Gallery({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );

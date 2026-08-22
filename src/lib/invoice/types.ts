@@ -56,6 +56,7 @@ export interface InvoiceBusinessSnapshot {
   udyamNo: string;
   gstin?: string;
   logoUrl: string;
+  upiId?: string;
   terms: string[];
 }
 
@@ -65,7 +66,6 @@ export interface StoredInvoice {
   source: "ONLINE" | "ADMIN" | "OFFLINE";
   documentType: "TAX_INVOICE" | "RETAIL_BILL";
   financialYear: string; // e.g. "2026-27"
-  temporaryNumber?: string; // e.g. "TEMP-2026-XXXXXX"
   orderId?: string;
   orderCode?: string;
   userId?: string;
@@ -91,6 +91,7 @@ export interface StoredInvoice {
   amountDue: number;
   paymentStatus: "pending" | "confirmed" | "paid" | "failed" | "refunded" | "partially_paid";
   paymentMethod: "pay_online" | "pay_at_shop" | "pay_at_store" | "pay_after_confirmation" | "upi_online" | "cash" | "upi" | "card" | "bank_transfer" | "other" | string;
+  paymentReference?: string;
   status: "DRAFT" | "ISSUED" | "CANCELLED" | "VOID" | "PENDING_SYNC";
   signatureUrl?: string;
   createdBy?: string;
@@ -100,8 +101,6 @@ export interface StoredInvoice {
   cancellationReason?: string;
   syncStatus?: "SYNCED" | "LOCAL_PENDING" | "RECONCILIATION_REQUIRED";
   isTemporary?: boolean;
-  reconciledAt?: string;
-  reconciliationNotes?: string;
   createdAt: string;
   updatedAt: string;
 }

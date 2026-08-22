@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Search, X, SlidersHorizontal, ArrowUpDown, Check } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import {
@@ -9,6 +10,7 @@ import {
   PRICE_RANGES,
   SORT_OPTIONS,
 } from "./weddingConstants";
+import { useScrollLock } from "../../hooks/useScrollLock";
 import { cn } from "../../lib/utils";
 
 export interface FilterState {
@@ -37,6 +39,19 @@ export const CatalogueToolbar: React.FC<CatalogueToolbarProps> = ({
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
+  useScrollLock(isMobileDrawerOpen);
+
+  useEffect(() => {
+    if (!isMobileDrawerOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsMobileDrawerOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isMobileDrawerOpen]);
 
   const hasActiveFilters =
     filters.occasion !== "all" ||
@@ -246,10 +261,19 @@ export const CatalogueToolbar: React.FC<CatalogueToolbarProps> = ({
       </div>
 
       {/* Mobile Filter Modal / Drawer */}
-      {isMobileDrawerOpen && (
-        <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-xs animate-fadeUp">
-          <div className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl border border-slate-200 p-6 space-y-5 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      {isMobileDrawerOpen && typeof document !== "undefined" && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={currentLang === "hi" ? "फ़िल्टर विकल्प" : "Filter Options"}
+          className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center bg-slate-950/70 p-0 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setIsMobileDrawerOpen(false)}
+        >
+          <div
+            className="relative flex flex-col w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl border border-slate-200 max-h-[calc(100dvh-1.25rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[min(90vh,760px)] overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 p-5 sm:p-6 pb-4 shrink-0 bg-white">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-[#881337]" />
                 <span>{currentLang === "hi" ? "फ़िल्टर विकल्प" : "Filter Options"}</span>
@@ -261,6 +285,8 @@ export const CatalogueToolbar: React.FC<CatalogueToolbarProps> = ({
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 space-y-5">
 
             {/* 1. Occasion */}
             <div className="space-y-2">
@@ -359,28 +385,30 @@ export const CatalogueToolbar: React.FC<CatalogueToolbarProps> = ({
             </div>
 
             {/* Bottom Actions */}
-            <div className="pt-3 border-t border-slate-100 flex items-center gap-3">
+            <div className="pt-3 border-t border-slate-100 flex items-center gap-3 shrink-0">
               <button
                 onClick={() => {
                   onResetFilters();
                   setIsMobileDrawerOpen(false);
                 }}
-                className="flex-1 py-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 {currentLang === "hi" ? "रीसेट करें" : "Reset Filters"}
               </button>
               <button
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="flex-1 py-3 rounded-xl bg-[#881337] text-white text-xs font-bold hover:bg-[#700f2d]"
+                className="flex-1 py-3 rounded-xl bg-[#881337] text-white text-xs font-bold hover:bg-[#700f2d] cursor-pointer"
               >
                 {currentLang === "hi" ? `देखें (${totalCount} कार्ड)` : `Apply (${totalCount} Cards)`}
               </button>
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>,
+      document.body
+    )}
+  </div>
+);
 };
 
 export default CatalogueToolbar;

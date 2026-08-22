@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { StoredInvoice, InvoiceItem, InvoiceCustomerSnapshot } from "../../lib/invoice/types";
 import { PalakInvoiceStore, roundCurrency } from "../../lib/invoice/invoiceStore";
+import { useScrollLock } from "../../hooks/useScrollLock";
 import {
   X,
   Plus,
@@ -35,6 +37,18 @@ export const AdminCreateBillModal: React.FC<AdminCreateBillModalProps> = ({
   draftToEdit = null,
   adminName = "Admin Staff",
 }) => {
+  useScrollLock(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
   // Document Type
   const [documentType, setDocumentType] = useState<"TAX_INVOICE" | "RETAIL_BILL">(
     draftToEdit?.documentType || "TAX_INVOICE"
@@ -254,7 +268,7 @@ export const AdminCreateBillModal: React.FC<AdminCreateBillModalProps> = ({
     const customer = buildCustomerSnapshot();
     const mockPreviewInvoice: StoredInvoice = {
       id: draftToEdit?.id || `preview_${Date.now()}`,
-      invoiceNumber: draftToEdit?.invoiceNumber || "PREVIEW-BILL",
+      invoiceNumber: draftToEdit?.invoiceNumber || "DRAFT (Unissued)",
       source: "ADMIN",
       documentType,
       financialYear: "2026-27",
@@ -314,14 +328,22 @@ export const AdminCreateBillModal: React.FC<AdminCreateBillModalProps> = ({
     }
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 print:hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label={draftToEdit ? "Edit Bill / Draft" : "Create Professional A4 Bill"}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150 print:hidden"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-4xl max-h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+      <div 
+        className="relative flex flex-col w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] md:max-h-[min(94vh,940px)] bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* ─── Modal Top Bar ─────────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-5 py-3.5 bg-[#123B70] text-white shrink-0">
           <div className="flex items-center gap-2.5">
@@ -348,7 +370,7 @@ export const AdminCreateBillModal: React.FC<AdminCreateBillModalProps> = ({
         </div>
 
         {/* ─── Scrollable Form Body ───────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-slate-50">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-5 bg-slate-50">
           {error && (
             <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-800 text-xs flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
@@ -812,7 +834,8 @@ export const AdminCreateBillModal: React.FC<AdminCreateBillModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { business, getWhatsAppLink, getCallLink } from "../config/business";
+import { useScrollLock } from "../hooks/useScrollLock";
 import {
   X,
   Phone,
@@ -47,6 +49,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   const { user, isAuthenticated, isStaff, logout } = useAuth();
   const location = useLocation();
 
+  useScrollLock(isOpen);
+
   // Separate state for Services submenu expansion (does not close drawer)
   const [isServicesExpanded, setIsServicesExpanded] = useState(false);
 
@@ -59,12 +63,9 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
     }
   }, [location.pathname, onClose]);
 
-  // Handle body scroll locking & ESC key
+  // Handle ESC key
   useEffect(() => {
     if (!isOpen) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -74,7 +75,6 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
@@ -162,7 +162,9 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
     },
   ];
 
-  return (
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[120] overflow-hidden lg:hidden"
       role="dialog"
@@ -171,7 +173,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
     >
       {/* Backdrop: Clicking overlay closes menu */}
       <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-fadeUp"
+        className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -209,7 +211,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
           </div>
 
           {/* Links Body */}
-          <div className="p-3.5 sm:p-4 overflow-y-auto space-y-3.5 flex-1 bg-slate-50/60">
+          <div className="p-3.5 sm:p-4 overflow-y-auto overscroll-contain space-y-3.5 flex-1 bg-slate-50/60">
             {/* Mobile Auth Quick Action Bar (Top) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs">
               {isAuthenticated ? (
@@ -469,7 +471,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -328,3 +328,146 @@ CREATE POLICY "Anyone can create design requests" ON public.design_requests FOR 
 
 CREATE POLICY "Public can view status history for tracking" ON public.order_status_history FOR SELECT USING (true);
 CREATE POLICY "System/Staff can insert status history" ON public.order_status_history FOR INSERT WITH CHECK (true);
+
+-- ------------------------------------------------------------------------------
+-- 12. HIGH-PERFORMANCE DATABASE INDEXES
+-- ------------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_orders_status_created ON public.orders(order_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_created ON public.orders(payment_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_order_code ON public.orders(order_code);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_service_requests_status_created ON public.service_requests(request_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_service_requests_code ON public.service_requests(request_code);
+CREATE INDEX IF NOT EXISTS idx_quote_requests_status_created ON public.quote_requests(quote_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quote_requests_code ON public.quote_requests(quote_code);
+CREATE INDEX IF NOT EXISTS idx_design_requests_status_created ON public.design_requests(design_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_entity ON public.order_status_history(entity_code, created_at DESC);
+
+-- ------------------------------------------------------------------------------
+-- 13. INVOICES & VERIFICATION LEDGER
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_number TEXT NOT NULL UNIQUE,
+    financial_year TEXT NOT NULL DEFAULT '2026-27',
+    sequence_number INT NOT NULL,
+    document_type TEXT NOT NULL DEFAULT 'TAX_INVOICE',
+    order_code TEXT,
+    order_id UUID,
+    customer_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+    business_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    subtotal_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    delivery_fee NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    other_charges NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    total_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    amount_paid NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    amount_due NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+    payment_status TEXT NOT NULL DEFAULT 'pending',
+    payment_method TEXT NOT NULL DEFAULT 'pay_at_store',
+    status TEXT NOT NULL DEFAULT 'ISSUED',
+    source TEXT NOT NULL DEFAULT 'ONLINE_STORE',
+    cancellation_reason TEXT,
+    invoice_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    completion_date TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_invoice_number ON public.invoices(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_invoices_order_code ON public.invoices(order_code);
+CREATE INDEX IF NOT EXISTS idx_invoices_created_at ON public.invoices(created_at DESC);
+
+-- Enable RLS on Invoices
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Staff can view and manage all invoices" ON public.invoices
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.staff_profiles
+            WHERE staff_profiles.user_id = auth.uid()
+               OR staff_profiles.email = auth.jwt() ->> 'email'
+        )
+    );
+
+-- Authoritative Public Verification Function
+CREATE OR REPLACE FUNCTION public.verify_invoice_authenticity(p_invoice_number TEXT)
+RETURNS JSONB AS $$
+DECLARE
+    v_clean_num TEXT;
+    v_is_uuid BOOLEAN;
+    v_inv RECORD;
+    v_status TEXT;
+    v_is_cancelled BOOLEAN;
+BEGIN
+    v_clean_num := UPPER(TRIM(COALESCE(p_invoice_number, '')));
+
+    IF v_clean_num = '' OR LENGTH(v_clean_num) > 64 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INVALID_INVOICE_IDENTIFIER');
+    END IF;
+
+    IF v_clean_num !~ '^[A-Z0-9\-_/]+$' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INVALID_INVOICE_IDENTIFIER');
+    END IF;
+
+    IF v_clean_num LIKE 'TEMP-%' OR v_clean_num LIKE 'DRAFT-%' OR v_clean_num LIKE 'LOCAL-%' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INVALID_INVOICE_IDENTIFIER');
+    END IF;
+
+    v_is_uuid := (p_invoice_number ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$');
+
+    IF v_is_uuid THEN
+        SELECT * INTO v_inv
+        FROM public.invoices
+        WHERE UPPER(invoice_number) = v_clean_num
+           OR id = p_invoice_number::UUID
+        ORDER BY created_at DESC
+        LIMIT 1;
+    ELSE
+        SELECT * INTO v_inv
+        FROM public.invoices
+        WHERE UPPER(invoice_number) = v_clean_num
+        ORDER BY created_at DESC
+        LIMIT 1;
+    END IF;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INVOICE_NOT_FOUND');
+    END IF;
+
+    v_status := UPPER(COALESCE(v_inv.status, 'ISSUED'));
+    v_is_cancelled := (v_status IN ('CANCELLED', 'VOID'));
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'isValid', (NOT v_is_cancelled),
+        'isCancelled', v_is_cancelled,
+        'invoiceNumber', v_inv.invoice_number,
+        'invoiceDate', v_inv.invoice_date,
+        'completionDate', v_inv.completion_date,
+        'documentType', COALESCE(v_inv.document_type, 'TAX_INVOICE'),
+        'financialYear', COALESCE(v_inv.financial_year, '2026-27'),
+        'orderCode', v_inv.order_code,
+        'source', COALESCE(v_inv.source, 'OFFICIAL'),
+        'totalAmount', COALESCE(v_inv.total_amount, 0.00),
+        'amountPaid', COALESCE(v_inv.amount_paid, 0.00),
+        'amountDue', COALESCE(v_inv.amount_due, 0.00),
+        'paymentStatus', COALESCE(v_inv.payment_status, 'pending'),
+        'paymentMethod', COALESCE(v_inv.payment_method, 'pay_at_store'),
+        'status', v_status,
+        'businessName', 'Palak Enterprises',
+        'itemCount', jsonb_array_length(COALESCE(v_inv.items, '[]'::jsonb)),
+        'cancellationReason', v_inv.cancellation_reason,
+        'verifiedAt', timezone('utc'::text, now())
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+REVOKE ALL ON FUNCTION public.verify_invoice_authenticity(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.verify_invoice_authenticity(TEXT) TO anon, authenticated;
+
+

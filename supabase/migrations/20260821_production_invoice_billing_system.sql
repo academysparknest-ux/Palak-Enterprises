@@ -230,7 +230,7 @@ BEGIN
     v_subtotal := ROUND(GREATEST(COALESCE(v_order.subtotal_amount, 0.00), 0.00), 2);
     v_discount := ROUND(GREATEST(COALESCE(v_order.discount_amount, 0.00), 0.00), 2);
     v_taxable := ROUND(GREATEST(v_subtotal - v_discount, 0.00), 2);
-    v_tax := ROUND(GREATEST(COALESCE(v_order.tax_amount, 0.00), 0.00), 2);
+    v_tax := 0.00;
     v_delivery := ROUND(GREATEST(COALESCE(v_order.delivery_fee, 0.00), 0.00), 2);
     v_total := ROUND(COALESCE(v_order.total_amount, (v_taxable + v_tax + v_delivery)), 2);
     
