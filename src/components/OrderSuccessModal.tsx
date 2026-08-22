@@ -47,31 +47,43 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
 
   const [copied, setCopied] = useState(false);
   const modalScrollRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    // 1. Capture current scroll position before locking background
+    // 1. Save reference to previously active element for focus restoration
+    previousActiveElement.current = document.activeElement as HTMLElement | null;
+
+    // 2. Capture current scroll position before locking background
     const scrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
 
-    // 2. Capture existing inline body styles
+    // 3. Capture existing inline body styles to restore faithfully
     const originalOverflow = document.body.style.overflow;
     const originalPosition = document.body.style.position;
     const originalTop = document.body.style.top;
     const originalWidth = document.body.style.width;
+    const originalPaddingRight = document.body.style.paddingRight;
 
-    // 3. Freeze body firmly in place without visual jumping
+    // 4. Calculate desktop scrollbar width to prevent horizontal layout shift
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    // 5. Freeze body firmly in place without visual jumping
     document.body.style.overflow = "hidden";
     document.body.style.position = "fixed";
     document.body.style.top = `-${scrollY}px`;
     document.body.style.width = "100%";
-
-    // 4. Ensure modal itself starts strictly at top 0
-    if (modalScrollRef.current) {
-      modalScrollRef.current.scrollTop = 0;
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
     }
 
-    // 5. Escape key dismiss
+    // 6. Ensure modal itself starts strictly at top 0 and receives focus
+    if (modalScrollRef.current) {
+      modalScrollRef.current.scrollTop = 0;
+      modalScrollRef.current.focus?.();
+    }
+
+    // 7. Escape key dismiss
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
@@ -80,13 +92,19 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      // 6. Clean up: restore original body styles and exact background scroll position
+      // 8. Clean up: restore original body styles and exact background scroll position
       document.body.style.overflow = originalOverflow;
       document.body.style.position = originalPosition;
       document.body.style.top = originalTop;
       document.body.style.width = originalWidth;
+      document.body.style.paddingRight = originalPaddingRight;
       window.scrollTo(0, scrollY);
       window.removeEventListener("keydown", handleKeyDown);
+
+      // 9. Restore focus to the trigger element
+      if (previousActiveElement.current && typeof previousActiveElement.current.focus === "function") {
+        previousActiveElement.current.focus();
+      }
     };
   }, [isOpen, onClose]);
 
@@ -118,7 +136,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
     >
       <div className="min-h-full min-h-[100dvh] w-full flex items-start justify-center p-3 sm:p-4 md:p-6 py-6 sm:py-10">
         <div
-          className="relative w-full max-w-lg rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 text-left transition-all my-auto"
+          className="relative w-full max-w-lg rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:p-8 shadow-2xl space-y-4 sm:space-y-6 text-left transition-all"
           style={{ animation: "scaleIn 300ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
           onClick={(e) => e.stopPropagation()}
         >
