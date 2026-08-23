@@ -25,8 +25,8 @@ export function formatCurrency(amount?: number): string {
 
 /**
  * Canonical Palak Enterprises A4 Invoice Document.
- * Used identically for: Screen Preview, PDF Download, Browser Print, and Instant Print.
- * Strictly formatted for 210mm x 297mm single-page A4 output.
+ * Used identically for: Screen Preview, PDF Download, and Browser Print.
+ * Formatted cleanly for single-page A4 output or natural multi-page pagination.
  */
 export const InvoiceView: React.FC<InvoiceViewProps> = ({
   invoice,
@@ -65,7 +65,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
     <div
       id={elementId}
       className={cn(
-        "palak-invoice-root bg-white text-slate-900 mx-auto w-full max-w-[794px] min-h-[1050px] p-6 sm:p-7 rounded-none border border-slate-200 shadow-sm text-xs leading-normal font-sans flex flex-col justify-between print:shadow-none print:border-0 print:p-0 print:m-0 print:max-w-none print:min-h-0 print:w-[210mm] print:h-[297mm] print:overflow-hidden",
+        "palak-invoice-root bg-white text-slate-900 mx-auto w-full max-w-[794px] min-h-[1050px] p-6 sm:p-7 rounded-none border border-slate-200 shadow-sm text-xs leading-normal font-sans flex flex-col justify-between print:shadow-none print:border-0 print:p-0 print:m-0 print:max-w-none print:min-h-0 print:w-full print:h-auto print:overflow-visible",
         className
       )}
       style={{
@@ -102,7 +102,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
         )}
 
         {/* ─── 1. Header Banner & Business Identity ──────────────────────── */}
-        <div className="invoice-section-avoid-break flex flex-row justify-between items-start gap-3 pb-2.5 border-b-2 border-slate-900">
+        <div className="invoice-header invoice-section-avoid-break flex flex-row justify-between items-start gap-3 pb-2.5 border-b-2 border-slate-900">
           {/* Left: Logo & Identity */}
           <div className="flex items-start gap-3">
             <img
@@ -280,7 +280,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
             <tbody className="divide-y divide-slate-200">
               {invoice.items && invoice.items.length > 0 ? (
                 invoice.items.map((item, idx) => (
-                  <tr key={idx} className="invoice-row-avoid-break hover:bg-slate-50/50">
+                  <tr key={idx} className="invoice-item invoice-row-avoid-break hover:bg-slate-50/50">
                     <td className="py-1.5 px-1.5 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
                     <td className="py-1.5 px-2">
                       <div className="font-bold text-slate-900 text-[11px] leading-snug">{item.productName}</div>
@@ -331,7 +331,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
       {/* ─── BOTTOM SECTION: Financials + QR + Terms & Signature ─────────── */}
       <div className="space-y-2 pt-2">
         {/* ─── 4. Totals Layout Grid: Left (Words) + Center (QR) + Right (Totals) ─── */}
-        <div className="invoice-totals-avoid-break grid grid-cols-12 gap-3 pt-2 pb-1.5 border-t-2 border-slate-900 items-start">
+        <div className="invoice-section invoice-totals-avoid-break grid grid-cols-12 gap-3 pt-2 pb-1.5 border-t-2 border-slate-900 items-start">
           {/* Left Column (5 cols): Amount in Words */}
           <div className="col-span-5 space-y-2">
             <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200">
@@ -461,7 +461,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
         </div>
 
         {/* ─── 5. Terms & Conditions and Dedicated Signature Area ─────────── */}
-        <div className="invoice-footer-avoid-break pt-1.5 border-t border-slate-200 grid grid-cols-12 gap-3 items-end text-[9px] text-slate-500">
+        <div className="invoice-section invoice-footer-avoid-break pt-1.5 border-t border-slate-200 grid grid-cols-12 gap-3 items-end text-[9px] text-slate-500">
           {/* Left: Terms & Conditions (7 cols) */}
           <div className="col-span-7">
             <span className="font-bold text-slate-700 uppercase tracking-wider block mb-0.5">

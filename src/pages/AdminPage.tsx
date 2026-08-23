@@ -72,7 +72,7 @@ import { AdminCreateBillModal } from "../components/admin/AdminCreateBillModal";
 import { useScrollLock } from "../hooks/useScrollLock";
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
-import { downloadInvoicePDF, instantPrintInvoice, getWhatsAppInvoiceShareLink } from "../lib/invoice/pdfUtils";
+import { downloadInvoicePDF, printInvoiceElement, shareInvoiceOnWhatsApp } from "../lib/invoice/pdfUtils";
 import { cn } from "../lib/utils";
 import {
   sortPrintingQueue,
@@ -430,6 +430,7 @@ export const AdminPage: React.FC = () => {
   const [invoicePaymentFilter, setInvoicePaymentFilter] = useState<"ALL" | "PAID" | "PENDING">("ALL");
   const [invoiceDateFilter, setInvoiceDateFilter] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL");
   const [generatingInvoiceCode, setGeneratingInvoiceCode] = useState<string | null>(null);
+  const [sharingInvoiceNumber, setSharingInvoiceNumber] = useState<string | null>(null);
 
   // Active Document Preview in Modal
   const [activePreviewDoc, setActivePreviewDoc] = useState<DocumentItem | null>(null);
@@ -716,6 +717,22 @@ export const AdminPage: React.FC = () => {
     if (inv) {
       setSelectedInvoiceForModal(inv);
       await loadData();
+    }
+  };
+
+  const handleShareInvoiceWhatsApp = async (inv: StoredInvoice) => {
+    if (!inv || sharingInvoiceNumber === inv.invoiceNumber) return;
+    setSharingInvoiceNumber(inv.invoiceNumber);
+    try {
+      const res = await shareInvoiceOnWhatsApp(inv);
+      if (!res.success) {
+        alert(res.error || "Unable to prepare bill for WhatsApp sharing.");
+      }
+    } catch (err: any) {
+      console.error("Admin WhatsApp share error:", err);
+      alert(err?.message || "Failed to share bill on WhatsApp.");
+    } finally {
+      setSharingInvoiceNumber(null);
     }
   };
 
@@ -1325,7 +1342,7 @@ export const AdminPage: React.FC = () => {
 
   if (!isStaff && !isNestedInLayout) {
     return (
-      <div className="min-h-screen bg-[#F7F8FA] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 max-w-md text-center space-y-4 shadow-card">
           <div className="h-12 w-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
             <Lock className="h-6 w-6" />
@@ -2030,23 +2047,25 @@ export const AdminPage: React.FC = () => {
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleOpenInvoiceModal(order.orderCode)}
+                                      onClick={async () => {
+                                        await printInvoiceElement(inv);
+                                      }}
                                       className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
-                                      title="Print preview"
+                                      title="Print Bill (A4)"
                                     >
                                       <Printer className="h-3 w-3" />
                                       <span>Print</span>
                                     </button>
-                                    <a
-                                      href={getWhatsAppInvoiceShareLink(inv)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition-colors cursor-pointer"
-                                      title="Send invoice via WhatsApp"
+                                    <button
+                                      type="button"
+                                      onClick={() => handleShareInvoiceWhatsApp(inv)}
+                                      disabled={sharingInvoiceNumber === inv.invoiceNumber}
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                                      title="Send official PDF bill via WhatsApp"
                                     >
-                                      <MessageSquare className="h-3 w-3" />
-                                      <span>Send Bill</span>
-                                    </a>
+                                      <MessageSquare className={cn("h-3 w-3", sharingInvoiceNumber === inv.invoiceNumber && "animate-spin")} />
+                                      <span>{sharingInvoiceNumber === inv.invoiceNumber ? "Sending..." : "Send Bill"}</span>
+                                    </button>
                                   </>
                                 ) : (
                                   <button
@@ -2342,10 +2361,10 @@ export const AdminPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={async () => {
-                                    await instantPrintInvoice(inv);
+                                    await printInvoiceElement(inv);
                                   }}
                                   className="p-1 rounded-md text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
-                                  title="Instant Print (A4)"
+                                  title="Print Bill (A4)"
                                 >
                                   <Printer className="h-3.5 w-3.5" />
                                 </button>
@@ -2359,15 +2378,15 @@ export const AdminPage: React.FC = () => {
                                 >
                                   <Download className="h-3.5 w-3.5" />
                                 </button>
-                                <a
-                                  href={getWhatsAppInvoiceShareLink(inv)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="p-1 rounded-md text-emerald-700 hover:bg-emerald-50 transition-colors"
-                                  title="Send Bill on WhatsApp"
+                                <button
+                                  type="button"
+                                  onClick={() => handleShareInvoiceWhatsApp(inv)}
+                                  disabled={sharingInvoiceNumber === inv.invoiceNumber}
+                                  className="p-1 rounded-md text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-50"
+                                  title="Send official PDF bill via WhatsApp"
                                 >
-                                  <MessageSquare className="h-3.5 w-3.5" />
-                                </a>
+                                  <MessageSquare className={cn("h-3.5 w-3.5", sharingInvoiceNumber === inv.invoiceNumber && "animate-spin")} />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -3773,15 +3792,16 @@ export const AdminPage: React.FC = () => {
                             <span>Print</span>
                           </button>
 
-                          <a
-                            href={getWhatsAppInvoiceShareLink(inv)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition-colors cursor-pointer"
+                          <button
+                            type="button"
+                            onClick={() => handleShareInvoiceWhatsApp(inv)}
+                            disabled={sharingInvoiceNumber === inv.invoiceNumber}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                            title="Send official PDF bill via WhatsApp"
                           >
-                            <MessageSquare className="h-3 w-3" />
-                            <span>Send Bill</span>
-                          </a>
+                            <MessageSquare className={cn("h-3 w-3", sharingInvoiceNumber === inv.invoiceNumber && "animate-spin")} />
+                            <span>{sharingInvoiceNumber === inv.invoiceNumber ? "Sending..." : "Send Bill"}</span>
+                          </button>
 
                           <button
                             type="button"

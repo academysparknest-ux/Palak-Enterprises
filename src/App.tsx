@@ -169,7 +169,7 @@ export function AppContent() {
 
   return (
     <div className={cn(
-      "min-h-screen flex flex-col bg-[#F7F8FA] font-sans selection:bg-[#123B70] selection:text-white",
+      "min-h-screen flex flex-col bg-[#FAF8F5] font-sans selection:bg-[#123B70] selection:text-white",
       !isAdminRoute && "pb-16 md:pb-0"
     )}>
       <StructuredData />

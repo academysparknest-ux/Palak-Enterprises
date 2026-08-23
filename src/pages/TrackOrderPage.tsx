@@ -10,7 +10,7 @@ import { getSingleOrderQueueInfo } from "../lib/queue";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
-import { downloadInvoicePDF, instantPrintInvoice } from "../lib/invoice/pdfUtils";
+import { downloadInvoicePDF, printInvoiceElement } from "../lib/invoice/pdfUtils";
 
 export const TrackOrderPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -92,7 +92,7 @@ export const TrackOrderPage: React.FC = () => {
   const hasAnyResults = orders.length > 0 || services.length > 0 || quotes.length > 0 || designs.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
+    <div className="min-h-screen bg-[#FAF8F5] pb-20">
       {/* Header */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-12 px-4 sm:px-6">
         {/* Ambient background glows */}
@@ -368,7 +368,7 @@ export const TrackOrderPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={async () => {
-                        await instantPrintInvoice(activeInvoice);
+                        await printInvoiceElement(activeInvoice);
                       }}
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                     >

@@ -16,12 +16,15 @@ import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../
 import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
+import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
+import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { cn } from "../../lib/utils";
 
 export const VisitingCardsPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
   const { user } = useAuth();
+  const { isStopped, stopReason } = useQuickServiceAvailability("visiting-cards");
 
   const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
 
@@ -166,6 +169,15 @@ export const VisitingCardsPage: React.FC = () => {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+
+    if (isStopped) {
+      setSubmitError(
+        stopReason
+          ? `Visiting Card Printing is temporarily unavailable (${stopReason}). Please try again later.`
+          : "Visiting Card Printing is currently temporarily paused and not accepting new orders."
+      );
+      return;
+    }
 
     if (mode === "upload" && !uploadedFile) {
       setSubmitError(
@@ -330,7 +342,7 @@ export const VisitingCardsPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
+    <div className="min-h-screen bg-[#FAF8F5] pb-20">
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         {/* Ambient background glows */}
@@ -377,6 +389,12 @@ export const VisitingCardsPage: React.FC = () => {
 
       {/* Main Order Form */}
       <div className="mx-auto max-w-5xl px-4 sm:px-6 -mt-4">
+        {isStopped && (
+          <QuickServiceUnavailableBanner
+            serviceName={currentLang === "hi" ? "विजिटिंग कार्ड प्रिंटिंग" : "Visiting Card Printing"}
+            stopReason={stopReason}
+          />
+        )}
         <form onSubmit={handleSubmitOrder} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left 2 Columns */}
           <div className="lg:col-span-2 space-y-6">
@@ -864,10 +882,21 @@ export const VisitingCardsPage: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] disabled:opacity-50 py-3.5 px-4 text-xs sm:text-sm font-extrabold text-white shadow-card transition-all cursor-pointer"
+                disabled={submitting || isStopped}
+                className={cn(
+                  "w-full flex items-center justify-center gap-2 rounded-xl py-3.5 px-4 text-xs sm:text-sm font-extrabold shadow-card transition-all",
+                  isStopped
+                    ? "bg-slate-300 text-slate-600 border border-slate-300 cursor-not-allowed"
+                    : "bg-[#123B70] hover:bg-[#0c274c] disabled:opacity-50 text-white cursor-pointer"
+                )}
               >
-                {submitting ? (
+                {isStopped ? (
+                  <span>
+                    {currentLang === "hi"
+                      ? "⚠️ सेवा अस्थायी रूप से बंद है (Service Unavailable)"
+                      : "⚠️ Service Temporarily Unavailable"}
+                  </span>
+                ) : submitting ? (
                   <div className="flex items-center gap-2">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     <span>Submitting...</span>

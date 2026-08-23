@@ -33,7 +33,7 @@ export const PrivacyPage: React.FC = () => {
   const currentLang = (lang || language || "en") as "en" | "hi";
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] py-12 px-4 sm:px-6">
+    <div className="min-h-screen bg-[#FAF8F5] py-12 px-4 sm:px-6">
       <SEO
         title={{
           en: "Privacy & Data Security Policy | Palak Enterprises",
@@ -92,7 +92,7 @@ export const TermsPage: React.FC = () => {
   const currentLang = (lang || language || "en") as "en" | "hi";
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] py-12 px-4 sm:px-6">
+    <div className="min-h-screen bg-[#FAF8F5] py-12 px-4 sm:px-6">
       <SEO
         title={{
           en: "Terms of Service & Usage | Palak Enterprises",
@@ -144,7 +144,7 @@ export const RefundPolicyPage: React.FC = () => {
   const isHindi = currentLang === "hi";
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] py-10 sm:py-14 px-4 sm:px-6">
+    <div className="min-h-screen bg-[#FAF8F5] py-10 sm:py-14 px-4 sm:px-6">
       <SEO
         title={{
           en: "Refund & Cancellation Policy | Palak Enterprises Chakia",

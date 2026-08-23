@@ -1357,3 +1357,403 @@ CREATE INDEX IF NOT EXISTS idx_status_history_entity_code ON public.status_histo
 CREATE INDEX IF NOT EXISTS idx_products_slug ON public.products(slug);
 CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category_id);
 CREATE INDEX IF NOT EXISTS idx_services_slug ON public.services(slug);
+
+-- ------------------------------------------------------------------------------
+-- 23. CUSTOMER ORDER VISIBILITY, PROFILE LINKING & INVOICE PAYMENT SYNC
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.link_customer_orders_to_profile(p_user_id UUID, p_phone TEXT DEFAULT NULL, p_email TEXT DEFAULT NULL)
+RETURNS INTEGER AS $$
+DECLARE
+    v_clean_phone TEXT;
+    v_clean_email TEXT;
+    v_linked_count INTEGER := 0;
+BEGIN
+    IF p_user_id IS NULL THEN
+        RETURN 0;
+    END IF;
+
+    v_clean_phone := REGEXP_REPLACE(COALESCE(p_phone, ''), '\D', '', 'g');
+    v_clean_email := LOWER(TRIM(COALESCE(p_email, '')));
+
+    IF v_clean_phone <> '' AND LENGTH(v_clean_phone) >= 10 THEN
+        UPDATE public.orders
+        SET user_id = p_user_id,
+            updated_at = timezone('utc'::text, now())
+        WHERE (user_id IS NULL OR user_id = p_user_id)
+          AND (
+            REGEXP_REPLACE(COALESCE(customer_phone, ''), '\D', '', 'g') = v_clean_phone
+            OR (v_clean_email <> '' AND LOWER(TRIM(COALESCE(customer_email, ''))) = v_clean_email)
+          );
+        GET DIAGNOSTICS v_linked_count = ROW_COUNT;
+    ELSIF v_clean_email <> '' THEN
+        UPDATE public.orders
+        SET user_id = p_user_id,
+            updated_at = timezone('utc'::text, now())
+        WHERE (user_id IS NULL OR user_id = p_user_id)
+          AND LOWER(TRIM(COALESCE(customer_email, ''))) = v_clean_email;
+        GET DIAGNOSTICS v_linked_count = ROW_COUNT;
+    END IF;
+
+    UPDATE public.invoices
+    SET user_id = p_user_id,
+        updated_at = timezone('utc'::text, now())
+    WHERE user_id IS NULL
+      AND order_id IN (
+          SELECT id FROM public.orders WHERE user_id = p_user_id
+      );
+
+    RETURN v_linked_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.get_customer_orders()
+RETURNS JSONB AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_profile RECORD;
+    v_orders JSONB;
+BEGIN
+    IF v_user_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'UNAUTHENTICATED');
+    END IF;
+
+    SELECT * INTO v_profile FROM public.profiles WHERE id = v_user_id;
+    IF FOUND THEN
+        PERFORM public.link_customer_orders_to_profile(v_user_id, v_profile.phone, v_profile.email);
+    END IF;
+
+    SELECT COALESCE(
+        jsonb_agg(
+            jsonb_build_object(
+                'id', o.id,
+                'orderCode', o.order_code,
+                'userId', o.user_id,
+                'customerName', o.customer_name,
+                'customerPhone', o.customer_phone,
+                'customerEmail', o.customer_email,
+                'fulfillmentType', COALESCE(o.fulfillment_type, 'pickup'),
+                'deliveryAddress', o.delivery_address,
+                'orderNotes', o.order_notes,
+                'subtotalAmount', COALESCE(o.subtotal_amount, 0),
+                'discountAmount', COALESCE(o.discount_amount, 0),
+                'deliveryFee', COALESCE(o.delivery_fee, 0),
+                'totalAmount', COALESCE(o.total_amount, 0),
+                'paymentMethod', COALESCE(o.payment_method, 'pay_at_store'),
+                'paymentStatus', COALESCE(o.payment_status, 'pending'),
+                'orderStatus', COALESCE(o.order_status, 'NEW'),
+                'items', COALESCE(
+                    (
+                        SELECT jsonb_agg(
+                            jsonb_build_object(
+                                'productId', oi.product_id,
+                                'productName', oi.product_name,
+                                'quantity', oi.quantity,
+                                'unitPrice', oi.unit_price,
+                                'totalPrice', oi.total_price,
+                                'selectedOptions', oi.selected_options,
+                                'selectedOptionsLabels', oi.selected_options_labels,
+                                'uploadedFileName', oi.uploaded_file_name,
+                                'uploadedFileUrl', oi.uploaded_file_url,
+                                'designNotes', oi.design_notes
+                            )
+                        )
+                        FROM public.order_items oi
+                        WHERE oi.order_id = o.id
+                    ),
+                    o.items,
+                    '[]'::jsonb
+                ),
+                'invoice', (
+                    SELECT jsonb_build_object(
+                        'id', inv.id,
+                        'invoiceNumber', inv.invoice_number,
+                        'status', inv.status,
+                        'paymentStatus', inv.payment_status,
+                        'totalAmount', inv.total_amount,
+                        'amountPaid', inv.amount_paid,
+                        'amountDue', inv.amount_due,
+                        'invoiceDate', inv.invoice_date
+                    )
+                    FROM public.invoices inv
+                    WHERE (inv.order_id = o.id OR inv.order_code = o.order_code)
+                      AND inv.status = 'ISSUED'
+                    ORDER BY inv.created_at DESC
+                    LIMIT 1
+                ),
+                'createdAt', o.created_at,
+                'updatedAt', o.updated_at
+            )
+            ORDER BY o.created_at DESC
+        ),
+        '[]'::jsonb
+    ) INTO v_orders
+    FROM public.orders o
+    WHERE o.user_id = v_user_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'userId', v_user_id,
+        'orders', v_orders
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.trg_sync_invoice_on_order_payment_update()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_is_paid BOOLEAN;
+BEGIN
+    IF OLD.payment_status IS DISTINCT FROM NEW.payment_status THEN
+        v_is_paid := NEW.payment_status IN ('paid', 'confirmed');
+
+        UPDATE public.invoices
+        SET payment_status = NEW.payment_status,
+            amount_paid = CASE WHEN v_is_paid THEN total_amount ELSE 0.00 END,
+            amount_due = CASE WHEN v_is_paid THEN 0.00 ELSE total_amount END,
+            updated_at = timezone('utc'::text, now())
+        WHERE (order_id = NEW.id OR UPPER(order_code) = UPPER(NEW.order_code))
+          AND status = 'ISSUED';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_order_payment_invoice_sync ON public.orders;
+CREATE TRIGGER trg_order_payment_invoice_sync
+    AFTER UPDATE OF payment_status ON public.orders
+    FOR EACH ROW EXECUTE FUNCTION public.trg_sync_invoice_on_order_payment_update();
+
+GRANT EXECUTE ON FUNCTION public.link_customer_orders_to_profile(UUID, TEXT, TEXT) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_customer_orders() TO authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 24. QUICK SERVICES AVAILABILITY & START/STOP CONTROLS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.quick_services (
+    id TEXT PRIMARY KEY,
+    name_en TEXT NOT NULL,
+    name_hi TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'quick_service',
+    description_en TEXT,
+    description_hi TEXT,
+    path TEXT,
+    icon_name TEXT DEFAULT 'Printer',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    stop_reason TEXT,
+    stop_reason_hi TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    updated_by TEXT DEFAULT 'Admin',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.quick_services ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can view quick services" ON public.quick_services;
+CREATE POLICY "Public can view quick services" ON public.quick_services FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Staff can insert quick services" ON public.quick_services;
+CREATE POLICY "Staff can insert quick services" ON public.quick_services FOR INSERT WITH CHECK (public.is_staff() = true);
+
+DROP POLICY IF EXISTS "Staff can update quick services" ON public.quick_services;
+CREATE POLICY "Staff can update quick services" ON public.quick_services FOR UPDATE USING (public.is_staff() = true);
+
+DROP POLICY IF EXISTS "Staff can delete quick services" ON public.quick_services;
+CREATE POLICY "Staff can delete quick services" ON public.quick_services FOR DELETE USING (public.is_admin() = true);
+
+CREATE OR REPLACE FUNCTION public.toggle_quick_service_status(
+    p_service_id TEXT,
+    p_is_active BOOLEAN,
+    p_stop_reason TEXT DEFAULT NULL,
+    p_performed_by TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_uid UUID := auth.uid();
+    v_operator TEXT;
+    v_profile RECORD;
+    v_service RECORD;
+    v_old_active BOOLEAN;
+    v_old_status TEXT;
+    v_new_status TEXT;
+    v_now TIMESTAMPTZ := timezone('utc'::text, now());
+BEGIN
+    -- 1. Strict Security & Authorization Check
+    IF v_uid IS NULL THEN
+        IF NOT (public.is_staff() = true OR public.is_manager() = true) THEN
+            RAISE EXCEPTION 'Unauthorized: You must be an authenticated staff member or manager to perform this action.';
+        END IF;
+        v_operator := COALESCE(NULLIF(trim(p_performed_by), ''), 'Admin Staff');
+    ELSE
+        IF NOT (public.is_staff() = true OR public.is_manager() = true) THEN
+            RAISE EXCEPTION 'Permission denied: User % does not have staff or manager permissions.', v_uid;
+        END IF;
+
+        -- Authoritatively derive operator from profiles or JWT session
+        SELECT full_name, email, role INTO v_profile FROM public.profiles WHERE id = v_uid;
+        IF FOUND THEN
+            v_operator := COALESCE(NULLIF(trim(v_profile.full_name), ''), NULLIF(trim(v_profile.email), ''), 'Staff (' || v_uid || ')');
+        ELSE
+            v_operator := COALESCE(auth.jwt() ->> 'email', 'Staff (' || v_uid || ')');
+        END IF;
+    END IF;
+
+    -- 2. Service Lookup & State Capture
+    SELECT id, is_active, stop_reason, name_en, name_hi INTO v_service 
+    FROM public.quick_services 
+    WHERE id = p_service_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Service with ID % not found.', p_service_id;
+    END IF;
+
+    v_old_active := v_service.is_active;
+    v_old_status := CASE WHEN v_old_active THEN 'ACTIVE' ELSE 'STOPPED' END;
+    v_new_status := CASE WHEN p_is_active THEN 'ACTIVE' ELSE 'STOPPED' END;
+
+    -- 3. Atomic State Update
+    UPDATE public.quick_services
+    SET is_active = p_is_active,
+        stop_reason = CASE WHEN p_is_active THEN NULL ELSE COALESCE(NULLIF(trim(p_stop_reason), ''), 'Temporarily unavailable') END,
+        updated_by = v_operator,
+        updated_at = v_now
+    WHERE id = p_service_id;
+
+    -- 4. Server-Side Audit Trail Record in status_history
+    BEGIN
+        INSERT INTO public.status_history (
+            entity_type,
+            entity_code,
+            previous_status,
+            new_status,
+            message_en,
+            message_hi,
+            performed_by,
+            created_at
+        ) VALUES (
+            'quick_service',
+            p_service_id,
+            v_old_status,
+            v_new_status,
+            CASE WHEN p_is_active 
+                THEN 'Service ' || v_service.name_en || ' was started (ACTIVE).' 
+                ELSE 'Service ' || v_service.name_en || ' was stopped. Reason: ' || COALESCE(p_stop_reason, 'Temporarily unavailable')
+            END,
+            CASE WHEN p_is_active 
+                THEN 'सेवा ' || v_service.name_hi || ' सक्रिय (ACTIVE) की गई।' 
+                ELSE 'सेवा ' || v_service.name_hi || ' बंद की गई।'
+            END,
+            v_operator,
+            v_now
+        );
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'serviceId', p_service_id,
+        'previousState', v_old_status,
+        'isActive', p_is_active,
+        'stopReason', CASE WHEN p_is_active THEN NULL ELSE p_stop_reason END,
+        'operator', v_operator,
+        'updatedAt', v_now
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.toggle_quick_service_status(TEXT, BOOLEAN, TEXT, TEXT) TO authenticated, anon;
+
+-- RPC for Bulk Start / Stop of All Quick Services (Atomic Transaction)
+CREATE OR REPLACE FUNCTION public.toggle_all_quick_services(
+    p_is_active BOOLEAN,
+    p_stop_reason TEXT DEFAULT NULL,
+    p_performed_by TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+    v_uid UUID := auth.uid();
+    v_operator TEXT;
+    v_profile RECORD;
+    v_now TIMESTAMPTZ := timezone('utc'::text, now());
+    v_count INT;
+    v_op_type TEXT;
+BEGIN
+    -- 1. Strict Security & Authorization Check
+    IF v_uid IS NULL THEN
+        IF NOT (public.is_staff() = true OR public.is_manager() = true) THEN
+            RAISE EXCEPTION 'Unauthorized: You must be an authenticated staff member or manager to perform this action.';
+        END IF;
+        v_operator := COALESCE(NULLIF(trim(p_performed_by), ''), 'Admin Staff');
+    ELSE
+        IF NOT (public.is_staff() = true OR public.is_manager() = true) THEN
+            RAISE EXCEPTION 'Permission denied: User % does not have staff or manager permissions.', v_uid;
+        END IF;
+
+        -- Authoritatively derive operator from profiles or JWT session
+        SELECT full_name, email, role INTO v_profile FROM public.profiles WHERE id = v_uid;
+        IF FOUND THEN
+            v_operator := COALESCE(NULLIF(trim(v_profile.full_name), ''), NULLIF(trim(v_profile.email), ''), 'Staff (' || v_uid || ')');
+        ELSE
+            v_operator := COALESCE(auth.jwt() ->> 'email', 'Staff (' || v_uid || ')');
+        END IF;
+    END IF;
+
+    v_op_type := CASE WHEN p_is_active THEN 'BULK_START_ALL' ELSE 'BULK_STOP_ALL' END;
+
+    -- 2. Atomic Bulk Update
+    UPDATE public.quick_services
+    SET is_active = p_is_active,
+        stop_reason = CASE WHEN p_is_active THEN NULL ELSE COALESCE(NULLIF(trim(p_stop_reason), ''), 'All quick services temporarily paused') END,
+        updated_by = v_operator,
+        updated_at = v_now;
+
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+
+    -- 3. Authoritative Bulk Audit Record in status_history
+    BEGIN
+        INSERT INTO public.status_history (
+            entity_type,
+            entity_code,
+            previous_status,
+            new_status,
+            message_en,
+            message_hi,
+            performed_by,
+            created_at
+        ) VALUES (
+            'quick_service_bulk',
+            'ALL_SERVICES',
+            CASE WHEN p_is_active THEN 'STOPPED' ELSE 'ACTIVE' END,
+            v_op_type,
+            CASE WHEN p_is_active 
+                THEN 'Bulk operation: All ' || v_count || ' quick services were started (ACTIVE).' 
+                ELSE 'Bulk operation: All ' || v_count || ' quick services were stopped. Reason: ' || COALESCE(p_stop_reason, 'All quick services temporarily paused')
+            END,
+            CASE WHEN p_is_active 
+                THEN 'थोक कार्रवाई: सभी ' || v_count || ' त्वरित सेवाएँ सक्रिय की गईं।' 
+                ELSE 'थोक कार्रवाई: सभी ' || v_count || ' त्वरित सेवाएँ बंद की गईं।'
+            END,
+            v_operator,
+            v_now
+        );
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'operation', v_op_type,
+        'affectedCount', v_count,
+        'isActive', p_is_active,
+        'stopReason', CASE WHEN p_is_active THEN NULL ELSE p_stop_reason END,
+        'operator', v_operator,
+        'updatedAt', v_now
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.toggle_all_quick_services(BOOLEAN, TEXT, TEXT) TO authenticated, anon;
+
+

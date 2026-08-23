@@ -10,22 +10,31 @@ export interface InvoiceQRConfig {
 
 /**
  * Resolves application canonical production base URL.
- * Checks VITE_PUBLIC_APP_URL, VITE_SITE_URL, browser origin, or production fallback.
+ * Checks VITE_APP_URL, VITE_PUBLIC_APP_URL, VITE_SITE_URL, production browser origin, or canonical fallback.
+ * CRITICAL: Never generates localhost URLs for customer-facing invoices or QR codes.
  */
 export function getAppBaseUrl(): string {
   const envUrl = typeof import.meta !== "undefined" && import.meta.env
-    ? (import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.VITE_SITE_URL)
+    ? (import.meta.env.VITE_APP_URL || import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.VITE_SITE_URL)
     : undefined;
 
   if (envUrl && typeof envUrl === "string" && envUrl.trim().length > 0) {
-    return envUrl.trim().replace(/\/+$/, "");
+    const clean = envUrl.trim().replace(/\/+$/, "");
+    if (!clean.includes("localhost") && !clean.includes("127.0.0.1") && !clean.includes("0.0.0.0")) {
+      return clean;
+    }
   }
 
   if (typeof window !== "undefined" && window.location && window.location.origin) {
-    return window.location.origin;
+    const origin = window.location.origin;
+    // Use window origin only if running in production on a real domain or preview URL
+    if (!origin.includes("localhost") && !origin.includes("127.0.0.1") && !origin.includes("0.0.0.0")) {
+      return origin.replace(/\/+$/, "");
+    }
   }
 
-  return "https://palakenterprises.in";
+  // Canonical Production Application URL (Current Vercel Deployment)
+  return "https://palak-enterprises-ghit.vercel.app";
 }
 
 /**
@@ -45,7 +54,7 @@ export function isPermanentInvoiceNumber(invoiceNumber?: string): boolean {
 
 /**
  * Builds canonical public invoice verification URL using the permanent invoice identifier
- * Example: https://palakenterprises.in/verify-invoice/PE-2026-0042
+ * Example: https://palak-enterprises-ghit.vercel.app/verify-invoice/PE-2026-0042
  */
 export function buildInvoiceVerificationUrl(invoice: StoredInvoice | { invoiceNumber?: string }): string | null {
   const invoiceNumber = (invoice.invoiceNumber || "").trim().toUpperCase();

@@ -1,5 +1,13 @@
 import { supabase, isSupabaseConfigured } from "../supabase/client";
 
+export interface PublicVerificationItem {
+  productName: string;
+  quantity: number;
+  unit?: string;
+  totalPrice?: number;
+  description?: string;
+}
+
 /**
  * Mutually exclusive, strongly-typed verification result.
  * Eliminates impossible states and prevents client-side ambiguity.
@@ -21,6 +29,7 @@ export type PublicInvoiceVerificationResult =
       paymentMethod?: string;
       businessName: string;
       itemCount: number;
+      items: PublicVerificationItem[];
       verifiedAt: string;
     }
   | {
@@ -44,9 +53,9 @@ export type PublicInvoiceVerificationResult =
  * 
  * SECURITY AUDIT PROMISES:
  * 1. Database is the SOLE authority. LocalStorage/sessionStorage/cache have zero influence.
- * 2. Strict input sanitization (alphanumeric format, max length 64, rejection of TEMP-/DRAFT-).
+ * 2. Strict input sanitization (alphanumeric format, max length 64, rejection of TEMP-/DRAFT-/LOCAL-).
  * 3. 8-second request timeout with graceful fallback to UNAVAILABLE (never INVALID).
- * 4. Technical errors are sanitized; zero leakage of database schemas, SQL errors, or stack traces.
+ * 4. Technical errors are sanitized; zero leakage of private PII, credentials, or internal schemas.
  */
 export async function verifyInvoiceAuthenticity(
   invoiceIdentifier: string,
@@ -77,65 +86,94 @@ export async function verifyInvoiceAuthenticity(
     };
   }
 
-  // 3. Authoritative Query with Timeout Protection
+  // 3. Authoritative Query via Dedicated PostgreSQL RPC (Fail-Closed)
+  let timer: any;
   try {
-    const rpcPromise = supabase.rpc("verify_invoice_authenticity", {
-      p_invoice_number: cleanId,
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("VERIFICATION_TIMEOUT")), timeoutMs);
     });
 
-    const timeoutPromise = new Promise<{ data: null; error: { message: string; isTimeout: boolean } }>(
-      (_, reject) => setTimeout(() => reject(new Error("VERIFICATION_TIMEOUT")), timeoutMs)
-    );
-
-    const { data: rpcRes, error: rpcErr } = (await Promise.race([
-      rpcPromise,
+    const { data: rpcRes, error: rpcErr } = await Promise.race([
+      supabase.rpc("verify_invoice_authenticity", { p_invoice_number: cleanId }),
       timeoutPromise,
-    ])) as any;
+    ]);
+    clearTimeout(timer);
 
     if (rpcErr) {
-      console.warn("Invoice verification RPC notice:", rpcErr.message || rpcErr);
+      console.warn("Public invoice verification RPC notice:", rpcErr.message || rpcErr);
+      return {
+        status: "UNAVAILABLE",
+        error: "NETWORK_ERROR",
+      };
+    }
+
+    if (!rpcRes) {
       return {
         status: "UNAVAILABLE",
         error: "SERVICE_UNAVAILABLE",
       };
     }
 
-    if (rpcRes) {
-      if (rpcRes.success && rpcRes.isValid) {
-        return {
-          status: "AUTHENTIC",
-          invoiceNumber: String(rpcRes.invoiceNumber || cleanId),
-          invoiceDate: String(rpcRes.invoiceDate || new Date().toISOString()),
-          completionDate: rpcRes.completionDate ? String(rpcRes.completionDate) : undefined,
-          documentType: String(rpcRes.documentType || "TAX_INVOICE"),
-          financialYear: String(rpcRes.financialYear || "2026-27"),
-          orderCode: rpcRes.orderCode ? String(rpcRes.orderCode) : undefined,
-          source: String(rpcRes.source || "OFFICIAL"),
-          totalAmount: Number(rpcRes.totalAmount) || 0,
-          amountPaid: Number(rpcRes.amountPaid) || 0,
-          amountDue: Number(rpcRes.amountDue) || 0,
-          paymentStatus: rpcRes.paymentStatus || "pending",
-          paymentMethod: rpcRes.paymentMethod || "pay_at_store",
-          businessName: String(rpcRes.businessName || "Palak Enterprises"),
-          itemCount: Number(rpcRes.itemCount) || 0,
-          verifiedAt: String(rpcRes.verifiedAt || new Date().toISOString()),
-        };
-      } else if (rpcRes.success && rpcRes.isCancelled) {
-        return {
-          status: "CANCELLED",
-          invoiceNumber: String(rpcRes.invoiceNumber || cleanId),
-          totalAmount: Number(rpcRes.totalAmount) || 0,
-          cancellationReason: rpcRes.cancellationReason ? String(rpcRes.cancellationReason) : undefined,
-          verifiedAt: String(rpcRes.verifiedAt || new Date().toISOString()),
-        };
-      } else {
-        // Authoritative confirmation: No matching invoice in database
-        return {
-          status: "INVALID",
-          reason: "INVOICE_NOT_FOUND",
-        };
-      }
+    // 4. Map RPC Result
+    if (rpcRes.success && rpcRes.isValid) {
+      const rawItems = Array.isArray(rpcRes.items) ? rpcRes.items : [];
+      const items: PublicVerificationItem[] = rawItems.map((it: any) => ({
+        productName: String(it.productName || it.name || "Printing & Digital Service"),
+        quantity: Number(it.quantity) || 1,
+        unit: it.unit ? String(it.unit) : undefined,
+        totalPrice: Number(it.totalPrice) || 0,
+        description: it.description ? String(it.description) : undefined,
+      }));
+
+      return {
+        status: "AUTHENTIC",
+        invoiceNumber: String(rpcRes.invoiceNumber || cleanId),
+        invoiceDate: String(rpcRes.invoiceDate || new Date().toISOString()),
+        completionDate: rpcRes.completionDate ? String(rpcRes.completionDate) : undefined,
+        documentType: String(rpcRes.documentType || "TAX_INVOICE"),
+        financialYear: String(rpcRes.financialYear || "2026-27"),
+        orderCode: rpcRes.orderCode ? String(rpcRes.orderCode) : undefined,
+        source: String(rpcRes.source || "OFFICIAL"),
+        totalAmount: Number(rpcRes.totalAmount) || 0,
+        amountPaid: Number(rpcRes.amountPaid) || 0,
+        amountDue: Number(rpcRes.amountDue) || 0,
+        paymentStatus: rpcRes.paymentStatus || "pending",
+        paymentMethod: rpcRes.paymentMethod || "pay_at_store",
+        businessName: String(rpcRes.businessName || "Palak Enterprises"),
+        itemCount: items.length || Number(rpcRes.itemCount) || 1,
+        items,
+        verifiedAt: String(rpcRes.verifiedAt || new Date().toISOString()),
+      };
     }
+
+    if (rpcRes.success && rpcRes.isCancelled) {
+      return {
+        status: "CANCELLED",
+        invoiceNumber: String(rpcRes.invoiceNumber || cleanId),
+        totalAmount: Number(rpcRes.totalAmount) || 0,
+        cancellationReason: rpcRes.cancellationReason ? String(rpcRes.cancellationReason) : undefined,
+        verifiedAt: String(rpcRes.verifiedAt || new Date().toISOString()),
+      };
+    }
+
+    if (rpcRes.error === "INVOICE_NOT_FOUND") {
+      return {
+        status: "INVALID",
+        reason: "INVOICE_NOT_FOUND",
+      };
+    }
+
+    if (rpcRes.error === "INVALID_INVOICE_IDENTIFIER") {
+      return {
+        status: "INVALID",
+        reason: "INVALID_IDENTIFIER",
+      };
+    }
+
+    return {
+      status: "UNAVAILABLE",
+      error: "SERVICE_UNAVAILABLE",
+    };
   } catch (err: any) {
     if (err?.message === "VERIFICATION_TIMEOUT") {
       return {
@@ -149,9 +187,4 @@ export async function verifyInvoiceAuthenticity(
       error: "NETWORK_ERROR",
     };
   }
-
-  return {
-    status: "UNAVAILABLE",
-    error: "SERVICE_UNAVAILABLE",
-  };
 }

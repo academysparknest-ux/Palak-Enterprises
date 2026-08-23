@@ -70,6 +70,8 @@ export interface StoredOrder {
     | "CANCELLED"
     | "REJECTED";
   items: OrderItemPayload[];
+  invoice?: Record<string, any>;
+  invoiceNumber?: string;
   staffNotes?: string;
   createdAt: string;
   updatedAt: string;
@@ -1363,7 +1365,12 @@ export class PalakDataStore {
 
   static getOrdersByPhone(phone: string): StoredOrder[] {
     const clean = phone.replace(/\D/g, "");
-    return this.getOrders().filter((o) => o.customerPhone.replace(/\D/g, "").includes(clean));
+    return this.getOrders().filter((o) => o.customerPhone && o.customerPhone.replace(/\D/g, "").includes(clean));
+  }
+
+  static getOrdersByUserId(userId: string): StoredOrder[] {
+    if (!userId) return [];
+    return this.getOrders().filter((o) => o.userId === userId);
   }
 
   static updateOrderStatus(

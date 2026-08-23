@@ -98,7 +98,7 @@ export const DigitalServiceDetailPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
+    <div className="min-h-screen bg-[#FAF8F5] pb-20">
       {/* Breadcrumbs */}
       <div className="border-b border-slate-200 bg-white py-3 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl flex items-center justify-between text-xs text-slate-500">

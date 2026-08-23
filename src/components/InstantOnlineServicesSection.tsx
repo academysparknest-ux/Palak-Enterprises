@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   FileText,
@@ -9,9 +9,17 @@ import {
   Image as ImageIcon,
   Printer,
   ArrowRight,
+  AlertCircle,
+  ShieldAlert,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { cn } from "../lib/utils";
+import {
+  getQuickServices,
+  subscribeToQuickServices,
+  type QuickServiceItem,
+  DEFAULT_QUICK_SERVICES,
+} from "../lib/supabase/database";
 
 interface InstantOnlineServicesSectionProps {
   className?: string;
@@ -25,6 +33,18 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
   const currentLang = (lang || language || "en") as "en" | "hi";
   const [searchParams] = useSearchParams();
   const paymentParam = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay");
+
+  const [dbQuickServices, setDbQuickServices] = useState<QuickServiceItem[]>(DEFAULT_QUICK_SERVICES);
+
+  useEffect(() => {
+    getQuickServices().then(setDbQuickServices).catch(() => {});
+    const unsubscribe = subscribeToQuickServices((fresh) => {
+      setDbQuickServices(fresh);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const services = [
     {
@@ -148,13 +168,20 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
         {services.map((service) => {
           const Icon = service.icon;
           const isDoc = service.id === "document-printing";
+          const dbItem = dbQuickServices.find((s) => s.id === service.id);
+          const isStopped = dbItem ? dbItem.is_active === false : false;
+          const stopReason = dbItem?.stop_reason;
 
           return (
             <div
               key={service.id}
               className={cn(
-                "group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg",
-                isDoc && "lg:col-span-2 xl:col-span-2 bg-linear-to-br from-blue-50/40 via-white to-white border-blue-200/90 ring-1 ring-blue-500/10"
+                "group relative flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
+                isStopped
+                  ? "border-rose-200 bg-rose-50/20"
+                  : isDoc
+                  ? "lg:col-span-2 xl:col-span-2 bg-linear-to-br from-blue-50/40 via-white to-white border-blue-200/90 ring-1 ring-blue-500/10 hover:border-slate-300"
+                  : "border-slate-200 hover:border-slate-300"
               )}
             >
               <div>
@@ -163,28 +190,40 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
                   <div
                     className={cn(
                       "h-12 w-12 rounded-xl p-2.5 flex items-center justify-center border group-hover:scale-105 transition-transform shrink-0",
-                      service.color
+                      isStopped ? "bg-rose-100 text-rose-800 border-rose-200" : service.color
                     )}
                   >
                     <Icon className="h-6 w-6" />
                   </div>
 
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 text-[11px] font-bold border",
-                      service.isComingSoon
-                        ? "bg-rose-50 text-rose-700 border-rose-200"
-                        : isDoc
-                        ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                        : "bg-slate-100 text-slate-700 border-slate-200"
-                    )}
-                  >
-                    {service.badge}
-                  </span>
+                  {isStopped ? (
+                    <span className="rounded-full px-2.5 py-0.5 text-[11px] font-black bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose-600" />
+                      <span>{currentLang === "hi" ? "अस्थायी रूप से अनुपलब्ध" : "Temporarily Unavailable"}</span>
+                    </span>
+                  ) : (
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 text-[11px] font-bold border",
+                        service.isComingSoon
+                          ? "bg-rose-50 text-rose-700 border-rose-200"
+                          : isDoc
+                          ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                          : "bg-slate-100 text-slate-700 border-slate-200"
+                      )}
+                    >
+                      {service.badge}
+                    </span>
+                  )}
                 </div>
 
                 {/* Service Name */}
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#123B70] transition-colors leading-snug">
+                <h3
+                  className={cn(
+                    "text-base sm:text-lg font-bold transition-colors leading-snug",
+                    isStopped ? "text-slate-700" : "text-slate-900 group-hover:text-[#123B70]"
+                  )}
+                >
                   {service.title}
                 </h3>
 
@@ -192,13 +231,27 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
                   {service.tagline}
                 </p>
 
-                {/* Service Description */}
-                <p className="text-xs text-slate-600 mt-2.5 leading-relaxed">
-                  {service.desc}
-                </p>
+                {/* Service Description or Stopped Notice */}
+                {isStopped ? (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-rose-50 border border-rose-200/80 text-xs text-rose-900 space-y-1">
+                    <p className="font-bold flex items-center gap-1 text-[11px]">
+                      <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span>{stopReason || (currentLang === "hi" ? "यह सेवा फिलहाल उपलब्ध नहीं है।" : "Currently not accepting new orders.")}</span>
+                    </p>
+                    <p className="text-[10px] text-rose-700">
+                      {currentLang === "hi"
+                        ? "कृपया कुछ देर बाद पुनः प्रयास करें या अन्य सेवा चुनें।"
+                        : "Please check again later or select another printing service."}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-600 mt-2.5 leading-relaxed">
+                    {service.desc}
+                  </p>
+                )}
 
                 {/* Document Printing Special Sub-pills */}
-                {isDoc && (
+                {isDoc && !isStopped && (
                   <div className="mt-4 pt-3 border-t border-blue-100 flex flex-wrap items-center gap-1.5 text-[11px]">
                     <span className="font-bold text-slate-700 mr-1">
                       {currentLang === "hi" ? "शामिल सुविधाएँ:" : "Includes:"}
@@ -221,7 +274,17 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
 
               {/* Action Button */}
               <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between">
-                {service.isComingSoon ? (
+                {isStopped ? (
+                  <div className="w-full flex items-center justify-between text-xs font-bold text-rose-700 py-2.5 px-3 rounded-xl bg-rose-50 border border-rose-200">
+                    <span className="flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                      <span>{currentLang === "hi" ? "अनुपलब्ध (Unavailable)" : "Temporarily Unavailable"}</span>
+                    </span>
+                    <span className="text-[10px] uppercase font-bold text-rose-500 tracking-wider">
+                      Stopped
+                    </span>
+                  </div>
+                ) : service.isComingSoon ? (
                   <div className="w-full flex items-center justify-between text-xs font-bold text-slate-400 py-1.5 px-2 rounded-xl bg-slate-50 border border-slate-200/60">
                     <span>{service.actionText}</span>
                     <span className="text-[10px] uppercase font-bold text-rose-500 tracking-wider">

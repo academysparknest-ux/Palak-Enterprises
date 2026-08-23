@@ -25,6 +25,14 @@ import { SEO } from "../components/SEO";
 import { PageHero } from "../components/PageHero";
 import { cn } from "../lib/utils";
 
+import {
+  getQuickServices,
+  subscribeToQuickServices,
+  type QuickServiceItem,
+  DEFAULT_QUICK_SERVICES,
+} from "../lib/supabase/database";
+import { AlertCircle, ShieldAlert } from "lucide-react";
+
 interface OnlineServicesPageProps {
   onOpenRequestModal?: () => void;
 }
@@ -35,6 +43,17 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [onlineTrackInput, setOnlineTrackInput] = useState("");
+  const [dbQuickServices, setDbQuickServices] = useState<QuickServiceItem[]>(DEFAULT_QUICK_SERVICES);
+
+  useEffect(() => {
+    getQuickServices().then(setDbQuickServices).catch(() => {});
+    const unsubscribe = subscribeToQuickServices((fresh) => {
+      setDbQuickServices(fresh);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const rawPayment = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay");
   const initialMode = (rawPayment && (rawPayment.toLowerCase() === "pay_online" || rawPayment.toLowerCase() === "online" || rawPayment.toLowerCase() === "priority"))
@@ -225,7 +244,7 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-16">
+    <div className="min-h-screen bg-[#FAF8F5] pb-16">
       <SEO
         title={{
           en: "⚡ Instant Online Services | Palak Enterprises",
@@ -374,13 +393,18 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
               const Icon = service.icon;
               const isDoc = service.id === "document-printing";
               const targetUrl = `${service.path}?payment=${paymentMode}`;
+              const dbItem = dbQuickServices.find((s) => s.id === service.id);
+              const isStopped = dbItem ? dbItem.is_active === false : false;
+              const stopReason = dbItem?.stop_reason;
 
               return (
                 <article
                   key={service.id}
                   className={cn(
                     "group relative flex flex-col justify-between rounded-2xl border bg-white p-5 transition-all duration-200",
-                    isDoc
+                    isStopped
+                      ? "border-rose-200 bg-rose-50/20 shadow-xs"
+                      : isDoc
                       ? "border-blue-300 ring-1 ring-blue-500/20 bg-linear-to-b from-blue-50/35 via-white to-white shadow-md hover:shadow-xl hover:border-blue-400"
                       : "border-slate-200 shadow-xs hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
                     service.isComingSoon && "bg-slate-50/70 opacity-90 border-slate-200"
@@ -392,13 +416,18 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
                       <div
                         className={cn(
                           "h-11 w-11 rounded-xl p-2.5 flex items-center justify-center border transition-transform group-hover:scale-105 shrink-0",
-                          service.iconColor
+                          isStopped ? "bg-rose-100 text-rose-800 border-rose-200" : service.iconColor
                         )}
                       >
                         <Icon className="h-5 w-5" />
                       </div>
 
-                      {service.isPopular ? (
+                      {isStopped ? (
+                        <span className="rounded-full bg-rose-100 text-rose-900 border border-rose-300 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide shadow-2xs inline-flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-600" />
+                          <span>{currentLang === "hi" ? "अस्थायी रूप से अनुपलब्ध" : "Temporarily Unavailable"}</span>
+                        </span>
+                      ) : service.isPopular ? (
                         <span className="rounded-full bg-blue-600 text-white border border-blue-600 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide shadow-xs">
                           {currentLang === "hi" ? service.badgeHi : service.badge}
                         </span>
@@ -414,27 +443,53 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
                       {currentLang === "hi" ? service.titleHi : service.title}
                     </h3>
 
-                    {/* Service Short Description */}
-                    <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-                      {currentLang === "hi" ? service.descHi : service.desc}
-                    </p>
+                    {/* Service Short Description / Stopped Notice */}
+                    {isStopped ? (
+                      <div className="mt-2.5 p-2.5 rounded-xl bg-rose-50 border border-rose-200/80 text-xs text-rose-900 space-y-1">
+                        <p className="font-bold flex items-center gap-1 text-[11px]">
+                          <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span>{stopReason || (currentLang === "hi" ? "यह सेवा फिलहाल नए ऑर्डर स्वीकार नहीं कर रही है।" : "Currently not accepting new orders.")}</span>
+                        </p>
+                        <p className="text-[10px] text-rose-700">
+                          {currentLang === "hi"
+                            ? "कृपया कुछ देर बाद देखें या अन्य प्रिंट सेवा चुनें।"
+                            : "Please check back later or choose another service."}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                        {currentLang === "hi" ? service.descHi : service.desc}
+                      </p>
+                    )}
 
                     {/* Feature Highlights Line */}
-                    <div className="mt-3.5 pt-2.5 border-t border-slate-100">
-                      <p
-                        className={cn(
-                          "text-[11px] font-semibold leading-normal",
-                          isDoc ? "text-blue-900 font-bold" : "text-slate-500"
-                        )}
-                      >
-                        {currentLang === "hi" ? service.featureLineHi : service.featureLine}
-                      </p>
-                    </div>
+                    {!isStopped && (
+                      <div className="mt-3.5 pt-2.5 border-t border-slate-100">
+                        <p
+                          className={cn(
+                            "text-[11px] font-semibold leading-normal",
+                            isDoc ? "text-blue-900 font-bold" : "text-slate-500"
+                          )}
+                        >
+                          {currentLang === "hi" ? service.featureLineHi : service.featureLine}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* CTA Action Button */}
                   <div className="mt-4 pt-3 border-t border-slate-100">
-                    {service.isComingSoon ? (
+                    {isStopped ? (
+                      <div className="w-full flex items-center justify-between text-xs font-bold text-rose-700 py-2.5 px-3 rounded-xl bg-rose-50 border border-rose-200">
+                        <span className="flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                          <span>{currentLang === "hi" ? "अनुपलब्ध (Unavailable)" : "Unavailable"}</span>
+                        </span>
+                        <span className="text-[10px] uppercase font-bold text-rose-500 tracking-wider">
+                          Stopped
+                        </span>
+                      </div>
+                    ) : service.isComingSoon ? (
                       <div className="w-full flex items-center justify-between text-xs font-bold text-slate-400 py-2.5 px-3 rounded-xl bg-slate-100 border border-slate-200 cursor-not-allowed">
                         <span>{currentLang === "hi" ? service.actionTextHi : service.actionText}</span>
                         <span className="text-[10px] uppercase font-bold text-rose-600 tracking-wider">

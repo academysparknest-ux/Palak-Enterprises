@@ -12,7 +12,7 @@ export const CartPage: React.FC = () => {
 
   if (itemCount === 0) {
     return (
-      <div className="min-h-[70vh] bg-[#F7F8FA] flex items-center justify-center p-4">
+      <div className="min-h-[70vh] bg-[#FAF8F5] flex items-center justify-center p-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-xs">
           <div className="h-16 w-16 rounded-full bg-blue-50 text-[#123B70] flex items-center justify-center mx-auto">
             <ShoppingCart className="h-8 w-8" />
@@ -38,7 +38,7 @@ export const CartPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
+    <div className="min-h-screen bg-[#FAF8F5] pb-20">
       {/* Header */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 px-4 sm:px-6">
         {/* Ambient background glows */}

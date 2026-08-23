@@ -10,6 +10,8 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
+import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
+import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { getWhatsAppLink } from "../../config/business";
 import { PalakDataStore } from "../../lib/storage/store";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
@@ -34,6 +36,7 @@ export const InvitationCardsPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
   const { user } = useAuth();
+  const { isStopped, stopReason } = useQuickServiceAvailability("invitation-cards");
 
   const [eventType, setEventType] = useState<string>("wedding");
   const [cardStyle, setCardStyle] = useState<string>("gold_foil");
@@ -58,6 +61,15 @@ export const InvitationCardsPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+
+    if (isStopped) {
+      setSubmitError(
+        stopReason
+          ? `Invitation Card Printing is temporarily unavailable (${stopReason}). Please try again later.`
+          : "Invitation Card Printing is currently temporarily paused and not accepting new orders."
+      );
+      return;
+    }
 
     if (!user) {
       setSubmitError(
@@ -159,7 +171,7 @@ export const InvitationCardsPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
+    <div className="min-h-screen bg-[#FAF8F5] pb-20">
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-12 px-4 sm:px-6">
         {/* Ambient background glows */}
@@ -264,7 +276,14 @@ export const InvitationCardsPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-card space-y-6">
+          <div>
+            {isStopped && (
+              <QuickServiceUnavailableBanner
+                serviceName={currentLang === "hi" ? "शादी एवं निमंत्रण कार्ड" : "Wedding & Invitation Cards"}
+                stopReason={stopReason}
+              />
+            )}
+            <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-card space-y-6">
             {/* Step 1: Event Type */}
             <div className="space-y-3">
               <label className="block text-xs sm:text-sm font-extrabold text-slate-900">
@@ -366,13 +385,31 @@ export const InvitationCardsPage: React.FC = () => {
 
             <button
               type="submit"
-              disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] disabled:opacity-50 py-3.5 px-4 text-xs sm:text-sm font-extrabold text-white shadow-card transition-all cursor-pointer"
+              disabled={submitting || isStopped}
+              className={cn(
+                "w-full flex items-center justify-center gap-2 rounded-xl py-3.5 px-4 text-xs sm:text-sm font-extrabold shadow-card transition-all",
+                isStopped
+                  ? "bg-slate-300 text-slate-600 border border-slate-300 cursor-not-allowed"
+                  : "bg-[#123B70] hover:bg-[#0c274c] disabled:opacity-50 text-white cursor-pointer"
+              )}
             >
-              <Send className="h-4 w-4" />
-              <span>{submitting ? "Submitting Inquiry..." : "Submit Card Request to Admin →"}</span>
+              {isStopped ? (
+                <span>
+                  {currentLang === "hi"
+                    ? "⚠️ सेवा अस्थायी रूप से बंद है (Service Unavailable)"
+                    : "⚠️ Service Temporarily Unavailable"}
+                </span>
+              ) : submitting ? (
+                "Submitting Inquiry..."
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span>Submit Card Request to Admin →</span>
+                </>
+              )}
             </button>
           </form>
+        </div>
         )}
 
         <div className="text-center pt-6">

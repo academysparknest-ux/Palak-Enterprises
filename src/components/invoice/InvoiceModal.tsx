@@ -2,8 +2,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { StoredInvoice } from "../../lib/invoice/types";
 import { InvoiceView } from "./InvoiceView";
-import { downloadInvoicePDF, printInvoiceElement, instantPrintInvoice, getWhatsAppInvoiceShareLink } from "../../lib/invoice/pdfUtils";
+import {
+  downloadInvoicePDF,
+  printInvoiceElement,
+  shareInvoiceOnWhatsApp,
+} from "../../lib/invoice/pdfUtils";
 import { PalakInvoiceStore } from "../../lib/invoice/invoiceStore";
+import { buildInvoiceVerificationUrl, getAppBaseUrl } from "../../lib/invoice/qrUtils";
 import { useScrollLock } from "../../hooks/useScrollLock";
 import {
   X,
@@ -16,7 +21,6 @@ import {
   AlertTriangle,
   FileCheck2,
   Ban,
-  Zap,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -41,6 +45,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 }) => {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
+  const [whatsAppStage, setWhatsAppStage] = useState<"preparing" | "uploading" | "opening" | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [confirmRegenerateOpen, setConfirmRegenerateOpen] = useState(false);
   const [regenerateReason, setRegenerateReason] = useState("");
@@ -143,8 +150,31 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     printInvoiceElement(invoice, targetInvoiceId);
   };
 
-  const handleInstantPrint = () => {
-    instantPrintInvoice(invoice);
+  const handleShareWhatsApp = async () => {
+    if (sharingWhatsApp || !invoice) return;
+    setSharingWhatsApp(true);
+    setShareError(null);
+    setDownloadError(null);
+    try {
+      const res = await shareInvoiceOnWhatsApp(
+        invoice,
+        targetInvoiceId,
+        (stage) => setWhatsAppStage(stage)
+      );
+      if (!res.success) {
+        setShareError(
+          res.error || "Unable to prepare the bill for WhatsApp sharing. Please try again or use Download Bill / PDF."
+        );
+      }
+    } catch (e: any) {
+      console.error("WhatsApp share error:", e);
+      setShareError(
+        e?.message || "Unable to prepare the bill for WhatsApp sharing. Please try again or use Download Bill / PDF."
+      );
+    } finally {
+      setSharingWhatsApp(false);
+      setWhatsAppStage(null);
+    }
   };
 
   const handleRegenerate = async () => {
@@ -185,10 +215,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   };
 
   const copyShareLink = async () => {
-    const origin = typeof window !== "undefined" && !window.location.origin.includes("localhost")
-      ? window.location.origin
-      : "https://palakenterprises.in";
-    const link = `${origin}/track-order?code=${encodeURIComponent(invoice.orderCode || invoice.invoiceNumber)}`;
+    const link =
+      buildInvoiceVerificationUrl(invoice) ||
+      `${getAppBaseUrl()}/verify-invoice/${encodeURIComponent(invoice.invoiceNumber || "")}`;
     try {
       await navigator.clipboard.writeText(link);
       setCopiedLink(true);
@@ -263,7 +292,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         </div>
 
         {/* ─── Primary Controls Toolbar (Hidden on Print) ─────────────────── */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-3 bg-slate-50 border-b border-slate-200 shrink-0 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3 bg-slate-50 border-b border-slate-200 shrink-0 print:hidden">
           <div className="flex flex-wrap items-center gap-2">
             {/* Download PDF */}
             <button
@@ -286,27 +315,29 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               <span>Print Bill</span>
             </button>
 
-            {/* Instant Print */}
+            {/* Share WhatsApp */}
             <button
               type="button"
-              onClick={handleInstantPrint}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 text-xs font-bold transition-colors cursor-pointer"
-              title="Instant Print without dashboard background"
+              onClick={handleShareWhatsApp}
+              disabled={sharingWhatsApp || downloading}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-60"
+              title="Generate, securely host, and share official PDF bill on WhatsApp"
             >
-              <Zap className="h-3.5 w-3.5 text-indigo-600" />
-              <span>Instant Print</span>
+              {sharingWhatsApp ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Share2 className="h-3.5 w-3.5" />
+              )}
+              <span>
+                {whatsAppStage === "preparing"
+                  ? "Preparing PDF..."
+                  : whatsAppStage === "uploading"
+                  ? "Uploading PDF..."
+                  : whatsAppStage === "opening"
+                  ? "Opening WhatsApp..."
+                  : "Share WhatsApp"}
+              </span>
             </button>
-
-            {/* Send WhatsApp */}
-            <a
-              href={getWhatsAppInvoiceShareLink(invoice)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              <Share2 className="h-3.5 w-3.5" />
-              <span>Share WhatsApp</span>
-            </a>
 
             {/* Copy Tracking Link */}
             <button
@@ -352,15 +383,30 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         </div>
 
         {/* Error Alert */}
-        {downloadError && (
+        {(downloadError || shareError) && (
           <div className="bg-rose-50 border-b border-rose-200 p-3 px-6 text-rose-800 text-xs flex items-center justify-between print:hidden">
-            <span>{downloadError}</span>
-            <button
-              onClick={() => setDownloadError(null)}
-              className="text-rose-600 font-bold hover:underline"
-            >
-              Dismiss
-            </button>
+            <span>{shareError || downloadError}</span>
+            <div className="flex items-center gap-2">
+              {shareError && (
+                <button
+                  type="button"
+                  onClick={handleShareWhatsApp}
+                  className="text-rose-700 font-bold underline hover:text-rose-900 cursor-pointer"
+                >
+                  Retry
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setDownloadError(null);
+                  setShareError(null);
+                }}
+                className="text-rose-600 font-bold hover:underline cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         )}
 
@@ -457,7 +503,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         {/* ─── Scrollable Invoice View Area (Responsive Scaling for A4) ───── */}
         <div 
           ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6 bg-slate-100/70 print:p-0 print:bg-white print:overflow-visible flex justify-center"
+          className="invoice-modal-scroll-area flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6 bg-slate-100/70 print:p-0 print:bg-white print:overflow-visible flex justify-center"
         >
           <div className="bg-white shadow-sm print:shadow-none w-full max-w-[794px]">
             <InvoiceView

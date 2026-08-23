@@ -590,6 +590,20 @@ export async function updateStaffOrderPaymentStatus(
 
   if (error) throw error;
 
+  // Synchronize local invoice cache and cloud invoice
+  PalakInvoiceStore.updateInvoicePaymentStatus(orderCode, paymentStatus);
+  try {
+    await supabase
+      .from("invoices")
+      .update({
+        payment_status: paymentStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("order_code", orderCode);
+  } catch (invSyncErr) {
+    console.warn("Invoice status update notice:", invSyncErr);
+  }
+
   await supabase.from("status_history").insert({
     entity_type: "order",
     entity_code: orderCode,
@@ -622,6 +636,22 @@ export async function markStaffPaymentReceived(
       updated_at: new Date().toISOString(),
     })
     .eq("order_code", orderCode);
+
+  // Synchronize local invoice cache
+  PalakInvoiceStore.updateInvoicePaymentStatus(orderCode, "paid");
+  try {
+    await supabase
+      .from("invoices")
+      .update({
+        payment_status: "paid",
+        amount_paid: amount,
+        amount_due: 0.00,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("order_code", orderCode);
+  } catch (invSyncErr) {
+    console.warn("Invoice payment update notice:", invSyncErr);
+  }
 
   if (orderData?.id) {
     try {
@@ -690,43 +720,123 @@ export async function getOrderStatusHistory(orderCode: string): Promise<Array<{
   }
 }
 
-export async function getUserOrders(userId?: string, phone?: string): Promise<StoredOrder[]> {
-  if (!isSupabaseConfigured || !supabase) return [];
+export async function getUserOrders(
+  userId?: string,
+  phone?: string,
+  email?: string
+): Promise<StoredOrder[]> {
+  if (!isSupabaseConfigured || !supabase) {
+    // Offline / unconfigured fallback to local storage
+    if (phone) return PalakDataStore.getOrdersByPhone(phone);
+    if (userId) return PalakDataStore.getOrdersByUserId(userId);
+    return [];
+  }
+
+  // 1. Try authenticated authoritative RPC: get_customer_orders
   try {
-    let query = supabase.from("orders").select("*");
-    if (userId) {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("get_customer_orders");
+    if (!rpcErr && rpcData && rpcData.success && Array.isArray(rpcData.orders) && rpcData.orders.length > 0) {
+      const mappedOrders: StoredOrder[] = rpcData.orders.map((o: any) => ({
+        id: o.id,
+        orderCode: o.orderCode || o.order_code,
+        userId: o.userId || o.user_id,
+        customerName: o.customerName || o.customer_name,
+        customerPhone: o.customerPhone || o.customer_phone,
+        customerEmail: o.customerEmail || o.customer_email,
+        fulfillmentType: o.fulfillmentType || o.fulfillment_type || "pickup",
+        deliveryAddress: o.deliveryAddress || o.delivery_address,
+        orderNotes: o.orderNotes || o.order_notes,
+        subtotalAmount: Number(o.subtotalAmount ?? o.subtotal_amount) || 0,
+        discountAmount: Number(o.discountAmount ?? o.discount_amount) || 0,
+        deliveryFee: Number(o.deliveryFee ?? o.delivery_fee) || 0,
+        totalAmount: Number(o.totalAmount ?? o.total_amount) || 0,
+        paymentMethod: o.paymentMethod || o.payment_method || "pay_at_store",
+        paymentStatus: o.paymentStatus || o.payment_status || "pending",
+        orderStatus: o.orderStatus || o.order_status || "NEW",
+        items: o.items || [],
+        invoice: o.invoice,
+        createdAt: o.createdAt || o.created_at,
+        updatedAt: o.updatedAt || o.updated_at,
+      }));
+
+      // Cache locally for offline durability
+      mappedOrders.forEach((ord) => PalakDataStore.saveOrderToLocal(ord));
+      return mappedOrders;
+    }
+  } catch (rpcEx) {
+    console.warn("[getUserOrders] Customer RPC note:", rpcEx);
+  }
+
+  // 2. Direct PostgreSQL Table Query (Hardened with joined order_items)
+  try {
+    let query = supabase.from("orders").select("*, order_items(*)");
+    if (userId && isValidSupabaseUUID(userId)) {
       query = query.eq("user_id", userId);
-    } else if (phone) {
-      query = query.eq("customer_phone", phone.trim());
+    } else if (phone && phone.trim()) {
+      const cleanDigits = phone.replace(/\D/g, "");
+      query = query.or(`customer_phone.ilike.%${cleanDigits}%,customer_phone.eq.${phone.trim()}`);
+    } else if (email && email.trim()) {
+      query = query.eq("customer_email", email.trim().toLowerCase());
     } else {
       return [];
     }
 
     const { data, error } = await query.order("created_at", { ascending: false });
-    if (error || !data) return [];
+    if (error) {
+      console.warn("[getUserOrders] Database select error:", error);
+      throw error;
+    }
 
-    return data.map((o) => ({
-      id: o.id,
-      orderCode: o.order_code,
-      customerName: o.customer_name,
-      customerPhone: o.customer_phone,
-      customerEmail: o.customer_email,
-      fulfillmentType: o.fulfillment_type,
-      deliveryAddress: o.delivery_address,
-      orderNotes: o.order_notes,
-      subtotalAmount: Number(o.subtotal_amount) || 0,
-      deliveryFee: Number(o.delivery_fee) || 0,
-      totalAmount: Number(o.total_amount) || 0,
-      paymentMethod: o.payment_method,
-      paymentStatus: o.payment_status,
-      orderStatus: o.order_status,
-      items: o.items || [],
-      staffNotes: o.staff_notes,
-      createdAt: o.created_at,
-      updatedAt: o.updated_at,
-    }));
-  } catch {
-    return [];
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    const mappedList: StoredOrder[] = data.map((o: any) => {
+      // Map joined order_items to items payload
+      const joinedItems = Array.isArray(o.order_items) && o.order_items.length > 0
+        ? o.order_items.map((oi: any) => ({
+            productId: oi.product_id || "print-item",
+            productName: oi.product_name || "Print Service",
+            quantity: Number(oi.quantity) || 1,
+            unitPrice: Number(oi.unit_price) || 0,
+            totalPrice: Number(oi.total_price) || 0,
+            selectedOptions: oi.selected_options || {},
+            selectedOptionsLabels: oi.selected_options_labels || {},
+            uploadedFileName: oi.uploaded_file_name,
+            uploadedFileUrl: oi.uploaded_file_url,
+            designNotes: oi.design_notes,
+          }))
+        : o.items || [];
+
+      return {
+        id: o.id,
+        orderCode: o.order_code,
+        userId: o.user_id,
+        customerName: o.customer_name,
+        customerPhone: o.customer_phone,
+        customerEmail: o.customer_email,
+        fulfillmentType: o.fulfillment_type || "pickup",
+        deliveryAddress: o.delivery_address,
+        orderNotes: o.order_notes,
+        subtotalAmount: Number(o.subtotal_amount) || 0,
+        discountAmount: Number(o.discount_amount) || 0,
+        deliveryFee: Number(o.delivery_fee) || 0,
+        totalAmount: Number(o.total_amount) || 0,
+        paymentMethod: o.payment_method,
+        paymentStatus: o.payment_status,
+        orderStatus: o.order_status,
+        items: joinedItems,
+        staffNotes: o.staff_notes,
+        createdAt: o.created_at,
+        updatedAt: o.updated_at,
+      };
+    });
+
+    mappedList.forEach((ord) => PalakDataStore.saveOrderToLocal(ord));
+    return mappedList;
+  } catch (err) {
+    console.error("[getUserOrders] Data query exception:", err);
+    throw err;
   }
 }
 
@@ -1050,6 +1160,407 @@ export async function updatePrintPricingConfig(config: PrintPricingConfig): Prom
   }
 }
 
+// ==============================================================================
+// QUICK SERVICES AVAILABILITY (ADMIN START / STOP SYSTEM)
+// ==============================================================================
+export interface QuickServiceItem {
+  id: string;
+  name_en: string;
+  name_hi: string;
+  category: "quick_service" | "sub_service" | string;
+  description_en?: string;
+  description_hi?: string;
+  path?: string;
+  icon_name?: string;
+  is_active: boolean;
+  stop_reason?: string | null;
+  stop_reason_hi?: string | null;
+  sort_order: number;
+  updated_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const DEFAULT_QUICK_SERVICES: QuickServiceItem[] = [
+  {
+    id: "passport-photo",
+    name_en: "Passport Photo Printing",
+    name_hi: "पासपोर्ट फोटो प्रिंटिंग",
+    category: "quick_service",
+    description_en: "8, 16, 32 photo sheets & 4x6 single prints",
+    description_hi: "8, 16, 32 फोटो शीट व 4x6 सिंगल प्रिंट",
+    path: "/online-services/passport-photo",
+    icon_name: "Camera",
+    is_active: true,
+    sort_order: 1,
+  },
+  {
+    id: "document-printing",
+    name_en: "Document Printing",
+    name_hi: "दस्तावेज प्रिंटिंग",
+    category: "quick_service",
+    description_en: "Notes, assignments, forms, reports & all documents",
+    description_hi: "नोट्स, असाइनमेंट, फॉर्म, रिपोर्ट एवं अन्य दस्तावेज",
+    path: "/online-services/document-printing",
+    icon_name: "FileText",
+    is_active: true,
+    sort_order: 2,
+  },
+  {
+    id: "color-printing",
+    name_en: "Color Printing",
+    name_hi: "रंगीन प्रिंटिंग",
+    category: "sub_service",
+    description_en: "High-quality vibrant color laser printing",
+    description_hi: "उच्च गुणवत्ता वाली रंगीन लेजर प्रिंटिंग",
+    path: "/online-services/document-printing",
+    icon_name: "Printer",
+    is_active: true,
+    sort_order: 3,
+  },
+  {
+    id: "bw-printing",
+    name_en: "Black & White Printing",
+    name_hi: "ब्लैक एंड व्हाइट प्रिंटिंग",
+    category: "sub_service",
+    description_en: "Standard crisp B&W document printing",
+    description_hi: "स्पष्ट ब्लैक एंड व्हाइट दस्तावेज प्रिंटिंग",
+    path: "/online-services/document-printing",
+    icon_name: "Printer",
+    is_active: true,
+    sort_order: 4,
+  },
+  {
+    id: "lamination",
+    name_en: "Document Lamination",
+    name_hi: "लेमिनेशन सेवा",
+    category: "sub_service",
+    description_en: "Glossy protective lamination for certificates & documents",
+    description_hi: "प्रमाणपत्रों व दस्तावेजों के लिए सुरक्षात्मक लेमिनेशन",
+    path: "/online-services/document-printing",
+    icon_name: "Shield",
+    is_active: true,
+    sort_order: 5,
+  },
+  {
+    id: "spiral-binding",
+    name_en: "Spiral Binding",
+    name_hi: "स्पाइरल बाइंडिंग",
+    category: "sub_service",
+    description_en: "Plastic coil binding with transparent protective covers",
+    description_hi: "पारदर्शी कवर के साथ प्लास्टिक कॉइल बाइंडिंग",
+    path: "/online-services/document-printing",
+    icon_name: "BookOpen",
+    is_active: true,
+    sort_order: 6,
+  },
+  {
+    id: "visiting-cards",
+    name_en: "Visiting Cards",
+    name_hi: "विजिटिंग कार्ड प्रिंटिंग",
+    category: "quick_service",
+    description_en: "100, 500, 1000 cards (Matte, Gloss, Velvet finish)",
+    description_hi: "100, 500, 1000 कार्ड्स (मैट, ग्लॉस, वेलवेट फिनिश)",
+    path: "/online-services/visiting-cards",
+    icon_name: "CreditCard",
+    is_active: true,
+    sort_order: 7,
+  },
+  {
+    id: "id-cards",
+    name_en: "ID Cards",
+    name_hi: "पहचान पत्र (ID Card)",
+    category: "quick_service",
+    description_en: "PVC single/double sided with lanyard & card holder",
+    description_hi: "पीवीसी सिंगल/डबल साइडेड लैनयार्ड व कार्ड होल्डर सहित",
+    path: "/online-services/id-cards",
+    icon_name: "Contact",
+    is_active: true,
+    sort_order: 8,
+  },
+  {
+    id: "poster-banner",
+    name_en: "Poster & Flex Banner",
+    name_hi: "पोस्टर एवं बैनर प्रिंटिंग",
+    category: "quick_service",
+    description_en: "A4, A3, A2 glossy photo & vinyl flex per sq.ft",
+    description_hi: "A4, A3, A2 फोटो शीट, विनाइल व फ्लेक्स प्रति वर्ग फीट",
+    path: "/online-services/poster-banner",
+    icon_name: "ImageIcon",
+    is_active: true,
+    sort_order: 9,
+  },
+  {
+    id: "invitation-cards",
+    name_en: "Invitation Cards",
+    name_hi: "शादी एवं निमंत्रण कार्ड",
+    category: "quick_service",
+    description_en: "Customized wedding and ceremony invitation printing",
+    description_hi: "शादी और समारोह के लिए कस्टमाइज्ड निमंत्रण पत्र",
+    path: "/online-services/invitation-cards",
+    icon_name: "Sparkles",
+    is_active: true,
+    sort_order: 10,
+  },
+  {
+    id: "custom-print",
+    name_en: "Custom Print Order",
+    name_hi: "कस्टम प्रिंट ऑर्डर",
+    category: "quick_service",
+    description_en: "Pamphlets, bill books, stickers, menus & custom jobs",
+    description_hi: "पम्पलेट, बिल बुक, स्टिकर, मेन्यू व अन्य आवश्यकताएं",
+    path: "/online-services/custom-print",
+    icon_name: "Printer",
+    is_active: true,
+    sort_order: 11,
+  },
+];
+
+const QUICK_SERVICES_LOCAL_KEY = "palak_quick_services_availability";
+
+export function getLocalQuickServices(): QuickServiceItem[] {
+  if (typeof window === "undefined") return DEFAULT_QUICK_SERVICES;
+  try {
+    const raw = localStorage.getItem(QUICK_SERVICES_LOCAL_KEY);
+    if (!raw) return DEFAULT_QUICK_SERVICES;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_QUICK_SERVICES;
+  } catch {
+    return DEFAULT_QUICK_SERVICES;
+  }
+}
+
+export function saveLocalQuickServices(services: QuickServiceItem[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(QUICK_SERVICES_LOCAL_KEY, JSON.stringify(services));
+    window.dispatchEvent(new CustomEvent("palak_quick_services_updated", { detail: services }));
+  } catch (e) {
+    console.error("Error saving quick services locally:", e);
+  }
+}
+
+/** Fetches all Quick Services with real-time status from cloud or local fallback */
+export async function getQuickServices(): Promise<QuickServiceItem[]> {
+  const localList = getLocalQuickServices();
+  if (!isSupabaseConfigured || !supabase) {
+    return localList;
+  }
+  try {
+    const { data, error } = await supabase
+      .from("quick_services")
+      .select("*")
+      .order("sort_order", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return localList;
+    }
+
+    const merged = data.map((item: any) => ({
+      id: item.id,
+      name_en: item.name_en,
+      name_hi: item.name_hi,
+      category: item.category || "quick_service",
+      description_en: item.description_en,
+      description_hi: item.description_hi,
+      path: item.path,
+      icon_name: item.icon_name,
+      is_active: item.is_active !== false,
+      stop_reason: item.stop_reason,
+      stop_reason_hi: item.stop_reason_hi,
+      sort_order: item.sort_order || 0,
+      updated_by: item.updated_by,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+    }));
+
+    saveLocalQuickServices(merged);
+    return merged;
+  } catch {
+    return localList;
+  }
+}
+
+/** Get a single Quick Service status by ID */
+export async function getQuickServiceById(id: string): Promise<QuickServiceItem | null> {
+  const all = await getQuickServices();
+  return all.find((s) => s.id === id) || null;
+}
+
+/** Toggles Quick Service Availability (Start / Stop) with database RPC and audit trail */
+export async function toggleQuickServiceAvailability(
+  serviceId: string,
+  isActive: boolean,
+  stopReason?: string,
+  performedBy: string = "Admin Staff"
+): Promise<{ success: boolean; error?: string; service?: QuickServiceItem }> {
+  // Update local cache optimistically
+  const currentList = getLocalQuickServices();
+  const updatedList = currentList.map((s) =>
+    s.id === serviceId
+      ? {
+          ...s,
+          is_active: isActive,
+          stop_reason: isActive ? null : stopReason || "Temporarily unavailable",
+          updated_by: performedBy,
+          updated_at: new Date().toISOString(),
+        }
+      : s
+  );
+  saveLocalQuickServices(updatedList);
+
+  if (!isSupabaseConfigured || !supabase) {
+    const updated = updatedList.find((s) => s.id === serviceId);
+    return { success: true, service: updated };
+  }
+
+  try {
+    // 1. Try atomic RPC
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("toggle_quick_service_status", {
+      p_service_id: serviceId,
+      p_is_active: isActive,
+      p_stop_reason: stopReason?.trim() || null,
+      p_performed_by: performedBy,
+    });
+
+    if (!rpcErr && rpcData?.success) {
+      const fresh = await getQuickServices();
+      const s = fresh.find((x) => x.id === serviceId);
+      return { success: true, service: s };
+    }
+
+    // 2. Direct table update fallback
+    const { error } = await supabase
+      .from("quick_services")
+      .update({
+        is_active: isActive,
+        stop_reason: isActive ? null : stopReason?.trim() || "Temporarily unavailable",
+        updated_by: performedBy,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", serviceId)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Direct quick_services update error:", error);
+      return { success: false, error: error.message };
+    }
+
+    const fresh = await getQuickServices();
+    return { success: true, service: fresh.find((x) => x.id === serviceId) };
+  } catch (err: any) {
+    console.error("toggleQuickServiceAvailability exception:", err);
+    return { success: false, error: err?.message || "Failed to update service availability" };
+  }
+}
+
+/** Toggle availability status for ALL quick services at once */
+export async function toggleAllQuickServicesAvailability(
+  isActive: boolean,
+  stopReason?: string,
+  performedBy: string = "Admin Staff"
+): Promise<{ success: boolean; services?: QuickServiceItem[]; error?: string }> {
+  // Update local cache immediately
+  const localList = getLocalQuickServices();
+  const nowIso = new Date().toISOString();
+  const updatedList = localList.map((s) => ({
+    ...s,
+    is_active: isActive,
+    stop_reason: isActive ? null : stopReason || "All quick services temporarily paused",
+    updated_by: performedBy,
+    updated_at: nowIso,
+  }));
+  saveLocalQuickServices(updatedList);
+
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: true, services: updatedList };
+  }
+
+  try {
+    // 1. Try atomic RPC
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("toggle_all_quick_services", {
+      p_is_active: isActive,
+      p_stop_reason: stopReason?.trim() || null,
+      p_performed_by: performedBy,
+    });
+
+    if (!rpcErr && rpcData?.success) {
+      const fresh = await getQuickServices();
+      return { success: true, services: fresh };
+    }
+
+    // 2. Direct table update fallback
+    const { error } = await supabase
+      .from("quick_services")
+      .update({
+        is_active: isActive,
+        stop_reason: isActive ? null : stopReason?.trim() || "All quick services temporarily paused",
+        updated_by: performedBy,
+        updated_at: nowIso,
+      })
+      .neq("id", "___nonexistent___");
+
+    if (error) {
+      console.warn("Direct bulk quick_services update error:", error);
+      return { success: false, error: error.message };
+    }
+
+    const fresh = await getQuickServices();
+    return { success: true, services: fresh };
+  } catch (err: any) {
+    console.error("toggleAllQuickServicesAvailability exception:", err);
+    return { success: false, error: err?.message || "Failed to update all services availability" };
+  }
+}
+
+/** Subscribe to live real-time changes on quick services */
+export function subscribeToQuickServices(
+  callback: (services: QuickServiceItem[]) => void
+): () => void {
+  // Listen for local custom events (instant tab update)
+  const localHandler = (e: any) => {
+    if (e?.detail) callback(e.detail);
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("palak_quick_services_updated", localHandler);
+  }
+
+  if (!isSupabaseConfigured || !supabase) {
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("palak_quick_services_updated", localHandler);
+      }
+    };
+  }
+
+  const channelName = `quick-services-realtime-${Math.random().toString(36).substring(2, 9)}`;
+  const channel = supabase
+    .channel(channelName)
+    .on(
+      "postgres_changes" as any,
+      { event: "*", schema: "public", table: "quick_services" },
+      async () => {
+        try {
+          const fresh = await getQuickServices();
+          callback(fresh);
+        } catch (e) {
+          console.warn("Quick services realtime fetch notice:", e);
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("palak_quick_services_updated", localHandler);
+    }
+    if (supabase) {
+      supabase.removeChannel(channel);
+    }
+  };
+}
+
 // In-flight idempotency mutex map to eliminate duplicate submissions from rapid clicks or concurrent attempts
 const inFlightPrintSubmissions = new Map<string, Promise<{ success: boolean; orderCode: string; orderId?: string; error?: string }>>();
 
@@ -1071,6 +1582,24 @@ export async function submitPrintOrder(
   }
 
   const executionPromise = (async () => {
+    // 0. Pre-validate Service Availability (Start / Stop System)
+    try {
+      const activeServices = await getQuickServices();
+      const matchedService = activeServices.find((s) => s.id === payload.serviceId);
+      if (matchedService && matchedService.is_active === false) {
+        const stopReasonMsg = matchedService.stop_reason
+          ? ` (${matchedService.stop_reason})`
+          : "";
+        return {
+          success: false,
+          orderCode: "",
+          error: `This service has just been stopped and is currently not accepting new orders${stopReasonMsg}. Please choose another service or try again later.`,
+        };
+      }
+    } catch (availCheckErr) {
+      console.warn("Availability pre-check notice:", availCheckErr);
+    }
+
     let finalOrderCode = generatePrintOrderCode();
     let finalOrderId: string | undefined = undefined;
 
@@ -1504,6 +2033,57 @@ export async function getInvoiceByOrderCode(
 
       if (!error && data && data.success && data.invoice) {
         const inv = data.invoice;
+        const mapped: StoredInvoice = {
+          id: inv.id,
+          invoiceNumber: inv.invoice_number,
+          orderId: inv.order_id,
+          orderCode: inv.order_code,
+          userId: inv.user_id,
+          source: (inv.source as any) || "ONLINE",
+          documentType: (inv.document_type as any) || "TAX_INVOICE",
+          financialYear: inv.financial_year || "2026-27",
+          invoiceDate: inv.invoice_date,
+          completionDate: inv.completion_date,
+          customerSnapshot: inv.customer_snapshot || {},
+          businessSnapshot: inv.business_snapshot || {},
+          items: inv.items || [],
+          subtotalAmount: Number(inv.subtotal_amount) || 0,
+          discountAmount: Number(inv.discount_amount) || 0,
+          taxableAmount: Number(inv.taxable_amount) || 0,
+          taxAmount: Number(inv.tax_amount) || 0,
+          deliveryFee: Number(inv.delivery_fee) || 0,
+          otherCharges: Number(inv.other_charges) || 0,
+          totalAmount: Number(inv.total_amount) || 0,
+          amountPaid: Number(inv.amount_paid) || 0,
+          amountDue: Number(inv.amount_due) || 0,
+          paymentStatus: inv.payment_status || "pending",
+          paymentMethod: inv.payment_method || "pay_at_store",
+          status: inv.status || "ISSUED",
+          signatureUrl: inv.signature_url || undefined,
+          cancelledAt: inv.cancelled_at || undefined,
+          cancelledBy: inv.cancelled_by || undefined,
+          cancellationReason: inv.cancellation_reason || undefined,
+          createdBy: inv.created_by || undefined,
+          notes: inv.notes,
+          syncStatus: "SYNCED",
+          isTemporary: false,
+          createdAt: inv.created_at,
+          updatedAt: inv.updated_at,
+        };
+        PalakInvoiceStore.saveInvoiceToLocal(mapped);
+        return mapped;
+      }
+
+      // If invoice was not yet created in public.invoices, try idempotent creation via RPC
+      const { data: createData, error: createErr } = await supabase.rpc("create_or_regenerate_invoice", {
+        p_order_code: cleanCode,
+        p_force_regenerate: false,
+        p_performed_by: "Customer Dashboard",
+        p_reason: "Invoice requested by customer",
+      });
+
+      if (!createErr && createData && createData.success && createData.invoice) {
+        const inv = createData.invoice;
         const mapped: StoredInvoice = {
           id: inv.id,
           invoiceNumber: inv.invoice_number,

@@ -51,7 +51,7 @@ export const BusinessPage: React.FC<{ onOpenRequestModal?: () => void }> = () =>
   ];
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
+    <div className="min-h-screen bg-[#FAF8F5] pb-20">
       {/* Page Hero */}
       <PageHero
         breadcrumbs={[

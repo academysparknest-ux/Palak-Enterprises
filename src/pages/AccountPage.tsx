@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   User,
@@ -18,9 +18,12 @@ import {
   Clock,
   ArrowRight,
   CheckCircle2,
+  AlertCircle,
   Layers,
   Search,
   Receipt,
+  Eye,
+  RefreshCw,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
@@ -31,12 +34,14 @@ import {
   type StoredQuoteRequest,
 } from "../lib/storage/store";
 import { getUserOrders, getInvoiceByOrderCode } from "../lib/supabase/database";
-import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
+import { supabase } from "../lib/supabase/client";
 import { SEO } from "../components/SEO";
 import { business, getWhatsAppLink } from "../config/business";
+import { CustomerOrderDetailModal } from "../components/customer/CustomerOrderDetailModal";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
+import { cn } from "../lib/utils";
 
 export const AccountPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -45,31 +50,48 @@ export const AccountPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // 1. All Hooks MUST be called unconditionally at the top level
+  // 1. All Hooks called at the top level
   const tabParam = searchParams.get("tab");
-  const initialTab = (tabParam === "services" || tabParam === "quotes" || tabParam === "profile")
-    ? tabParam
-    : "orders";
+  const initialTab =
+    tabParam === "services" || tabParam === "quotes" || tabParam === "profile"
+      ? tabParam
+      : "orders";
   const [activeTab, setActiveTab] = useState<"orders" | "services" | "quotes" | "profile">(initialTab);
 
   const [customerOrders, setCustomerOrders] = useState<StoredOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [customerServices, setCustomerServices] = useState<StoredServiceRequest[]>([]);
   const [customerQuotes, setCustomerQuotes] = useState<StoredQuoteRequest[]>([]);
+
+  // Order Details Modal State
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<StoredOrder | null>(null);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
 
   // Invoice modal state
   const [selectedInvoiceForModal, setSelectedInvoiceForModal] = useState<StoredInvoice | null>(null);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
 
   const handleOpenOrderInvoice = async (orderCode: string) => {
-    let inv = PalakInvoiceStore.getLocalInvoiceByOrderCode(orderCode);
-    if (!inv) {
-      inv = (await getInvoiceByOrderCode(orderCode, user?.phone).catch(() => null)) || undefined;
+    setInvoiceLoading(true);
+    try {
+      let inv = PalakInvoiceStore.getLocalInvoiceByOrderCode(orderCode);
+      if (!inv) {
+        inv = (await getInvoiceByOrderCode(orderCode, user?.phone).catch(() => null)) || undefined;
+      }
+      if (inv) {
+        setSelectedInvoiceForModal(inv);
+        setInvoiceModalOpen(true);
+      }
+    } finally {
+      setInvoiceLoading(false);
     }
-    if (inv) {
-      setSelectedInvoiceForModal(inv);
-      setInvoiceModalOpen(true);
-    }
+  };
+
+  const handleViewOrderDetails = (order: StoredOrder) => {
+    setSelectedOrderForModal(order);
+    setOrderModalOpen(true);
   };
 
   // Update tab in URL when changed
@@ -83,132 +105,121 @@ export const AccountPage: React.FC = () => {
   const userEmail = user?.email ? String(user.email).trim().toLowerCase() : "";
   const userId = user?.id;
 
-  // 2. Fetch and sync user data
-  useEffect(() => {
-    let mounted = true;
+  // 2. Fetch and sync customer orders and data
+  const loadUserData = useCallback(async () => {
+    if (!isAuthenticated) return;
 
-    if (!isAuthenticated || loading) {
-      if (mounted) {
-        setCustomerOrders([]);
-        setCustomerServices([]);
-        setCustomerQuotes([]);
-        setOrdersLoading(false);
+    setOrdersLoading(true);
+    setOrdersError(null);
+
+    try {
+      // 1. Fetch orders via authoritative getUserOrders (handles RPC + table fallback + linking)
+      let orders: StoredOrder[] = [];
+      try {
+        orders = await getUserOrders(userId, userPhone, userEmail);
+      } catch (err: any) {
+        console.warn("[Palak Dashboard] Remote order fetch note:", err);
+        setOrdersError(
+          currentLang === "hi"
+            ? "ऑर्डर विवरण लोड करने में समस्या हुई। कृपया पुनः प्रयास करें।"
+            : "Could not sync latest cloud orders. Click retry to refresh."
+        );
+        // Fallback to local storage
+        if (userPhone) {
+          orders = PalakDataStore.getOrdersByPhone(userPhone);
+        } else if (userId) {
+          orders = PalakDataStore.getOrdersByUserId(userId);
+        }
       }
+
+      // 2. Fetch digital service requests safely
+      let services: StoredServiceRequest[] = [];
+      try {
+        const allServices = PalakDataStore.getServiceRequests();
+        services = allServices.filter((s) => {
+          if (userPhone && s.customerPhone && typeof s.customerPhone === "string" && s.customerPhone.includes(userPhone)) {
+            return true;
+          }
+          if (userEmail && s.customerEmail && typeof s.customerEmail === "string" && s.customerEmail.toLowerCase() === userEmail) {
+            return true;
+          }
+          return false;
+        });
+      } catch {
+        services = [];
+      }
+
+      // 3. Fetch quote requests safely
+      let quotes: StoredQuoteRequest[] = [];
+      try {
+        const allQuotes = PalakDataStore.getQuoteRequests();
+        quotes = allQuotes.filter((q) => {
+          if (userPhone && q.customerPhone && typeof q.customerPhone === "string" && q.customerPhone.includes(userPhone)) {
+            return true;
+          }
+          if (userEmail && q.customerEmail && typeof q.customerEmail === "string" && q.customerEmail.toLowerCase() === userEmail) {
+            return true;
+          }
+          return false;
+        });
+      } catch {
+        quotes = [];
+      }
+
+      setCustomerOrders(orders);
+      setCustomerServices(services);
+      setCustomerQuotes(quotes);
+    } catch (err) {
+      console.error("[Palak Dashboard] Account data load exception:", err);
+      setOrdersError("An unexpected error occurred while loading your orders.");
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [isAuthenticated, userId, userPhone, userEmail, currentLang]);
+
+  useEffect(() => {
+    if (!isAuthenticated || loading) {
+      setCustomerOrders([]);
+      setCustomerServices([]);
+      setCustomerQuotes([]);
+      setOrdersLoading(false);
       return;
     }
-
-    const loadUserData = async () => {
-      setOrdersLoading(true);
-      try {
-        // Fetch orders: Remote Supabase with local store fallback only if offline
-        let orders: StoredOrder[] = [];
-        let fetchedFromCloud = false;
-
-        if (userId && isSupabaseConfigured) {
-          try {
-            const remote = await getUserOrders(userId);
-            orders = remote;
-            fetchedFromCloud = true;
-          } catch (e) {
-            console.warn("Supabase user orders fetch notice:", e);
-          }
-        }
-
-        // Only check local fallback if cloud was not configured or offline
-        if (!fetchedFromCloud) {
-          if (orders.length === 0 && userPhone) {
-            try {
-              orders = PalakDataStore.getOrdersByPhone(userPhone);
-            } catch {
-              orders = [];
-            }
-          }
-
-          if (orders.length === 0) {
-            const allOrders = PalakDataStore.getOrders();
-            orders = allOrders.filter((o) => {
-              if (userPhone && o.customerPhone && o.customerPhone.includes(userPhone)) return true;
-              if (userEmail && o.customerEmail && o.customerEmail.toLowerCase() === userEmail) return true;
-              if (userId && o.userId === userId) return true;
-              return false;
-            });
-          }
-        }
-
-        // Fetch digital service requests safely
-        let services: StoredServiceRequest[] = [];
-        try {
-          const allServices = PalakDataStore.getServiceRequests();
-          services = allServices.filter((s) => {
-            if (userPhone && s.customerPhone && typeof s.customerPhone === "string" && s.customerPhone.includes(userPhone)) {
-              return true;
-            }
-            if (userEmail && s.customerEmail && typeof s.customerEmail === "string" && s.customerEmail.toLowerCase() === userEmail) {
-              return true;
-            }
-            return false;
-          });
-        } catch {
-          services = [];
-        }
-
-        // Fetch quote requests safely
-        let quotes: StoredQuoteRequest[] = [];
-        try {
-          const allQuotes = PalakDataStore.getQuoteRequests();
-          quotes = allQuotes.filter((q) => {
-            if (userPhone && q.customerPhone && typeof q.customerPhone === "string" && q.customerPhone.includes(userPhone)) {
-              return true;
-            }
-            if (userEmail && q.customerEmail && typeof q.customerEmail === "string" && q.customerEmail.toLowerCase() === userEmail) {
-              return true;
-            }
-            return false;
-          });
-        } catch {
-          quotes = [];
-        }
-
-        if (mounted) {
-          setCustomerOrders(orders);
-          setCustomerServices(services);
-          setCustomerQuotes(quotes);
-        }
-      } catch (err) {
-        console.error("Account data load exception:", err);
-      } finally {
-        if (mounted) {
-          setOrdersLoading(false);
-        }
-      }
-    };
-
     loadUserData();
+  }, [isAuthenticated, loading, loadUserData]);
 
-    return () => {
-      mounted = false;
-    };
-  }, [isAuthenticated, loading, userId, userPhone, userEmail]);
-
-  // Supabase Realtime: auto-refresh customer orders on status changes
+  // 3. Supabase Realtime: auto-refresh customer orders & invoices live
   const customerRealtimeRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
   useEffect(() => {
     if (!isAuthenticated || !userId || !supabase) return;
 
     const channel = supabase
-      .channel(`customer-orders-${userId}`)
+      .channel(`customer-dashboard-${userId}`)
       .on(
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "orders", filter: `user_id=eq.${userId}` },
         async () => {
-          // Refresh the customer's orders from database
           try {
-            const fresh = await getUserOrders(userId);
+            const fresh = await getUserOrders(userId, userPhone, userEmail);
             if (fresh) {
               setCustomerOrders(fresh);
             }
           } catch (e) {
-            console.warn("[Palak] Customer realtime refresh failed:", e);
+            console.warn("[Palak] Customer orders realtime refresh notice:", e);
+          }
+        }
+      )
+      .on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "invoices", filter: `user_id=eq.${userId}` },
+        async () => {
+          try {
+            const fresh = await getUserOrders(userId, userPhone, userEmail);
+            if (fresh) {
+              setCustomerOrders(fresh);
+            }
+          } catch (e) {
+            console.warn("[Palak] Customer invoices realtime refresh notice:", e);
           }
         }
       )
@@ -223,7 +234,7 @@ export const AccountPage: React.FC = () => {
         customerRealtimeRef.current = null;
       }
     };
-  }, [isAuthenticated, userId]);
+  }, [isAuthenticated, userId, userPhone, userEmail]);
 
   const handleLogout = async () => {
     await logout();
@@ -244,9 +255,65 @@ export const AccountPage: React.FC = () => {
     if (!dateStr) return "Recently";
     try {
       const d = new Date(dateStr);
-      return isNaN(d.getTime()) ? "Recently" : d.toLocaleDateString();
+      return isNaN(d.getTime())
+        ? "Recently"
+        : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
     } catch {
       return "Recently";
+    }
+  };
+
+  const getCustomerFriendlyStatus = (status: string) => {
+    switch (status) {
+      case "NEW":
+        return {
+          label: currentLang === "hi" ? "ऑर्डर प्राप्त हुआ" : "Order Received",
+          badgeClass: "bg-blue-50 text-blue-800 border-blue-200",
+        };
+      case "UNDER_REVIEW":
+        return {
+          label: currentLang === "hi" ? "समीक्षाधीन" : "Under Review",
+          badgeClass: "bg-amber-50 text-amber-800 border-amber-200",
+        };
+      case "CONFIRMED":
+        return {
+          label: currentLang === "hi" ? "ऑर्डर स्वीकृत" : "Order Confirmed",
+          badgeClass: "bg-teal-50 text-teal-800 border-teal-200",
+        };
+      case "IN_PRODUCTION":
+      case "PROCESSING":
+      case "DESIGN_REVIEW":
+        return {
+          label: currentLang === "hi" ? "प्रिंटिंग जारी" : "Being Prepared",
+          badgeClass: "bg-indigo-50 text-indigo-800 border-indigo-200",
+        };
+      case "READY_FOR_PICKUP":
+      case "READY":
+        return {
+          label: currentLang === "hi" ? "पिकअप के लिए तैयार" : "Ready for Pickup",
+          badgeClass: "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold",
+        };
+      case "OUT_FOR_DELIVERY":
+        return {
+          label: currentLang === "hi" ? "डिलीवरी के लिए रवाना" : "Out for Delivery",
+          badgeClass: "bg-sky-50 text-sky-800 border-sky-200",
+        };
+      case "COMPLETED":
+        return {
+          label: currentLang === "hi" ? "पूर्ण (तैयार)" : "Completed",
+          badgeClass: "bg-emerald-100 text-emerald-950 border-emerald-400 font-bold",
+        };
+      case "CANCELLED":
+      case "REJECTED":
+        return {
+          label: currentLang === "hi" ? "रद्द" : "Cancelled",
+          badgeClass: "bg-rose-50 text-rose-800 border-rose-200",
+        };
+      default:
+        return {
+          label: status,
+          badgeClass: "bg-slate-100 text-slate-800 border-slate-200",
+        };
     }
   };
 
@@ -255,7 +322,7 @@ export const AccountPage: React.FC = () => {
   // ==========================================
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center bg-[#F7F8FA] px-4">
+      <div className="min-h-[60vh] flex items-center justify-center bg-[#FAF8F5] px-4">
         <SEO
           title={{
             en: "Customer Account | Palak Enterprises",
@@ -284,7 +351,7 @@ export const AccountPage: React.FC = () => {
   // ==========================================
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[calc(100vh-140px)] bg-[#F7F8FA] py-16 px-4 sm:px-6 flex items-center justify-center">
+      <div className="min-h-[calc(100vh-140px)] bg-[#FAF8F5] py-16 px-4 sm:px-6 flex items-center justify-center">
         <SEO
           title={{
             en: "Sign In to Your Account | Palak Enterprises",
@@ -345,7 +412,7 @@ export const AccountPage: React.FC = () => {
   // Render State 3: Authenticated Customer Dashboard
   // ==========================================
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-24">
+    <div className="min-h-screen bg-[#FAF8F5] pb-24">
       <SEO
         title={{
           en: `My Account (${userDisplayName}) | Palak Enterprises`,
@@ -359,7 +426,6 @@ export const AccountPage: React.FC = () => {
 
       {/* Header Profile Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-8 sm:py-10 px-4 sm:px-6">
-        {/* Ambient background glows */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-20"
@@ -368,7 +434,6 @@ export const AccountPage: React.FC = () => {
               "radial-gradient(circle at 15% 20%, #F59E0B 0, transparent 45%), radial-gradient(circle at 85% 75%, #0284C7 0, transparent 50%), radial-gradient(circle at 50% 50%, #10B981 0, transparent 65%)",
           }}
         />
-        {/* Subtle geometric dot grid pattern */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-[0.06]"
@@ -379,7 +444,6 @@ export const AccountPage: React.FC = () => {
         />
         <div className="relative mx-auto max-w-7xl flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            {/* User Avatar */}
             {user?.avatarUrl ? (
               <img
                 src={user.avatarUrl}
@@ -541,7 +605,7 @@ export const AccountPage: React.FC = () => {
             </Link>
           </div>
 
-          {/* Store Pickup & Queue-Skipping Notice */}
+          {/* Store Pickup & Zero Queue Banner */}
           <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50/90 via-teal-50/50 to-emerald-50/80 p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-start gap-2.5">
               <div className="h-8 w-8 rounded-lg bg-[#123B70] text-white flex items-center justify-center shrink-0">
@@ -578,9 +642,11 @@ export const AccountPage: React.FC = () => {
           >
             <Package className="h-3.5 w-3.5" />
             <span>{currentLang === "hi" ? "प्रिंट ऑर्डर्स" : "Print Orders"}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-              activeTab === "orders" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
-            }`}>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                activeTab === "orders" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+              }`}
+            >
               {customerOrders.length}
             </span>
           </button>
@@ -594,9 +660,11 @@ export const AccountPage: React.FC = () => {
           >
             <Globe className="h-3.5 w-3.5" />
             <span>{currentLang === "hi" ? "डिजिटल सेवाएँ" : "Services"}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-              activeTab === "services" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
-            }`}>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                activeTab === "services" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+              }`}
+            >
               {customerServices.length}
             </span>
           </button>
@@ -610,9 +678,11 @@ export const AccountPage: React.FC = () => {
           >
             <FileText className="h-3.5 w-3.5" />
             <span>{currentLang === "hi" ? "कोटेशन" : "Quotes"}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-              activeTab === "quotes" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
-            }`}>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                activeTab === "quotes" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+              }`}
+            >
               {customerQuotes.length}
             </span>
           </button>
@@ -632,10 +702,28 @@ export const AccountPage: React.FC = () => {
         {/* Tab 1: Orders */}
         {activeTab === "orders" && (
           <div className="space-y-4">
+            {/* Error state with retry */}
+            {ordersError && !ordersLoading && (
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900 animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span>{ordersError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadUserData()}
+                  className="inline-flex items-center gap-1.5 font-bold text-[#123B70] bg-white border border-amber-300 hover:bg-amber-100/50 px-3 py-1.5 rounded-xl transition-colors shrink-0 cursor-pointer"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>{currentLang === "hi" ? "पुनः प्रयास करें" : "Retry Sync"}</span>
+                </button>
+              </div>
+            )}
+
             {ordersLoading ? (
-              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-xs text-slate-400">
-                <div className="h-8 w-8 animate-spin rounded-full border-3 border-[#123B70] border-t-transparent mx-auto mb-3" />
-                <span>Loading your orders...</span>
+              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-xs text-slate-500 space-y-3">
+                <div className="h-8 w-8 animate-spin rounded-full border-3 border-[#123B70] border-t-transparent mx-auto" />
+                <p className="font-semibold">{currentLang === "hi" ? "आपके प्रिंट ऑर्डर्स लोड हो रहे हैं..." : "Loading your confirmed print orders..."}</p>
               </div>
             ) : customerOrders.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -644,66 +732,106 @@ export const AccountPage: React.FC = () => {
                   const firstItem = itemsList[0];
                   const paymentMethodClean = (order.paymentMethod || "pay_at_store").replace(/_/g, " ");
                   const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
+                  const statusInfo = getCustomerFriendlyStatus(order.orderStatus || "NEW");
+                  const isCompleted = order.orderStatus === "COMPLETED";
+                  const isReady = order.orderStatus === "READY_FOR_PICKUP";
+                  const hasBill = isCompleted || isReady;
 
                   return (
                     <div
                       key={order.id || order.orderCode}
                       className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 transition-all"
                     >
-                      <div className="space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-mono font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                      <div className="space-y-3">
+                        {/* Card Header: Order Code & Status Badge */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-mono font-black text-amber-900 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
                             {order.orderCode}
                           </span>
-                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-[#123B70] border border-blue-200">
-                            {order.orderStatus || "NEW"}
+                          <span className={cn("text-[11px] font-bold px-2.5 py-0.5 rounded-full border shadow-2xs", statusInfo.badgeClass)}>
+                            {statusInfo.label}
                           </span>
                         </div>
 
-                        <h3 className="text-sm font-bold text-slate-900 line-clamp-1">
-                          {itemsList.length > 0
-                            ? itemsList.map((i) => i?.productName || "Print Item").join(", ")
-                            : "Custom Print Order"}
-                        </h3>
+                        {/* Product Title */}
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 line-clamp-1">
+                            {itemsList.length > 0
+                              ? itemsList.map((i) => `${i?.productName || "Print Item"}${i?.quantity && i.quantity > 1 ? ` (${i.quantity}x)` : ""}`).join(", ")
+                              : "Online Printing Service"}
+                          </h3>
 
-                        {firstItem?.uploadedFileName && (
-                          <div className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate">
-                            <FileText className="h-3 w-3 text-slate-400 shrink-0" />
-                            <span className="truncate">{firstItem.uploadedFileName}</span>
+                          {firstItem?.uploadedFileName && (
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 truncate mt-1">
+                              <FileText className="h-3 w-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{firstItem.uploadedFileName}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Total & Date Row */}
+                        <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                          <div>
+                            <span className="text-slate-400">Total: </span>
+                            <strong className="text-slate-900 font-bold font-mono text-sm">₹{order.totalAmount ?? 0}</strong>
                           </div>
-                        )}
-
-                        <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                          <span>Total: <strong className="text-slate-900 font-bold">₹{order.totalAmount ?? 0}</strong></span>
-                          <span className="flex items-center gap-1 text-[11px]">
+                          <span className="flex items-center gap-1 text-[11px] text-slate-500">
                             <Clock className="h-3 w-3 text-slate-400" />
                             <span>{formatDate(order.createdAt)}</span>
                           </span>
                         </div>
                       </div>
 
-                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className={`text-[11px] font-medium capitalize px-2 py-0.5 rounded-md ${
-                          isPaid ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
-                        }`}>
-                          {isPaid ? "✓ Paid" : `Payment: ${paymentMethodClean}`}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {order.orderStatus === "COMPLETED" && (
+                      {/* Payment & Action Buttons */}
+                      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                        {/* Payment Status Tag */}
+                        <div className="space-y-0.5">
+                          <span
+                            className={cn(
+                              "text-[11px] font-bold capitalize px-2 py-0.5 rounded-md inline-flex items-center gap-1",
+                              isPaid
+                                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                : "bg-amber-50 text-amber-800 border border-amber-200"
+                            )}
+                          >
+                            {isPaid ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                            <span>{isPaid ? "Paid" : "Unpaid"}</span>
+                          </span>
+                          {!isPaid && (
+                            <span className="text-[10px] text-slate-500 block truncate">
+                              Mode: {paymentMethodClean}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleViewOrderDetails(order)}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Eye className="h-3 w-3 text-slate-500" />
+                            <span>{currentLang === "hi" ? "ऑर्डर विवरण" : "View Order"}</span>
+                          </button>
+
+                          {hasBill && (
                             <button
                               type="button"
                               onClick={() => handleOpenOrderInvoice(order.orderCode)}
                               className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                             >
                               <Receipt className="h-3 w-3" />
-                              <span>View Bill</span>
+                              <span>{currentLang === "hi" ? "बिल देखें" : "View Bill"}</span>
                             </button>
                           )}
+
                           <Link
                             to={`/track-order?code=${encodeURIComponent(order.orderCode)}`}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline"
+                            className="inline-flex items-center gap-0.5 text-xs font-bold text-[#123B70] hover:underline px-1 py-1"
                           >
-                            <span>Track Status →</span>
+                            <span>{currentLang === "hi" ? "ट्रैक" : "Track"}</span>
+                            <ArrowRight className="h-3 w-3" />
                           </Link>
                         </div>
                       </div>
@@ -972,13 +1100,30 @@ export const AccountPage: React.FC = () => {
         )}
       </div>
 
-      {/* Customer Invoice Preview Modal */}
+      {/* Customer Order Details Modal */}
+      {orderModalOpen && selectedOrderForModal && (
+        <CustomerOrderDetailModal
+          isOpen={orderModalOpen}
+          onClose={() => {
+            setOrderModalOpen(false);
+            setSelectedOrderForModal(null);
+          }}
+          order={selectedOrderForModal}
+          onOpenInvoice={(code) => handleOpenOrderInvoice(code)}
+        />
+      )}
+
+      {/* Customer Invoice Preview & Print Modal */}
       {invoiceModalOpen && (
         <React.Suspense fallback={null}>
           <InvoiceModal
             isOpen={invoiceModalOpen}
-            onClose={() => setInvoiceModalOpen(false)}
+            onClose={() => {
+              setInvoiceModalOpen(false);
+              setSelectedInvoiceForModal(null);
+            }}
             invoice={selectedInvoiceForModal}
+            loading={invoiceLoading}
             isAdmin={false}
           />
         </React.Suspense>
@@ -988,4 +1133,3 @@ export const AccountPage: React.FC = () => {
 };
 
 export default AccountPage;
-

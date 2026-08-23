@@ -421,6 +421,37 @@ export class PalakInvoiceStore {
     setLocal(INVOICES_STORAGE_KEY, list);
   }
 
+  /** Update payment status on a local invoice */
+  static updateInvoicePaymentStatus(orderCode: string, paymentStatus: string): void {
+    const clean = orderCode.trim().toUpperCase();
+    const isPaid = paymentStatus === "paid" || paymentStatus === "confirmed";
+    const isPartiallyPaid = paymentStatus === "partially_paid";
+    const list = [...this.getAllLocalInvoices()];
+    let updated = false;
+
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].orderCode && list[i].orderCode!.toUpperCase() === clean) {
+        const total = list[i].totalAmount || 0;
+        const paid = isPaid ? total : isPartiallyPaid ? roundCurrency(total / 2) : 0;
+        const due = Math.max(0, total - paid);
+
+        list[i] = {
+          ...list[i],
+          paymentStatus: normalizeInvoicePaymentStatus(paymentStatus as any),
+          amountPaid: paid,
+          amountDue: due,
+          updatedAt: new Date().toISOString(),
+        };
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      memoryInvoices = list;
+      setLocal(INVOICES_STORAGE_KEY, list);
+    }
+  }
+
   /**
    * Primary generator for completed online orders.
    * - Supabase is Authoritative Source (RPC: create_or_regenerate_invoice).

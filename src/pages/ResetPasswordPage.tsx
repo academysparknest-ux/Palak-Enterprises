@@ -45,7 +45,7 @@ export const ResetPasswordPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-140px)] bg-[#F7F8FA] py-12 px-4 sm:px-6 flex items-center justify-center">
+    <div className="min-h-[calc(100vh-140px)] bg-[#FAF8F5] py-12 px-4 sm:px-6 flex items-center justify-center">
       <SEO
         title={{
           en: "Set New Password | Palak Enterprises",

@@ -41,7 +41,7 @@ export const ProductDetailPage: React.FC = () => {
   const images = product.galleryUrls.length > 0 ? product.galleryUrls : [product.imageUrl];
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] pb-20">
+    <div className="min-h-screen bg-[#FAF8F5] pb-20">
       {/* Breadcrumb Bar */}
       <div className="border-b border-slate-200 bg-white py-3 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl flex items-center justify-between text-xs text-slate-500">

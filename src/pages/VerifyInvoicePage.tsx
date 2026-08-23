@@ -170,12 +170,12 @@ export const VerifyInvoicePage: React.FC = () => {
           </div>
         ) : result?.status === "AUTHENTIC" ? (
           /* ─── STATE 1: AUTHENTIC INVOICE (ONLY VIA AUTHORITATIVE DATABASE CONFIRMATION) ─── */
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden space-y-0">
+          <div className="bg-white rounded-2xl shadow-sm border border-emerald-200 overflow-hidden space-y-0">
             {/* Top Verified Header Banner */}
             <div className="bg-emerald-600 text-white p-5 text-center space-y-1.5">
               <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider backdrop-blur-xs">
                 <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-                <span>Genuine Authentic Invoice</span>
+                <span>✓ AUTHENTIC INVOICE</span>
               </div>
               <h2 className="text-xl font-black tracking-tight">✓ Verified Palak Enterprises Bill</h2>
               <p className="text-xs text-emerald-100">
@@ -279,11 +279,46 @@ export const VerifyInvoicePage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Itemized Services / Products List */}
+              {result.items && result.items.length > 0 && (
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
+                    Invoiced Service / Items ({result.items.length})
+                  </span>
+                  <div className="divide-y divide-slate-200/80">
+                    {result.items.map((item, idx) => (
+                      <div key={idx} className="py-2 flex items-center justify-between gap-3 text-xs first:pt-0 last:pb-0">
+                        <div>
+                          <div className="font-bold text-slate-900 leading-snug">
+                            {item.productName}
+                          </div>
+                          {item.description && (
+                            <div className="text-[10px] text-slate-500 leading-tight">
+                              {item.description}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono text-slate-700 font-semibold">
+                            Qty: {item.quantity} {item.unit || "Pcs"}
+                          </span>
+                          {item.totalPrice !== undefined && item.totalPrice > 0 && (
+                            <div className="font-mono font-bold text-slate-900 text-[11px]">
+                              {formatCurrency(item.totalPrice)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Authoritative Badge Seal */}
               <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 flex items-start gap-2.5 text-[11px] text-emerald-950">
                 <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
-                  <span className="font-bold block">Authoritative Database Match</span>
+                  <span className="font-bold block">✓ Verified against official records</span>
                   <p className="text-emerald-800 text-[10px] leading-tight">
                     This invoice is permanently recorded in the Palak Enterprises official billing ledger under Ward No. 7, Saniganj Mohalla, Chakia, East Champaran, Bihar - 845412.
                   </p>
@@ -297,7 +332,7 @@ export const VerifyInvoicePage: React.FC = () => {
             <div className="bg-amber-600 text-white p-5 text-center space-y-1">
               <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider">
                 <AlertTriangle className="h-3.5 w-3.5 text-white" />
-                <span>Invoice Voided / Cancelled</span>
+                <span>INVOICE CANCELLED</span>
               </div>
               <h2 className="text-xl font-black tracking-tight">⚠ Cancelled Invoice</h2>
               <p className="text-xs text-amber-100">
