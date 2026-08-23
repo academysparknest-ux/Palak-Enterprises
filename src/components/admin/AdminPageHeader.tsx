@@ -25,8 +25,9 @@ export function AdminPageHeader({
       <div>
         {breadcrumbs && breadcrumbs.length > 0 && (
           <nav className="flex items-center space-x-1 text-xs text-slate-500 mb-1.5">
-            <Link to="/admin" className="hover:text-[#123B70] transition-colors flex items-center">
-              <Home className="w-3.5 h-3.5" />
+            <Link to="/admin" className="hover:text-[#123B70] transition-colors flex items-center gap-1 font-medium text-slate-600 hover:text-slate-900" title="Go to ERP Dashboard">
+              <Home className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>ERP Dashboard</span>
             </Link>
             {breadcrumbs.map((crumb, index) => (
               <div key={index} className="flex items-center space-x-1">

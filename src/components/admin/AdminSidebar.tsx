@@ -55,7 +55,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+    { name: 'ERP Dashboard', path: '/admin', icon: LayoutDashboard },
     { name: 'Orders', path: '/admin/orders', icon: Package, badge: newOrdersCount },
     { name: 'Payments', path: '/admin/payments', icon: Wallet },
     { name: 'Quick Services', path: '/admin/quick-services', icon: Zap },

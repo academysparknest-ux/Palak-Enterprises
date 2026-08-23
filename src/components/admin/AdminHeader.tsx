@@ -13,6 +13,7 @@ import {
   Clock,
   Package,
   X,
+  LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
@@ -529,7 +530,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           </Link>
         </div>
 
-        {/* Right: Role badge + Notifications + Profile */}
+        {/* Right: Role badge + ERP Dashboard + Notifications + Profile */}
         <div className="flex items-center gap-1.5">
           {/* Role Badge */}
           <div className={cn(
@@ -539,6 +540,16 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             <roleBadge.icon className="h-2.5 w-2.5" />
             <span>{roleBadge.label}</span>
           </div>
+
+          {/* Quick ERP Dashboard Link button */}
+          <Link
+            to="/admin"
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 text-xs font-bold transition-colors cursor-pointer"
+            title="Go to main ERP Operations Dashboard"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5 text-amber-400" />
+            <span>ERP Dashboard</span>
+          </Link>
 
           {/* Refresh */}
           {onRefresh && (
@@ -586,6 +597,14 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                   </div>
                 </div>
                 <div className="py-1">
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-2 px-3.5 py-1.5 text-xs text-amber-800 bg-amber-50/60 font-semibold hover:bg-amber-100/70"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    <LayoutDashboard className="h-3 w-3 text-amber-600" />
+                    ERP Dashboard
+                  </Link>
                   <Link
                     to="/admin/settings"
                     className="flex items-center gap-2 px-3.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50"

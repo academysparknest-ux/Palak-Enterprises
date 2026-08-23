@@ -32,6 +32,7 @@ import {
   Phone,
   MapPin,
   Plus,
+  LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -1383,6 +1384,14 @@ export const AdminPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              to="/admin"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-xs font-bold text-slate-950 transition-colors shadow-2xs cursor-pointer"
+              title="Go to main ERP Operations Dashboard"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              <span>ERP Dashboard</span>
+            </Link>
             <button
               onClick={() => loadData()}
               disabled={loading}
@@ -1405,7 +1414,20 @@ export const AdminPage: React.FC = () => {
 
           <div className="mx-auto max-w-7xl px-2 sm:px-4 pt-3 space-y-4">
         {/* KPI Counter Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-2.5">
+          <Link
+            to="/admin"
+            className="p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer bg-amber-500/10 border-amber-400/40 hover:bg-amber-500/20 hover:border-amber-500 group shadow-2xs"
+            title="Go to main ERP Operations Dashboard"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-amber-900">ERP Dashboard</span>
+              <LayoutDashboard className="h-3.5 w-3.5 text-amber-700 group-hover:scale-110 transition-transform" />
+            </div>
+            <div className="text-lg sm:text-xl font-black text-amber-950 mt-0.5">Overview</div>
+            <div className="text-[10px] text-amber-700 font-semibold mt-0.5">Live Analytics →</div>
+          </Link>
+
           <button
             onClick={() => handleSelectTab("orders")}
             className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all cursor-pointer ${
