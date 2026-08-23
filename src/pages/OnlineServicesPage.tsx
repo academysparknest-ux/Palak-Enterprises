@@ -16,22 +16,17 @@ import {
   Store,
   Clock,
   Search,
-  Globe,
   Zap,
   FileUp,
+  AlertCircle,
+  ShieldAlert,
+  RefreshCw,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { SEO } from "../components/SEO";
 import { PageHero } from "../components/PageHero";
 import { cn } from "../lib/utils";
-
-import {
-  getQuickServices,
-  subscribeToQuickServices,
-  type QuickServiceItem,
-  DEFAULT_QUICK_SERVICES,
-} from "../lib/supabase/database";
-import { AlertCircle, ShieldAlert } from "lucide-react";
+import { useAllQuickServicesAvailability } from "../hooks/useQuickServiceAvailability";
 
 interface OnlineServicesPageProps {
   onOpenRequestModal?: () => void;
@@ -43,17 +38,13 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [onlineTrackInput, setOnlineTrackInput] = useState("");
-  const [dbQuickServices, setDbQuickServices] = useState<QuickServiceItem[]>(DEFAULT_QUICK_SERVICES);
 
-  useEffect(() => {
-    getQuickServices().then(setDbQuickServices).catch(() => {});
-    const unsubscribe = subscribeToQuickServices((fresh) => {
-      setDbQuickServices(fresh);
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+  const {
+    services: dbQuickServices,
+    loading: isAvailabilityLoading,
+    error: availabilityError,
+    refresh: refreshAvailability,
+  } = useAllQuickServicesAvailability();
 
   const rawPayment = searchParams.get("payment") || searchParams.get("paymentMethod") || searchParams.get("pay");
   const initialMode = (rawPayment && (rawPayment.toLowerCase() === "pay_online" || rawPayment.toLowerCase() === "online" || rawPayment.toLowerCase() === "priority"))
@@ -90,12 +81,14 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "नोट्स, असाइनमेंट, फॉर्म, रिपोर्ट एवं अन्य सभी अध्ययन और आधिकारिक दस्तावेज।",
       featureLine: "B&W • Color • Single/Double Side • Binding • Lamination",
       featureLineHi: "ब्लैक & व्हाइट • रंगीन • सिंगल / डबल साइड • बाइंडिंग • लैमिनेशन",
+      priceText: "₹1.50 onwards",
+      priceTextHi: "₹1.50 से शुरू",
       icon: FileText,
       path: "/online-services/document-printing",
       badge: "MOST POPULAR",
       badgeHi: "सबसे लोकप्रिय",
-      actionText: "Start Printing →",
-      actionTextHi: "प्रिंटिंग शुरू करें →",
+      actionText: "Order Now →",
+      actionTextHi: "ऑर्डर करें →",
       isPopular: true,
       isComingSoon: false,
       iconColor: "bg-blue-50 text-[#123B70] border-blue-200",
@@ -108,10 +101,12 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "अपनी फोटो अपलोड करें और आवश्यक प्रिंट लेआउट (8, 16, 32 शीट) चुनें।",
       featureLine: "8, 16, 32 Photos • Glossy Photo Sheet • Stamp / Passport Size",
       featureLineHi: "8, 16, 32 फोटो शीट • ग्लॉसी फोटो पेपर • त्वरित प्रिंट",
+      priceText: "₹20 onwards",
+      priceTextHi: "₹20 से शुरू",
       icon: Camera,
       path: "/online-services/passport-photo",
-      actionText: "Start →",
-      actionTextHi: "शुरू करें →",
+      actionText: "Order Now →",
+      actionTextHi: "ऑर्डर करें →",
       isPopular: false,
       isComingSoon: false,
       iconColor: "bg-emerald-50 text-emerald-800 border-emerald-200",
@@ -124,10 +119,12 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "अपना डिज़ाइन अपलोड करें या उपलब्ध टेम्पलेट से बिजनेस कार्ड ऑर्डर करें।",
       featureLine: "350 GSM Premium • Matte & Gloss • Single & Both Side",
       featureLineHi: "350 GSM प्रीमियम • मैट व ग्लॉस फिनिश • सिंगल व दोनों साइड",
+      priceText: "₹350 onwards",
+      priceTextHi: "₹350 से शुरू",
       icon: CreditCard,
       path: "/online-services/visiting-cards",
-      actionText: "Start →",
-      actionTextHi: "शुरू करें →",
+      actionText: "Order Now →",
+      actionTextHi: "ऑर्डर करें →",
       isPopular: false,
       isComingSoon: false,
       iconColor: "bg-indigo-50 text-indigo-800 border-indigo-200",
@@ -140,10 +137,12 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "स्कूल, कॉलेज, स्टाफ और व्यक्तिगत स्मार्ट पीवीसी आईडी कार्ड ऑर्डर करें।",
       featureLine: "Smart PVC Card • Lanyard & Holder • Single / Double Sided",
       featureLineHi: "स्मार्ट PVC कार्ड • डोरी व होल्डर • सिंगल व डबल साइडेड",
+      priceText: "₹40 onwards",
+      priceTextHi: "₹40 से शुरू",
       icon: Contact,
       path: "/online-services/id-cards",
-      actionText: "Start →",
-      actionTextHi: "शुरू करें →",
+      actionText: "Order Now →",
+      actionTextHi: "ऑर्डर करें →",
       isPopular: false,
       isComingSoon: false,
       iconColor: "bg-amber-50 text-amber-800 border-amber-200",
@@ -156,10 +155,12 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "अपना डिज़ाइन अपलोड करें और साइज, पेपर या फ्लेक्स मटेरियल चुनें।",
       featureLine: "A4, A3, Photo Paper • Vinyl & Flex • High-Definition",
       featureLineHi: "A4, A3 फोटो शीट • विनाइल व फ्लेक्स • HD प्रिंटिंग",
+      priceText: "₹20 onwards",
+      priceTextHi: "₹20 से शुरू",
       icon: ImageIcon,
       path: "/online-services/poster-banner",
-      actionText: "Start →",
-      actionTextHi: "शुरू करें →",
+      actionText: "Order Now →",
+      actionTextHi: "ऑर्डर करें →",
       isPopular: false,
       isComingSoon: false,
       iconColor: "bg-purple-50 text-purple-800 border-purple-200",
@@ -172,6 +173,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "पम्पलेट, बिल बुक, स्टिकर, मेन्यू या अन्य कस्टम प्रिंटिंग की आवश्यकता बताएं।",
       featureLine: "Bill Books • Pamphlets • Stickers • Custom Requirements",
       featureLineHi: "बिल बुक • पम्पलेट • स्टिकर • विशिष्ट आवश्यकताएं",
+      priceText: "Custom Quote",
+      priceTextHi: "कस्टम कोटेशन",
       icon: Printer,
       path: "/online-services/custom-print",
       actionText: "Order Details →",
@@ -188,6 +191,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "कस्टमाइज्ड शादी एवं मांगलिक निमंत्रण पत्र प्रिंटिंग सेवा जल्द उपलब्ध होगी।",
       featureLine: "Wedding Cards • Tilak • Events • Coming Soon",
       featureLineHi: "शादी कार्ड • तिलक • गृह प्रवेश • जल्द उपलब्ध",
+      priceText: "Coming Soon",
+      priceTextHi: "जल्द उपलब्ध",
       icon: Sparkles,
       path: "#",
       badge: "Coming Soon",
@@ -284,7 +289,7 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       />
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-10 space-y-10 sm:space-y-12">
-        {/* 2. QUICK PRINT SERVICES GRID (Above the fold on standard desktop) */}
+        {/* 2. QUICK PRINT SERVICES GRID */}
         <section aria-labelledby="quick-print-services-heading" className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
             <div>
@@ -387,134 +392,221 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
             </div>
           </div>
 
+          {/* Availability error notice */}
+          {availabilityError && dbQuickServices.length === 0 && (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>
+                  {currentLang === "hi"
+                    ? "सेवा उपलब्धता लोड नहीं हो सकी। कृपया पुनः प्रयास करें।"
+                    : "Service availability status could not be verified. Please refresh and try again."}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => refreshAvailability()}
+                className="inline-flex items-center gap-1 font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>{currentLang === "hi" ? "रीफ्रेश" : "Retry"}</span>
+              </button>
+            </div>
+          )}
+
           {/* 3-Column Desktop Grid / 2-Col Tablet / 1-Col Mobile */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {services.map((service) => {
-              const Icon = service.icon;
-              const isDoc = service.id === "document-printing";
-              const targetUrl = `${service.path}?payment=${paymentMode}`;
-              const dbItem = dbQuickServices.find((s) => s.id === service.id);
-              const isStopped = dbItem ? dbItem.is_active === false : false;
-              const stopReason = dbItem?.stop_reason;
-
-              return (
-                <article
-                  key={service.id}
-                  className={cn(
-                    "group relative flex flex-col justify-between rounded-2xl border bg-white p-5 transition-all duration-200",
-                    isStopped
-                      ? "border-rose-200 bg-rose-50/20 shadow-xs"
-                      : isDoc
-                      ? "border-blue-300 ring-1 ring-blue-500/20 bg-linear-to-b from-blue-50/35 via-white to-white shadow-md hover:shadow-xl hover:border-blue-400"
-                      : "border-slate-200 shadow-xs hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
-                    service.isComingSoon && "bg-slate-50/70 opacity-90 border-slate-200"
-                  )}
-                >
-                  <div>
-                    {/* Top row: Icon + Badge */}
-                    <div className="flex items-start justify-between gap-3 mb-3.5">
-                      <div
-                        className={cn(
-                          "h-11 w-11 rounded-xl p-2.5 flex items-center justify-center border transition-transform group-hover:scale-105 shrink-0",
-                          isStopped ? "bg-rose-100 text-rose-800 border-rose-200" : service.iconColor
-                        )}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </div>
-
-                      {isStopped ? (
-                        <span className="rounded-full bg-rose-100 text-rose-900 border border-rose-300 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide shadow-2xs inline-flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-rose-600" />
-                          <span>{currentLang === "hi" ? "अस्थायी रूप से अनुपलब्ध" : "Temporarily Unavailable"}</span>
-                        </span>
-                      ) : service.isPopular ? (
-                        <span className="rounded-full bg-blue-600 text-white border border-blue-600 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide shadow-xs">
-                          {currentLang === "hi" ? service.badgeHi : service.badge}
-                        </span>
-                      ) : service.isComingSoon ? (
-                        <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-                          {currentLang === "hi" ? service.badgeHi : service.badge}
-                        </span>
-                      ) : null}
+            {isAvailabilityLoading && dbQuickServices.length === 0
+              ? Array.from({ length: 6 }).map((_, idx) => (
+                  <div
+                    key={`skeleton-${idx}`}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 animate-pulse"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="h-11 w-11 rounded-xl bg-slate-200" />
+                      <div className="h-5 w-24 rounded-full bg-slate-200" />
                     </div>
+                    <div className="space-y-2">
+                      <div className="h-5 w-3/4 rounded-md bg-slate-200" />
+                      <div className="h-3 w-full rounded-md bg-slate-100" />
+                      <div className="h-3 w-5/6 rounded-md bg-slate-100" />
+                    </div>
+                    <div className="h-4 w-20 rounded-md bg-slate-200 pt-2" />
+                    <div className="h-10 w-full rounded-xl bg-slate-200" />
+                  </div>
+                ))
+              : services.map((service) => {
+                  const Icon = service.icon;
+                  const isDoc = service.id === "document-printing";
+                  const targetUrl = `${service.path}?payment=${paymentMode}`;
+                  const dbItem = dbQuickServices.find((s) => s.id === service.id);
+                  const isStopped = dbItem ? dbItem.is_active === false : false;
+                  const stopReason = dbItem?.stop_reason;
 
-                    {/* Service Title */}
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#123B70] transition-colors leading-snug">
-                      {currentLang === "hi" ? service.titleHi : service.title}
-                    </h3>
+                  return (
+                    <article
+                      key={service.id}
+                      className={cn(
+                        "group relative flex flex-col justify-between rounded-2xl border bg-white p-5 transition-all duration-200",
+                        isStopped
+                          ? "border-rose-200 bg-rose-50/20 shadow-xs"
+                          : isDoc
+                          ? "border-blue-300 ring-1 ring-blue-500/20 bg-linear-to-b from-blue-50/35 via-white to-white shadow-md hover:shadow-xl hover:border-blue-400"
+                          : "border-slate-200 shadow-xs hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
+                        service.isComingSoon && "bg-slate-50/70 opacity-90 border-slate-200"
+                      )}
+                    >
+                      <div>
+                        {/* Top row: Icon + Availability Badge */}
+                        <div className="flex items-start justify-between gap-3 mb-3.5">
+                          <div
+                            className={cn(
+                              "h-11 w-11 rounded-xl p-2.5 flex items-center justify-center border transition-transform group-hover:scale-105 shrink-0",
+                              isStopped ? "bg-rose-100 text-rose-800 border-rose-200" : service.iconColor
+                            )}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </div>
 
-                    {/* Service Short Description / Stopped Notice */}
-                    {isStopped ? (
-                      <div className="mt-2.5 p-2.5 rounded-xl bg-rose-50 border border-rose-200/80 text-xs text-rose-900 space-y-1">
-                        <p className="font-bold flex items-center gap-1 text-[11px]">
-                          <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                          <span>{stopReason || (currentLang === "hi" ? "यह सेवा फिलहाल नए ऑर्डर स्वीकार नहीं कर रही है।" : "Currently not accepting new orders.")}</span>
-                        </p>
-                        <p className="text-[10px] text-rose-700">
-                          {currentLang === "hi"
-                            ? "कृपया कुछ देर बाद देखें या अन्य प्रिंट सेवा चुनें।"
-                            : "Please check back later or choose another service."}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-                        {currentLang === "hi" ? service.descHi : service.desc}
-                      </p>
-                    )}
-
-                    {/* Feature Highlights Line */}
-                    {!isStopped && (
-                      <div className="mt-3.5 pt-2.5 border-t border-slate-100">
-                        <p
-                          className={cn(
-                            "text-[11px] font-semibold leading-normal",
-                            isDoc ? "text-blue-900 font-bold" : "text-slate-500"
+                          {/* Dynamic Availability Badge */}
+                          {isStopped ? (
+                            <span
+                              className="rounded-full bg-rose-100 text-rose-900 border border-rose-300 px-2.5 py-1 text-[10.5px] font-black uppercase tracking-wide shadow-2xs inline-flex items-center gap-1.5"
+                              role="status"
+                              aria-label="Temporarily Unavailable"
+                            >
+                              <span className="h-2 w-2 rounded-full bg-rose-600 shrink-0 animate-pulse" />
+                              <span>{currentLang === "hi" ? "अस्थायी रूप से अनुपलब्ध" : "Temporarily Unavailable"}</span>
+                            </span>
+                          ) : service.isComingSoon ? (
+                            <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider">
+                              {currentLang === "hi" ? service.badgeHi : service.badge}
+                            </span>
+                          ) : (
+                            <span
+                              className="rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-wide shadow-2xs inline-flex items-center gap-1.5"
+                              role="status"
+                              aria-label="Available"
+                            >
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                              <span>{currentLang === "hi" ? "उपलब्ध" : "Available"}</span>
+                            </span>
                           )}
-                        >
-                          {currentLang === "hi" ? service.featureLineHi : service.featureLine}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                        </div>
 
-                  {/* CTA Action Button */}
-                  <div className="mt-4 pt-3 border-t border-slate-100">
-                    {isStopped ? (
-                      <div className="w-full flex items-center justify-between text-xs font-bold text-rose-700 py-2.5 px-3 rounded-xl bg-rose-50 border border-rose-200">
-                        <span className="flex items-center gap-1.5">
-                          <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-                          <span>{currentLang === "hi" ? "अनुपलब्ध (Unavailable)" : "Unavailable"}</span>
-                        </span>
-                        <span className="text-[10px] uppercase font-bold text-rose-500 tracking-wider">
-                          Stopped
-                        </span>
-                      </div>
-                    ) : service.isComingSoon ? (
-                      <div className="w-full flex items-center justify-between text-xs font-bold text-slate-400 py-2.5 px-3 rounded-xl bg-slate-100 border border-slate-200 cursor-not-allowed">
-                        <span>{currentLang === "hi" ? service.actionTextHi : service.actionText}</span>
-                        <span className="text-[10px] uppercase font-bold text-rose-600 tracking-wider">
-                          {currentLang === "hi" ? "जल्द" : "Soon"}
-                        </span>
-                      </div>
-                    ) : (
-                      <Link
-                        to={targetUrl}
-                        state={{ paymentMethod: paymentMode }}
-                        className={cn(
-                          "w-full inline-flex items-center justify-between rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-xs cursor-pointer",
-                          isDoc
-                            ? "bg-[#123B70] text-white hover:bg-[#0c274c] shadow-blue-900/10 group-hover:shadow-md"
-                            : "bg-slate-900 text-white hover:bg-[#123B70]"
+                        {/* Service Title */}
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#123B70] transition-colors leading-snug">
+                          {currentLang === "hi" ? service.titleHi : service.title}
+                        </h3>
+
+                        {/* Service Short Description or Stop Reason Box */}
+                        {isStopped ? (
+                          <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200/90 text-xs text-rose-900 space-y-1.5">
+                            <div className="flex items-start gap-1.5 text-xs font-bold leading-snug">
+                              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-extrabold text-rose-950 mr-1">
+                                  {currentLang === "hi" ? "कारण:" : "Reason:"}
+                                </span>
+                                <span>
+                                  {stopReason ||
+                                    (currentLang === "hi"
+                                      ? "तकनीकी मेंटेनेंस या सेवा रुकावट के कारण नए ऑर्डर अस्थायी रूप से रोके गए हैं।"
+                                      : "Service is temporarily paused for maintenance or high load.")}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-rose-700 font-medium pl-5">
+                              {currentLang === "hi"
+                                ? "कृपया बाद में पुनः प्रयास करें।"
+                                : "Please check again later."}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                            {currentLang === "hi" ? service.descHi : service.desc}
+                          </p>
                         )}
-                      >
-                        <span>{currentLang === "hi" ? service.actionTextHi : service.actionText}</span>
-                        <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
-                      </Link>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+
+                        {/* Pricing & Features Section */}
+                        <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-baseline justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            {currentLang === "hi" ? "शुरुआती मूल्य" : "Starting At"}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-xs sm:text-sm font-extrabold",
+                              isStopped
+                                ? "text-rose-600 line-through decoration-rose-300"
+                                : "text-emerald-700 font-black"
+                            )}
+                          >
+                            {isStopped
+                              ? (currentLang === "hi" ? "अभी अनुपलब्ध" : "Unavailable")
+                              : (currentLang === "hi" ? service.priceTextHi : service.priceText)}
+                          </span>
+                        </div>
+
+                        {!isStopped && (
+                          <p
+                            className={cn(
+                              "text-[10.5px] font-semibold leading-normal mt-1",
+                              isDoc ? "text-blue-900 font-bold" : "text-slate-500"
+                            )}
+                          >
+                            {currentLang === "hi" ? service.featureLineHi : service.featureLine}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* CTA Action Button */}
+                      <div className="mt-4 pt-3 border-t border-slate-100">
+                        {isStopped ? (
+                          <button
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            className="w-full flex items-center justify-between text-xs font-bold text-slate-500 py-2.5 px-4 rounded-xl bg-slate-100 border border-slate-200 cursor-not-allowed opacity-80"
+                            title={
+                              currentLang === "hi"
+                                ? "यह सेवा अस्थायी रूप से बंद है"
+                                : "This service is temporarily unavailable"
+                            }
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                              <span>{currentLang === "hi" ? "अनुपलब्ध (Unavailable)" : "Unavailable"}</span>
+                            </span>
+                            <span className="text-[10px] uppercase font-bold text-rose-600 tracking-wider">
+                              {currentLang === "hi" ? "रोका गया" : "Stopped"}
+                            </span>
+                          </button>
+                        ) : service.isComingSoon ? (
+                          <div className="w-full flex items-center justify-between text-xs font-bold text-slate-400 py-2.5 px-3 rounded-xl bg-slate-100 border border-slate-200 cursor-not-allowed">
+                            <span>{currentLang === "hi" ? service.actionTextHi : service.actionText}</span>
+                            <span className="text-[10px] uppercase font-bold text-rose-600 tracking-wider">
+                              {currentLang === "hi" ? "जल्द" : "Soon"}
+                            </span>
+                          </div>
+                        ) : (
+                          <Link
+                            to={targetUrl}
+                            state={{ paymentMethod: paymentMode }}
+                            className={cn(
+                              "w-full inline-flex items-center justify-between rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-xs cursor-pointer",
+                              isDoc
+                                ? "bg-[#123B70] text-white hover:bg-[#0c274c] shadow-blue-900/10 group-hover:shadow-md"
+                                : "bg-slate-900 text-white hover:bg-[#123B70]"
+                            )}
+                          >
+                            <span>{currentLang === "hi" ? service.actionTextHi : service.actionText}</span>
+                            <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+                          </Link>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
           </div>
         </section>
 
@@ -552,20 +644,18 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
               return (
                 <div
                   key={item.step}
-                  className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 space-y-2 hover:bg-white hover:border-slate-200 transition-all"
+                  className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 space-y-2 relative"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="h-7 w-7 rounded-lg bg-[#123B70] text-white font-black flex items-center justify-center text-xs shadow-xs">
+                    <span className="h-7 w-7 rounded-full bg-[#123B70] text-white text-xs font-black flex items-center justify-center">
                       {item.step}
                     </span>
-                    <StepIcon className="h-4 w-4 text-slate-400" />
+                    <StepIcon className="h-5 w-5 text-slate-400" />
                   </div>
-
-                  <h3 className="text-sm font-bold text-slate-900">
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900">
                     {currentLang === "hi" ? item.titleHi : item.title}
                   </h3>
-
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-[11px] text-slate-600 leading-snug">
                     {currentLang === "hi" ? item.descHi : item.desc}
                   </p>
                 </div>
@@ -574,79 +664,53 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
           </div>
         </section>
 
-        {/* 4. COMPACT ORDER TRACKING STRIP */}
-        <section
-          aria-labelledby="track-order-heading"
-          className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 via-[#123B70] to-slate-900 text-white p-5 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm"
-        >
-          <div className="flex items-center gap-3.5 text-center sm:text-left">
-            <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10">
-              <Search className="h-5 w-5 text-amber-300" />
-            </div>
-            <div>
-              <h3 id="track-order-heading" className="text-sm sm:text-base font-bold text-white">
-                {currentLang === "hi" ? "क्या आपने पहले ही ऑर्डर किया है?" : "Already placed an order?"}
-              </h3>
-              <p className="text-xs text-slate-300">
+        {/* 4. TRACK ORDER DIRECT ACCESS */}
+        <section className="rounded-3xl border border-blue-200 bg-linear-to-r from-blue-900 to-indigo-950 p-6 sm:p-8 text-white space-y-4 shadow-md">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-[11px] font-black uppercase tracking-wider text-blue-300">
+                {currentLang === "hi" ? "लाइव स्टेटस ट्रैकिंग" : "Live Status Tracking"}
+              </span>
+              <h2 className="text-lg sm:text-xl font-bold text-white">
                 {currentLang === "hi"
-                  ? "अपने ऑर्डर आईडी या मोबाइल नंबर से लाइव प्रिंट स्थिति जांचें।"
-                  : "Check the real-time printing and readiness status of your order."}
+                  ? "क्या आपने पहले ही ऑर्डर दिया है?"
+                  : "Already placed an online printing order?"}
+              </h2>
+              <p className="text-xs sm:text-sm text-blue-200 max-w-xl">
+                {currentLang === "hi"
+                  ? "अपना ऑर्डर कोड (उदा. ORD-20260823-1698) दर्ज करें और लाइव प्रिंटिंग स्थिति देखें।"
+                  : "Enter your order reference code (e.g. ORD-20260823-1698) to track live production and pickup readiness."}
               </p>
             </div>
-          </div>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (onlineTrackInput.trim()) {
-                navigate(`/order-status?code=${encodeURIComponent(onlineTrackInput.trim())}`);
-              } else {
-                navigate("/order-status");
-              }
-            }}
-            className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto shrink-0"
-          >
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="text"
-                value={onlineTrackInput}
-                onChange={(e) => setOnlineTrackInput(e.target.value)}
-                placeholder={
-                  currentLang === "hi"
-                    ? "ट्रैकिंग आईडी दर्ज करें (e.g. PE-O-...)"
-                    : "Enter Tracking ID (e.g. PE-O-...)"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (onlineTrackInput.trim()) {
+                  navigate(`/track-order?code=${encodeURIComponent(onlineTrackInput.trim())}`);
                 }
-                className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-md pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-300 focus:bg-white focus:text-slate-900 focus:outline-hidden transition-all"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 px-5 py-2.5 text-xs font-black transition-transform hover:scale-105 shrink-0 shadow-md cursor-pointer"
+              }}
+              className="flex items-center gap-2 w-full sm:w-auto"
             >
-              <span>{currentLang === "hi" ? "ऑर्डर ट्रैक करें →" : "Track Order →"}</span>
-            </button>
-          </form>
-        </section>
-
-        {/* 5. CSC / CITIZEN DIGITAL CENTER PROMPT (Compact Footnote Link) */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5 text-slate-700 text-center sm:text-left">
-            <Globe className="h-4 w-4 text-blue-600 shrink-0" />
-            <span>
-              {currentLang === "hi"
-                ? "सरकारी परीक्षा फॉर्म, पैन कार्ड या सीएससी डिजिटल सेवाओं की आवश्यकता है?"
-                : "Looking for Government Exam Forms, PAN Card, or CSC Citizen Services?"}
-            </span>
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={onlineTrackInput}
+                  onChange={(e) => setOnlineTrackInput(e.target.value)}
+                  placeholder={currentLang === "hi" ? "ऑर्डर कोड दर्ज करें..." : "Enter Order Code..."}
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-300/60 focus:bg-white focus:text-slate-900 focus:outline-none transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-white text-[#123B70] hover:bg-blue-50 text-xs font-bold rounded-xl transition-colors shrink-0 cursor-pointer shadow-xs"
+              >
+                {currentLang === "hi" ? "ट्रैक करें" : "Track"}
+              </button>
+            </form>
           </div>
-
-          <Link
-            to="/services"
-            className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline shrink-0"
-          >
-            <span>{currentLang === "hi" ? "संपूर्ण सेवा कैटलॉग देखें →" : "Explore Complete Services Catalog →"}</span>
-          </Link>
-        </div>
+        </section>
       </main>
     </div>
   );
