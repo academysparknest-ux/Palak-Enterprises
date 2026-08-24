@@ -50,11 +50,7 @@ export const WebsiteContentPage: React.FC = () => {
   const [promoId, setPromoId] = useState<string | null>(null);
   const [businessInfoExists, setBusinessInfoExists] = useState(false);
 
-  useEffect(() => {
-    fetchContent();
-  }, []);
-
-  const fetchContent = async () => {
+  const fetchContent = React.useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
       setLoading(false);
       return;
@@ -64,7 +60,7 @@ export const WebsiteContentPage: React.FC = () => {
       // Fetch website content
       const { data: contentData, error: contentError } = await supabase
         .from('website_content')
-        .select('*');
+        .select('id, section, content, is_active, updated_at');
 
       if (contentError) throw contentError;
 
@@ -72,20 +68,22 @@ export const WebsiteContentPage: React.FC = () => {
         const hero = contentData.find(c => c.section === 'hero');
         if (hero) {
           setHeroId(hero.id);
-          setHeroContent(hero.content || heroContent);
+          if (hero.content) setHeroContent(hero.content);
         }
 
         const promo = contentData.find(c => c.section === 'promo');
         if (promo) {
           setPromoId(promo.id);
-          setPromoContent(promo.content ? { ...promo.content, is_active: promo.is_active } : promoContent);
+          if (promo.content) {
+            setPromoContent({ ...promo.content, is_active: promo.is_active });
+          }
         }
       }
 
       // Fetch business settings
       const { data: bizData, error: bizError } = await supabase
         .from('business_settings')
-        .select('*')
+        .select('id, key, value, updated_at')
         .eq('key', 'business_info')
         .single();
 
@@ -104,7 +102,11 @@ export const WebsiteContentPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [addToast]);
+
+  useEffect(() => {
+    fetchContent();
+  }, [fetchContent]);
 
   const handleSaveSection = async (section: 'hero' | 'promo' | 'business') => {
     if (!isSupabaseConfigured || !supabase) return;

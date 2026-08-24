@@ -1,6 +1,6 @@
 import React from "react";
 import type { StoredInvoice } from "../../lib/invoice/types";
-import { numberToIndianRupeesWords, roundCurrency } from "../../lib/invoice/invoiceStore";
+import { numberToIndianRupeesWords, formatCurrency } from "../../lib/invoice/invoiceStore";
 import { CheckCircle2, AlertCircle, Phone, Mail, MapPin, Clock, ShieldCheck } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { InvoiceQRCode } from "./InvoiceQRCode";
@@ -10,17 +10,6 @@ export interface InvoiceViewProps {
   id?: string;
   className?: string;
   signatureUrl?: string;
-}
-
-/**
- * Format currency with Indian comma separators and fixed 2 decimal places: e.g. ₹1,142.24
- */
-export function formatCurrency(amount?: number): string {
-  const valid = roundCurrency(Number(amount) || 0);
-  return `₹${valid.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 }
 
 /**

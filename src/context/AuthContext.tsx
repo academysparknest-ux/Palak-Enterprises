@@ -41,13 +41,31 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_STORAGE_KEY = "palak_auth_session_v2";
 
+const ADMIN_STAFF_EMAILS = [
+  "academysparknest@gmail.com",
+  "palakenterprises@gmail.com",
+  "palakprintingpress@gmail.com",
+  "kumarpankaj@gmail.com",
+];
+
+const checkIsAdminEmail = (email?: string): boolean => {
+  if (!email) return false;
+  const clean = email.trim().toLowerCase();
+  return ADMIN_STAFF_EMAILS.includes(clean);
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<UserProfile | null>(() => {
     if (typeof window === "undefined") return null;
     try {
       const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      if (checkIsAdminEmail(parsed.email) && parsed.role !== "ADMIN") {
+        parsed.role = "ADMIN";
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -66,6 +84,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const avatarUrl = meta.avatar_url || meta.picture || undefined;
     const phone = meta.phone || sbUser.phone || "";
+    const cleanEmail = (sbUser.email || "").toLowerCase().trim();
+
+    let assignedRole: UserProfile["role"] = role;
+    if (checkIsAdminEmail(cleanEmail) || meta.role === "ADMIN" || meta.role === "STAFF") {
+      assignedRole = "ADMIN";
+    }
 
     return {
       id: sbUser.id,
@@ -73,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       phone: phone,
       email: sbUser.email,
       avatarUrl: avatarUrl,
-      role: role,
+      role: assignedRole,
     };
   };
 
@@ -99,7 +123,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select("role")
         .eq("user_id", sbUser.id);
 
+      const cleanEmail = (sbUser.email || "").toLowerCase().trim();
+      const meta = sbUser.user_metadata || {};
+      const metaRole = String(meta.role || "").toUpperCase();
+      const profileRole = String(profile?.role || "").toUpperCase();
+
       let role: UserProfile["role"] = "CUSTOMER";
+
+      if (
+        checkIsAdminEmail(cleanEmail) ||
+        metaRole === "ADMIN" ||
+        metaRole === "MANAGER" ||
+        metaRole === "STAFF" ||
+        profileRole === "ADMIN" ||
+        profileRole === "MANAGER" ||
+        profileRole === "STAFF"
+      ) {
+        role = "ADMIN";
+      }
+
       if (roleData && roleData.length > 0) {
         const roles = roleData.map((r) => String(r.role).toUpperCase());
         if (roles.includes("ADMIN")) role = "ADMIN";
@@ -107,7 +149,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         else if (roles.includes("STAFF")) role = "STAFF";
       }
 
-      const meta = sbUser.user_metadata || {};
       const updatedProfile: UserProfile = {
         id: sbUser.id,
         name: profile?.full_name || meta.full_name || meta.name || sbUser.email?.split("@")[0] || "Palak Customer",

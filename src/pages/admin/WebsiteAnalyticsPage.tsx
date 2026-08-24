@@ -92,7 +92,7 @@ export const WebsiteAnalyticsPage: React.FC = () => {
     };
 
     fetchAnalytics();
-  }, []);
+  }, [addToast]);
 
   if (loading) {
     return (

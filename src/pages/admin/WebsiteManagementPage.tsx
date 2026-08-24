@@ -60,7 +60,7 @@ export function WebsiteManagementPage() {
         client.from('categories').select('*', { count: 'exact', head: true }),
         client.from('categories').select('*', { count: 'exact', head: true }).eq('is_active', true),
         client.from('website_content').select('*', { count: 'exact', head: true }),
-        client.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(6),
+        client.from('audit_logs').select('id, action_type, entity_type, entity_id, user_email, user_id, details, created_at').order('created_at', { ascending: false }).limit(6),
         client.from('products').select('name_en, updated_at').order('updated_at', { ascending: false }).limit(1).maybeSingle()
       ]);
 

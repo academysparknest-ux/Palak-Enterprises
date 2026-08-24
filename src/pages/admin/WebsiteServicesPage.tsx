@@ -175,29 +175,29 @@ export const WebsiteServicesPage: React.FC = () => {
     if (isSupabaseConfigured && supabase) {
       try {
         const [productsRes, servicesRes, categoriesRes] = await Promise.all([
-          supabase.from('products').select('*').order('sort_order', { ascending: true }),
-          supabase.from('services').select('*').order('sort_order', { ascending: true }),
-          supabase.from('categories').select('*').order('name_en', { ascending: true })
+          supabase.from('products').select('id, category_id, name_en, name_hi, short_desc_en, short_desc_hi, description_en, description_hi, starting_price, price_unit_en, price_unit_hi, image_url, gallery_urls, is_active, is_featured, badge_en, badge_hi, turnaround_en, turnaround_hi, min_quantity, slug, sort_order, updated_at').order('sort_order', { ascending: true }),
+          supabase.from('services').select('id, category_id, name_en, name_hi, short_desc_en, short_desc_hi, description_en, description_hi, estimated_fee, processing_time_en, processing_time_hi, required_documents_en, required_documents_hi, who_needs_it_en, who_needs_it_hi, is_active, is_popular, icon_name, slug, sort_order, updated_at').order('sort_order', { ascending: true }),
+          supabase.from('categories').select('id, name_en, name_hi, description_en, description_hi, icon_name, category_type, badge_en, badge_hi, sort_order, is_active, updated_at').order('name_en', { ascending: true })
         ]);
 
         if (productsRes.data && productsRes.data.length > 0) {
           const map = new Map<string, Product>();
           localProds.forEach((p) => map.set(p.id, p));
-          (productsRes.data as Product[]).forEach((p) => map.set(p.id, { ...map.get(p.id), ...p }));
+          ((productsRes.data as unknown) as Product[]).forEach((p) => map.set(p.id, { ...map.get(p.id), ...p }));
           setProducts(Array.from(map.values()));
         }
 
         if (servicesRes.data && servicesRes.data.length > 0) {
           const map = new Map<string, Service>();
           localServs.forEach((s) => map.set(s.id, s));
-          (servicesRes.data as Service[]).forEach((s) => map.set(s.id, { ...map.get(s.id), ...s }));
+          ((servicesRes.data as unknown) as Service[]).forEach((s) => map.set(s.id, { ...map.get(s.id), ...s }));
           setServices(Array.from(map.values()));
         }
 
         if (categoriesRes.data && categoriesRes.data.length > 0) {
           const map = new Map<string, Category>();
           localCats.forEach((c) => map.set(c.id, c));
-          (categoriesRes.data as Category[]).forEach((c) => map.set(c.id, { ...map.get(c.id), ...c }));
+          ((categoriesRes.data as unknown) as Category[]).forEach((c) => map.set(c.id, { ...map.get(c.id), ...c }));
           setCategories(Array.from(map.values()));
         }
       } catch (error: any) {

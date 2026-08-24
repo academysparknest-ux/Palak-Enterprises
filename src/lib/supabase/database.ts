@@ -88,7 +88,7 @@ export async function getCategories(): Promise<LocalCategory[]> {
   try {
     const { data, error } = await supabase
       .from("categories")
-      .select("*")
+      .select("id, name_en, name_hi, description_en, description_hi, icon_name, category_type, badge_en, badge_hi, sort_order")
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
 
@@ -212,7 +212,7 @@ export async function getServices(): Promise<LocalService[]> {
   try {
     const { data, error } = await supabase
       .from("services")
-      .select("*")
+      .select("id, slug, category_id, name_en, name_hi, short_desc_en, short_desc_hi, description_en, description_hi, estimated_fee, processing_time_en, processing_time_hi, required_documents_en, required_documents_hi, who_needs_it_en, who_needs_it_hi, important_instructions_en, important_instructions_hi, official_portal_name, disclaimer_en, disclaimer_hi, icon_name, is_featured, is_popular, tags, is_active, sort_order")
       .eq("is_active", true)
       .order("sort_order", { ascending: true });
 
@@ -417,7 +417,7 @@ export async function getStaffServiceRequests(): Promise<StoredServiceRequest[]>
   if (!isSupabaseConfigured || !supabase) return [];
   const { data, error } = await supabase
     .from("service_requests")
-    .select("*")
+    .select("id, request_code, service_id, service_name, customer_name, customer_phone, customer_email, preferred_contact, applicant_details, uploaded_document_urls, uploaded_document_names, additional_notes, estimated_fee, request_status, acknowledgement_number, staff_notes, created_at, updated_at")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -447,7 +447,7 @@ export async function getStaffQuoteRequests(): Promise<StoredQuoteRequest[]> {
   if (!isSupabaseConfigured || !supabase) return [];
   const { data, error } = await supabase
     .from("quote_requests")
-    .select("*")
+    .select("id, quote_code, service_or_product_type, quantity, size_specifications, material_preferences, sample_image_urls, special_instructions, required_by_date, design_status, reference_file_urls, reference_file_names, additional_details, customer_name, customer_phone, customer_email, preferred_contact, business_name, timeline_requirement, estimated_budget, quoted_amount, quote_status, staff_notes, created_at, updated_at")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -709,12 +709,19 @@ export async function getOrderStatusHistory(orderCode: string): Promise<Array<{
   try {
     const { data, error } = await supabase
       .from("status_history")
-      .select("*")
+      .select("id, entity_type, entity_id, entity_code, from_status, to_status, note, performed_by, created_at")
       .eq("entity_code", orderCode)
       .order("created_at", { ascending: true });
 
     if (error || !data) return [];
-    return data;
+    return data.map((row: any) => ({
+      id: row.id,
+      new_status: row.to_status || row.new_status || "updated",
+      message_en: row.note || row.message_en || `Order status updated to ${row.to_status || "updated"}`,
+      message_hi: row.message_hi,
+      performed_by: row.performed_by || "Staff",
+      created_at: row.created_at,
+    }));
   } catch {
     return [];
   }
@@ -1349,7 +1356,7 @@ export async function getQuickServices(): Promise<QuickServiceItem[]> {
   try {
     const { data, error } = await supabase
       .from("quick_services")
-      .select("*")
+      .select("id, name_en, name_hi, category, description_en, description_hi, path, icon_name, is_active, stop_reason, stop_reason_hi, stopped_at, stopped_by, sort_order, updated_at")
       .order("sort_order", { ascending: true });
 
     if (error || !data || data.length === 0) {
@@ -1514,49 +1521,75 @@ export async function toggleAllQuickServicesAvailability(
   }
 }
 
-/** Subscribe to live real-time changes on quick services */
+// ─── Centralized Quick Services Realtime Multiplexer (Singleton) ─────────────
+type QuickServiceCallback = (services: QuickServiceItem[]) => void;
+const quickServiceSubscribers = new Set<QuickServiceCallback>();
+let quickServicesChannel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
+let lastCachedQuickServices: QuickServiceItem[] | null = null;
+
+async function notifyQuickServiceSubscribers() {
+  try {
+    const fresh = await getQuickServices();
+    lastCachedQuickServices = fresh;
+    quickServiceSubscribers.forEach((cb) => {
+      try {
+        cb(fresh);
+      } catch (err) {
+        console.warn("[QuickServicesRealtime] Subscriber callback error:", err);
+      }
+    });
+  } catch (e) {
+    console.warn("Quick services realtime fetch notice:", e);
+  }
+}
+
+/** Subscribe to live real-time changes on quick services via a shared singleton channel */
 export function subscribeToQuickServices(
-  callback: (services: QuickServiceItem[]) => void
+  callback: QuickServiceCallback
 ): () => void {
-  // Listen for local custom events (instant tab update)
+  quickServiceSubscribers.add(callback);
+
+  // Deliver cached services immediately if available
+  if (lastCachedQuickServices) {
+    try {
+      callback(lastCachedQuickServices);
+    } catch {}
+  }
+
+  // Listen for local custom events (instant same-tab updates)
   const localHandler = (e: any) => {
-    if (e?.detail) callback(e.detail);
+    if (e?.detail) {
+      lastCachedQuickServices = e.detail;
+      callback(e.detail);
+    }
   };
   if (typeof window !== "undefined") {
     window.addEventListener("palak_quick_services_updated", localHandler);
   }
 
-  if (!isSupabaseConfigured || !supabase) {
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("palak_quick_services_updated", localHandler);
-      }
-    };
+  if (isSupabaseConfigured && supabase && !quickServicesChannel) {
+    quickServicesChannel = supabase
+      .channel("quick-services-realtime-singleton")
+      .on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "quick_services" },
+        () => {
+          notifyQuickServiceSubscribers();
+        }
+      )
+      .subscribe();
   }
 
-  const channelName = `quick-services-realtime-${Math.random().toString(36).substring(2, 9)}`;
-  const channel = supabase
-    .channel(channelName)
-    .on(
-      "postgres_changes" as any,
-      { event: "*", schema: "public", table: "quick_services" },
-      async () => {
-        try {
-          const fresh = await getQuickServices();
-          callback(fresh);
-        } catch (e) {
-          console.warn("Quick services realtime fetch notice:", e);
-        }
-      }
-    )
-    .subscribe();
-
   return () => {
+    quickServiceSubscribers.delete(callback);
     if (typeof window !== "undefined") {
       window.removeEventListener("palak_quick_services_updated", localHandler);
     }
-    if (supabase) {
-      supabase.removeChannel(channel);
+    if (quickServiceSubscribers.size === 0 && quickServicesChannel && supabase) {
+      try {
+        supabase.removeChannel(quickServicesChannel);
+      } catch {}
+      quickServicesChannel = null;
     }
   };
 }
@@ -1951,7 +1984,7 @@ export async function getStaffInvoices(validOrderCodes?: Set<string>): Promise<S
   try {
     const { data, error } = await supabase
       .from("invoices")
-      .select("*")
+      .select("id, invoice_number, order_id, order_code, user_id, source, document_type, financial_year, invoice_date, completion_date, total_amount, amount_paid, amount_due, payment_status, payment_method, business_snapshot, customer_snapshot, pricing_snapshot, items, notes, status, created_at, updated_at")
       .order("invoice_date", { ascending: false });
 
     if (error) {
@@ -2309,7 +2342,7 @@ export async function getPrintJobs(): Promise<PrintJob[]> {
   try {
     const { data, error } = await supabase
       .from("print_jobs")
-      .select("*")
+      .select("id, order_id, order_code, customer_name, customer_phone, status, items, overrides, audit_logs, created_at, updated_at")
       .order("created_at", { ascending: false });
 
     if (error) {

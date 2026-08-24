@@ -41,7 +41,7 @@ export const WebsiteActivityPage: React.FC = () => {
       setLoading(true);
       let query = supabase
         .from('audit_logs')
-        .select('*')
+        .select('id, actor_id, action_type, entity_type, entity_id, user_email, user_id, details, ip_address, created_at')
         .order('created_at', { ascending: false })
         .limit(100);
 

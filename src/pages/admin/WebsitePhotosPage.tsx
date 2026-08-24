@@ -37,7 +37,7 @@ export const WebsitePhotosPage: React.FC = () => {
   const [imageToDelete, setImageToDelete] = useState<ImageItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchImages = async () => {
+  const fetchImages = React.useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
       setLoading(false);
       return;
@@ -118,11 +118,11 @@ export const WebsitePhotosPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [addToast]);
 
   useEffect(() => {
     fetchImages();
-  }, []);
+  }, [fetchImages]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();

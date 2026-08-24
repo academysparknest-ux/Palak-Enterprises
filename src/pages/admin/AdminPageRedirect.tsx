@@ -12,6 +12,7 @@ export const AdminPageRedirect: React.FC = () => {
   const tab = searchParams.get("tab");
 
   const tabRouteMap: Record<string, string> = {
+    dashboard: "/admin",
     orders: "/admin/orders",
     payments: "/admin/payments",
     pricing: "/admin/pricing",

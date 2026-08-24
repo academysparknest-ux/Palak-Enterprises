@@ -135,6 +135,17 @@ export function roundCurrency(val: number): number {
   return Math.round((val + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * Format currency with Indian comma separators and fixed 2 decimal places: e.g. ₹1,142.24
+ */
+export function formatCurrency(amount?: number): string {
+  const valid = roundCurrency(Number(amount) || 0);
+  return `₹${valid.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 /** Generates authoritative business snapshot from configuration */
 export function getBusinessSnapshot(): InvoiceBusinessSnapshot {
   return {

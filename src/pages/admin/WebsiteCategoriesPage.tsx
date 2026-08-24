@@ -51,7 +51,7 @@ export const WebsiteCategoriesPage: React.FC = () => {
     is_active: true
   });
 
-  const fetchCategories = async () => {
+  const fetchCategories = React.useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
       setLoading(false);
       return;
@@ -66,7 +66,7 @@ export const WebsiteCategoriesPage: React.FC = () => {
 
       const { data: catData, error: catError } = await client
         .from('categories')
-        .select('*')
+        .select('id, slug, name_en, name_hi, description_en, description_hi, icon_name, category_type, badge_en, badge_hi, sort_order, is_active, created_at, updated_at')
         .order('sort_order', { ascending: true });
 
       if (catError) throw catError;
@@ -75,12 +75,12 @@ export const WebsiteCategoriesPage: React.FC = () => {
       const enrichedCategories = await Promise.all((catData || []).map(async (cat) => {
         const { count: pCount } = await client
           .from('products')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('category_id', cat.id);
           
         const { count: sCount } = await client
           .from('services')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('category_id', cat.id);
           
         return {
@@ -97,11 +97,11 @@ export const WebsiteCategoriesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [addToast]);
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [fetchCategories]);
 
   const handleOpenModal = (category?: Category) => {
     if (category) {
@@ -268,6 +268,7 @@ export const WebsiteCategoriesPage: React.FC = () => {
       addToast({ type: 'success', title: 'Category status updated' });
       fetchCategories();
     } catch (error) {
+      console.error('Failed to update category status:', error);
       addToast({ type: 'error', title: 'Failed to update category status' });
     }
   };

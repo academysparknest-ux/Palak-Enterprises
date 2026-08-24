@@ -255,6 +255,7 @@ export function AppContent() {
                 {/* Admin ERP — Nested Route-Based Layout with Role-Based Route Guards */}
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<AdminDashboardPage />} />
+                  <Route path="dashboard" element={<AdminDashboardPage />} />
                   <Route path="orders" element={<AdminLegacyPage />} />
                   <Route path="orders/:orderCode" element={<AdminLegacyPage />} />
                   <Route path="notifications" element={<Navigate to="/admin/orders" replace />} />

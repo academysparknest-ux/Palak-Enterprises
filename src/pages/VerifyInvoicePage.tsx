@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { verifyInvoiceAuthenticity } from "../lib/invoice/verificationService";
 import type { PublicInvoiceVerificationResult } from "../lib/invoice/verificationService";
-import { formatCurrency } from "../components/invoice/InvoiceView";
+import { formatCurrency } from "../lib/invoice/invoiceStore";
 import { business } from "../config/business";
 import {
   ShieldCheck,

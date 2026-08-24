@@ -49,7 +49,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const isActive = (path: string) => {
     if (path === '/admin') {
-      return location.pathname === '/admin';
+      return location.pathname === '/admin' || location.pathname === '/admin/' || location.pathname === '/admin/dashboard';
     }
     return location.pathname.startsWith(path);
   };

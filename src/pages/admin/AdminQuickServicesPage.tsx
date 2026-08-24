@@ -102,7 +102,7 @@ export const AdminQuickServicesPage: React.FC = () => {
   const [selectedStopReason, setSelectedStopReason] = useState<string>('Printer maintenance');
   const [customStopReason, setCustomStopReason] = useState<string>('');
 
-  const loadAllData = async () => {
+  const loadAllData = React.useCallback(async () => {
     setLoading(true);
     setServicesLoading(true);
     try {
@@ -120,7 +120,7 @@ export const AdminQuickServicesPage: React.FC = () => {
       setLoading(false);
       setServicesLoading(false);
     }
-  };
+  }, [addToast]);
 
   useEffect(() => {
     loadAllData();
@@ -131,7 +131,7 @@ export const AdminQuickServicesPage: React.FC = () => {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [loadAllData]);
 
   const handleOpenStopDialog = (service: QuickServiceItem) => {
     setStopModalService(service);
