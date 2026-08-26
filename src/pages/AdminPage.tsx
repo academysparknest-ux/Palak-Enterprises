@@ -364,7 +364,7 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
 };
 
 export const AdminPage: React.FC = () => {
-  const { user, isStaff, logout, loading: authLoading, session } = useAuth();
+  const { user, isStaff, isAuthenticated, logout, loading: authLoading, session } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -739,20 +739,20 @@ export const AdminPage: React.FC = () => {
 
   // Synchronize data on mount, when auth completes, or when session changes
   useEffect(() => {
-    if (!authLoading && (isStaff || isNestedInLayout)) {
+    if (!authLoading && isStaff && isAuthenticated && session?.user) {
       loadData();
     }
-  }, [authLoading, isStaff, isNestedInLayout, session?.user?.id, loadData]);
+  }, [authLoading, isStaff, isAuthenticated, session?.user, loadData]);
 
   // Also re-sync when tab regains focus or visibility
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === "visible" && !authLoading && (isStaff || isNestedInLayout)) {
+      if (document.visibilityState === "visible" && !authLoading && isStaff && isAuthenticated && session?.user) {
         loadData();
       }
     };
     const handleWindowFocus = () => {
-      if (!authLoading && (isStaff || isNestedInLayout)) {
+      if (!authLoading && isStaff && isAuthenticated && session?.user) {
         loadData();
       }
     };
@@ -762,7 +762,7 @@ export const AdminPage: React.FC = () => {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [authLoading, isStaff, isNestedInLayout, loadData]);
+  }, [authLoading, isStaff, isAuthenticated, session?.user, loadData]);
 
   // Real-time order handling without full page reload
   const handleRealtimeNewOrder = useCallback((newOrder: StoredOrder) => {

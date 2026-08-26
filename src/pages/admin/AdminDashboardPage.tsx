@@ -19,11 +19,20 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { PalakDataStore } from '../../lib/storage/store';
+import { getStaffOrders, getStaffServiceRequests, getStaffQuoteRequests } from '../../lib/supabase/database';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { AdminContentContainer } from '../../components/admin/AdminContentContainer';
 import { useRealtimeOrders } from '../../hooks/useRealtimeOrders';
-import { cn } from '../../lib/utils';
+import { useAuth } from '../../context/AuthContext';
+import { 
+  cn, 
+  isPermissionDenied, 
+  isAuthTokenTimeInvalid, 
+  isAuthSessionExpired, 
+  isNetworkError, 
+  formatAdminErrorMessage 
+} from '../../lib/utils';
 
 // ─── Data Types ─────────────────────────────────────────────────────────────
 
@@ -50,56 +59,79 @@ interface RecentOrder {
 
 // ─── Error Classifier ───────────────────────────────────────────────────────
 
-function classifyError(error: any): { isAuth: boolean; isNetwork: boolean; message: string } {
-  if (!error) return { isAuth: false, isNetwork: false, message: 'Unknown error occurred.' };
-  
-  const rawMsg = (error.message || error.details || error.hint || String(error)).toLowerCase();
-  const code = String(error.code || '');
+function classifyError(error: any): { isAuth: boolean; isNetwork: boolean; isPermission: boolean; isTiming: boolean; message: string } {
+  if (!error) return { isAuth: false, isNetwork: false, isPermission: false, isTiming: false, message: 'Unknown error occurred.' };
 
-  // 1. Auth / RLS / Token Expiration Error
-  if (
-    code === '42501' ||
-    rawMsg.includes('permission denied') ||
-    rawMsg.includes('row-level security') ||
-    rawMsg.includes('jwt') ||
-    rawMsg.includes('token')
-  ) {
+  // 1. Permission Denied (403 / 42501)
+  if (isPermissionDenied(error)) {
     return {
-      isAuth: true,
+      isAuth: false,
       isNetwork: false,
-      message: 'Access Restricted: Your staff session may have expired or lacks database permissions.',
+      isPermission: true,
+      isTiming: false,
+      message: 'Access Restricted: You do not have permission to access these administrative records.',
     };
   }
 
-  // 2. Network / Offline Error
-  if (
-    (typeof navigator !== 'undefined' && !navigator.onLine) ||
-    error instanceof TypeError ||
-    rawMsg.includes('failed to fetch') ||
-    rawMsg.includes('networkerror') ||
-    rawMsg.includes('network request failed') ||
-    rawMsg.includes('fetch')
-  ) {
+  // 2. JWT Timing / Clock Skew (PGRST303)
+  if (isAuthTokenTimeInvalid(error)) {
+    return {
+      isAuth: true,
+      isNetwork: false,
+      isPermission: false,
+      isTiming: true,
+      message: 'Authentication Server Time Sync: Please retry in a moment.',
+    };
+  }
+
+  // 3. Expired Session (401)
+  if (isAuthSessionExpired(error)) {
+    return {
+      isAuth: true,
+      isNetwork: false,
+      isPermission: false,
+      isTiming: false,
+      message: 'Your session has expired. Please sign in again.',
+    };
+  }
+
+  // 4. Network / Offline Error
+  if (isNetworkError(error)) {
     return {
       isAuth: false,
       isNetwork: true,
+      isPermission: false,
+      isTiming: false,
       message: 'Network connectivity issue. Unable to communicate with the cloud database.',
     };
   }
 
-  // 3. Database / Schema Error
+  // 5. Database / Schema Error fallback
   return {
     isAuth: false,
     isNetwork: false,
-    message: 'Unable to retrieve live dashboard metrics. Please refresh and try again.',
+    isPermission: false,
+    isTiming: false,
+    message: formatAdminErrorMessage(error, 'Unable to retrieve live dashboard metrics. Please refresh and try again.'),
   };
 }
 
 export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const { loading: authLoading, isAuthenticated, isStaff } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOfflineFallback, setIsOfflineFallback] = useState(false);
+  const fetchRequestIdRef = React.useRef<number>(0);
+  const isMountedRef = React.useRef<boolean>(true);
+
+  React.useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const [stats, setStats] = useState<DashboardStats>(() => {
     const localOrders = PalakDataStore.getOrders();
     const localServices = PalakDataStore.getServiceRequests();
@@ -146,250 +178,171 @@ export const AdminDashboardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchDashboardData = useCallback(async () => {
+    const currentRequestId = ++fetchRequestIdRef.current;
     try {
-      setError(null);
-      setIsOfflineFallback(false);
+      if (isMountedRef.current) {
+        setError(null);
+      }
 
       // Start & End of day in local timezone (IST / user's local day boundaries)
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
-      const startOfTodayIso = startOfToday.toISOString();
+      const todayTimestamp = startOfToday.getTime();
 
       const endOfToday = new Date();
       endOfToday.setHours(23, 59, 59, 999);
-      const endOfTodayIso = endOfToday.toISOString();
+      const endTimestamp = endOfToday.getTime();
+
+      let ordersList: any[] = [];
+      let serviceList: any[] = [];
+      let quoteList: any[] = [];
+      let isFallback = false;
 
       if (isSupabaseConfigured && supabase) {
-        // Query database with high-performance HEAD count requests in parallel
-        const [
-          allOrdersCountRes,
-          newOrdersCountRes,
-          inProdCountRes,
-          readyCountRes,
-          revenueRes,
-          todaysOrdersRes,
-          serviceReqRes,
-          quoteReqRes,
-          recentOrdersRes,
-        ] = await Promise.all([
-          // 1. Total orders count (HEAD only - zero body transfer)
-          supabase.from('orders').select('id', { count: 'exact', head: true }),
-          // 2. New & Under Review orders count (HEAD only)
-          supabase.from('orders').select('id', { count: 'exact', head: true }).in('order_status', ['NEW', 'UNDER_REVIEW']),
-          // 3. In Production orders count (HEAD only)
-          supabase.from('orders').select('id', { count: 'exact', head: true }).in('order_status', ['IN_PRODUCTION', 'DESIGN_REVIEW', 'APPROVED', 'PROCESSING']),
-          // 4. Ready for pickup orders count (HEAD only)
-          supabase.from('orders').select('id', { count: 'exact', head: true }).in('order_status', ['READY_FOR_PICKUP', 'OUT_FOR_DELIVERY']),
-          // 5. Paid orders for revenue calculation
-          supabase
-            .from('orders')
-            .select('total_amount')
-            .in('payment_status', ['paid', 'PAID', 'confirmed'])
-            .neq('order_status', 'CANCELLED'),
-          // 6. Today's orders count (HEAD only)
-          supabase
-            .from('orders')
-            .select('id', { count: 'exact', head: true })
-            .gte('created_at', startOfTodayIso)
-            .lte('created_at', endOfTodayIso),
-          // 7. Pending service requests (HEAD only)
-          supabase
-            .from('service_requests')
-            .select('id', { count: 'exact', head: true })
-            .in('request_status', ['NEW', 'DOCUMENTS_VERIFIED', 'IN_PROCESSING', 'ACTION_REQUIRED', 'SUBMITTED_TO_PORTAL']),
-          // 8. Pending quote requests (HEAD only)
-          supabase
-            .from('quote_requests')
-            .select('id', { count: 'exact', head: true })
-            .in('quote_status', ['NEW', 'ESTIMATE_PREPARED', 'QUOTE_SENT']),
-          // 9. Recent orders (6 rows max)
-          supabase
-            .from('orders')
-            .select('id, order_code, customer_name, customer_phone, total_amount, order_status, created_at, items, order_items(product_name, quantity, total_price)')
-            .order('created_at', { ascending: false })
-            .limit(6),
-        ]);
+        try {
+          const [fetchedOrders, fetchedServices, fetchedQuotes] = await Promise.all([
+            getStaffOrders(200),
+            getStaffServiceRequests().catch((err) => {
+              console.warn('getStaffServiceRequests notice:', err);
+              return PalakDataStore.getServiceRequests();
+            }),
+            getStaffQuoteRequests().catch((err) => {
+              console.warn('getStaffQuoteRequests notice:', err);
+              return PalakDataStore.getQuoteRequests();
+            }),
+          ]);
 
-        // Evaluate error
-        if (allOrdersCountRes.error) {
-          const classified = classifyError(allOrdersCountRes.error);
-          const localOrders = PalakDataStore.getOrders();
-          if (localOrders.length > 0) {
-            const localServiceRequests = PalakDataStore.getServiceRequests();
-            const localQuoteRequests = PalakDataStore.getQuoteRequests();
-            const todayTimestamp = startOfToday.getTime();
-            const endTimestamp = endOfToday.getTime();
-
-            const todaysOrdersCount = localOrders.filter((o) => {
-              const time = new Date(o.createdAt).getTime();
-              return time >= todayTimestamp && time <= endTimestamp;
-            }).length;
-
-            const totalRevenue = localOrders
-              .filter((o) => (o.paymentStatus === 'paid' || o.paymentStatus === 'confirmed') && o.orderStatus !== 'CANCELLED')
-              .reduce((sum, o) => sum + Math.max(0, Number(o.totalAmount) || 0), 0);
-
-            setStats({
-              totalOrders: localOrders.length,
-              newOrders: localOrders.filter((o) => o.orderStatus === 'NEW' || o.orderStatus === 'UNDER_REVIEW').length,
-              inProduction: localOrders.filter((o) => o.orderStatus === 'IN_PRODUCTION' || o.orderStatus === 'DESIGN_REVIEW' || o.orderStatus === 'PROCESSING').length,
-              readyForPickup: localOrders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP' || o.orderStatus === 'OUT_FOR_DELIVERY').length,
-              totalRevenue,
-              todaysOrders: todaysOrdersCount,
-              pendingServiceRequests: localServiceRequests.filter((s) => s.requestStatus !== 'COMPLETED' && s.requestStatus !== 'REJECTED').length,
-              pendingQuoteRequests: localQuoteRequests.filter((q) => q.quoteStatus === 'NEW' || q.quoteStatus === 'ESTIMATE_PREPARED' || q.quoteStatus === 'QUOTE_SENT').length,
-            });
-
-            const formattedLocalOrders: RecentOrder[] = localOrders.slice(0, 6).map((order) => {
-              const firstItem = order.items && order.items.length > 0 ? order.items[0] : null;
-              let serviceName = firstItem ? firstItem.productName : "Print Order";
-              if (firstItem && firstItem.quantity && firstItem.quantity > 1) {
-                serviceName += ` (${firstItem.quantity}x)`;
-              }
-              if (order.items && order.items.length > 1) {
-                serviceName += ` + ${order.items.length - 1} more`;
-              }
-
-              return {
-                id: order.id,
-                order_code: order.orderCode,
-                customer_name: order.customerName || 'Guest Customer',
-                service_name: serviceName,
-                total_amount: Math.max(0, Number(order.totalAmount) || 0),
-                status: order.orderStatus,
-                created_at: order.createdAt,
-              };
-            });
-
-            setRecentOrders(formattedLocalOrders);
-            setIsOfflineFallback(true);
+          if (currentRequestId !== fetchRequestIdRef.current || !isMountedRef.current) {
             return;
           }
 
-          setError(classified.message);
-          return;
-        }
-
-        // ── Authoritative successful orders result ──────────────────────────
-        const totalOrdersCount = allOrdersCountRes.count ?? 0;
-        const newOrdersCount = newOrdersCountRes.count ?? 0;
-        const inProductionCount = inProdCountRes.count ?? 0;
-        const readyForPickupCount = readyCountRes.count ?? 0;
-
-        const revenue = totalOrdersCount === 0
-          ? 0
-          : (revenueRes.data || []).reduce((sum, order) => {
-              const amt = Number(order.total_amount);
-              return sum + (isNaN(amt) ? 0 : Math.max(0, amt));
-            }, 0);
-
-        const todaysCount = totalOrdersCount === 0 ? 0 : (todaysOrdersRes.count ?? 0);
-
-        setStats({
-          totalOrders: totalOrdersCount,
-          newOrders: newOrdersCount,
-          inProduction: inProductionCount,
-          readyForPickup: readyForPickupCount,
-          totalRevenue: revenue,
-          todaysOrders: todaysCount,
-          pendingServiceRequests: (!serviceReqRes.error && serviceReqRes.count !== null && serviceReqRes.count !== undefined) ? serviceReqRes.count : 0,
-          pendingQuoteRequests: (!quoteReqRes.error && quoteReqRes.count !== null && quoteReqRes.count !== undefined) ? quoteReqRes.count : 0,
-        });
-
-        // Format recent orders safely
-        if (totalOrdersCount > 0 && recentOrdersRes.data && !recentOrdersRes.error) {
-          const formattedOrders: RecentOrder[] = recentOrdersRes.data.map((order: any) => {
-            let serviceName = "Print Order";
-            try {
-              let itemsArr: any[] = [];
-              if (Array.isArray(order.items) && order.items.length > 0) {
-                itemsArr = order.items;
-              } else if (typeof order.items === 'string') {
-                itemsArr = JSON.parse(order.items);
-              } else if (Array.isArray(order.order_items) && order.order_items.length > 0) {
-                itemsArr = order.order_items;
-              }
-
-              if (Array.isArray(itemsArr) && itemsArr.length > 0) {
-                const first = itemsArr[0];
-                const rawName = first?.productName || first?.product_name || first?.name || "Print Service";
-                const qty = Number(first?.quantity) || 1;
-                serviceName = qty > 1 ? `${rawName} (${qty}x)` : rawName;
-                if (itemsArr.length > 1) {
-                  serviceName += ` + ${itemsArr.length - 1} more`;
-                }
-              }
-            } catch {}
-
-            return {
-              id: String(order.id || Math.random()),
-              order_code: order.order_code || 'ORD-NEW',
-              customer_name: order.customer_name || (order.customer_phone ? `Customer (${order.customer_phone})` : 'Guest Customer'),
-              service_name: serviceName,
-              total_amount: Math.max(0, Number(order.total_amount) || 0),
-              status: order.order_status || 'NEW',
-              created_at: order.created_at || new Date().toISOString(),
-            };
-          });
-          setRecentOrders(formattedOrders);
-        } else {
-          setRecentOrders([]);
+          ordersList = fetchedOrders;
+          serviceList = fetchedServices;
+          quoteList = fetchedQuotes;
+          isFallback = false;
+        } catch (queryErr: any) {
+          console.warn('Cloud fetch error in dashboard, using local fallback:', queryErr);
+          const classified = classifyError(queryErr);
+          if (classified.isNetwork || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+            isFallback = true;
+          } else if (classified.isAuth) {
+            if (isMountedRef.current) setError(classified.message);
+          }
+          ordersList = PalakDataStore.getOrders();
+          serviceList = PalakDataStore.getServiceRequests();
+          quoteList = PalakDataStore.getQuoteRequests();
         }
       } else {
-        // Unconfigured Supabase environment (e.g. initial demo/local dev)
-        const localOrders = PalakDataStore.getOrders();
-        const localServiceRequests = PalakDataStore.getServiceRequests();
-        const localQuoteRequests = PalakDataStore.getQuoteRequests();
-
-        const todayTimestamp = startOfToday.getTime();
-        const endTimestamp = endOfToday.getTime();
-        const todaysOrdersCount = localOrders.filter((o) => {
-          const time = new Date(o.createdAt).getTime();
-          return time >= todayTimestamp && time <= endTimestamp;
-        }).length;
-
-        const totalRevenue = localOrders
-          .filter((o) => (o.paymentStatus === 'paid' || o.paymentStatus === 'confirmed') && o.orderStatus !== 'CANCELLED')
-          .reduce((sum, o) => sum + Math.max(0, Number(o.totalAmount) || 0), 0);
-
-        setStats({
-          totalOrders: localOrders.length,
-          newOrders: localOrders.filter((o) => o.orderStatus === 'NEW' || o.orderStatus === 'UNDER_REVIEW').length,
-          inProduction: localOrders.filter((o) => o.orderStatus === 'IN_PRODUCTION' || o.orderStatus === 'DESIGN_REVIEW' || o.orderStatus === 'PROCESSING').length,
-          readyForPickup: localOrders.filter((o) => o.orderStatus === 'READY_FOR_PICKUP' || o.orderStatus === 'OUT_FOR_DELIVERY').length,
-          totalRevenue,
-          todaysOrders: todaysOrdersCount,
-          pendingServiceRequests: localServiceRequests.filter((s) => s.requestStatus !== 'COMPLETED' && s.requestStatus !== 'REJECTED').length,
-          pendingQuoteRequests: localQuoteRequests.filter((q) => q.quoteStatus === 'NEW' || q.quoteStatus === 'ESTIMATE_PREPARED' || q.quoteStatus === 'QUOTE_SENT').length,
-        });
-
-        const formattedLocalOrders: RecentOrder[] = localOrders.slice(0, 6).map((order) => {
-          const firstItem = order.items && order.items.length > 0 ? order.items[0] : null;
-          let serviceName = firstItem ? firstItem.productName : "Print Order";
-          if (order.items && order.items.length > 1) {
-            serviceName += ` + ${order.items.length - 1} more`;
-          }
-
-          return {
-            id: order.id,
-            order_code: order.orderCode,
-            customer_name: order.customerName || 'Guest Customer',
-            service_name: serviceName,
-            total_amount: Math.max(0, Number(order.totalAmount) || 0),
-            status: order.orderStatus,
-            created_at: order.createdAt,
-          };
-        });
-
-        setRecentOrders(formattedLocalOrders);
+        ordersList = PalakDataStore.getOrders();
+        serviceList = PalakDataStore.getServiceRequests();
+        quoteList = PalakDataStore.getQuoteRequests();
+        isFallback = false;
       }
+
+      if (currentRequestId !== fetchRequestIdRef.current || !isMountedRef.current) {
+        return;
+      }
+
+      setIsOfflineFallback(isFallback);
+
+      // Calculate stats safely
+      const totalOrdersCount = ordersList.length;
+      const newOrdersCount = ordersList.filter(
+        (o) => o.orderStatus === 'NEW' || o.orderStatus === 'UNDER_REVIEW'
+      ).length;
+      const inProductionCount = ordersList.filter(
+        (o) =>
+          o.orderStatus === 'IN_PRODUCTION' ||
+          o.orderStatus === 'DESIGN_REVIEW' ||
+          o.orderStatus === 'APPROVED' ||
+          o.orderStatus === 'PROCESSING'
+      ).length;
+      const readyForPickupCount = ordersList.filter(
+        (o) => o.orderStatus === 'READY_FOR_PICKUP' || o.orderStatus === 'OUT_FOR_DELIVERY'
+      ).length;
+
+      const totalRevenue = ordersList
+        .filter(
+          (o) =>
+            (String(o.paymentStatus).toLowerCase() === 'paid' ||
+              String(o.paymentStatus).toLowerCase() === 'confirmed') &&
+            o.orderStatus !== 'CANCELLED'
+        )
+        .reduce((sum, o) => {
+          const amt = Number(o.totalAmount);
+          return sum + (isNaN(amt) ? 0 : Math.max(0, amt));
+        }, 0);
+
+      const todaysCount = ordersList.filter((o) => {
+        const time = new Date(o.createdAt).getTime();
+        return time >= todayTimestamp && time <= endTimestamp;
+      }).length;
+
+      const pendingServicesCount = serviceList.filter(
+        (s) => s.requestStatus !== 'COMPLETED' && s.requestStatus !== 'REJECTED'
+      ).length;
+
+      const pendingQuotesCount = quoteList.filter(
+        (q) =>
+          q.quoteStatus === 'NEW' ||
+          q.quoteStatus === 'ESTIMATE_PREPARED' ||
+          q.quoteStatus === 'QUOTE_SENT'
+      ).length;
+
+      setStats({
+        totalOrders: totalOrdersCount,
+        newOrders: newOrdersCount,
+        inProduction: inProductionCount,
+        readyForPickup: readyForPickupCount,
+        totalRevenue,
+        todaysOrders: todaysCount,
+        pendingServiceRequests: pendingServicesCount,
+        pendingQuoteRequests: pendingQuotesCount,
+      });
+
+      // Format recent orders safely (top 6 sorted by createdAt desc)
+      const sortedOrders = [...ordersList].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      const formattedOrders: RecentOrder[] = sortedOrders.slice(0, 6).map((order) => {
+        let serviceName = 'Print Order';
+        try {
+          const itemsArr = Array.isArray(order.items) ? order.items : [];
+          if (itemsArr.length > 0) {
+            const first = itemsArr[0];
+            const rawName = first?.productName || first?.name || 'Print Service';
+            const qty = Number(first?.quantity) || 1;
+            serviceName = qty > 1 ? `${rawName} (${qty}x)` : rawName;
+            if (itemsArr.length > 1) {
+              serviceName += ` + ${itemsArr.length - 1} more`;
+            }
+          }
+        } catch {}
+
+        return {
+          id: String(order.id || order.orderCode),
+          order_code: order.orderCode || 'ORD-NEW',
+          customer_name: order.customerName || (order.customerPhone ? `Customer (${order.customerPhone})` : 'Guest Customer'),
+          service_name: serviceName,
+          total_amount: Math.max(0, Number(order.totalAmount) || 0),
+          status: order.orderStatus || 'NEW',
+          created_at: order.createdAt || new Date().toISOString(),
+        };
+      });
+
+      setRecentOrders(formattedOrders);
     } catch (err: any) {
       console.error('Error in dashboard data fetcher:', err);
       const classified = classifyError(err);
-      setError(classified.message);
+      if (isMountedRef.current) {
+        setError(classified.message);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
@@ -448,6 +401,12 @@ export const AdminDashboardPage: React.FC = () => {
   });
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated || !isStaff) {
+      setLoading(false);
+      return;
+    }
+
     fetchDashboardData();
 
     // 1. Listen for admin refresh events from top bar + realtime reconnect
@@ -525,7 +484,7 @@ export const AdminDashboardPage: React.FC = () => {
         supabase.removeChannel(channel);
       }
     };
-  }, [fetchDashboardData]);
+  }, [authLoading, isAuthenticated, isStaff, fetchDashboardData]);
 
   const formatCurrency = (amount: number) => {
     const safeAmount = Math.max(0, isNaN(amount) ? 0 : amount);

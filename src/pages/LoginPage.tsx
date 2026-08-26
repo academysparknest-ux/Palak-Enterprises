@@ -28,6 +28,15 @@ export const LoginPage: React.FC = () => {
     const urlError = searchParams.get("error");
     if (urlError) {
       setError(decodeURIComponent(urlError));
+      // Clear the error parameter from the browser URL bar so refreshing does not replay stale errors
+      try {
+        const nextParams = new URLSearchParams(window.location.search);
+        nextParams.delete("error");
+        const nextSearch = nextParams.toString() ? `?${nextParams.toString()}` : "";
+        window.history.replaceState({}, document.title, `${window.location.pathname}${nextSearch}`);
+      } catch {
+        // Fallback safely if browser history api restricted
+      }
     }
   }, [searchParams]);
 

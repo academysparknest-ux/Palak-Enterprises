@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
+import { sharedRefreshSession, executeWithAuthRetry, ensureTokenSettled } from "../lib/supabase/authSession";
 import { getOAuthRedirectUrl, getPasswordResetRedirectUrl } from "../lib/supabase/authRedirect";
 import { PalakDataStore } from "../lib/storage/store";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
@@ -23,6 +24,7 @@ interface AuthContextType {
   isStaff: boolean;
   isAdmin: boolean;
   loading: boolean;
+  authError: string | null;
   loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUpWithEmail: (
     email: string,
@@ -35,6 +37,7 @@ interface AuthContextType {
   updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   loginCustomer: (phone: string, name?: string) => Promise<boolean>;
+  refreshSession: () => Promise<Session | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,12 +49,26 @@ const ADMIN_STAFF_EMAILS = [
   "palakenterprises@gmail.com",
   "palakprintingpress@gmail.com",
   "kumarpankaj@gmail.com",
+  "rishavraj05072002@gmail.com",
+  "rishavrajrj572@gmail.com",
 ];
 
 const checkIsAdminEmail = (email?: string): boolean => {
   if (!email) return false;
   const clean = email.trim().toLowerCase();
   return ADMIN_STAFF_EMAILS.includes(clean);
+};
+
+const bootStartTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+const getElapsedBootMs = () => Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - bootStartTime);
+
+const logBoot = (event: string, details?: Record<string, any>) => {
+  const ms = getElapsedBootMs();
+  if (details && Object.keys(details).length > 0) {
+    console.info(`[ADMIN_BOOT] ${event} (+${ms}ms)`, details);
+  } else {
+    console.info(`[ADMIN_BOOT] ${event} (+${ms}ms)`);
+  }
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -62,16 +79,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const saved = localStorage.getItem(AUTH_STORAGE_KEY);
       if (!saved) return null;
       const parsed = JSON.parse(saved);
-      if (checkIsAdminEmail(parsed.email) && parsed.role !== "ADMIN") {
-        parsed.role = "ADMIN";
+      // Only phone guest customer profiles (cust_...) are valid without an active Supabase session.
+      // Supabase accounts (staff/admin/customer) must be authoritatively validated by initAuth.
+      if (parsed.id && typeof parsed.id === "string" && parsed.id.startsWith("cust_")) {
+        return parsed;
       }
-      return parsed;
+      return null;
     } catch {
       return null;
     }
   });
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const extractProfileFromUser = (sbUser: User, role: UserProfile["role"] = "CUSTOMER"): UserProfile => {
     const meta = sbUser.user_metadata || {};
@@ -101,7 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const syncUserProfile = async (sbUser: User) => {
+  const syncUserProfile = async (sbUser: User, isTokenRefresh: boolean = false) => {
     if (!isSupabaseConfigured || !supabase) {
       const fallbackProfile = extractProfileFromUser(sbUser);
       setUser(fallbackProfile);
@@ -109,64 +129,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    try {
-      // 1. Fetch Profile row if present
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", sbUser.id)
-        .maybeSingle();
+    const cleanEmail = (sbUser.email || "").toLowerCase().trim();
+    const isAdminEmail = checkIsAdminEmail(cleanEmail);
 
-      // 2. Fetch User Roles
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", sbUser.id);
+    // Settle any potential token clock skew before database requests
+    await ensureTokenSettled(supabase);
 
-      const cleanEmail = (sbUser.email || "").toLowerCase().trim();
-      const meta = sbUser.user_metadata || {};
-      const metaRole = String(meta.role || "").toUpperCase();
-      const profileRole = String(profile?.role || "").toUpperCase();
+    // Single authoritative role sync RPC: Only on initial auth or login, never on background token refresh
+    if (!isTokenRefresh) {
+      logBoot("role sync:start");
+      const rpcStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const getRpcElapsed = () => Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - rpcStart);
 
-      let role: UserProfile["role"] = "CUSTOMER";
-
-      if (
-        checkIsAdminEmail(cleanEmail) ||
-        metaRole === "ADMIN" ||
-        metaRole === "MANAGER" ||
-        metaRole === "STAFF" ||
-        profileRole === "ADMIN" ||
-        profileRole === "MANAGER" ||
-        profileRole === "STAFF"
-      ) {
-        role = "ADMIN";
+      try {
+        await executeWithAuthRetry(
+          async (client) => {
+            const { error } = await client.rpc("sync_current_user_role");
+            if (error) throw error;
+          },
+          2,
+          "sync_current_user_role"
+        );
+        logBoot("role sync:success", { opElapsedMs: getRpcElapsed() });
+      } catch (rpcErr: any) {
+        logBoot("role sync:error", {
+          message: rpcErr?.message,
+          code: rpcErr?.code,
+          opElapsedMs: getRpcElapsed(),
+        });
+        console.warn("[AUTH] Non-fatal role sync notice:", rpcErr?.message);
       }
-
-      if (roleData && roleData.length > 0) {
-        const roles = roleData.map((r) => String(r.role).toUpperCase());
-        if (roles.includes("ADMIN")) role = "ADMIN";
-        else if (roles.includes("MANAGER")) role = "MANAGER";
-        else if (roles.includes("STAFF")) role = "STAFF";
-      }
-
-      const updatedProfile: UserProfile = {
-        id: sbUser.id,
-        name: profile?.full_name || meta.full_name || meta.name || sbUser.email?.split("@")[0] || "Palak Customer",
-        phone: profile?.phone || meta.phone || sbUser.phone || "",
-        email: sbUser.email || profile?.email,
-        avatarUrl: profile?.avatar_url || meta.avatar_url || meta.picture,
-        role: role,
-        businessName: profile?.business_name,
-      };
-
-      setUser(updatedProfile);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedProfile));
-    } catch (e) {
-      console.warn("Profile sync notice:", e);
-      const fallbackProfile = extractProfileFromUser(sbUser);
-      setUser(fallbackProfile);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackProfile));
     }
+
+    // Parallel fetch for Profile and User Roles with unified auth retry
+    const [profileRes, roleRes] = await Promise.allSettled([
+      executeWithAuthRetry(
+        async (client) => {
+          const { data, error } = await client.from("profiles").select("*").eq("id", sbUser.id).maybeSingle();
+          if (error) throw error;
+          return data;
+        },
+        1,
+        "fetch_profile"
+      ),
+      executeWithAuthRetry(
+        async (client) => {
+          const { data, error } = await client.from("user_roles").select("role").eq("user_id", sbUser.id);
+          if (error) throw error;
+          return data;
+        },
+        1,
+        "fetch_user_roles"
+      ),
+    ]);
+
+    const profile = profileRes.status === "fulfilled" ? profileRes.value : null;
+    const roleData = roleRes.status === "fulfilled" ? roleRes.value : null;
+
+    const meta = sbUser.user_metadata || {};
+    const metaRole = String(meta.role || "").toUpperCase();
+    const profileRole = String(profile?.role || "").toUpperCase();
+
+    let role: UserProfile["role"] = "CUSTOMER";
+
+    if (roleData && roleData.length > 0) {
+      const roles = roleData.map((r: any) => String(r.role).toUpperCase());
+      if (roles.includes("ADMIN")) role = "ADMIN";
+      else if (roles.includes("MANAGER")) role = "MANAGER";
+      else if (roles.includes("STAFF")) role = "STAFF";
+    } else if (
+      isAdminEmail ||
+      metaRole === "ADMIN" ||
+      metaRole === "MANAGER" ||
+      metaRole === "STAFF" ||
+      profileRole === "ADMIN" ||
+      profileRole === "MANAGER" ||
+      profileRole === "STAFF"
+    ) {
+      role = "ADMIN";
+    }
+
+    const updatedProfile: UserProfile = {
+      id: sbUser.id,
+      name: profile?.full_name || meta.full_name || meta.name || sbUser.email?.split("@")[0] || "Palak Customer",
+      phone: profile?.phone || meta.phone || sbUser.phone || "",
+      email: sbUser.email || profile?.email,
+      avatarUrl: profile?.avatar_url || meta.avatar_url || meta.picture,
+      role: role,
+      businessName: profile?.business_name,
+    };
+
+    setUser(updatedProfile);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedProfile));
+    setAuthError(null);
   };
 
   // Sync Supabase Auth session on mount and listen to state changes
@@ -175,20 +230,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const client = supabase;
 
     if (!isSupabaseConfigured || !client) {
+      logBoot("start (unconfigured)");
+      logBoot("loading:false", { totalElapsedMs: getElapsedBootMs() });
       setLoading(false);
       return;
     }
 
+    logBoot("start");
+
     const initAuth = async () => {
+      logBoot("getSession:start");
+      const getSessionStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const getSessionElapsed = () => Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - getSessionStart);
+
       try {
-        const { data: { session: currentSession } } = await client.auth.getSession();
+        setAuthError(null);
+        let { data: { session: currentSession }, error: sessionError } = await client.auth.getSession();
         if (!isMounted) return;
+
+        if (sessionError) {
+          logBoot("getSession:error", { message: sessionError.message, opElapsedMs: getSessionElapsed() });
+          setAuthError(sessionError.message);
+          setSession(null);
+          setUser(null);
+          return;
+        }
+
+        logBoot("getSession:success", { hasSession: Boolean(currentSession?.user), opElapsedMs: getSessionElapsed() });
+
+        // Check if stored session is expired or expiring in < 15s
+        const isSessionExpired = Boolean(
+          currentSession?.expires_at && currentSession.expires_at * 1000 <= Date.now() + 15000
+        );
+
+        if (currentSession && isSessionExpired) {
+          logBoot("token refresh:start");
+          const refStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+          const getRefElapsed = () => Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - refStart);
+
+          const refreshed = await sharedRefreshSession();
+          if (!isMounted) return;
+
+          if (refreshed?.user) {
+            logBoot("token refresh:success", { userId: refreshed.user.id, opElapsedMs: getRefElapsed() });
+            currentSession = refreshed;
+          } else {
+            logBoot("token refresh:error", { reason: "refresh_returned_null", opElapsedMs: getRefElapsed() });
+            currentSession = null;
+            setAuthError("Session expired. Please sign in again.");
+          }
+        }
 
         if (currentSession?.user) {
           setSession(currentSession);
-          await syncUserProfile(currentSession.user);
+          // Settle any potential future JWT timestamp before calling role sync
+          await ensureTokenSettled(client);
+          await syncUserProfile(currentSession.user, false);
         } else {
-          // If no active Supabase session, clear any stale stored profile unless it's a guest
+          // Explicit unauthenticated terminal state: clear any stale stored profile unless it's a guest
+          setSession(null);
           const saved = localStorage.getItem(AUTH_STORAGE_KEY);
           if (saved) {
             try {
@@ -202,16 +302,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         }
-      } catch (err) {
-        console.warn("Auth initialization notice:", err);
+      } catch (err: any) {
+        logBoot("getSession:error", { message: err?.message, opElapsedMs: getSessionElapsed() });
+        if (isMounted) {
+          setAuthError(err?.message || "Authentication verification failed.");
+          setSession(null);
+          setUser(null);
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        }
       } finally {
         if (isMounted) {
           setLoading(false);
+          logBoot("loading:false", { totalElapsedMs: getElapsedBootMs() });
         }
       }
     };
 
-    initAuth();
+    // Fail-safe watchdog timer (5000ms): Guarantees loading state is released even if network hangs
+    const watchdogTimer = setTimeout(() => {
+      if (isMounted && loading) {
+        logBoot("loading:false (watchdog timeout)", { totalElapsedMs: getElapsedBootMs() });
+        setLoading(false);
+      }
+    }, 5000);
+
+    initAuth().finally(() => {
+      clearTimeout(watchdogTimer);
+    });
 
     const { data: authListener } = client.auth.onAuthStateChange(async (event, newSession) => {
       if (!isMounted) return;
@@ -219,19 +336,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === "SIGNED_OUT" || !newSession) {
         setSession(null);
         setUser(null);
+        setAuthError(null);
         localStorage.removeItem(AUTH_STORAGE_KEY);
         try {
           PalakDataStore.resetMemoryCaches();
           PalakInvoiceStore.resetMemoryCaches();
         } catch {}
       } else if (newSession?.user) {
-        setSession(newSession);
-        await syncUserProfile(newSession.user);
+        if (event === "TOKEN_REFRESHED") {
+          logBoot("token refresh:success", { userId: newSession.user.id, event });
+          setSession(newSession);
+          try {
+            await ensureTokenSettled(client);
+            await syncUserProfile(newSession.user, true);
+          } catch (e: any) {
+            console.debug("[AUTH] Token refresh profile sync warning:", e?.message);
+          }
+        } else if (event === "SIGNED_IN") {
+          setSession(newSession);
+          try {
+            await ensureTokenSettled(client);
+            await syncUserProfile(newSession.user, false);
+          } catch (e: any) {
+            setAuthError(e?.message || "Sign-in synchronization failed.");
+          }
+        } else {
+          setSession(newSession);
+        }
       }
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(watchdogTimer);
       authListener?.subscription?.unsubscribe();
     };
   }, []);
@@ -268,20 +405,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         return { success: false, error: "Login failed. Please verify your credentials and try again." };
       } catch (err: any) {
-        console.warn("Supabase network sign-in notice, attempting local session:", err);
+        console.error("Supabase sign-in error:", err);
+        return { success: false, error: err?.message || "Could not connect to authentication server. Please check your connection." };
       }
     }
 
-    // Resilient local session fallback
-    const fallbackProfile: UserProfile = {
-      id: "usr_" + Math.random().toString(36).substring(2, 9),
-      name: cleanEmail.split("@")[0],
-      email: cleanEmail,
-      role: "CUSTOMER",
-    };
-    setUser(fallbackProfile);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackProfile));
-    return { success: true };
+    return { success: false, error: "Authentication service is not configured." };
   };
 
   const signUpWithEmail = async (
@@ -333,21 +462,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         return { success: true };
       } catch (err: any) {
-        console.warn("Supabase registration network notice, using local session:", err);
+        console.error("Supabase registration error:", err);
+        return { success: false, error: err?.message || "Could not complete registration. Please try again." };
       }
     }
 
-    // Resilient fallback: Create active local customer profile
-    const fallbackProfile: UserProfile = {
-      id: "usr_" + Math.random().toString(36).substring(2, 9),
-      name: cleanName || cleanEmail.split("@")[0],
-      email: cleanEmail,
-      phone: cleanPhone,
-      role: "CUSTOMER",
-    };
-    setUser(fallbackProfile);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackProfile));
-    return { success: true, requiresEmailConfirmation: false };
+    return { success: false, error: "Authentication service is not configured." };
   };
 
   const loginWithGoogle = async (
@@ -486,10 +606,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const isAuthenticated = Boolean(session?.user || user);
+  const refreshSession = async (): Promise<Session | null> => {
+    try {
+      const newSession = await sharedRefreshSession();
+      if (newSession) {
+        console.debug("[Auth] AUTH_TOKEN_REFRESHED on-demand via single-flight");
+        setSession(newSession);
+        return newSession;
+      }
+      return null;
+    } catch (err: any) {
+      console.debug("[Auth] On-demand session refresh failed:", { message: err?.message });
+      return null;
+    }
+  };
+
+  const hasActiveSession = Boolean(session?.user);
+  const isGuestCustomer = Boolean(user && user.id && typeof user.id === "string" && user.id.startsWith("cust_"));
+  const isAuthenticated = hasActiveSession || isGuestCustomer;
   const normalizedRole = (user?.role || "").toUpperCase();
-  const isStaff = normalizedRole === "STAFF" || normalizedRole === "MANAGER" || normalizedRole === "ADMIN";
-  const isAdmin = normalizedRole === "MANAGER" || normalizedRole === "ADMIN";
+  const isStaff = hasActiveSession && (normalizedRole === "STAFF" || normalizedRole === "MANAGER" || normalizedRole === "ADMIN");
+  const isAdmin = hasActiveSession && (normalizedRole === "MANAGER" || normalizedRole === "ADMIN");
 
   return (
     <AuthContext.Provider
@@ -500,6 +637,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isStaff,
         isAdmin,
         loading,
+        authError,
         loginWithEmail,
         signUpWithEmail,
         loginWithGoogle,
@@ -507,6 +645,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatePassword,
         logout,
         loginCustomer,
+        refreshSession,
       }}
     >
       {children}

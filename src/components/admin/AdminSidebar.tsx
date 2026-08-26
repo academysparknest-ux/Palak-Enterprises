@@ -6,6 +6,7 @@ import {
   Wallet,
   Zap,
   Percent,
+  Contact2,
   Globe,
   FileText,
   MessageSquare,
@@ -57,6 +58,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const navItems = [
     { name: 'ERP Dashboard', path: '/admin', icon: LayoutDashboard },
     { name: 'Orders', path: '/admin/orders', icon: Package, badge: newOrdersCount },
+    { name: 'ID Card Studio', path: '/admin/id-cards', icon: Contact2 },
     { name: 'Payments', path: '/admin/payments', icon: Wallet },
     { name: 'Quick Services', path: '/admin/quick-services', icon: Zap },
     { name: 'Charges & Taxes', path: '/admin/charges', icon: Percent },

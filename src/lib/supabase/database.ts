@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./client";
+import { executeWithAuthRetry } from "./authSession";
 import {
   PRODUCTS as LOCAL_PRODUCTS,
   DIGITAL_SERVICES as LOCAL_SERVICES,
@@ -81,22 +82,28 @@ export interface PrintOrderPayload {
 // ==============================================================================
 
 export async function getCategories(): Promise<LocalCategory[]> {
+  console.debug("[API] categories:start");
   const localList = PalakDataStore.getCategories();
   if (!isSupabaseConfigured || !supabase) {
     return localList;
   }
   try {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("id, name_en, name_hi, description_en, description_hi, icon_name, category_type, badge_en, badge_hi, sort_order")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
+    const data = await executeWithAuthRetry(async (client) => {
+      const { data, error } = await client
+        .from("categories")
+        .select("id, name_en, name_hi, description_en, description_hi, icon_name, category_type, badge_en, badge_hi, sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
 
-    if (error || !data || data.length === 0) {
+      if (error) throw error;
+      return data;
+    }, 1, "get_categories");
+
+    if (!data || data.length === 0) {
       return localList;
     }
 
-    const dbCategories = data.map((c) => ({
+    const dbCategories = data.map((c: any) => ({
       id: c.id,
       name: { en: c.name_en, hi: c.name_hi },
       description: { en: c.description_en || "", hi: c.description_hi || "" },
@@ -118,38 +125,44 @@ export async function getCategories(): Promise<LocalCategory[]> {
 }
 
 export async function getProducts(): Promise<LocalProduct[]> {
+  console.debug("[API] products:start");
   const localList = PalakDataStore.getProducts();
   if (!isSupabaseConfigured || !supabase) {
     return localList;
   }
   try {
-    const { data, error } = await supabase
-      .from("products")
-      .select(`
-        *,
-        product_options (
-          id,
-          option_key,
-          name_en,
-          name_hi,
-          is_required,
-          sort_order,
-          product_option_values (
+    const data = await executeWithAuthRetry(async (client) => {
+      const { data, error } = await client
+        .from("products")
+        .select(`
+          *,
+          product_options (
             id,
-            value_key,
-            label_en,
-            label_hi,
-            price_modifier,
-            price_multiplier,
-            is_default,
-            sort_order
+            option_key,
+            name_en,
+            name_hi,
+            is_required,
+            sort_order,
+            product_option_values (
+              id,
+              value_key,
+              label_en,
+              label_hi,
+              price_modifier,
+              price_multiplier,
+              is_default,
+              sort_order
+            )
           )
-        )
-      `)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
+        `)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
 
-    if (error || !data || data.length === 0) {
+      if (error) throw error;
+      return data;
+    }, 1, "get_products");
+
+    if (!data || data.length === 0) {
       return localList;
     }
 
@@ -205,22 +218,28 @@ export async function getProducts(): Promise<LocalProduct[]> {
 }
 
 export async function getServices(): Promise<LocalService[]> {
+  console.debug("[API] services:start");
   const localList = PalakDataStore.getDigitalServices();
   if (!isSupabaseConfigured || !supabase) {
     return localList;
   }
   try {
-    const { data, error } = await supabase
-      .from("services")
-      .select("id, slug, category_id, name_en, name_hi, short_desc_en, short_desc_hi, description_en, description_hi, estimated_fee, processing_time_en, processing_time_hi, required_documents_en, required_documents_hi, who_needs_it_en, who_needs_it_hi, important_instructions_en, important_instructions_hi, official_portal_name, disclaimer_en, disclaimer_hi, icon_name, is_featured, is_popular, tags, is_active, sort_order")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true });
+    const data = await executeWithAuthRetry(async (client) => {
+      const { data, error } = await client
+        .from("services")
+        .select("id, slug, category_id, name_en, name_hi, short_desc_en, short_desc_hi, description_en, description_hi, estimated_fee, processing_time_en, processing_time_hi, required_documents_en, required_documents_hi, who_needs_it_en, who_needs_it_hi, important_instructions_en, important_instructions_hi, official_portal_name, disclaimer_en, disclaimer_hi, icon_name, is_featured, is_popular, tags, is_active, sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
 
-    if (error || !data || data.length === 0) {
+      if (error) throw error;
+      return data;
+    }, 1, "get_services");
+
+    if (!data || data.length === 0) {
       return localList;
     }
 
-    const dbServices: LocalService[] = data.map((s) => {
+    const dbServices: LocalService[] = (data as any[]).map((s) => {
       const localMatch = localList.find((ls) => ls.id === s.id || ls.slug === s.slug) || LOCAL_SERVICES.find((ls) => ls.id === s.id || ls.slug === s.slug);
       return {
         id: s.id,
@@ -317,96 +336,64 @@ export function mapOrderRowToStoredOrder(o: any): StoredOrder {
 }
 
 export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]> {
+  console.debug("[API] orders:start");
   if (!isSupabaseConfigured || !supabase) {
     return PalakDataStore.getOrders();
   }
 
-  let data: any[] | null = null;
-  let queryError: any = null;
-
-  // 1. First attempt: Query orders with order_items joined
   try {
-    let query = supabase
-      .from("orders")
-      .select("*, order_items(*)")
-      .order("created_at", { ascending: false });
-
-    if (limit > 0) {
-      query = query.limit(limit);
-    }
-
-    const res = await query;
-    if (res.error) {
-      queryError = res.error;
-    } else {
-      data = res.data;
-    }
-  } catch (err) {
-    queryError = err;
-  }
-
-  // 2. Fallback attempt: If relation query failed, try simple select("*")
-  if (queryError || !data) {
-    console.warn("getStaffOrders primary query notice, attempting flat select fallback:", queryError?.message || queryError);
-    try {
-      let flatQuery = supabase
+    const data = await executeWithAuthRetry(async (client) => {
+      let query = client
         .from("orders")
-        .select("*")
+        .select("*, order_items(*)")
         .order("created_at", { ascending: false });
 
       if (limit > 0) {
-        flatQuery = flatQuery.limit(limit);
+        query = query.limit(limit);
       }
 
-      const flatRes = await flatQuery;
-      if (!flatRes.error && flatRes.data) {
-        data = flatRes.data;
-        queryError = null;
-      } else if (flatRes.error) {
-        queryError = flatRes.error;
+      const res = await query;
+      if (res.error) throw res.error;
+      return res.data;
+    });
+
+    const normalizedList: StoredOrder[] = [];
+    (data || []).forEach((row: any) => {
+      try {
+        normalizedList.push(normalizeOrder(row));
+      } catch (e) {
+        console.warn("Row normalization notice for order:", row?.id || row?.order_code, e);
       }
-    } catch (err) {
-      queryError = err;
+    });
+
+    if (normalizedList.length > 0) {
+      PalakDataStore.syncOrdersFromCloud(normalizedList);
     }
-  }
 
-  if (queryError && (!data || data.length === 0)) {
+    return normalizedList;
+  } catch (queryError: any) {
     console.warn("getStaffOrders database notice:", queryError?.message || queryError);
-    // Return local cache rather than failing
     return PalakDataStore.getOrders();
   }
-
-  const normalizedList: StoredOrder[] = [];
-  (data || []).forEach((row) => {
-    try {
-      normalizedList.push(normalizeOrder(row));
-    } catch (e) {
-      console.warn("Row normalization notice for order:", row?.id || row?.order_code, e);
-    }
-  });
-
-  if (normalizedList.length > 0) {
-    PalakDataStore.syncOrdersFromCloud(normalizedList);
-  }
-
-  return normalizedList;
 }
 
 export async function getStaffOrderByCodeOrId(codeOrId: string): Promise<StoredOrder | null> {
   if (!isSupabaseConfigured || !supabase || !codeOrId) return null;
 
   try {
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(codeOrId);
-    let query = supabase.from("orders").select("*, order_items(*)");
-    if (isUUID) {
-      query = query.eq("id", codeOrId);
-    } else {
-      query = query.eq("order_code", codeOrId.trim().toUpperCase());
-    }
+    return await executeWithAuthRetry(async (client) => {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(codeOrId);
+      let query = client.from("orders").select("*, order_items(*)");
+      if (isUUID) {
+        query = query.eq("id", codeOrId);
+      } else {
+        query = query.eq("order_code", codeOrId.trim().toUpperCase());
+      }
 
-    const { data, error } = await query.maybeSingle();
-    if (error || !data) return null;
-    return mapOrderRowToStoredOrder(data);
+      const { data, error } = await query.maybeSingle();
+      if (error || !data) return null;
+      return mapOrderRowToStoredOrder(data);
+    });
   } catch (err) {
     console.warn("getStaffOrderByCodeOrId query notice:", err);
     return null;
@@ -415,64 +402,82 @@ export async function getStaffOrderByCodeOrId(codeOrId: string): Promise<StoredO
 
 export async function getStaffServiceRequests(): Promise<StoredServiceRequest[]> {
   if (!isSupabaseConfigured || !supabase) return [];
-  const { data, error } = await supabase
-    .from("service_requests")
-    .select("id, request_code, service_id, service_name, customer_name, customer_phone, customer_email, preferred_contact, applicant_details, uploaded_document_urls, uploaded_document_names, additional_notes, estimated_fee, request_status, acknowledgement_number, staff_notes, created_at, updated_at")
-    .order("created_at", { ascending: false });
+  try {
+    const data = await executeWithAuthRetry(async (client) => {
+      const { data, error } = await client
+        .from("service_requests")
+        .select("id, request_code, service_id, service_name, customer_name, customer_phone, customer_email, preferred_contact, applicant_details, uploaded_document_urls, uploaded_document_names, additional_notes, estimated_fee, request_status, acknowledgement_number, staff_notes, created_at, updated_at")
+        .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return (data || []).map((s) => ({
-    id: s.id,
-    requestCode: s.request_code,
-    serviceId: s.service_id,
-    serviceName: s.service_name,
-    customerName: s.customer_name,
-    customerPhone: s.customer_phone,
-    customerEmail: s.customer_email,
-    preferredContact: s.preferred_contact,
-    applicantDetails: s.applicant_details,
-    uploadedDocumentUrls: s.uploaded_document_urls || [],
-    uploadedDocumentNames: s.uploaded_document_names || [],
-    additionalNotes: s.additional_notes,
-    estimatedFee: Number(s.estimated_fee) || 0,
-    requestStatus: s.request_status,
-    acknowledgementNumber: s.acknowledgement_number,
-    staffNotes: s.staff_notes,
-    createdAt: s.created_at,
-    updatedAt: s.updated_at,
-  }));
+      if (error) throw error;
+      return data;
+    });
+
+    return (data || []).map((s: any) => ({
+      id: s.id,
+      requestCode: s.request_code,
+      serviceId: s.service_id,
+      serviceName: s.service_name,
+      customerName: s.customer_name,
+      customerPhone: s.customer_phone,
+      customerEmail: s.customer_email,
+      preferredContact: s.preferred_contact,
+      applicantDetails: s.applicant_details,
+      uploadedDocumentUrls: s.uploaded_document_urls || [],
+      uploadedDocumentNames: s.uploaded_document_names || [],
+      additionalNotes: s.additional_notes,
+      estimatedFee: Number(s.estimated_fee) || 0,
+      requestStatus: s.request_status,
+      acknowledgementNumber: s.acknowledgement_number,
+      staffNotes: s.staff_notes,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at,
+    }));
+  } catch (err) {
+    console.warn("getStaffServiceRequests notice:", err);
+    return [];
+  }
 }
 
 export async function getStaffQuoteRequests(): Promise<StoredQuoteRequest[]> {
   if (!isSupabaseConfigured || !supabase) return [];
-  const { data, error } = await supabase
-    .from("quote_requests")
-    .select("id, quote_code, service_or_product_type, quantity, size_specifications, material_preferences, sample_image_urls, special_instructions, required_by_date, design_status, reference_file_urls, reference_file_names, additional_details, customer_name, customer_phone, customer_email, preferred_contact, business_name, timeline_requirement, estimated_budget, quoted_amount, quote_status, staff_notes, created_at, updated_at")
-    .order("created_at", { ascending: false });
+  try {
+    const data = await executeWithAuthRetry(async (client) => {
+      const { data, error } = await client
+        .from("quote_requests")
+        .select("id, quote_code, service_or_product_type, quantity, size_specifications, material_preferences, sample_image_urls, special_instructions, required_by_date, design_status, reference_file_urls, reference_file_names, additional_details, customer_name, customer_phone, customer_email, preferred_contact, business_name, timeline_requirement, estimated_budget, quoted_amount, quote_status, staff_notes, created_at, updated_at")
+        .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return (data || []).map((q) => ({
-    id: q.id,
-    quoteCode: q.quote_code,
-    serviceOrProductType: q.service_or_product_type,
-    quantity: q.quantity,
-    sizeSpecifications: q.size_specifications,
-    materialPreferences: q.material_preferences,
-    requiredByDate: q.required_by_date,
-    designStatus: q.design_status,
-    referenceFileUrls: q.reference_file_urls || [],
-    referenceFileNames: q.reference_file_names || [],
-    additionalDetails: q.additional_details,
-    customerName: q.customer_name,
-    customerPhone: q.customer_phone,
-    customerEmail: q.customer_email,
-    businessName: q.business_name,
-    quotedAmount: q.quoted_amount ? Number(q.quoted_amount) : undefined,
-    quoteStatus: q.quote_status,
-    staffNotes: q.staff_notes,
-    createdAt: q.created_at,
-    updatedAt: q.updated_at,
-  }));
+      if (error) throw error;
+      return data;
+    });
+
+    return (data || []).map((q: any) => ({
+      id: q.id,
+      quoteCode: q.quote_code,
+      serviceOrProductType: q.service_or_product_type,
+      quantity: q.quantity,
+      sizeSpecifications: q.size_specifications,
+      materialPreferences: q.material_preferences,
+      requiredByDate: q.required_by_date,
+      designStatus: q.design_status,
+      referenceFileUrls: q.reference_file_urls || [],
+      referenceFileNames: q.reference_file_names || [],
+      additionalDetails: q.additional_details,
+      customerName: q.customer_name,
+      customerPhone: q.customer_phone,
+      customerEmail: q.customer_email,
+      businessName: q.business_name,
+      quotedAmount: q.quoted_amount ? Number(q.quoted_amount) : undefined,
+      quoteStatus: q.quote_status,
+      staffNotes: q.staff_notes,
+      createdAt: q.created_at,
+      updatedAt: q.updated_at,
+    }));
+  } catch (err) {
+    console.warn("getStaffQuoteRequests notice:", err);
+    return [];
+  }
 }
 
 export async function updateStaffOrderStatus(

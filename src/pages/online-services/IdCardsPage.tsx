@@ -7,6 +7,7 @@ import {
   User,
   Plus,
   Minus,
+  Crop,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
@@ -17,6 +18,7 @@ import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
+import { ImageCropModal } from "../../components/idcard/ImageCropModal";
 import { cn } from "../../lib/utils";
 
 export const IdCardsPage: React.FC = () => {
@@ -50,6 +52,18 @@ export const IdCardsPage: React.FC = () => {
     previewUrl: string;
   } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [showPhotoCrop, setShowPhotoCrop] = useState<boolean>(false);
+  const [rawPhotoSrc, setRawPhotoSrc] = useState<string | null>(null);
+  const [rawPhotoName, setRawPhotoName] = useState<string>("holder-photo.jpg");
+
+  // School / Organization Logo
+  const [uploadedLogo, setUploadedLogo] = useState<{
+    file: File;
+    name: string;
+    size: number;
+    previewUrl: string;
+  } | null>(null);
+  const [logoFileError, setLogoFileError] = useState<string | null>(null);
 
   // Customer Contact
   const [customerName, setCustomerName] = useState<string>(user?.name || "");
@@ -121,17 +135,65 @@ export const IdCardsPage: React.FC = () => {
 
     const file = e.target.files[0];
     if (!file.type.startsWith("image/")) {
-      setFileError(currentLang === "hi" ? "केवल फोटो फ़ाइल समर्थित है।" : "Only image files allowed.");
+      setFileError(currentLang === "hi" ? "केवल JPG, PNG, WEBP फोटो फ़ाइल समर्थित है।" : "Only image files (JPG, PNG, WEBP) allowed.");
+      return;
+    }
+
+    if (file.size < 10 * 1024) {
+      setFileError(currentLang === "hi" ? "फोटो बहुत छोटी है (न्यूनतम: 10 KB)।" : "Image is too small (Min: 10 KB).");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setFileError(currentLang === "hi" ? "फोटो 10MB से कम होनी चाहिए (अधिकतम: 10 MB)।" : "Image exceeds maximum limit (Max: 10 MB).");
       return;
     }
 
     const previewUrl = URL.createObjectURL(file);
+    setRawPhotoSrc(previewUrl);
+    setRawPhotoName(file.name);
+    setShowPhotoCrop(true);
+    e.target.value = "";
+  };
+
+  const handleCropComplete = (croppedFile: File, previewUrl: string) => {
     setUploadedPhoto({
+      file: croppedFile,
+      name: croppedFile.name,
+      size: croppedFile.size,
+      previewUrl,
+    });
+    setFileError(null);
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLogoFileError(null);
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    if (!file.type.startsWith("image/")) {
+      setLogoFileError(currentLang === "hi" ? "केवल फोटो या लोगो फ़ाइल समर्थित है।" : "Only image files allowed.");
+      return;
+    }
+
+    if (file.size < 10 * 1024) {
+      setLogoFileError(currentLang === "hi" ? "लोगो फ़ाइल बहुत छोटी है (न्यूनतम: 10 KB)।" : "Logo file too small (Min: 10 KB).");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setLogoFileError(currentLang === "hi" ? "लोगो फ़ाइल 10MB से कम होनी चाहिए (अधिकतम: 10 MB)।" : "Logo exceeds maximum limit (Max: 10 MB).");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setUploadedLogo({
       file,
       name: file.name,
       size: file.size,
       previewUrl,
     });
+    e.target.value = "";
   };
 
   // Price Calculation
@@ -199,12 +261,23 @@ export const IdCardsPage: React.FC = () => {
         }
       }
 
+      let logoUrl = "";
+      let logoStoragePath = "";
+      if (uploadedLogo?.file) {
+        const logoUploadRes = await uploadOrderFile(uploadedLogo.file, `LOGO-${Date.now()}`);
+        if (logoUploadRes) {
+          logoUrl = logoUploadRes.url;
+          logoStoragePath = logoUploadRes.storagePath;
+        }
+      }
+
       const specifications: Record<string, string> = {
         Holder: holderName,
         Organization: organization,
         Sides: cardSides === "single" ? "Single Side Front" : "Double Side (Front & Back)",
         Lanyard: includeLanyard ? "With Premium Lanyard & Holder" : "Card Only",
         Quantity: `${quantity} ID Card(s)`,
+        ...(uploadedLogo ? { "School Logo": "Custom Logo Uploaded" } : {}),
       };
 
       const processIdCardOrder = async (razorpayPaymentId?: string) => {
@@ -240,6 +313,9 @@ export const IdCardsPage: React.FC = () => {
             cardSides,
             includeLanyard,
             quantity,
+            schoolLogoUrl: logoUrl || undefined,
+            schoolLogoName: uploadedLogo?.name || undefined,
+            schoolLogoStoragePath: logoStoragePath || undefined,
           },
           optionsLabels: specifications,
           file: uploadedPhoto ? {
@@ -371,9 +447,18 @@ export const IdCardsPage: React.FC = () => {
 
               {/* Live ID Card Mockup */}
               <div className="rounded-2xl bg-white border-2 border-slate-300 p-4 shadow-md max-w-xs mx-auto space-y-3">
-                <div className="rounded-xl bg-[#123B70] text-white p-2.5 text-center">
-                  <h4 className="text-xs font-black tracking-tight uppercase truncate">{organization || "ORGANIZATION NAME"}</h4>
-                  <p className="text-[9px] text-amber-300 font-semibold tracking-wider">IDENTITY CARD</p>
+                <div className="rounded-xl bg-[#123B70] text-white p-2.5 text-center flex items-center justify-center gap-2">
+                  {uploadedLogo ? (
+                    <img
+                      src={uploadedLogo.previewUrl}
+                      alt="School Logo"
+                      className="h-8 w-8 rounded-full bg-white object-contain p-0.5 shrink-0 border border-amber-300 shadow-xs"
+                    />
+                  ) : null}
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-black tracking-tight uppercase truncate">{organization || "ORGANIZATION NAME"}</h4>
+                    <p className="text-[9px] text-amber-300 font-semibold tracking-wider">IDENTITY CARD</p>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -402,33 +487,82 @@ export const IdCardsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Photo Upload */}
-              <div className="space-y-1.5 pt-2">
-                <label className="block text-xs font-bold text-slate-800">
-                  {currentLang === "hi" ? "पासपोर्ट फोटो अपलोड करें *" : "Upload Cardholder Photo *"}
-                </label>
-                {uploadedPhoto ? (
-                  <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      <span>{uploadedPhoto.name}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setUploadedPhoto(null)}
-                      className="text-xs text-rose-600 hover:underline font-bold"
-                    >
-                      Change
-                    </button>
+              {/* Uploads Section: Photo & School Logo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                {/* Photo Upload */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-800">
+                      {currentLang === "hi" ? "पासपोर्ट फोटो अपलोड करें *" : "Upload Cardholder Photo *"}
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">Min 10KB • Max 10MB</span>
                   </div>
-                ) : (
-                  <label className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-4 text-center hover:border-[#123B70] cursor-pointer bg-slate-50">
-                    <Upload className="h-4 w-4 text-slate-500" />
-                    <span className="text-xs font-bold text-slate-700">Choose Portrait Photo (JPG, PNG)</span>
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                  {uploadedPhoto ? (
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 truncate">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span className="truncate">{uploadedPhoto.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRawPhotoSrc(uploadedPhoto.previewUrl);
+                            setRawPhotoName(uploadedPhoto.name);
+                            setShowPhotoCrop(true);
+                          }}
+                          className="flex items-center gap-1 text-xs text-amber-800 hover:text-amber-900 bg-amber-100/80 px-2 py-1 rounded-md font-bold transition"
+                        >
+                          <Crop size={12} />
+                          <span>Crop</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setUploadedPhoto(null)}
+                          className="text-xs text-rose-600 hover:underline font-bold px-1"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-3 text-center hover:border-[#123B70] cursor-pointer bg-slate-50 h-[58px]">
+                      <Upload className="h-4 w-4 text-slate-500 shrink-0" />
+                      <span className="text-xs font-bold text-slate-700">Choose Photo (JPG, PNG)</span>
+                      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                    </label>
+                  )}
+                  {fileError && <p className="text-xs text-rose-600">{fileError}</p>}
+                </div>
+
+                {/* School / Org Logo Upload */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-800">
+                    {currentLang === "hi" ? "स्कूल / संस्थान का लोगो (ऐच्छिक)" : "School / Org Logo (Optional)"}
                   </label>
-                )}
-                {fileError && <p className="text-xs text-rose-600">{fileError}</p>}
+                  {uploadedLogo ? (
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 truncate">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span className="truncate">{uploadedLogo.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setUploadedLogo(null)}
+                        className="text-xs text-rose-600 hover:underline font-bold shrink-0 ml-2"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-3 text-center hover:border-[#123B70] cursor-pointer bg-slate-50 h-[58px]">
+                      <Upload className="h-4 w-4 text-slate-500 shrink-0" />
+                      <span className="text-xs font-bold text-slate-700">Choose Logo (PNG, JPG, SVG)</span>
+                      <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
+                    </label>
+                  )}
+                  {logoFileError && <p className="text-xs text-rose-600">{logoFileError}</p>}
+                </div>
               </div>
 
               {/* ID Card Form Fields */}
@@ -790,6 +924,20 @@ export const IdCardsPage: React.FC = () => {
           paymentStatus={successData.paymentStatus}
         />
       )}
+
+      {/* Image Crop Modal for ID Card photo */}
+      <ImageCropModal
+        isOpen={showPhotoCrop}
+        imageSrc={rawPhotoSrc}
+        fileName={rawPhotoName}
+        cropShape="circle"
+        title="Crop Cardholder Photo (Circular / Card)"
+        onClose={() => {
+          setShowPhotoCrop(false);
+          setRawPhotoSrc(null);
+        }}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 };

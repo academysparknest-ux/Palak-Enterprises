@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-route
 import { LanguageProvider } from "./context/LanguageContext";
 import { AccessibilityProvider } from "./context/AccessibilityContext";
 import { CartProvider } from "./context/CartContext";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { MobileBottomNav } from "./components/MobileBottomNav";
@@ -67,6 +67,16 @@ const WebsiteCategoriesPage = lazyWithRetry(() => import("./pages/admin/WebsiteC
 const WebsiteContentPage = lazyWithRetry(() => import("./pages/admin/WebsiteContentPage").then((m) => ({ default: m.WebsiteContentPage })));
 const WebsiteAnalyticsPage = lazyWithRetry(() => import("./pages/admin/WebsiteAnalyticsPage").then((m) => ({ default: m.WebsiteAnalyticsPage })));
 const WebsiteActivityPage = lazyWithRetry(() => import("./pages/admin/WebsiteActivityPage").then((m) => ({ default: m.WebsiteActivityPage })));
+
+// ID Card Studio — Project management, CSV roster import, designer, and batch PDF generator
+const IdCardProjectsPage = lazyWithRetry(() => import("./pages/admin/idcard/IdCardProjectsPage").then((m) => ({ default: m.default })));
+const IdCardProjectPage = lazyWithRetry(() => import("./pages/admin/idcard/IdCardProjectPage").then((m) => ({ default: m.default })));
+const IdCardOverviewPage = lazyWithRetry(() => import("./pages/admin/idcard/IdCardOverviewPage").then((m) => ({ default: m.default })));
+const IdCardPersonsPage = lazyWithRetry(() => import("./pages/admin/idcard/IdCardPersonsPage").then((m) => ({ default: m.default })));
+const IdCardTemplatePage = lazyWithRetry(() => import("./pages/admin/idcard/IdCardTemplatePage").then((m) => ({ default: m.default })));
+const IdCardPreviewPage = lazyWithRetry(() => import("./pages/admin/idcard/IdCardPreviewPage").then((m) => ({ default: m.default })));
+const IdCardGeneratePage = lazyWithRetry(() => import("./pages/admin/idcard/IdCardGeneratePage").then((m) => ({ default: m.default })));
+
 const LoginPage = lazyWithRetry(() => import("./pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazyWithRetry(() => import("./pages/SignupPage").then((m) => ({ default: m.SignupPage })));
 const ForgotPasswordPage = lazyWithRetry(() => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })));
@@ -112,23 +122,33 @@ function ScrollToTop() {
 }
 
 export function AppContent() {
+  const { loading: authLoading } = useAuth();
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [modalService, setModalService] = useState<ServiceItem | null>(null);
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
 
-  // Background catalog synchronization from Supabase with Realtime subscription
+  // Catalog synchronization from Supabase: Gated strictly behind auth initialization
   useEffect(() => {
+    if (authLoading) return;
     if (!isSupabaseConfigured || !supabase) return;
-    const client = supabase;
+
+    let isSubscribed = true;
+    let lastSync = 0;
+    const SYNC_THROTTLE_MS = 60000; // 1 minute throttle
 
     const syncCatalog = async () => {
+      const now = Date.now();
+      if (now - lastSync < SYNC_THROTTLE_MS) return;
+      lastSync = now;
+
       try {
         const [prods, servs, cats] = await Promise.all([
           getProducts(),
           getServices(),
           getCategories(),
         ]);
+        if (!isSubscribed) return;
         if (prods && prods.length > 0) PalakDataStore.setProducts(prods);
         if (servs && servs.length > 0) PalakDataStore.setDigitalServices(servs);
         if (cats && cats.length > 0) PalakDataStore.setCategories(cats);
@@ -139,18 +159,23 @@ export function AppContent() {
 
     syncCatalog();
 
-    // Listen to real-time changes on catalog tables
-    const channel = client
-      .channel("storefront-catalog-sync")
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "products" }, () => syncCatalog())
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "services" }, () => syncCatalog())
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "categories" }, () => syncCatalog())
-      .subscribe();
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        syncCatalog();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("online", syncCatalog);
+    document.addEventListener("visibilitychange", handleFocus);
 
     return () => {
-      client.removeChannel(channel);
+      isSubscribed = false;
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("online", syncCatalog);
+      document.removeEventListener("visibilitychange", handleFocus);
     };
-  }, []);
+  }, [authLoading]);
 
   const handleOpenRequestModal = (serviceId?: string) => {
     if (serviceId) {
@@ -314,6 +339,25 @@ export function AppContent() {
                       <WebsiteActivityPage />
                     </AdminRouteGuard>
                   } />
+
+                  {/* ID Card Studio — Project management, CSV roster, designer, preview, batch PDF */}
+                  <Route path="id-cards" element={
+                    <AdminRouteGuard requiredRole="STAFF">
+                      <IdCardProjectsPage />
+                    </AdminRouteGuard>
+                  } />
+                  <Route path="id-cards/:projectId" element={
+                    <AdminRouteGuard requiredRole="STAFF">
+                      <IdCardProjectPage />
+                    </AdminRouteGuard>
+                  }>
+                    <Route index element={<IdCardOverviewPage />} />
+                    <Route path="persons" element={<IdCardPersonsPage />} />
+                    <Route path="template" element={<IdCardTemplatePage />} />
+                    <Route path="preview" element={<IdCardPreviewPage />} />
+                    <Route path="generate" element={<IdCardGeneratePage />} />
+                  </Route>
+
                   <Route path="settings" element={
                     <AdminRouteGuard requiredRole="ADMIN">
                       <AdminSettingsPage />

@@ -14,14 +14,31 @@
  */
 
 import { useEffect, useRef } from "react";
+import { useAuth } from "../context/AuthContext";
 import { realtimeOrdersManager, type RealtimeOrderCallbacks } from "../lib/realtime/realtimeOrdersManager";
 import { type StoredOrder } from "../lib/storage/store";
 
-export function useRealtimeOrders(callbacks: RealtimeOrderCallbacks) {
+export interface UseRealtimeOrdersOptions {
+  enabled?: boolean;
+}
+
+export function useRealtimeOrders(
+  callbacks: RealtimeOrderCallbacks,
+  options?: UseRealtimeOrdersOptions
+) {
+  const { loading: authLoading, isAuthenticated, isStaff, user } = useAuth();
   const callbacksRef = useRef<RealtimeOrderCallbacks>(callbacks);
   callbacksRef.current = callbacks;
 
+  const isEnabled = options?.enabled !== undefined
+    ? options.enabled
+    : (!authLoading && isAuthenticated && isStaff && Boolean(user));
+
   useEffect(() => {
+    if (!isEnabled) {
+      return;
+    }
+
     // Subscribe to the singleton manager — it handles:
     //   • Supabase Realtime postgres_changes (INSERT/UPDATE/DELETE)
     //   • Local DOM events (palak:new-order, palak:order-updated, palak:order-deleted)
@@ -39,6 +56,9 @@ export function useRealtimeOrders(callbacks: RealtimeOrderCallbacks) {
       },
     });
 
-    return unsubscribe;
-  }, []);
+    return () => {
+      unsubscribe();
+    };
+  }, [isEnabled]);
 }
+

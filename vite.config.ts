@@ -17,6 +17,9 @@ export default defineConfig({
             if (id.includes('qrcode')) {
               return 'vendor-qr';
             }
+            if (id.includes('xlsx') || id.includes('sheetjs')) {
+              return 'vendor-excel';
+            }
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
             }

@@ -1,21 +1,43 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import { ToastProvider } from "./AdminToast";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
 import { useRealtimeOrders } from "../../hooks/useRealtimeOrders";
-import { Lock } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Lock, AlertCircle } from "lucide-react";
 
 export const AdminLayout: React.FC = () => {
-  const { isStaff, loading: authLoading } = useAuth();
+  const { user, isStaff, isAuthenticated, loading: authLoading, authError } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [newOrdersCount, setNewOrdersCount] = useState(0);
+  const [layoutAuthTimedOut, setLayoutAuthTimedOut] = useState(false);
   const location = useLocation();
   const badgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Watchdog timer for AdminLayout auth loading (4.5s)
+  useEffect(() => {
+    if (!authLoading) {
+      setLayoutAuthTimedOut(false);
+      if (isStaff) {
+        console.info("[ADMIN_BOOT] guard:authorized", { role: user?.role, email: user?.email });
+      } else {
+        console.info("[ADMIN_BOOT] guard:unauthorized", { role: user?.role, email: user?.email });
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (authLoading) {
+        console.warn("[ADMIN_BOOT] guard:error", { reason: "layout_auth_timeout" });
+        setLayoutAuthTimedOut(true);
+      }
+    }, 4500);
+
+    return () => clearTimeout(timer);
+  }, [authLoading, isStaff, user, authError]);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -24,7 +46,7 @@ export const AdminLayout: React.FC = () => {
 
   // Fetch new orders count for sidebar badge with batching/debounce
   const fetchNewOrdersCount = useCallback((immediate: boolean = false) => {
-    if (!isSupabaseConfigured || !supabase) return;
+    if (!isSupabaseConfigured || !supabase || authLoading || !isStaff || !isAuthenticated) return;
     const client = supabase;
 
     if (badgeTimerRef.current) {
@@ -46,18 +68,18 @@ export const AdminLayout: React.FC = () => {
     } else {
       badgeTimerRef.current = setTimeout(execute, 200);
     }
-  }, []);
+  }, [authLoading, isStaff, isAuthenticated]);
 
   useEffect(() => {
-    if (isStaff) {
+    if (!authLoading && isStaff && isAuthenticated) {
       fetchNewOrdersCount(true);
     }
     return () => {
       if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
     };
-  }, [isStaff, fetchNewOrdersCount]);
+  }, [authLoading, isStaff, isAuthenticated, fetchNewOrdersCount]);
 
-  // Listen to realtime orders for sidebar badge count
+  // Listen to realtime orders for sidebar badge count (only when authorized)
   useRealtimeOrders({
     onNewOrder: (order) => {
       if (order.orderStatus === "NEW" || order.orderStatus === "UNDER_REVIEW") {
@@ -76,24 +98,59 @@ export const AdminLayout: React.FC = () => {
   // Re-sync sidebar badge on realtime reconnect
   useEffect(() => {
     const handleReconnect = () => {
-      console.debug("[AdminLayout] Realtime reconnected — syncing badge count...");
-      fetchNewOrdersCount();
+      if (!authLoading && isStaff && isAuthenticated) {
+        console.debug("[AdminLayout] Realtime reconnected — syncing badge count...");
+        fetchNewOrdersCount();
+      }
     };
     window.addEventListener("palak:realtime-reconnected", handleReconnect);
     return () => {
       window.removeEventListener("palak:realtime-reconnected", handleReconnect);
     };
-  }, [fetchNewOrdersCount]);
+  }, [authLoading, isStaff, isAuthenticated, fetchNewOrdersCount]);
 
   const handleRefresh = useCallback(async () => {
-    setDataLoading(true);
-    await fetchNewOrdersCount();
-    // Trigger a page-level refresh by dispatching a custom event
-    window.dispatchEvent(new CustomEvent("admin-refresh"));
-    setTimeout(() => setDataLoading(false), 500);
-  }, [fetchNewOrdersCount]);
+    if (!authLoading && isStaff && isAuthenticated) {
+      setDataLoading(true);
+      await fetchNewOrdersCount();
+      // Trigger a page-level refresh by dispatching a custom event
+      window.dispatchEvent(new CustomEvent("admin-refresh"));
+      setTimeout(() => setDataLoading(false), 500);
+    }
+  }, [authLoading, isStaff, isAuthenticated, fetchNewOrdersCount]);
 
-  // Show loading while auth is initializing
+  // 1. Auth verification timeout fallback screen (prevents indefinite spinner)
+  if (layoutAuthTimedOut && authLoading) {
+    return (
+      <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center p-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 max-w-md text-center space-y-4 shadow-lg">
+          <div className="h-12 w-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <Lock className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Verification Taking Longer Than Usual</h2>
+          <p className="text-xs text-slate-500">
+            Authentication verification is taking longer than expected. Please check your network connection or sign in again.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex-1 cursor-pointer"
+            >
+              Retry
+            </button>
+            <Link
+              to="/login"
+              className="inline-flex items-center justify-center rounded-xl bg-[#123B70] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0c274c] flex-1"
+            >
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Show loading while auth is initializing
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center">
@@ -105,8 +162,39 @@ export const AdminLayout: React.FC = () => {
     );
   }
 
-  // Auth guard: Redirect non-staff users
-  if (!isStaff) {
+  // 3. Auth failure / Terminal authentication error
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center p-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 max-w-md text-center space-y-4 shadow-lg">
+          <div className="h-12 w-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">Authentication Failure</h2>
+          <p className="text-xs text-slate-500">
+            {authError}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex-1 cursor-pointer"
+            >
+              Retry
+            </button>
+            <Link
+              to="/login"
+              className="inline-flex items-center justify-center rounded-xl bg-[#123B70] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#0c274c] flex-1"
+            >
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Auth guard: Redirect unauthenticated or non-staff users
+  if (!isAuthenticated || !user || !isStaff) {
     return (
       <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center p-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 max-w-md text-center space-y-4 shadow-lg">
