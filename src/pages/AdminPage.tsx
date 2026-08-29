@@ -33,6 +33,8 @@ import {
   MapPin,
   Plus,
   LayoutDashboard,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -492,9 +494,17 @@ export const AdminPage: React.FC = () => {
 
   // Pricing Config
   const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
+  const pricingConfigRef = useRef<PrintPricingConfig>(pricingConfig);
+  pricingConfigRef.current = pricingConfig;
   const [pricingSaving, setPricingSaving] = useState(false);
   const [pricingSavedNotice, setPricingSavedNotice] = useState(false);
   const loadRequestIdRef = useRef<number>(0);
+
+  // Pagination states (Default Page Size: 50)
+  const ADMIN_PAGE_SIZE = 50;
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [servicesPage, setServicesPage] = useState(1);
+  const [quotesPage, setQuotesPage] = useState(1);
 
   const loadData = useCallback(async (targetTab?: string) => {
     const tabToLoad = targetTab || activeTab;
@@ -534,7 +544,7 @@ export const AdminPage: React.FC = () => {
           : Promise.resolve(PalakDataStore.getQuoteRequests()),
         needsPricing
           ? getPrintPricingConfig().catch(() => DEFAULT_PRINT_PRICING)
-          : Promise.resolve(pricingConfig),
+          : Promise.resolve(pricingConfigRef.current),
       ]);
 
       if (currentRequestId !== loadRequestIdRef.current) {
@@ -687,7 +697,7 @@ export const AdminPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, pricingConfig]);
+  }, [activeTab]);
 
   const handleOpenInvoiceModal = async (orderCode: string) => {
     let inv = invoices.find((i) => i.orderCode && i.orderCode.toUpperCase() === orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(orderCode);
@@ -1341,6 +1351,35 @@ export const AdminPage: React.FC = () => {
     return sortPrintingQueue(matched);
   }, [orders, debouncedSearchQuery, quickFilter, statusFilter]);
 
+  // Reset pagination to page 1 on filter or search changes
+  useEffect(() => {
+    setOrdersPage(1);
+  }, [debouncedSearchQuery, quickFilter, statusFilter]);
+
+  // Orders pagination
+  const totalFilteredOrdersCount = filteredOrders.length;
+  const totalOrdersPages = Math.max(1, Math.ceil(totalFilteredOrdersCount / ADMIN_PAGE_SIZE));
+  const paginatedOrders = React.useMemo(() => {
+    const start = (ordersPage - 1) * ADMIN_PAGE_SIZE;
+    return filteredOrders.slice(start, start + ADMIN_PAGE_SIZE);
+  }, [filteredOrders, ordersPage]);
+
+  // Digital Service Requests pagination
+  const totalServicesCount = serviceRequests.length;
+  const totalServicesPages = Math.max(1, Math.ceil(totalServicesCount / ADMIN_PAGE_SIZE));
+  const paginatedServices = React.useMemo(() => {
+    const start = (servicesPage - 1) * ADMIN_PAGE_SIZE;
+    return serviceRequests.slice(start, start + ADMIN_PAGE_SIZE);
+  }, [serviceRequests, servicesPage]);
+
+  // Quotes Requests pagination
+  const totalQuotesCount = quoteRequests.length;
+  const totalQuotesPages = Math.max(1, Math.ceil(totalQuotesCount / ADMIN_PAGE_SIZE));
+  const paginatedQuotes = React.useMemo(() => {
+    const start = (quotesPage - 1) * ADMIN_PAGE_SIZE;
+    return quoteRequests.slice(start, start + ADMIN_PAGE_SIZE);
+  }, [quoteRequests, quotesPage]);
+
   if (!isStaff && !isNestedInLayout) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-4">
@@ -1740,7 +1779,7 @@ export const AdminPage: React.FC = () => {
                     Instant Online Print Orders Queue
                   </h2>
                   <p className="text-[11px] text-slate-500">
-                    Received through Supabase database • Showing {filteredOrders.length} order(s) sorted by Priority & FIFO
+                    Received through Supabase database • Showing {totalFilteredOrdersCount > 0 ? `${(ordersPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(totalFilteredOrdersCount, ordersPage * ADMIN_PAGE_SIZE)} of ${totalFilteredOrdersCount}` : "0"} order(s)
                   </p>
                 </div>
 
@@ -1787,8 +1826,8 @@ export const AdminPage: React.FC = () => {
 
               {/* Orders List */}
               <div className="space-y-2.5">
-                {filteredOrders.length > 0 ? (
-                  filteredOrders.map((order) => {
+                {paginatedOrders.length > 0 ? (
+                  paginatedOrders.map((order) => {
                     const items = Array.isArray(order.items) ? order.items : [];
                     const firstItem = items[0];
                     const qMeta = getQueueClassification(order);
@@ -2130,6 +2169,35 @@ export const AdminPage: React.FC = () => {
                 ) : (
                   <div className="text-center py-10 text-xs text-slate-400">
                     {orders.length === 0 ? "No orders found in the database." : "No print orders matching your filter criteria."}
+                  </div>
+                )}
+
+                {/* Orders Pagination Controls */}
+                {totalOrdersPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-3 border-t border-slate-200 text-xs">
+                    <div className="text-slate-500 font-medium text-[11px]">
+                      Showing <span className="font-bold text-slate-900">{(ordersPage - 1) * ADMIN_PAGE_SIZE + 1}–{Math.min(totalFilteredOrdersCount, ordersPage * ADMIN_PAGE_SIZE)}</span> of <span className="font-bold text-slate-900">{totalFilteredOrdersCount}</span> orders (Page <span className="font-bold text-slate-900">{ordersPage}</span> of <span className="font-bold text-slate-900">{totalOrdersPages}</span>)
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={ordersPage <= 1}
+                        onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer text-xs"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                        <span>Previous</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={ordersPage >= totalOrdersPages}
+                        onClick={() => setOrdersPage((p) => Math.min(totalOrdersPages, p + 1))}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer text-xs"
+                      >
+                        <span>Next</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -3196,12 +3264,14 @@ export const AdminPage: React.FC = () => {
           <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 className="text-base font-bold text-slate-900">Digital / CSC Applications</h2>
-              <span className="text-[11px] text-slate-400">{serviceRequests.length} Total Requests</span>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {totalServicesCount > 0 ? `Showing ${(servicesPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(totalServicesCount, servicesPage * ADMIN_PAGE_SIZE)} of ${totalServicesCount} total` : "0 Requests"}
+              </span>
             </div>
 
             <div className="space-y-2">
-              {serviceRequests.length > 0 ? (
-                serviceRequests.map((req) => (
+              {paginatedServices.length > 0 ? (
+                paginatedServices.map((req) => (
                   <div key={req.id} className="rounded-lg border border-slate-200 p-3 space-y-1.5 hover:border-slate-300 bg-white">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                       <div>
@@ -3246,6 +3316,35 @@ export const AdminPage: React.FC = () => {
                 <div className="text-center py-6 text-xs text-slate-400">No applications in queue.</div>
               )}
             </div>
+
+            {/* Services Pagination Controls */}
+            {totalServicesPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-3 border-t border-slate-200 text-xs">
+                <div className="text-slate-500 font-medium text-[11px]">
+                  Showing <span className="font-bold text-slate-900">{(servicesPage - 1) * ADMIN_PAGE_SIZE + 1}–{Math.min(totalServicesCount, servicesPage * ADMIN_PAGE_SIZE)}</span> of <span className="font-bold text-slate-900">{totalServicesCount}</span> (Page <span className="font-bold text-slate-900">{servicesPage}</span> of <span className="font-bold text-slate-900">{totalServicesPages}</span>)
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={servicesPage <= 1}
+                    onClick={() => setServicesPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer text-xs"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>Previous</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={servicesPage >= totalServicesPages}
+                    onClick={() => setServicesPage((p) => Math.min(totalServicesPages, p + 1))}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer text-xs"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3254,12 +3353,14 @@ export const AdminPage: React.FC = () => {
           <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 className="text-base font-bold text-slate-900">Custom Quote Inquiries</h2>
-              <span className="text-[11px] text-slate-400">{quoteRequests.length} Total</span>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {totalQuotesCount > 0 ? `Showing ${(quotesPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(totalQuotesCount, quotesPage * ADMIN_PAGE_SIZE)} of ${totalQuotesCount} total` : "0 Quotes"}
+              </span>
             </div>
 
             <div className="space-y-2">
-              {quoteRequests.length > 0 ? (
-                quoteRequests.map((q) => (
+              {paginatedQuotes.length > 0 ? (
+                paginatedQuotes.map((q) => (
                   <div key={q.id} className="rounded-lg border border-slate-200 p-3 space-y-1.5 hover:border-slate-300 bg-white">
                     <div className="flex items-center justify-between">
                       <div>
@@ -3306,6 +3407,35 @@ export const AdminPage: React.FC = () => {
                 <div className="text-center py-6 text-xs text-slate-400">No quotes pending.</div>
               )}
             </div>
+
+            {/* Quotes Pagination Controls */}
+            {totalQuotesPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-3 border-t border-slate-200 text-xs">
+                <div className="text-slate-500 font-medium text-[11px]">
+                  Showing <span className="font-bold text-slate-900">{(quotesPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(totalQuotesCount, quotesPage * ADMIN_PAGE_SIZE)}</span> of <span className="font-bold text-slate-900">{totalQuotesCount}</span> (Page <span className="font-bold text-slate-900">{quotesPage}</span> of <span className="font-bold text-slate-900">{totalQuotesPages}</span>)
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={quotesPage <= 1}
+                    onClick={() => setQuotesPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer text-xs"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>Previous</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={quotesPage >= totalQuotesPages}
+                    onClick={() => setQuotesPage((p) => Math.min(totalQuotesPages, p + 1))}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer text-xs"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

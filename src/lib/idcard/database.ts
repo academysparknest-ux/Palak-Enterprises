@@ -223,26 +223,36 @@ export async function deleteIdCardPerson(id: string): Promise<void> {
 // PHOTOS
 // ============================================================
 
-const PHOTO_BUCKET = 'idcard-photos';
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
-const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const PHOTO_BUCKET = 'idcard-photos';
+export const MIN_PHOTO_BYTES = 50 * 1024; // 50 KB
+export const MAX_PHOTO_BYTES = 500 * 1024; // 500 KB
+export const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 export async function uploadPersonPhoto(personId: string, file: File): Promise<string> {
-  if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
-    throw classifySupabaseError({ message: 'storage: unsupported file type' });
+  const mime = (file.type || '').toLowerCase();
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const isAllowedMime = mime ? ALLOWED_PHOTO_TYPES.includes(mime) : true;
+  const isAllowedExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+
+  if (!isAllowedMime || !isAllowedExt) {
+    throw classifySupabaseError({ message: 'Unsupported image format. Please upload JPG, PNG, or WebP.' });
+  }
+  if (file.size < MIN_PHOTO_BYTES) {
+    throw classifySupabaseError({ message: 'Photo is too small. Minimum file size is 50 KB.' });
   }
   if (file.size > MAX_PHOTO_BYTES) {
-    throw classifySupabaseError({ message: 'storage: file too large (max 5MB)' });
+    throw classifySupabaseError({ message: 'Photo is too large. Maximum file size is 500 KB.' });
   }
 
-  const ext = file.name.split('.').pop() ?? 'jpg';
-  const path = `${personId}/${Date.now()}.${ext}`;
+  // Clean filename and make unique path: student-photos/{personId}/{timestamp}_{filename}
+  const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${personId}/${Date.now()}_${cleanFileName}`;
 
   return executeWithAuthRetry(
     async (client) => {
       const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
         upsert: true,
-        contentType: file.type,
+        contentType: file.type || 'image/jpeg',
       });
       if (uploadError) throw classifySupabaseError(uploadError);
 
@@ -286,7 +296,11 @@ export async function getPhotoSignedUrl(path: string): Promise<string> {
 export async function getIdCardTemplates(projectId?: string): Promise<IdCardTemplate[]> {
   return executeWithAuthRetry(
     async (client) => {
-      let query = client.from('idcard_templates').select('*').order('created_at', { ascending: false });
+      let query = client
+        .from('idcard_templates')
+        .select('*')
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false });
       if (projectId) query = query.eq('project_id', projectId);
 
       const { data, error } = await query;
@@ -342,6 +356,16 @@ export async function updateIdCardTemplate(
       return data as IdCardTemplate;
     },
     { operationName: 'updateIdCardTemplate' }
+  );
+}
+
+export async function deleteIdCardTemplate(id: string): Promise<void> {
+  return executeWithAuthRetry(
+    async (client) => {
+      const { error } = await client.from('idcard_templates').delete().eq('id', id);
+      if (error) throw classifySupabaseError(error);
+    },
+    { operationName: 'deleteIdCardTemplate' }
   );
 }
 

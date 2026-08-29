@@ -94,6 +94,8 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
 
     const fileCategory = getFileCategory(doc.name, doc.url, doc.mimeType);
 
+    let objectUrlToRevoke = "";
+
     // For PDFs: fetch as blob to avoid X-Frame-Options / Content-Disposition issues with signed URLs
     if (fileCategory === "pdf") {
       resolveDocumentUrl(doc.url, false, doc.name)
@@ -112,6 +114,7 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
           // Guarantee application/pdf MIME type for browser PDF viewer
           const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
           const blobUrl = URL.createObjectURL(pdfBlob);
+          objectUrlToRevoke = blobUrl;
           setResolvedUrl(blobUrl);
         })
         .catch((err) => {
@@ -169,6 +172,9 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
     return () => {
       isMounted = false;
       window.removeEventListener("keydown", handleKeyDown);
+      if (objectUrlToRevoke) {
+        URL.revokeObjectURL(objectUrlToRevoke);
+      }
     };
   }, [isOpen, doc, onClose]);
 

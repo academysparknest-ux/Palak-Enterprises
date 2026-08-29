@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Plus, 
   Search, 
@@ -87,6 +87,16 @@ export const WebsiteServicesPage: React.FC = () => {
   // Delete confirm
   const [itemToDelete, setItemToDelete] = useState<Product | Service | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Debounced rapid toggle coordinator (prevents request storms while keeping 0ms optimistic UI)
+  const pendingTogglesRef = useRef<Map<string, { timer: ReturnType<typeof setTimeout>; baselineValue: boolean; latestValue: boolean }>>(new Map());
+
+  useEffect(() => {
+    return () => {
+      pendingTogglesRef.current.forEach((entry) => clearTimeout(entry.timer));
+      pendingTogglesRef.current.clear();
+    };
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -443,11 +453,16 @@ export const WebsiteServicesPage: React.FC = () => {
     }
   };
 
-  const toggleToggleable = async (item: Product | Service, field: keyof ItemBase) => {
+  const toggleToggleable = (item: Product | Service, field: keyof ItemBase) => {
     const tableName = activeTab === 'products' ? 'products' : 'services';
-    const newValue = !item[field];
+    const toggleKey = `${tableName}:${item.id}:${String(field)}`;
+    
+    const existingPending = pendingTogglesRef.current.get(toggleKey);
+    const baselineValue = existingPending ? existingPending.baselineValue : Boolean(item[field]);
+    const currentDisplayedValue = Boolean(item[field]);
+    const newValue = !currentDisplayedValue;
 
-    // 1. Local update
+    // 1. Instant local optimistic update
     if (activeTab === 'products') {
       PalakDataStore.updateProduct(item.id, { [field]: newValue } as any);
       setProducts(prev => prev.map(p => p.id === item.id ? { ...p, [field]: newValue } : p));
@@ -455,21 +470,48 @@ export const WebsiteServicesPage: React.FC = () => {
       PalakDataStore.updateService(item.id, { [field]: newValue } as any);
       setServices(prev => prev.map(s => s.id === item.id ? { ...s, [field]: newValue } : s));
     }
-    
-    // 2. Cloud update
-    if (isSupabaseConfigured && supabase) {
+
+    // 2. Debounce cloud update by 350ms to prevent request storms from rapid clicking
+    if (existingPending) {
+      clearTimeout(existingPending.timer);
+    }
+
+    if (!isSupabaseConfigured || !supabase) {
+      addToast({ type: 'success', title: 'Updated locally' });
+      return;
+    }
+
+    const client = supabase;
+    const timer = setTimeout(async () => {
+      pendingTogglesRef.current.delete(toggleKey);
       try {
-        await supabase
+        const { error } = await client
           .from(tableName)
           .update({ [field]: newValue, updated_at: new Date().toISOString() })
           .eq('id', item.id);
+
+        if (error) throw error;
         await logAudit('UPDATE', tableName, item.id);
+        addToast({ type: 'success', title: 'Updated successfully' });
       } catch (cloudErr) {
         console.warn('Supabase toggle update note:', cloudErr);
+        // Rollback to baseline on error
+        if (activeTab === 'products') {
+          PalakDataStore.updateProduct(item.id, { [field]: baselineValue } as any);
+          setProducts(prev => prev.map(p => p.id === item.id ? { ...p, [field]: baselineValue } : p));
+        } else {
+          PalakDataStore.updateService(item.id, { [field]: baselineValue } as any);
+          setServices(prev => prev.map(s => s.id === item.id ? { ...s, [field]: baselineValue } : s));
+        }
+        addToast({ type: 'error', title: 'Failed to update, changes reverted' });
       }
-    }
-    
-    addToast({ type: 'success', title: `Updated successfully` });
+    }, 350);
+
+    pendingTogglesRef.current.set(toggleKey, {
+      timer,
+      baselineValue,
+      latestValue: newValue,
+    });
   };
 
   const getCategoryName = (categoryId: string) => {

@@ -8,9 +8,11 @@ import { getIdCardPersons, getIdCardTemplates, getIdCardGenerations, markGenerat
 import {
   generateCardsForPersons,
   buildMultiCardSheetPdf,
+  buildCalibrationTestPdf,
   renderCardToDataUrl,
   type GenerationProgress,
 } from '../../../lib/idcard/generation'
+import { validateBatchBeforeGeneration } from '../../../lib/idcard/templateValidation'
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors'
 import { GenerationProgressBar } from '../../../components/idcard/GenerationProgress'
 import {
@@ -572,6 +574,7 @@ export default function IdCardGeneratePage() {
   const { project } = useOutletContext<ProjectContext>()
   const [state, setState] = useState<PageState>({ kind: 'loading' })
   const [persons, setPersons] = useState<IdCardPerson[]>([])
+  const [templates, setTemplates] = useState<IdCardTemplate[]>([])
   const [template, setTemplate] = useState<IdCardTemplate | null>(null)
   const [generations, setGenerations] = useState<IdCardGeneration[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -586,6 +589,7 @@ export default function IdCardGeneratePage() {
   const [loadingImages, setLoadingImages] = useState(false)
 
   const imageCacheRef = useRef(new CardImageCache())
+  const isMountedRef = useRef(true)
 
   // Print config — load from localStorage or defaults
   const [printConfig, setPrintConfig] = useState<PrintConfig>(() => {
@@ -606,7 +610,11 @@ export default function IdCardGeneratePage() {
 
   // Persist config on change
   useEffect(() => {
-    savePrintConfig(project.id, printConfig)
+    try {
+      savePrintConfig(project.id, printConfig)
+    } catch (e) {
+      console.error('Failed to save print config', e)
+    }
   }, [printConfig, project.id])
 
   // Double-sided detection from template
@@ -622,13 +630,17 @@ export default function IdCardGeneratePage() {
   async function load() {
     setState({ kind: 'loading' })
     try {
-      const [personsResult, templates, gens] = await Promise.all([
+      const [personsResult, projectTemplates, gens] = await Promise.all([
         getIdCardPersons(project.id, { pageSize: 500 }),
         getIdCardTemplates(project.id),
         getIdCardGenerations(project.id),
       ])
       setPersons(personsResult.data)
-      setTemplate(templates.find((t) => t.id === project.template_id) ?? templates[0] ?? null)
+      setTemplates(projectTemplates)
+      const resolvedTemplate = project.template_id
+        ? (projectTemplates.find((t) => t.id === project.template_id) ?? (projectTemplates[0] || null))
+        : (projectTemplates[0] || null)
+      setTemplate(resolvedTemplate)
       setGenerations(gens)
       setState({ kind: 'ready' })
     } catch (err) {
@@ -640,7 +652,11 @@ export default function IdCardGeneratePage() {
     load()
     return () => imageCacheRef.current.clear()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id])
+  }, [project.id, project.template_id])
+
+  useEffect(() => {
+    imageCacheRef.current.clear()
+  }, [template?.id, template?.updated_at])
 
   // ── Selection ─────────────────────────────────────
   function toggle(id: string) {
@@ -737,20 +753,62 @@ export default function IdCardGeneratePage() {
     }
   }, [actionTargets, template, isDoubleSided, effectiveConfig.printMode, project.name, project.academic_year])
 
-  // ── Generation ────────────────────────────────────
-  async function handleGenerate(targets: IdCardPerson[]) {
-    if (!template || targets.length === 0) return
-    setGenerating(true)
-    setProgress({ total: targets.length, completed: 0, succeeded: 0, failed: 0 })
+  // ── Print Calibration Test Sheet ───────────────────
+  function handlePrintCalibration() {
     try {
-      await generateCardsForPersons(targets, template, project.id, project.name, project.academic_year, setProgress)
-    } finally {
-      setGenerating(false)
-      imageCacheRef.current.clear()
-      const gens = await getIdCardGenerations(project.id)
-      setGenerations(gens)
+      const paperW = layout?.paperWidthMm || (effectiveConfig.paperSize === 'a3' ? 297 : effectiveConfig.paperSize === 'a5' ? 148 : 210);
+      const paperH = layout?.paperHeightMm || (effectiveConfig.paperSize === 'a3' ? 420 : effectiveConfig.paperSize === 'a5' ? 210 : 297);
+      const pdfBlob = buildCalibrationTestPdf(
+        paperW,
+        paperH,
+        template?.card_width_mm || 85.6,
+        template?.card_height_mm || 54.0
+      );
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Calibration_Test_Sheet_${effectiveConfig.paperSize.toUpperCase()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Failed to generate calibration test sheet.');
     }
   }
+
+  // ── Generation ────────────────────────────────────
+  async function handleGenerate(targets: IdCardPerson[]) {
+    if (!template || targets.length === 0) return;
+
+    // Validate batch
+    const batchValidation = validateBatchBeforeGeneration(targets, template);
+    if (!batchValidation.valid) {
+      alert(`Cannot generate cards:\n\n• ${batchValidation.errors.join('\n• ')}`);
+      return;
+    }
+    if (batchValidation.warnings.length > 0) {
+      const proceed = confirm(`Notice before generation:\n\n• ${batchValidation.warnings.join('\n• ')}\n\nDo you want to proceed?`);
+      if (!proceed) return;
+    }
+
+    setGenerating(true);
+    setProgress({ total: targets.length, completed: 0, succeeded: 0, failed: 0 });
+    try {
+      await generateCardsForPersons(targets, template, project.id, project.name, project.academic_year, setProgress);
+    } finally {
+      if (!isMountedRef.current) return;
+      setGenerating(false);
+      imageCacheRef.current.clear();
+      const gens = await getIdCardGenerations(project.id);
+      if (!isMountedRef.current) return;
+      setGenerations(gens);
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // ── Print (Browser) ───────────────────────────────
   function handlePrint() {
@@ -846,7 +904,8 @@ export default function IdCardGeneratePage() {
     }
 
     if (total === 0) {
-      onAllLoaded()
+      win.close()
+      alert('No valid images found to print. Please ensure cards are generated and images are loaded.')
       return
     }
 
@@ -970,6 +1029,43 @@ export default function IdCardGeneratePage() {
         >
           <Download size={15} /> {buildingPdf ? 'Building PDF...' : 'Download PDF'}
         </button>
+
+        {templates.length > 1 && (
+          <div className="ml-auto flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+            <label className="text-xs font-semibold text-slate-600">Template:</label>
+            <select
+              value={template.id}
+              onChange={(e) => {
+                const found = templates.find((t) => t.id === e.target.value);
+                if (found) setTemplate(found);
+              }}
+              className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none"
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.card_width_mm}×{t.card_height_mm}mm) {t.id === project.template_id ? '★ Active' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="mx-1 h-5 w-px bg-slate-200" />
+
+        <button
+          onClick={handlePrintCalibration}
+          title="Print physical measurement test page with 10mm rulers and duplex alignment boxes"
+          className="flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+        >
+          <Scissors size={14} /> Print Calibration Test
+        </button>
+      </div>
+
+      {/* Actual Size 100% Print Notice */}
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <span>
+          💡 <strong>Printing Standard:</strong> Print Scale: <strong>100% (Actual Size)</strong> · Fit to Page: <strong>OFF</strong> to guarantee physical mm accuracy.
+        </span>
       </div>
 
       {/* Generation progress */}

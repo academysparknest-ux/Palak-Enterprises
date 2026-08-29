@@ -12,8 +12,8 @@ export class CardImageCache {
   private urlCache = new Map<string, string>()
 
   /** Cache key for a rendered card face. */
-  static cardKey(personId: string, side: 'front' | 'back'): string {
-    return `${personId}:${side}`
+  static cardKey(personId: string, side: 'front' | 'back', templateVersion?: string): string {
+    return templateVersion ? `${personId}:${side}:${templateVersion}` : `${personId}:${side}`
   }
 
   /**
@@ -24,8 +24,9 @@ export class CardImageCache {
     personId: string,
     side: 'front' | 'back',
     renderFn: () => Promise<string>,
+    templateVersion?: string,
   ): Promise<string> {
-    const key = CardImageCache.cardKey(personId, side)
+    const key = CardImageCache.cardKey(personId, side, templateVersion)
     const cached = this.imageCache.get(key)
     if (cached) return cached
 
@@ -35,18 +36,18 @@ export class CardImageCache {
   }
 
   /** Check if a card image is already cached. */
-  hasCard(personId: string, side: 'front' | 'back'): boolean {
-    return this.imageCache.has(CardImageCache.cardKey(personId, side))
+  hasCard(personId: string, side: 'front' | 'back', templateVersion?: string): boolean {
+    return this.imageCache.has(CardImageCache.cardKey(personId, side, templateVersion))
   }
 
   /** Get a cached card image without rendering. */
-  getCard(personId: string, side: 'front' | 'back'): string | undefined {
-    return this.imageCache.get(CardImageCache.cardKey(personId, side))
+  getCard(personId: string, side: 'front' | 'back', templateVersion?: string): string | undefined {
+    return this.imageCache.get(CardImageCache.cardKey(personId, side, templateVersion))
   }
 
   /** Store a card image in cache. */
-  setCard(personId: string, side: 'front' | 'back', dataUrl: string): void {
-    this.imageCache.set(CardImageCache.cardKey(personId, side), dataUrl)
+  setCard(personId: string, side: 'front' | 'back', dataUrl: string, templateVersion?: string): void {
+    this.imageCache.set(CardImageCache.cardKey(personId, side, templateVersion), dataUrl)
   }
 
   /**

@@ -278,7 +278,33 @@ export function AppContent() {
                 <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
                 {/* Admin ERP — Nested Route-Based Layout with Role-Based Route Guards */}
-                <Route path="/admin" element={<AdminLayout />}>
+                <Route path="/admin" element={
+                  <ErrorBoundary fallback={
+                    <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center p-4">
+                      <div className="max-w-md w-full rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 text-center shadow-lg space-y-5">
+                        <div className="h-14 w-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto ring-8 ring-rose-50">
+                          <span className="text-2xl">⚠</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          <h2 className="text-xl font-extrabold text-slate-900">Admin Panel Error</h2>
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            An error occurred in the admin panel. This may be caused by a network update or a temporary issue. Please reload to try again.
+                          </p>
+                        </div>
+                        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                          <button type="button" onClick={() => window.location.reload()} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0c274c] shadow-xs cursor-pointer">
+                            Reload Admin Panel
+                          </button>
+                          <a href="/" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                            Back to Website
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  }>
+                    <AdminLayout />
+                  </ErrorBoundary>
+                }>
                   <Route index element={<AdminDashboardPage />} />
                   <Route path="dashboard" element={<AdminDashboardPage />} />
                   <Route path="orders" element={<AdminLegacyPage />} />

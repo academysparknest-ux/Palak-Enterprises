@@ -124,11 +124,13 @@ export const AdminDashboardPage: React.FC = () => {
   const [isOfflineFallback, setIsOfflineFallback] = useState(false);
   const fetchRequestIdRef = React.useRef<number>(0);
   const isMountedRef = React.useRef<boolean>(true);
+  const reconcileTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
     };
   }, []);
 
@@ -347,6 +349,13 @@ export const AdminDashboardPage: React.FC = () => {
   }, []);
 
   // Optimistically and reliably handle real-time orders on dashboard
+  const debouncedReconcile = useCallback(() => {
+    if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
+    reconcileTimerRef.current = setTimeout(() => {
+      fetchDashboardData();
+    }, 1000);
+  }, [fetchDashboardData]);
+
   useRealtimeOrders({
     onNewOrder: (newOrder) => {
       // Immediate optimistic update for fast visual response
@@ -382,11 +391,11 @@ export const AdminDashboardPage: React.FC = () => {
         return [newRecent, ...filtered].slice(0, 6);
       });
 
-      // Background reconciliation
-      fetchDashboardData();
+      // Debounced background reconciliation (prevents N+1 storms)
+      debouncedReconcile();
     },
     onOrderUpdated: () => {
-      fetchDashboardData();
+      debouncedReconcile();
     },
     onOrderDeleted: (payload) => {
       const code = payload.orderCode;
@@ -396,7 +405,7 @@ export const AdminDashboardPage: React.FC = () => {
         if (code && o.order_code === code) return false;
         return true;
       }));
-      fetchDashboardData();
+      debouncedReconcile();
     },
   });
 
@@ -427,11 +436,7 @@ export const AdminDashboardPage: React.FC = () => {
         fetchDashboardData();
       }
     };
-    const handleWindowFocus = () => {
-      fetchDashboardData();
-    };
     document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleWindowFocus);
 
     // 3. Supabase Realtime stream for service requests & quote requests
     let channel: any = null;
@@ -478,7 +483,6 @@ export const AdminDashboardPage: React.FC = () => {
       window.removeEventListener('admin-refresh', handleAdminRefresh);
       window.removeEventListener('palak:realtime-reconnected', handleRealtimeReconnect);
       document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleWindowFocus);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (channel && supabase) {
         supabase.removeChannel(channel);

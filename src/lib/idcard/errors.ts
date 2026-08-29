@@ -32,8 +32,48 @@ export function classifySupabaseError(err: unknown): AppError {
     return new AppError('NOT_FOUND', 'The requested record was not found.', err);
   }
 
-  if (code?.startsWith('23')) {
-    // Postgres constraint violation class (unique, fk, not-null, check)
+  if (code === '23505' || /duplicate key|unique constraint/i.test(message)) {
+    if (/student_id/i.test(message) || /idcard_persons.*student_id/i.test(message)) {
+      return new AppError(
+        'VALIDATION_ERROR',
+        'A student with this Student ID / Admission No already exists in this project. Please enter a unique Student ID.',
+        err
+      );
+    }
+    if (/roll_number/i.test(message)) {
+      return new AppError(
+        'VALIDATION_ERROR',
+        'A student with this Roll Number already exists in the same class.',
+        err
+      );
+    }
+    return new AppError(
+      'VALIDATION_ERROR',
+      'A record with these duplicate details already exists in this project.',
+      err
+    );
+  }
+
+  if (code === '23502' || /violates not-null constraint/i.test(message)) {
+    const colMatch = message.match(/column "([^"]+)"/i);
+    const colName = colMatch ? colMatch[1].replace(/_/g, ' ') : 'field';
+    return new AppError('VALIDATION_ERROR', `Required field "${colName}" is missing or empty.`, err);
+  }
+
+  if (code === '22007' || code === '22P02' || /invalid input syntax for type date/i.test(message)) {
+    return new AppError(
+      'VALIDATION_ERROR',
+      'The Date of Birth format is invalid. Please select a valid date from the calendar.',
+      err
+    );
+  }
+
+  if (code === '23503' || /violates foreign key constraint/i.test(message)) {
+    return new AppError('VALIDATION_ERROR', 'The referenced project or template was not found.', err);
+  }
+
+  if (code?.startsWith('23') || code?.startsWith('22')) {
+    // Other Postgres constraint violation class
     return new AppError('VALIDATION_ERROR', message, err);
   }
 
@@ -56,14 +96,18 @@ export function classifySupabaseError(err: unknown): AppError {
   return new AppError('UNKNOWN_ERROR', message, err);
 }
 
-export function errorCodeToUserMessage(code: AppErrorCode): string {
+export function errorCodeToUserMessage(code: AppErrorCode, specificMessage?: string): string {
+  if (specificMessage && specificMessage !== 'Unknown error' && !specificMessage.startsWith('{"')) {
+    return specificMessage;
+  }
+
   switch (code) {
     case 'AUTH_REQUIRED':
       return 'Your session has expired. Please sign in again.';
     case 'ACCESS_DENIED':
       return 'You do not have permission to access ID card projects.';
     case 'VALIDATION_ERROR':
-      return 'Some of the data provided is invalid.';
+      return specificMessage || 'Some of the data provided is invalid.';
     case 'NOT_FOUND':
       return 'The requested record was not found.';
     case 'DATABASE_ERROR':
@@ -73,6 +117,6 @@ export function errorCodeToUserMessage(code: AppErrorCode): string {
     case 'NETWORK_ERROR':
       return 'Unable to connect to the server. Please check your connection and try again.';
     default:
-      return 'Unable to load ID card projects. Please try again.';
+      return specificMessage || 'Unable to load ID card projects. Please try again.';
   }
 }

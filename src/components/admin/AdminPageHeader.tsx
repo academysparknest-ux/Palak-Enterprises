@@ -6,7 +6,7 @@ export interface AdminPageHeaderProps {
   title: string;
   subtitle?: string;
   description?: string;
-  icon?: any;
+  icon?: React.ReactNode | React.ElementType;
   breadcrumbs?: Array<{ label: string; href?: string }>;
   actions?: React.ReactNode;
 }

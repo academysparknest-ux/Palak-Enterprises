@@ -32,20 +32,32 @@ export function normalizePhone(val?: string | null): string {
 /**
  * Parses various date formats into standard YYYY-MM-DD string
  */
-export function normalizeDate(val?: string | null): string {
-  if (!val) return '';
-  const trimmed = val.trim();
+export function normalizeDate(val?: string | number | null): string {
+  if (val === undefined || val === null) return '';
+  const trimmed = String(val).trim();
   if (!trimmed) return '';
 
-  // Check DD/MM/YYYY or DD-MM-YYYY
-  const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  // Check Excel numeric serial date (e.g. 44561)
+  if (/^\d{4,5}$/.test(trimmed)) {
+    const serial = parseInt(trimmed, 10);
+    if (serial > 10000 && serial < 80000) {
+      const utcDays = serial - 25569;
+      const date = new Date(utcDays * 86400 * 1000);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    }
+  }
+
+  // Check DD/MM/YYYY, DD-MM-YYYY, or DD.MM.YYYY
+  const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
   if (dmyMatch) {
     const [, d, m, y] = dmyMatch;
     return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
   }
 
-  // Check YYYY/MM/DD or YYYY-MM-DD
-  const ymdMatch = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  // Check YYYY/MM/DD, YYYY-MM-DD, or YYYY.MM.DD
+  const ymdMatch = trimmed.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
   if (ymdMatch) {
     const [, y, m, d] = ymdMatch;
     return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;

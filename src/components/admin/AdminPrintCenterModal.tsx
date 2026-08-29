@@ -461,7 +461,7 @@ export const AdminPrintCenterModal: React.FC<AdminPrintCenterModalProps> = ({
         if (!isMounted) return;
 
         setIdCardProject(proj);
-        const template = templates.find((t) => t.id === proj.template_id) || templates[0] || null;
+        const template = proj.template_id ? (templates.find((t) => t.id === proj.template_id) || null) : null;
         setIdCardTemplate(template);
         setIdCardPersons(persons);
         setIdCardGenerations(gens);

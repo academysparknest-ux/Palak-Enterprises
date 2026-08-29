@@ -89,9 +89,13 @@ export const AdminCreateBillModal: React.FC<AdminCreateBillModalProps> = ({
 
   // Payment
   const [paymentMode, setPaymentMode] = useState<string>(draftToEdit?.paymentMethod || "cash");
-  const [paymentStatus, setPaymentStatus] = useState<"paid" | "pending" | "partially_paid">(
-    (draftToEdit?.paymentStatus as any) || "paid"
-  );
+  const [paymentStatus, setPaymentStatus] = useState<"paid" | "pending" | "partially_paid">(() => {
+    const status = draftToEdit?.paymentStatus;
+    if (status === "paid" || status === "pending" || status === "partially_paid") {
+      return status;
+    }
+    return "paid";
+  });
   const [customAmountPaid, setCustomAmountPaid] = useState<string>(
     draftToEdit?.amountPaid ? String(draftToEdit.amountPaid) : ""
   );

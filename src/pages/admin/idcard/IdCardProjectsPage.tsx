@@ -192,7 +192,7 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
       onCreated();
     } catch (err) {
       const appError = classifySupabaseError(err);
-      setSubmitError(errorCodeToUserMessage(appError.code));
+      setSubmitError(errorCodeToUserMessage(appError.code, appError.message));
     } finally {
       setSubmitting(false);
     }

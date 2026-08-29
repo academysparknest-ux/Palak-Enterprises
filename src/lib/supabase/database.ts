@@ -345,7 +345,18 @@ export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]
     const data = await executeWithAuthRetry(async (client) => {
       let query = client
         .from("orders")
-        .select("*, order_items(*)")
+        .select(
+          "id, order_code, user_id, customer_name, customer_phone, customer_email, " +
+          "fulfillment_type, delivery_address, order_notes, subtotal_amount, discount_amount, " +
+          "delivery_fee, total_amount, payment_method, payment_status, order_status, " +
+          "items, staff_notes, created_at, updated_at, print_snapshot, queue_type, " +
+          "queue_priority, submitted_at, priority_at, platform_fee, service_charge, " +
+          "other_charges, tax_amount, tax_rate, taxable_amount, cgst_amount, sgst_amount, " +
+          "igst_amount, charges_snapshot, client_submission_id, " +
+          "order_items(id, order_id, product_id, product_name, quantity, unit_price, total_price, " +
+          "selected_options, selected_options_labels, uploaded_file_name, uploaded_file_url, " +
+          "design_assistance_requested, design_notes)"
+        )
         .order("created_at", { ascending: false });
 
       if (limit > 0) {
@@ -383,7 +394,18 @@ export async function getStaffOrderByCodeOrId(codeOrId: string): Promise<StoredO
   try {
     return await executeWithAuthRetry(async (client) => {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(codeOrId);
-      let query = client.from("orders").select("*, order_items(*)");
+      let query = client.from("orders").select(
+        "id, order_code, user_id, customer_name, customer_phone, customer_email, " +
+        "fulfillment_type, delivery_address, order_notes, subtotal_amount, discount_amount, " +
+        "delivery_fee, total_amount, payment_method, payment_status, order_status, " +
+        "items, staff_notes, created_at, updated_at, print_snapshot, queue_type, " +
+        "queue_priority, submitted_at, priority_at, platform_fee, service_charge, " +
+        "other_charges, tax_amount, tax_rate, taxable_amount, cgst_amount, sgst_amount, " +
+        "igst_amount, charges_snapshot, client_submission_id, " +
+        "order_items(id, order_id, product_id, product_name, quantity, unit_price, total_price, " +
+        "selected_options, selected_options_labels, uploaded_file_name, uploaded_file_url, " +
+        "design_assistance_requested, design_notes)"
+      );
       if (isUUID) {
         query = query.eq("id", codeOrId);
       } else {
@@ -400,14 +422,15 @@ export async function getStaffOrderByCodeOrId(codeOrId: string): Promise<StoredO
   }
 }
 
-export async function getStaffServiceRequests(): Promise<StoredServiceRequest[]> {
+export async function getStaffServiceRequests(limit: number = 200): Promise<StoredServiceRequest[]> {
   if (!isSupabaseConfigured || !supabase) return [];
   try {
     const data = await executeWithAuthRetry(async (client) => {
       const { data, error } = await client
         .from("service_requests")
         .select("id, request_code, service_id, service_name, customer_name, customer_phone, customer_email, preferred_contact, applicant_details, uploaded_document_urls, uploaded_document_names, additional_notes, estimated_fee, request_status, acknowledgement_number, staff_notes, created_at, updated_at")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(limit);
 
       if (error) throw error;
       return data;
@@ -439,14 +462,15 @@ export async function getStaffServiceRequests(): Promise<StoredServiceRequest[]>
   }
 }
 
-export async function getStaffQuoteRequests(): Promise<StoredQuoteRequest[]> {
+export async function getStaffQuoteRequests(limit: number = 200): Promise<StoredQuoteRequest[]> {
   if (!isSupabaseConfigured || !supabase) return [];
   try {
     const data = await executeWithAuthRetry(async (client) => {
       const { data, error } = await client
         .from("quote_requests")
         .select("id, quote_code, service_or_product_type, quantity, size_specifications, material_preferences, sample_image_urls, special_instructions, required_by_date, design_status, reference_file_urls, reference_file_names, additional_details, customer_name, customer_phone, customer_email, preferred_contact, business_name, timeline_requirement, estimated_budget, quoted_amount, quote_status, staff_notes, created_at, updated_at")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(limit);
 
       if (error) throw error;
       return data;
@@ -609,14 +633,18 @@ export async function updateStaffOrderPaymentStatus(
     console.warn("Invoice status update notice:", invSyncErr);
   }
 
-  await supabase.from("status_history").insert({
-    entity_type: "order",
-    entity_code: orderCode,
-    new_status: `PAYMENT_${paymentStatus.toUpperCase()}`,
-    message_en: `Payment status marked as ${paymentStatus.toUpperCase()}`,
-    message_hi: `भुगतान स्थिति ${paymentStatus} के रूप में चिह्नित की गई`,
-    performed_by: "Palak Staff ERP",
-  });
+  try {
+    await supabase.from("status_history").insert({
+      entity_type: "order",
+      entity_code: orderCode,
+      new_status: `PAYMENT_${paymentStatus.toUpperCase()}`,
+      message_en: `Payment status marked as ${paymentStatus.toUpperCase()}`,
+      message_hi: `भुगतान स्थिति ${paymentStatus} के रूप में चिह्नित की गई`,
+      performed_by: "Palak Staff ERP",
+    });
+  } catch (historyErr) {
+    console.warn("Payment status history insert notice:", historyErr);
+  }
 }
 
 export async function markStaffPaymentReceived(
@@ -634,13 +662,15 @@ export async function markStaffPaymentReceived(
     .eq("order_code", orderCode)
     .maybeSingle();
 
-  await supabase
+  const { error: orderUpdateError } = await supabase
     .from("orders")
     .update({
       payment_status: "paid",
       updated_at: new Date().toISOString(),
     })
     .eq("order_code", orderCode);
+
+  if (orderUpdateError) throw orderUpdateError;
 
   // Synchronize local invoice cache
   PalakInvoiceStore.updateInvoicePaymentStatus(orderCode, "paid");
@@ -674,14 +704,18 @@ export async function markStaffPaymentReceived(
     }
   }
 
-  await supabase.from("status_history").insert({
-    entity_type: "order",
-    entity_code: orderCode,
-    new_status: "PAYMENT_PAID",
-    message_en: `Payment of ₹${amount} received via ${paymentMethod.toUpperCase()} (${staffName})`,
-    message_hi: `₹${amount} का भुगतान प्राप्त हुआ (${paymentMethod.toUpperCase()})`,
-    performed_by: staffName,
-  });
+  try {
+    await supabase.from("status_history").insert({
+      entity_type: "order",
+      entity_code: orderCode,
+      new_status: "PAYMENT_PAID",
+      message_en: `Payment of ₹${amount} received via ${paymentMethod.toUpperCase()} (${staffName})`,
+      message_hi: `₹${amount} का भुगतान प्राप्त हुआ (${paymentMethod.toUpperCase()})`,
+      performed_by: staffName,
+    });
+  } catch (historyErr) {
+    console.warn("Payment received status history insert notice:", historyErr);
+  }
 }
 
 export async function addStaffOrderNote(

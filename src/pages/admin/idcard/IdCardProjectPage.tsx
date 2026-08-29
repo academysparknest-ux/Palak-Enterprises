@@ -9,8 +9,8 @@ type PageState = { kind: 'loading' } | { kind: 'error'; message: string } | { ki
 
 const TABS = [
   { to: '', label: 'Overview', end: true },
-  { to: 'persons', label: 'Students' },
   { to: 'template', label: 'Template' },
+  { to: 'persons', label: 'Students' },
   { to: 'preview', label: 'Preview' },
   { to: 'generate', label: 'Generate' },
 ];

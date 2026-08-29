@@ -94,6 +94,8 @@ function SingleCardFace({
         return [person.father_name, person.mother_name].filter(Boolean).join(' / ');
       case 'father_name':
         return person.father_name ?? '';
+      case 'mother_name':
+        return person.mother_name ?? '';
       case 'phone':
         return person.phone ?? '';
       case 'address':
@@ -119,30 +121,36 @@ function SingleCardFace({
     }
   }
 
+  const bgImage = sideLayout.backgroundUrl !== undefined ? sideLayout.backgroundUrl : (backgroundUrl ?? null);
+  const bgFit = sideLayout.backgroundFit || 'fill';
+  const bgSize = bgFit === 'fill' ? '100% 100%' : bgFit === 'fit' ? 'contain' : 'cover';
+
   return (
     <div
-      className="relative overflow-hidden rounded-md border border-slate-300 shadow-md"
+      className="relative overflow-hidden rounded-md border border-slate-300 shadow-md transition-all"
       style={{
         width: widthMm * scale,
         height: heightMm * scale,
         backgroundColor: sideLayout.backgroundColor || '#FFFFFF',
-        backgroundImage: backgroundUrl ? `url(${backgroundUrl})` : undefined,
-        backgroundSize: 'cover',
+        backgroundImage: bgImage ? `url(${bgImage})` : undefined,
+        backgroundSize: bgSize,
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
       }}
     >
-      {/* Header SVG decoration */}
-      {sideLayout.headerSvg && (
+      {/* Header SVG decoration (only if no background image is active) */}
+      {sideLayout.headerSvg && !bgImage && (
         <div
-          className="absolute left-0 top-0 w-full"
+          className="absolute left-0 top-0 w-full pointer-events-none"
           style={{ height: 18 * scale, zIndex: 0 }}
           dangerouslySetInnerHTML={{ __html: sideLayout.headerSvg }}
         />
       )}
 
-      {/* Footer SVG decoration */}
-      {sideLayout.footerSvg && (
+      {/* Footer SVG decoration (only if no background image is active) */}
+      {sideLayout.footerSvg && !bgImage && (
         <div
-          className="absolute bottom-0 left-0 w-full"
+          className="absolute bottom-0 left-0 w-full pointer-events-none"
           style={{ height: 14 * scale, zIndex: 0 }}
           dangerouslySetInnerHTML={{ __html: sideLayout.footerSvg }}
         />
@@ -159,25 +167,34 @@ function SingleCardFace({
             width: field.width * scale,
             height: field.height * scale,
             zIndex: 1,
+            boxSizing: 'border-box',
           };
 
           // Student Photo
           if (field.key === 'student_photo') {
+            const isCircle = field.photoShape === 'circle' || (field.borderRadius ?? 0) >= 45;
+            const bRadius = isCircle ? '50%' : field.borderRadius ? `${field.borderRadius}%` : undefined;
+
             return (
               <div
                 key={idx}
                 style={{
                   ...style,
-                  borderRadius: field.borderRadius ? `${field.borderRadius}%` : undefined,
+                  borderRadius: bRadius,
                   border: field.borderWidth
-                    ? `${field.borderWidth}px solid ${field.borderColor || '#E69526'}`
+                    ? `${field.borderWidth * (scale / 3.78)}px solid ${field.borderColor || '#E69526'}`
                     : undefined,
                   overflow: 'hidden',
                   backgroundColor: '#e2e8f0',
                 }}
               >
                 {photoUrl ? (
-                  <img src={photoUrl} alt={person.name} className="h-full w-full object-cover" />
+                  <img
+                    src={photoUrl}
+                    alt={person.name}
+                    className="h-full w-full"
+                    style={{ objectFit: field.photoFit || 'cover' }}
+                  />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -200,7 +217,7 @@ function SingleCardFace({
                   ...style,
                   borderRadius: field.borderRadius ? `${field.borderRadius}%` : undefined,
                   border: field.borderWidth
-                    ? `${field.borderWidth}px solid ${field.borderColor || '#fff'}`
+                    ? `${field.borderWidth * (scale / 3.78)}px solid ${field.borderColor || '#fff'}`
                     : undefined,
                   overflow: 'hidden',
                   display: 'flex',
@@ -211,7 +228,7 @@ function SingleCardFace({
                 {logoSrc ? (
                   <img src={logoSrc} alt="School Logo" className="h-full w-full object-contain" />
                 ) : (
-                  /* School Shield Emblem */
+                  /* Default School Shield Emblem */
                   <svg viewBox="0 0 100 120" className="h-full w-full">
                     <path
                       d="M50 5 L88 20 V60 C88 88 50 115 50 115 C50 115 12 88 12 60 V20 Z"
@@ -284,12 +301,12 @@ function SingleCardFace({
                 key={idx}
                 style={{
                   ...style,
-                  fontSize: (field.fontSize ?? 12) * (scale / 3.78),
-                  fontWeight: field.fontWeight === 'bold' ? 700 : 400,
+                  fontSize: (field.fontSize ?? 10) * (scale / 2.835),
+                  fontWeight: field.fontWeight === 'bold' ? 700 : field.fontWeight || 400,
                   fontStyle: field.fontStyle === 'italic' ? 'italic' : undefined,
                   fontFamily: field.fontFamily || "'Times New Roman', serif",
                   textAlign: field.textAlign ?? 'left',
-                  lineHeight: 1.25,
+                  lineHeight: field.lineHeight || 1.25,
                 }}
                 className="overflow-hidden whitespace-normal"
               >
@@ -304,13 +321,13 @@ function SingleCardFace({
               key={idx}
               style={{
                 ...style,
-                fontSize: (field.fontSize ?? 12) * (scale / 3.78),
-                fontWeight: field.fontWeight === 'bold' ? 700 : 400,
+                fontSize: (field.fontSize ?? 10) * (scale / 2.835),
+                fontWeight: field.fontWeight === 'bold' ? 700 : field.fontWeight || 400,
                 fontStyle: field.fontStyle === 'italic' ? 'italic' : undefined,
                 fontFamily: field.fontFamily || "'Times New Roman', serif",
                 color: field.color ?? '#1B2A4A',
                 textAlign: field.textAlign ?? 'left',
-                lineHeight: 1.25,
+                lineHeight: field.lineHeight || 1.25,
               }}
               className="overflow-hidden whitespace-normal"
             >
@@ -355,11 +372,20 @@ export function IdCardPreview({
   }, [person.photo_url]);
 
   const qrData = useQrDataUrl(person.student_id || person.name);
-  const isDoubleSided = Boolean(template.layout.isDoubleSided && template.layout.back);
+  const isDoubleSided = Boolean(
+    template.layout.isDoubleSided || template.layout.templateType === 'double' || template.layout.back
+  );
+
+  const frontBackground =
+    template.layout.backgroundUrl !== undefined
+      ? template.layout.backgroundUrl
+      : template.background_url;
 
   const frontSideLayout: TemplateSideLayout = {
     fields: template.layout.fields,
     backgroundColor: template.layout.backgroundColor,
+    backgroundUrl: frontBackground,
+    backgroundFit: template.layout.backgroundFit,
     headerSvg: template.layout.headerSvg,
     footerSvg: template.layout.footerSvg,
     headerGradientColors: template.layout.headerGradientColors,
@@ -419,7 +445,7 @@ export function IdCardPreview({
               qrData={qrData}
               schoolName={schoolName}
               academicYear={academicYear}
-              backgroundUrl={template.background_url}
+              backgroundUrl={frontBackground}
             />
           </div>
         )}
@@ -438,7 +464,7 @@ export function IdCardPreview({
               qrData={qrData}
               schoolName={schoolName}
               academicYear={academicYear}
-              backgroundUrl={null}
+              backgroundUrl={backSideLayout.backgroundUrl ?? null}
             />
           </div>
         )}

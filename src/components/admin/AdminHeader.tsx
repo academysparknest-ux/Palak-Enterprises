@@ -116,6 +116,13 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
   const seenRef = useRef(getSeenOrders());
   const dropdownRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
+  const ringTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+    };
+  }, []);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -218,7 +225,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
     if (!seenRef.current.has(code)) {
       notificationSound.playNewOrderChime(code);
       setRinging(true);
-      setTimeout(() => setRinging(false), 2500);
+      if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+      ringTimerRef.current = setTimeout(() => setRinging(false), 2500);
     }
   }, []);
 
