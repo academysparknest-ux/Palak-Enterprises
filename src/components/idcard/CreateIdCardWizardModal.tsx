@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CreditCard,
   Layers,
@@ -176,25 +177,22 @@ export function CreateIdCardWizardModal({
   };
 
   const handleFinish = () => {
-    let finalLayout: TemplateLayout;
-    const effectiveName = templateName.trim() || `${projectName} ${orientation === 'landscape' ? 'Landscape' : 'Portrait'} Card`;
+    const effectiveName =
+      templateName.trim() ||
+      `${projectName} ${orientation === 'landscape' ? 'Landscape' : 'Portrait'} ID`;
 
-    if (startMode === 'reference' && orientation === 'landscape') {
+    let finalLayout: TemplateLayout;
+
+    if (startMode === 'reference') {
       finalLayout = structuredClone(LANDSCAPE_STUDENT_LAYOUT);
-      finalLayout.isDoubleSided = isDoubleSided;
-      finalLayout.templateType = isDoubleSided ? 'double' : 'single';
-      if (!isDoubleSided) {
-        delete finalLayout.back;
-      }
     } else if (startMode === 'preset') {
-      const preset = TEMPLATE_PRESETS.find((p) => p.id === selectedPresetId) || matchingPresets[0] || TEMPLATE_PRESETS[0];
-      finalLayout = structuredClone(preset.layout);
-      finalLayout.isDoubleSided = isDoubleSided;
-      finalLayout.templateType = isDoubleSided ? 'double' : 'single';
-      if (!isDoubleSided && finalLayout.back) {
-        delete finalLayout.back;
+      const preset = matchingPresets.find((p) => p.id === selectedPresetId) || matchingPresets[0];
+      if (preset) {
+        finalLayout = structuredClone(preset.layout);
+      } else {
+        finalLayout = createBlankTemplateLayout(orientation, isDoubleSided, cardType).layout;
       }
-    } else if (startMode === 'existing' && selectedSavedId) {
+    } else if (startMode === 'existing') {
       const saved = savedTemplates.find((t) => t.id === selectedSavedId);
       if (saved) {
         finalLayout = structuredClone(saved.layout);
@@ -237,9 +235,21 @@ export function CreateIdCardWizardModal({
     });
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4 animate-in fade-in">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 p-4 animate-in fade-in overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden relative z-[101]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header & Step Indicator */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/80">
           <div>
@@ -781,6 +791,7 @@ export function CreateIdCardWizardModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
