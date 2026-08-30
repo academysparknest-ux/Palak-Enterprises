@@ -81,9 +81,13 @@ export async function updateIdCardProject(
   return executeWithAuthRetry(
     async (client) => {
       const { logo_url: _logo, ...dbPatch } = patch;
-      const { data, error } = await client.from('idcard_projects').update(dbPatch).eq('id', id).select().single();
+      if (Object.keys(dbPatch).length === 0) {
+        return await getIdCardProject(id);
+      }
+      const { data, error } = await client.from('idcard_projects').update(dbPatch).eq('id', id).select().maybeSingle();
       if (error) throw classifySupabaseError(error);
-      return data as IdCardProject;
+      if (data) return data as IdCardProject;
+      return await getIdCardProject(id);
     },
     { operationName: 'updateIdCardProject' }
   );
@@ -358,9 +362,15 @@ export async function updateIdCardTemplate(
   return executeWithAuthRetry(
     async (client) => {
       const { logo_url: _logo, ...dbPatch } = patch;
-      const { data, error } = await client.from('idcard_templates').update(dbPatch).eq('id', id).select().single();
+      if (Object.keys(dbPatch).length === 0) {
+        const { data } = await client.from('idcard_templates').select('*').eq('id', id).single();
+        return data as IdCardTemplate;
+      }
+      const { data, error } = await client.from('idcard_templates').update(dbPatch).eq('id', id).select().maybeSingle();
       if (error) throw classifySupabaseError(error);
-      return data as IdCardTemplate;
+      if (data) return data as IdCardTemplate;
+      const { data: fallback } = await client.from('idcard_templates').select('*').eq('id', id).single();
+      return fallback as IdCardTemplate;
     },
     { operationName: 'updateIdCardTemplate' }
   );
