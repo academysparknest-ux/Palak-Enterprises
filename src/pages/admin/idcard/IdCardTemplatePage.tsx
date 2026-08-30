@@ -43,7 +43,7 @@ import {
   DEFAULT_CARD_WIDTH,
   DEFAULT_CARD_HEIGHT,
 } from '../../../components/idcard/TemplateEditor';
-import type { IdCardProject, IdCardTemplate, TemplateLayout } from '../../../lib/idcard/types';
+import type { IdCardProject, IdCardTemplate, TemplateLayout, TemplateField } from '../../../lib/idcard/types';
 
 type ProjectContext = { project: IdCardProject; reloadProject: () => void | Promise<void> };
 
@@ -77,8 +77,16 @@ export default function IdCardTemplatePage() {
   // Derive dynamic template field schema in real-time
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(layout), [layout]);
 
-  const currentSchoolLogo = layout.schoolLogoUrl || project.logo_url || template?.logo_url || null;
-  const hasLogoFieldOnCanvas = layout.fields.some((f) => f.key === 'school_logo');
+  const canvasLogoField = layout.fields.find((f) => f.key === 'school_logo');
+  const currentSchoolLogo =
+    layout.schoolLogoUrl ||
+    (canvasLogoField?.customText && canvasLogoField.customText !== '/logo.webp' && canvasLogoField.customText !== '/images/palak-logo-ram-hanuman.jpeg'
+      ? canvasLogoField.customText
+      : null) ||
+    project.logo_url ||
+    template?.logo_url ||
+    null;
+  const hasLogoFieldOnCanvas = Boolean(canvasLogoField);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -87,18 +95,42 @@ export default function IdCardTemplatePage() {
     try {
       const publicUrl = await uploadSchoolLogo(project.id, file);
 
+      // Check if there is already a school_logo field on front fields
+      const frontFields = [...layout.fields];
+      const hasLogo = frontFields.some((f) => f.key === 'school_logo');
+
+      let updatedFrontFields: TemplateField[];
+      if (hasLogo) {
+        updatedFrontFields = frontFields.map((f) =>
+          f.key === 'school_logo' ? { ...f, customText: publicUrl, visible: true } : f
+        );
+      } else {
+        // Automatically add school_logo field to the card canvas so the logo is immediately visible!
+        updatedFrontFields = [
+          {
+            id: `logo-auto-${Date.now()}`,
+            key: 'school_logo',
+            x: 5.5,
+            y: 4.5,
+            width: 14.0,
+            height: 14.0,
+            visible: true,
+            customText: publicUrl,
+          },
+          ...frontFields,
+        ];
+      }
+
       // Update layout's schoolLogoUrl and any school_logo fields
       const updatedLayout: TemplateLayout = {
         ...layout,
         schoolLogoUrl: publicUrl,
-        fields: layout.fields.map((f) =>
-          f.key === 'school_logo' ? { ...f, customText: publicUrl } : f
-        ),
+        fields: updatedFrontFields,
         back: layout.back
           ? {
               ...layout.back,
               fields: layout.back.fields.map((f) =>
-                f.key === 'school_logo' ? { ...f, customText: publicUrl } : f
+                f.key === 'school_logo' ? { ...f, customText: publicUrl, visible: true } : f
               ),
             }
           : undefined,
@@ -126,12 +158,36 @@ export default function IdCardTemplatePage() {
 
   const handleLogoUrlChange = (url: string) => {
     const trimmed = url.trim();
+    const frontFields = [...layout.fields];
+    const hasLogo = frontFields.some((f) => f.key === 'school_logo');
+
+    let updatedFrontFields: TemplateField[];
+    if (hasLogo) {
+      updatedFrontFields = frontFields.map((f) =>
+        f.key === 'school_logo' ? { ...f, customText: trimmed || undefined } : f
+      );
+    } else if (trimmed) {
+      updatedFrontFields = [
+        {
+          id: `logo-auto-${Date.now()}`,
+          key: 'school_logo',
+          x: 5.5,
+          y: 4.5,
+          width: 14.0,
+          height: 14.0,
+          visible: true,
+          customText: trimmed,
+        },
+        ...frontFields,
+      ];
+    } else {
+      updatedFrontFields = frontFields;
+    }
+
     const updatedLayout: TemplateLayout = {
       ...layout,
       schoolLogoUrl: trimmed || null,
-      fields: layout.fields.map((f) =>
-        f.key === 'school_logo' ? { ...f, customText: trimmed || undefined } : f
-      ),
+      fields: updatedFrontFields,
       back: layout.back
         ? {
             ...layout.back,

@@ -1722,21 +1722,24 @@ export function TemplateEditor({
                         }}
                       >
                         {field.key === 'school_logo' ? (
-                          (field.customText && field.customText !== '/logo.webp' && field.customText !== '/images/palak-logo-ram-hanuman.jpeg' ? field.customText : effectiveSchoolLogo) ? (
-                            <img
-                              src={(field.customText && field.customText !== '/logo.webp' && field.customText !== '/images/palak-logo-ram-hanuman.jpeg') ? field.customText : (effectiveSchoolLogo || '')}
-                              alt="School Logo"
-                              className={`h-full w-full pointer-events-none ${field.photoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
-                              style={{ background: 'transparent' }}
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center text-amber-600 bg-amber-50/60 h-full w-full border border-dashed border-amber-300 rounded">
-                              <Building2 size={Math.max(12, field.height * pxPerMm * 0.4)} />
-                              <span className="text-[7.5px] font-bold text-amber-800 uppercase">
-                                Logo
-                              </span>
-                            </div>
-                          )
+                          (() => {
+                            const logoSrc = field.customText || effectiveSchoolLogo || null;
+                            return logoSrc ? (
+                              <img
+                                src={logoSrc}
+                                alt="School Logo"
+                                className={`h-full w-full pointer-events-none ${field.photoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+                                style={{ background: 'transparent' }}
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-amber-600 bg-amber-50/60 h-full w-full border border-dashed border-amber-300 rounded">
+                                <Building2 size={Math.max(12, field.height * pxPerMm * 0.4)} />
+                                <span className="text-[7.5px] font-bold text-amber-800 uppercase">
+                                  Logo
+                                </span>
+                              </div>
+                            );
+                          })()
                         ) : field.key === 'student_photo' ? (
                           <div className="flex flex-col items-center justify-center text-slate-400">
                             <UserIcon size={Math.max(12, field.height * pxPerMm * 0.4)} />
@@ -2733,11 +2736,30 @@ export function TemplateEditor({
                               reader.onload = (ev) => {
                                 const dataUrl = ev.target?.result as string;
                                 if (dataUrl) {
-                                  updateSelectedField({ customText: dataUrl });
-                                  onChange({
-                                    ...layout,
-                                    schoolLogoUrl: dataUrl,
-                                  });
+                                  const newFields = activeFields.map((f) =>
+                                    f.id === selectedFieldId || f.key === 'school_logo'
+                                      ? { ...f, customText: dataUrl }
+                                      : f
+                                  );
+                                  let nextLayout: TemplateLayout;
+                                  if (currentSide === 'front') {
+                                    nextLayout = {
+                                      ...layout,
+                                      schoolLogoUrl: dataUrl,
+                                      fields: newFields,
+                                    };
+                                  } else {
+                                    nextLayout = {
+                                      ...layout,
+                                      schoolLogoUrl: dataUrl,
+                                      back: {
+                                        ...(layout.back || { backgroundColor: '#FFFFFF', fields: [] }),
+                                        fields: newFields,
+                                      },
+                                    };
+                                  }
+                                  onChange(nextLayout);
+                                  pushHistory(nextLayout);
                                 }
                               };
                               reader.readAsDataURL(file);
@@ -2752,30 +2774,30 @@ export function TemplateEditor({
                         <span>Logo URL / Path</span>
                         <input
                           type="text"
-                          value={
-                            selectedField.customText === '/logo.webp' || selectedField.customText === '/images/palak-logo-ram-hanuman.jpeg'
-                              ? effectiveSchoolLogo || ''
-                              : (selectedField.customText ?? effectiveSchoolLogo ?? '')
-                          }
+                          value={selectedField.customText ?? effectiveSchoolLogo ?? ''}
                           onChange={(e) => {
                             const val = e.target.value;
                             updateSelectedField({ customText: val });
+                            onChange({ ...layout, schoolLogoUrl: val || null });
                           }}
                           placeholder={effectiveSchoolLogo || 'https://.../school-logo.png'}
-                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs font-mono"
                         />
                       </label>
 
                       {effectiveSchoolLogo && selectedField.customText !== effectiveSchoolLogo && (
                         <button
                           type="button"
-                          onClick={() => updateSelectedField({ customText: effectiveSchoolLogo })}
+                          onClick={() => {
+                            updateSelectedField({ customText: effectiveSchoolLogo });
+                          }}
                           className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 cursor-pointer"
                         >
-                          Use Uploaded School Logo
+                          Use Project School Logo
                         </button>
                       )}
-                      <div className="grid grid-cols-2 gap-2">
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
                         <label className="block text-xs text-slate-600">
                           <span>Shape</span>
                           <select
