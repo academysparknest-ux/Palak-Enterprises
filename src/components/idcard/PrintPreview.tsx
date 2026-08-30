@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Printer, Download, X } from 'lucide-react';
 import type { PrintLayout, PageLayout, CardPosition } from '../../lib/idcard/printLayoutEngine';
 import type { IdCardPerson } from '../../lib/idcard/types';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 interface PrintPreviewProps {
   layout: PrintLayout;
@@ -23,6 +25,19 @@ export function PrintPreview({
   const [screenPreviewScale, setScreenPreviewScale] = useState<number>(1);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useScrollLock(true);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     const calculateScale = () => {
@@ -46,12 +61,14 @@ export function PrintPreview({
     }
   };
 
-  const handleScroll = () => {
-    // Scroll event listener
-  };
+  if (typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex flex-col h-screen">
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col h-screen overflow-hidden touch-none"
+    >
       {/* Header Bar */}
       <div className="flex-none bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
@@ -176,6 +193,7 @@ export function PrintPreview({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

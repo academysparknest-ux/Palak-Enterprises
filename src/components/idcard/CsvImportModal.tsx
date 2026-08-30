@@ -9,6 +9,7 @@ import { createIdCardPersonsBulk } from '../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../lib/idcard/errors';
 import type { CsvValidationRow, IdCardTemplate } from '../../lib/idcard/types';
 import { extractTemplateFieldSchema } from '../../lib/idcard/templateFieldSchema';
+import { Modal } from '../ui/Modal';
 
 type Step = 'upload' | 'preview' | 'importing' | 'done';
 
@@ -127,28 +128,32 @@ export function CsvImportModal({
   }, [rows]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-2xs">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-lg bg-emerald-100 p-2 text-emerald-800">
-              <FileSpreadsheet size={20} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Import Students from Excel / CSV</h2>
-              <p className="text-xs text-slate-500">
-                Front & back card details are synced with template: <strong className="text-slate-700">{template?.name || 'Standard ID Card'}</strong>
-              </p>
-            </div>
-          </div>
-
-          {/* Download Dropdown (2 Options Only: Excel & CSV) */}
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Import Students from Excel / CSV"
+      subtitle={
+        <span>
+          Front & back card details are synced with template:{' '}
+          <strong className="text-slate-700">{template?.name || 'Standard ID Card'}</strong>
+        </span>
+      }
+      icon={<FileSpreadsheet size={20} className="text-emerald-700" />}
+      size="3xl"
+      closeOnBackdropClick={false}
+      preventEscapeClose={step === 'importing'}
+    >
+      <div className="space-y-4">
+        {/* Download Blank Template Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+          <p className="text-xs text-slate-600">
+            Need the correct spreadsheet columns? Download the template file pre-configured for this ID card.
+          </p>
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 cursor-pointer shadow-xs"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 cursor-pointer shadow-2xs transition"
             >
               <Download size={13} />
               <span>Download Blank Template</span>
@@ -424,7 +429,7 @@ export function CsvImportModal({
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }
 

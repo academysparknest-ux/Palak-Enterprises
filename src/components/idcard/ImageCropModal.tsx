@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Check,
@@ -11,6 +12,7 @@ import {
   AlertCircle,
   Move,
 } from 'lucide-react';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 export interface ImageCropModalProps {
   isOpen: boolean;
@@ -235,21 +237,37 @@ export function ImageCropModal({
       console.error('Crop export error:', err);
       setError(err?.message || 'Error creating cropped image.');
     }
-  };
+  useScrollLock(isOpen);
 
-  if (!isOpen || (!safeImageSrc && !imageSrc)) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || (!safeImageSrc && !imageSrc) || typeof document === 'undefined') return null;
 
   const effectiveZoom = Math.max(0.01, zoom);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs">
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-3 sm:p-4 backdrop-blur-xs overflow-hidden touch-none"
+    >
       <div
-        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+        className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-48px)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200"
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
+        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5 shrink-0">
           <div>
             <h3 className="text-sm font-bold text-slate-900">{title}</h3>
             <p className="text-[11px] text-slate-500">Drag to position & zoom for circular I-Card photo</p>
@@ -257,7 +275,8 @@ export function ImageCropModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
+            aria-label="Close"
+            className="rounded-full p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -498,6 +517,7 @@ export function ImageCropModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

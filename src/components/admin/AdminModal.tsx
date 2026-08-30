@@ -1,8 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
-import { cn } from '../../lib/utils';
-import { useScrollLock } from '../../hooks/useScrollLock';
+import React from 'react';
+import { Modal, type ModalSize } from '../ui/Modal';
 
 export interface AdminModalProps {
   isOpen: boolean;
@@ -25,80 +22,25 @@ export function AdminModal({
   footer,
   className
 }: AdminModalProps) {
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  useScrollLock(isOpen);
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen || typeof document === 'undefined') return null;
-
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+  const sizeMap: Record<'sm' | 'md' | 'lg' | 'xl', ModalSize> = {
+    sm: 'sm',
+    md: 'md',
+    lg: 'xl',
+    xl: '2xl'
   };
 
-  const sizeClasses = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-xl',
-    xl: 'max-w-3xl'
-  };
-
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200"
-      onClick={handleBackdropClick}
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      subtitle={subtitle}
+      size={sizeMap[size] || 'md'}
+      footer={footer}
+      className={className}
+      closeOnBackdropClick={false}
     >
-      <div
-        ref={modalRef}
-        className={cn(
-          'w-full bg-white rounded-xl shadow-xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200',
-          sizeClasses[size],
-          className
-        )}
-      >
-        <div className="flex items-start justify-between p-4 sm:p-4.5 border-b border-slate-100">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-slate-900">{title}</h2>
-            {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="p-4 sm:p-4.5 overflow-y-auto overscroll-contain">
-          {children}
-        </div>
-
-        {footer && (
-          <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50 rounded-b-xl flex items-center justify-end gap-2.5">
-            {footer}
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body
+      {children}
+    </Modal>
   );
 }

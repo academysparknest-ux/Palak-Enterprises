@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useOutletContext } from 'react-router-dom'
 import {
   Loader2, Printer, Download, Eye, CheckCircle2, XCircle, Settings2,
@@ -16,6 +17,8 @@ import { validateBatchBeforeGeneration } from '../../../lib/idcard/templateValid
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors'
 import { sanitizeStudentId } from '../../../lib/idcard/validation'
 import { GenerationProgressBar } from '../../../components/idcard/GenerationProgress'
+import { ConfirmModal } from '../../../components/ui/Modal'
+import { useScrollLock } from '../../../hooks/useScrollLock'
 import {
   calculatePrintLayout,
   validatePrintConfig,
@@ -52,33 +55,16 @@ function PrintConfirmDialog({
   onCancel: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 max-w-sm rounded-xl bg-white p-6 shadow-2xl">
-        <div className="mb-4 flex items-center gap-3">
-          <Printer className="text-slate-700" size={22} />
-          <h3 className="text-lg font-semibold text-slate-900">Print Complete?</h3>
-        </div>
-        <p className="mb-6 text-sm text-slate-600">
-          Did the {count} ID card{count !== 1 ? 's' : ''} print successfully?
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={onConfirm}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
-          >
-            <CheckCircle2 size={16} />
-            Yes, Mark as Printed
-          </button>
-          <button
-            onClick={onCancel}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <XCircle size={16} />
-            No, Keep Status
-          </button>
-        </div>
-      </div>
-    </div>
+    <ConfirmModal
+      isOpen={true}
+      onClose={onCancel}
+      onConfirm={onConfirm}
+      title="Print Complete?"
+      message={`Did the ${count} ID card${count !== 1 ? 's' : ''} print successfully? Marking as printed will update their status.`}
+      confirmText="Yes, Mark as Printed"
+      cancelText="No, Keep Status"
+      isDestructive={false}
+    />
   )
 }
 
@@ -106,6 +92,19 @@ function PrintPreviewModal({
   const [currentPage, setCurrentPage] = useState(0)
   const totalPages = layout.pages.length
 
+  useScrollLock(true)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   // Scale down physical paper to fit viewport (display only)
   const maxWidth = Math.min(typeof window !== 'undefined' ? window.innerWidth - 80 : 800, 850)
   const screenScale = maxWidth / layout.paperWidthMm
@@ -118,8 +117,15 @@ function PrintPreviewModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-xs" onClick={(e) => e.target === e.currentTarget && onClose()}>
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <div 
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex flex-col bg-black/75 backdrop-blur-xs overflow-hidden touch-none" 
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-slate-900 px-4 py-3">
         <div className="flex items-center gap-3">
@@ -251,7 +257,8 @@ function PrintPreviewModal({
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

@@ -20,6 +20,7 @@ import { PersonForm } from '../../../components/idcard/PersonForm';
 import { PhotoUpload } from '../../../components/idcard/PhotoUpload';
 import { CsvImportModal } from '../../../components/idcard/CsvImportModal';
 import { BulkPhotoUploadModal } from '../../../components/idcard/BulkPhotoUploadModal';
+import { Modal, ConfirmModal } from '../../../components/ui/Modal';
 
 type PageState =
   | { kind: 'loading' }
@@ -39,6 +40,8 @@ export default function IdCardPersonsPage() {
   const [showBulkPhotos, setShowBulkPhotos] = useState(false);
   const [filterIncompleteOnly, setFilterIncompleteOnly] = useState(false);
   const [showMissingModal, setShowMissingModal] = useState(false);
+  const [deletingPerson, setDeletingPerson] = useState<IdCardPerson | null>(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
 
   const activeTemplate = state.kind === 'ready' ? state.template : null;
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(activeTemplate?.layout), [activeTemplate]);
@@ -102,13 +105,17 @@ export default function IdCardPersonsPage() {
     });
   }
 
-  async function handleDelete(person: IdCardPerson) {
-    if (!confirm(`Remove ${person.name} from this project?`)) return;
+  async function handleConfirmDelete() {
+    if (!deletingPerson) return;
+    setDeletingLoading(true);
     try {
-      await deleteIdCardPerson(person.id);
+      await deleteIdCardPerson(deletingPerson.id);
+      setDeletingPerson(null);
       load();
     } catch (err) {
       alert(errorCodeToUserMessage(classifySupabaseError(err).code));
+    } finally {
+      setDeletingLoading(false);
     }
   }
 
@@ -298,7 +305,7 @@ export default function IdCardPersonsPage() {
               selected={selected}
               onToggleSelect={toggleSelect}
               onEdit={(p) => setEditingPerson(p)}
-              onDelete={handleDelete}
+              onDelete={(p) => setDeletingPerson(p)}
             />
 
             <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
@@ -380,6 +387,23 @@ export default function IdCardPersonsPage() {
           }}
         />
       )}
+
+      {deletingPerson && (
+        <ConfirmModal
+          isOpen={true}
+          onClose={() => setDeletingPerson(null)}
+          onConfirm={handleConfirmDelete}
+          title="Remove Student?"
+          message={
+            <span>
+              Are you sure you want to remove <strong className="text-slate-900">{deletingPerson.name}</strong> ({deletingPerson.student_id}) from this project? This action cannot be undone.
+            </span>
+          }
+          confirmText="Yes, Remove Student"
+          isDestructive={true}
+          loading={deletingLoading}
+        />
+      )}
     </div>
   );
 }
@@ -446,20 +470,23 @@ function PersonEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-2xs">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
-        <div className="border-b border-slate-100 pb-3">
-          <h2 className="text-lg font-bold text-slate-900">{person ? 'Edit Student' : 'Add New Student'}</h2>
-          <p className="text-xs text-slate-500">
-            {person
-              ? 'Update student details and profile photo for ID cards.'
-              : `Enter required student information according to ${template?.name || 'template'}.`}
-          </p>
-        </div>
-
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={person ? 'Edit Student' : 'Add New Student'}
+      subtitle={
+        person
+          ? 'Update student details and profile photo for ID cards.'
+          : `Enter required student information according to ${template?.name || 'template'}.`
+      }
+      size="lg"
+      closeOnBackdropClick={false}
+      preventEscapeClose={submitting}
+    >
+      <div className="space-y-4">
         {/* Photo Upload Section (Rendered when Photo is in template) */}
         {hasPhotoField && (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
             <label className="block text-xs font-bold text-slate-800 mb-2">
               Student Photo {isPhotoRequired && <span className="text-red-500">*</span>}
             </label>
@@ -481,12 +508,12 @@ function PersonEditModal({
         )}
 
         {error && (
-          <p className="mt-3 rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-600 border border-red-200">
+          <p className="rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-600 border border-red-200">
             {error}
           </p>
         )}
 
-        <div className="mt-4">
+        <div>
           <PersonForm
             initial={person ?? undefined}
             schema={fieldSchema}
@@ -497,7 +524,7 @@ function PersonEditModal({
           />
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -528,32 +555,35 @@ function MissingDetailsModal({
 
   const missingPhotos = students.filter((s) => s.validation.missingFields.includes('Student Photo') || s.validation.missingFields.includes('Photo')).length;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-2xs">
-      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 p-5 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-lg bg-amber-100 p-2 text-amber-800">
-              <AlertCircle size={20} />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Missing Template Information</h2>
-              <p className="text-xs text-slate-500">
-                {students.length} student record{students.length === 1 ? '' : 's'} on this page require additional details.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
+  const footer = (
+    <div className="flex w-full items-center justify-between">
+      <p className="text-[11px] text-slate-500">
+        Click <strong>Edit Student</strong> or upload photos to complete student records for printing.
+      </p>
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer transition shadow-2xs"
+      >
+        Done
+      </button>
+    </div>
+  );
 
-        {/* Quick Actions & Search */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3">
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Missing Template Information"
+      subtitle={`${students.length} student record${students.length === 1 ? '' : 's'} on this page require additional details.`}
+      icon={<AlertCircle size={20} className="text-amber-700" />}
+      size="xl"
+      footer={footer}
+      closeOnBackdropClick={false}
+    >
+      <div className="space-y-3">
+        {/* Search & Actions Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -566,6 +596,7 @@ function MissingDetailsModal({
 
           {missingPhotos > 0 && (
             <button
+              type="button"
               onClick={onOpenBulkPhotos}
               className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-900 hover:bg-indigo-100 transition cursor-pointer shadow-2xs"
             >
@@ -575,7 +606,7 @@ function MissingDetailsModal({
         </div>
 
         {/* List of Incomplete Students */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-2.5">
+        <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
           {filtered.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-400">
               No students match your filter.
@@ -624,21 +655,7 @@ function MissingDetailsModal({
             ))
           )}
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-5 py-3">
-          <p className="text-[11px] text-slate-500">
-            Click <strong>Edit Student</strong> or upload photos to complete student records for printing.
-          </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer transition shadow-2xs"
-          >
-            Done
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
