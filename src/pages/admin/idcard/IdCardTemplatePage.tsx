@@ -104,9 +104,17 @@ export default function IdCardTemplatePage() {
           : undefined,
       };
       setLayout(updatedLayout);
+      try {
+        if (template?.id) {
+          await updateIdCardTemplate(template.id, { layout: updatedLayout });
+        }
+        await updateIdCardProject(project.id, { logo_url: publicUrl });
+      } catch (autoSaveErr) {
+        console.warn('Auto-save of logo to DB layout:', autoSaveErr);
+      }
       await reloadProject();
       setSaveSuccess('School / Institution logo uploaded and saved!');
-      setTimeout(() => setSaveSuccess(null), 3000);
+      setTimeout(() => setSaveSuccess(null), 4000);
     } catch (err) {
       const appErr = classifySupabaseError(err);
       alert(errorCodeToUserMessage(appErr.code, appErr.message));

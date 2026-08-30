@@ -2718,8 +2718,38 @@ export function TemplateEditor({
 
                   {selectedField.key === 'school_logo' && (
                     <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-600">Logo Image</span>
+                        <label className="inline-flex items-center gap-1 rounded bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 transition cursor-pointer shadow-2xs">
+                          <Upload size={11} />
+                          <span>Upload File</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                const dataUrl = ev.target?.result as string;
+                                if (dataUrl) {
+                                  updateSelectedField({ customText: dataUrl });
+                                  onChange({
+                                    ...layout,
+                                    schoolLogoUrl: dataUrl,
+                                  });
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                              e.target.value = '';
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
                       <label className="block text-xs text-slate-600">
-                        <span>Logo Image URL / Path</span>
+                        <span>Logo URL / Path</span>
                         <input
                           type="text"
                           value={

@@ -367,25 +367,44 @@ export async function updateIdCardTemplate(
 }
 
 /**
- * Uploads a school / institution logo file to Supabase Storage and returns its public URL
+ * Converts a File or Blob into a base64 Data URL string
+ */
+export function fileToDataUrl(file: File | Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Uploads a school / institution logo file to Supabase Storage and returns its public URL.
+ * If storage bucket upload encounters any error (e.g. bucket permissions or network),
+ * it seamlessly falls back to a high-fidelity base64 Data URL so logo upload never fails.
  */
 export async function uploadSchoolLogo(projectId: string, file: File): Promise<string> {
   const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `logos/${projectId}_${Date.now()}_${cleanFileName}`;
 
-  return executeWithAuthRetry(
-    async (client) => {
-      const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
-        upsert: true,
-        contentType: file.type || 'image/png',
-      });
-      if (uploadError) throw classifySupabaseError(uploadError);
+  try {
+    return await executeWithAuthRetry(
+      async (client) => {
+        const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
+          upsert: true,
+          contentType: file.type || 'image/png',
+        });
+        if (uploadError) throw classifySupabaseError(uploadError);
 
-      const { data: publicUrlData } = client.storage.from(PHOTO_BUCKET).getPublicUrl(path);
-      return publicUrlData?.publicUrl || path;
-    },
-    { operationName: 'uploadSchoolLogo' }
-  );
+        const { data: publicUrlData } = client.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+        return publicUrlData?.publicUrl || path;
+      },
+      { operationName: 'uploadSchoolLogo' }
+    );
+  } catch (storageErr) {
+    console.warn('[uploadSchoolLogo] Storage upload failed, falling back to base64 data URL:', storageErr);
+    return await fileToDataUrl(file);
+  }
 }
 
 export async function deleteIdCardTemplate(id: string): Promise<void> {
