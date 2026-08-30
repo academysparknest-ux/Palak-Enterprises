@@ -18,6 +18,7 @@ import { getProducts, getServices, getCategories } from "./lib/supabase/database
 import { supabase, isSupabaseConfigured } from "./lib/supabase/client";
 import { cn } from "./lib/utils";
 import { AdminRouteGuard } from "./components/admin/AdminRouteGuard";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 const ServiceRequestModal = lazyWithRetry(() => import("./components/ServiceRequestModal").then((m) => ({ default: m.ServiceRequestModal })));
 
@@ -201,6 +202,7 @@ export function AppContent() {
       !hideChrome && "pb-16 md:pb-0"
     )}>
       <StructuredData />
+      <SpeedInsights />
       <ScrollToTop />
 
       {/* Global Header Navigation — Hidden on Admin Control Center & Verification Routes */}
