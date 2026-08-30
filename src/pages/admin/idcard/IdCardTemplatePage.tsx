@@ -16,6 +16,9 @@ import {
   Check,
   Star,
   Edit3,
+  Upload,
+  Image as ImageIcon,
+  Building2,
 } from 'lucide-react';
 import {
   getIdCardTemplates,
@@ -24,6 +27,7 @@ import {
   deleteIdCardTemplate,
   updateIdCardProject,
   getAllIdCardPersons,
+  uploadSchoolLogo,
 } from '../../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors';
 import { validateIdCardTemplate } from '../../../lib/idcard/templateValidation';
@@ -68,8 +72,116 @@ export default function IdCardTemplatePage() {
     removedLabels: string[];
   } | null>(null);
 
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
   // Derive dynamic template field schema in real-time
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(layout), [layout]);
+
+  const currentSchoolLogo = layout.schoolLogoUrl || project.logo_url || template?.logo_url || null;
+  const hasLogoFieldOnCanvas = layout.fields.some((f) => f.key === 'school_logo');
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const publicUrl = await uploadSchoolLogo(project.id, file);
+
+      // Update layout's schoolLogoUrl and any school_logo fields
+      const updatedLayout: TemplateLayout = {
+        ...layout,
+        schoolLogoUrl: publicUrl,
+        fields: layout.fields.map((f) =>
+          f.key === 'school_logo' ? { ...f, customText: publicUrl } : f
+        ),
+        back: layout.back
+          ? {
+              ...layout.back,
+              fields: layout.back.fields.map((f) =>
+                f.key === 'school_logo' ? { ...f, customText: publicUrl } : f
+              ),
+            }
+          : undefined,
+      };
+      setLayout(updatedLayout);
+      await reloadProject();
+      setSaveSuccess('School / Institution logo uploaded and saved!');
+      setTimeout(() => setSaveSuccess(null), 3000);
+    } catch (err) {
+      const appErr = classifySupabaseError(err);
+      alert(errorCodeToUserMessage(appErr.code, appErr.message));
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLogoUrlChange = async (url: string) => {
+    const trimmed = url.trim();
+    const updatedLayout: TemplateLayout = {
+      ...layout,
+      schoolLogoUrl: trimmed || null,
+      fields: layout.fields.map((f) =>
+        f.key === 'school_logo' ? { ...f, customText: trimmed || undefined } : f
+      ),
+      back: layout.back
+        ? {
+            ...layout.back,
+            fields: layout.back.fields.map((f) =>
+              f.key === 'school_logo' ? { ...f, customText: trimmed || undefined } : f
+            ),
+          }
+        : undefined,
+    };
+    setLayout(updatedLayout);
+    if (trimmed) {
+      await updateIdCardProject(project.id, { logo_url: trimmed });
+      await reloadProject();
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    const updatedLayout: TemplateLayout = {
+      ...layout,
+      schoolLogoUrl: null,
+      fields: layout.fields.map((f) =>
+        f.key === 'school_logo' ? { ...f, customText: undefined } : f
+      ),
+      back: layout.back
+        ? {
+            ...layout.back,
+            fields: layout.back.fields.map((f) =>
+              f.key === 'school_logo' ? { ...f, customText: undefined } : f
+            ),
+          }
+        : undefined,
+    };
+    setLayout(updatedLayout);
+    await updateIdCardProject(project.id, { logo_url: null });
+    await reloadProject();
+    setSaveSuccess('School logo removed.');
+    setTimeout(() => setSaveSuccess(null), 3000);
+  };
+
+  const handleAddLogoToCanvas = () => {
+    if (hasLogoFieldOnCanvas) return;
+    const newLogoField = {
+      id: `logo_${Date.now()}`,
+      key: 'school_logo' as const,
+      label: 'School Logo',
+      x: 4,
+      y: 4,
+      width: 14,
+      height: 14,
+      visible: true,
+      customText: currentSchoolLogo || undefined,
+      photoFit: 'contain' as const,
+    };
+    setLayout({
+      ...layout,
+      fields: [newLogoField, ...layout.fields],
+    });
+  };
 
   const loadTemplates = useCallback(async (targetId?: string | null) => {
     setState({ kind: 'loading' });
@@ -248,6 +360,7 @@ export default function IdCardTemplatePage() {
           card_width_mm: cardWidth,
           card_height_mm: cardHeight,
           background_url: backgroundUrl,
+          logo_url: currentSchoolLogo,
         });
 
         // Update list in state
@@ -260,6 +373,7 @@ export default function IdCardTemplatePage() {
           card_width_mm: cardWidth,
           card_height_mm: cardHeight,
           background_url: backgroundUrl,
+          logo_url: currentSchoolLogo,
         });
 
         // Add to list in state
@@ -274,8 +388,8 @@ export default function IdCardTemplatePage() {
       setCardHeight(savedTemplate.card_height_mm);
       setSearchParams({ templateId: savedTemplate.id });
 
-      // Always ensure the project points to this active saved template ID
-      await updateIdCardProject(project.id, { template_id: savedTemplate.id });
+      // Always ensure the project points to this active saved template ID & school logo
+      await updateIdCardProject(project.id, { template_id: savedTemplate.id, logo_url: currentSchoolLogo });
 
       // Clear any cached canvas renders to prevent stale preview/print images
       clearCardDataUrlCache();
@@ -528,6 +642,110 @@ export default function IdCardTemplatePage() {
             {saving ? <Loader2 size={14} className="animate-spin" /> : null}
             {saving ? 'Saving...' : isEditingExisting ? 'Save Changes' : 'Save Template'}
           </button>
+        </div>
+      </div>
+
+      {/* ── School / Institution Logo Configuration Panel (Always Asked / Configurable) ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-700 shadow-2xs">
+              <Building2 size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  School / Institution Logo
+                </h3>
+                {currentSchoolLogo ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                    <CheckCircle2 size={11} /> Configured
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                    Required for Digital Verification
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Official logo for <strong>{project.name}</strong>. Used across the Online Digital ID Verification portal (`/verify/:id`), student records, and ID card designs.
+              </p>
+            </div>
+          </div>
+
+          {/* Canvas Placement Badge / Quick Add */}
+          <div className="flex items-center gap-2">
+            {hasLogoFieldOnCanvas ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/60">
+                <Check size={12} /> Placed on Canvas
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAddLogoToCanvas}
+                className="flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md border border-slate-200 transition cursor-pointer"
+                title="Place a school logo element onto the card design"
+              >
+                <Plus size={12} /> Add Logo to ID Card Design
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Logo Upload & Preview Controls */}
+        <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          {/* Preview Thumbnail */}
+          <div className="h-16 w-16 rounded-xl border border-slate-200 bg-slate-50 p-1.5 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+            {currentSchoolLogo ? (
+              <img
+                src={currentSchoolLogo}
+                alt={project.name}
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-slate-400 text-center">
+                <ImageIcon size={20} />
+                <span className="text-[8px] font-bold uppercase tracking-wider mt-0.5">No Logo</span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons & Direct Input */}
+          <div className="flex-1 w-full space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer shadow-xs">
+                {uploadingLogo ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                <span>{uploadingLogo ? 'Uploading Logo...' : currentSchoolLogo ? 'Change School Logo' : 'Upload School Logo'}</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  onChange={handleLogoUpload}
+                  disabled={uploadingLogo}
+                  className="hidden"
+                />
+              </label>
+
+              {currentSchoolLogo && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50/50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition cursor-pointer"
+                >
+                  <Trash2 size={12} /> Remove Logo
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={currentSchoolLogo || ''}
+                onChange={(e) => handleLogoUrlChange(e.target.value)}
+                placeholder="Or enter direct image URL (e.g. https://.../school-logo.png)"
+                className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:border-slate-400 focus:outline-none"
+              />
+            </div>
+          </div>
         </div>
       </div>
 

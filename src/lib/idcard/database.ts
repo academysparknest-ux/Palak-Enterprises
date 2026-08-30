@@ -51,6 +51,7 @@ export async function createIdCardProject(input: {
   name: string;
   description?: string;
   academic_year: string;
+  logo_url?: string | null;
 }): Promise<IdCardProject> {
   return executeWithAuthRetry(
     async (client) => {
@@ -74,7 +75,7 @@ export async function createIdCardProject(input: {
 
 export async function updateIdCardProject(
   id: string,
-  patch: Partial<Pick<IdCardProject, 'name' | 'description' | 'academic_year' | 'status' | 'template_id'>>
+  patch: Partial<Pick<IdCardProject, 'name' | 'description' | 'academic_year' | 'status' | 'template_id' | 'logo_url'>>
 ): Promise<IdCardProject> {
   return executeWithAuthRetry(
     async (client) => {
@@ -323,7 +324,9 @@ export async function getIdCardTemplate(id: string): Promise<IdCardTemplate> {
 }
 
 export async function createIdCardTemplate(
-  input: Pick<IdCardTemplate, 'project_id' | 'name' | 'layout' | 'card_width_mm' | 'card_height_mm' | 'background_url'>
+  input: Pick<IdCardTemplate, 'project_id' | 'name' | 'layout' | 'card_width_mm' | 'card_height_mm' | 'background_url'> & {
+    logo_url?: string | null;
+  }
 ): Promise<IdCardTemplate> {
   return executeWithAuthRetry(
     async (client) => {
@@ -347,7 +350,7 @@ export async function createIdCardTemplate(
 
 export async function updateIdCardTemplate(
   id: string,
-  patch: Partial<Pick<IdCardTemplate, 'name' | 'layout' | 'card_width_mm' | 'card_height_mm' | 'background_url'>>
+  patch: Partial<Pick<IdCardTemplate, 'name' | 'layout' | 'card_width_mm' | 'card_height_mm' | 'background_url' | 'logo_url'>>
 ): Promise<IdCardTemplate> {
   return executeWithAuthRetry(
     async (client) => {
@@ -356,6 +359,33 @@ export async function updateIdCardTemplate(
       return data as IdCardTemplate;
     },
     { operationName: 'updateIdCardTemplate' }
+  );
+}
+
+/**
+ * Uploads a school / institution logo file to Supabase Storage and attaches it to the project & template
+ */
+export async function uploadSchoolLogo(projectId: string, file: File): Promise<string> {
+  const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `logos/${projectId}_${Date.now()}_${cleanFileName}`;
+
+  return executeWithAuthRetry(
+    async (client) => {
+      const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
+        upsert: true,
+        contentType: file.type || 'image/png',
+      });
+      if (uploadError) throw classifySupabaseError(uploadError);
+
+      const { data: publicUrlData } = client.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+      const publicUrl = publicUrlData?.publicUrl || path;
+
+      // Update project logo_url
+      await client.from('idcard_projects').update({ logo_url: publicUrl }).eq('id', projectId);
+
+      return publicUrl;
+    },
+    { operationName: 'uploadSchoolLogo' }
   );
 }
 

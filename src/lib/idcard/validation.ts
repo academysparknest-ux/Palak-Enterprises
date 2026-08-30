@@ -144,6 +144,7 @@ export const projectSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{4}-\d{2,4}$/, 'Use format like 2026-27'),
+  logo_url: z.string().trim().optional().or(z.literal('')),
 });
 
 export type ProjectFormInput = z.infer<typeof projectSchema>;

@@ -9,6 +9,7 @@ export interface IdCardProject {
   academic_year: string;
   status: ProjectStatus;
   template_id: string | null;
+  logo_url?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -127,6 +128,7 @@ export interface TemplateLayout {
   backgroundColor: string;
   backgroundUrl?: string | null; // Front background image
   backgroundFit?: 'fill' | 'fit' | 'crop';
+  schoolLogoUrl?: string | null; // School / Organization logo URL
   headerSvg?: string | null; // SVG markup for header decoration
   footerSvg?: string | null; // SVG markup for footer decoration
   headerGradientColors?: [string, string] | null; // [primary, accent]
@@ -146,6 +148,7 @@ export interface IdCardTemplate {
   card_width_mm: number;
   card_height_mm: number;
   background_url: string | null;
+  logo_url?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

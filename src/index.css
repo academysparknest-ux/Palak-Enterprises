@@ -631,6 +631,22 @@ button, a {
   .text-amber-900 {
     color: #b45309 !important;
   }
+
+  /* 7. Digital ID Card Print Rules */
+  #digital-id-card-element {
+    width: 100% !important;
+    max-width: 520px !important;
+    margin: 15px auto !important;
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 20px !important;
+    overflow: hidden !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }
+
 
 

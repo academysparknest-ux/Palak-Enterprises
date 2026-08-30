@@ -171,13 +171,19 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [name, setName] = useState('');
   const [academicYear, setAcademicYear] = useState('');
   const [description, setDescription] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const result = projectSchema.safeParse({ name, academic_year: academicYear, description });
+    const result = projectSchema.safeParse({
+      name,
+      academic_year: academicYear,
+      description,
+      logo_url: logoUrl.trim() || undefined,
+    });
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
       for (const issue of result.error.issues) fieldErrors[String(issue.path[0])] = issue.message;
@@ -204,10 +210,11 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <h2 className="text-lg font-semibold text-slate-900">New ID Card Project</h2>
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <div>
-            <label className="text-sm font-medium text-slate-700">Project Name</label>
+            <label className="text-sm font-medium text-slate-700">School / Project Name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Roshani Public School"
               className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
             />
             {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
@@ -221,6 +228,15 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
               className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
             />
             {errors.academic_year && <p className="mt-1 text-xs text-red-600">{errors.academic_year}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700">School / Institution Logo URL (optional)</label>
+            <input
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              placeholder="https://.../logo.png (or upload later in Template)"
+              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+            />
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700">Description (optional)</label>

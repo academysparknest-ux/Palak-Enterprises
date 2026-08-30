@@ -1455,6 +1455,57 @@ export function TemplateEditor({
                     Photo & Shape Settings
                   </p>
 
+                  {selectedField.key === 'school_logo' && (
+                    <div className="space-y-2">
+                      <label className="block text-xs text-slate-600">
+                        <span>Logo Image URL / Path</span>
+                        <input
+                          type="text"
+                          value={selectedField.customText || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateSelectedField({ customText: val });
+                          }}
+                          placeholder="https://.../logo.png"
+                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                        />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block text-xs text-slate-600">
+                          <span>Shape</span>
+                          <select
+                            value={
+                              selectedField.photoShape ||
+                              ((selectedField.borderRadius ?? 0) >= 45 ? 'circle' : 'rectangle')
+                            }
+                            onChange={(e) => {
+                              const shape = e.target.value as 'rectangle' | 'rounded' | 'circle';
+                              const radius = shape === 'circle' ? 50 : shape === 'rounded' ? 15 : 0;
+                              updateSelectedField({ photoShape: shape, borderRadius: radius });
+                            }}
+                            className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                          >
+                            <option value="rectangle">Square / Rectangle</option>
+                            <option value="rounded">Rounded</option>
+                            <option value="circle">Circular Emblem</option>
+                          </select>
+                        </label>
+
+                        <label className="block text-xs text-slate-600">
+                          <span>Fit</span>
+                          <select
+                            value={selectedField.photoFit || 'contain'}
+                            onChange={(e) => updateSelectedField({ photoFit: e.target.value as any })}
+                            className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                          >
+                            <option value="contain">Contain (Full Logo)</option>
+                            <option value="cover">Cover (Fill Box)</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
                   {selectedField.key === 'student_photo' && (
                     <div className="grid grid-cols-2 gap-2">
                       <label className="block text-xs text-slate-600">
