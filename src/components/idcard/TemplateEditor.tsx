@@ -95,6 +95,7 @@ export function TemplateEditor({
   const [zoom, setZoom] = useState<number>(100); // 50 to 200%
   const [snapToGrid, setSnapToGrid] = useState<boolean>(true);
   const [showSmartGuides, setShowSmartGuides] = useState<boolean>(true);
+  const [lockAspectRatio, setLockAspectRatio] = useState<boolean>(false);
   const gridSizeMm = 0.5; // 0.5 mm grid
   const [showPresets, setShowPresets] = useState<boolean>(false);
   const [presetTab, setPresetTab] = useState<'saved' | 'presets'>(
@@ -649,29 +650,139 @@ export function TemplateEditor({
       } else {
         // Resizing with handle
         const minSize = 2.0;
+        const isShiftPressed = Boolean(e.shiftKey || lockAspectRatio);
+        const initialW = initialFieldProps.width;
+        const initialH = initialFieldProps.height;
+        const initialRatio = initialW / (initialH || 1);
 
-        if (activeHandle.includes('e')) {
-          nextW = Math.max(minSize, applySnap(initialFieldProps.width + deltaXMm));
-          nextW = Math.min(widthMm - nextX, nextW);
-        }
-        if (activeHandle.includes('s')) {
-          nextH = Math.max(minSize, applySnap(initialFieldProps.height + deltaYMm));
-          nextH = Math.min(heightMm - nextY, nextH);
-        }
-        if (activeHandle.includes('w')) {
-          const proposedW = Math.max(minSize, applySnap(initialFieldProps.width - deltaXMm));
-          const proposedX = initialFieldProps.x + (initialFieldProps.width - proposedW);
-          if (proposedX >= 0) {
-            nextX = proposedX;
-            nextW = proposedW;
+        if (isShiftPressed) {
+          // PROPORTIONAL / LOCKED ASPECT RATIO RESIZE (Preserve image / element ratio)
+          if (activeHandle === 'se') {
+            const change = Math.abs(deltaXMm) > Math.abs(deltaYMm) ? deltaXMm : deltaYMm * initialRatio;
+            let proposedW = Math.max(minSize, initialW + change);
+            let proposedH = proposedW / initialRatio;
+            if (nextX + proposedW > widthMm) {
+              proposedW = widthMm - nextX;
+              proposedH = proposedW / initialRatio;
+            }
+            if (nextY + proposedH > heightMm) {
+              proposedH = heightMm - nextY;
+              proposedW = proposedH * initialRatio;
+            }
+            nextW = Math.max(minSize, proposedW);
+            nextH = Math.max(minSize, proposedH);
+          } else if (activeHandle === 'sw') {
+            const change = Math.abs(-deltaXMm) > Math.abs(deltaYMm) ? -deltaXMm : deltaYMm * initialRatio;
+            let proposedW = Math.max(minSize, initialW + change);
+            let proposedH = proposedW / initialRatio;
+            let proposedX = initialFieldProps.x + (initialW - proposedW);
+            if (proposedX < 0) {
+              proposedW = initialFieldProps.x + initialW;
+              proposedH = proposedW / initialRatio;
+              proposedX = 0;
+            }
+            if (nextY + proposedH > heightMm) {
+              proposedH = heightMm - nextY;
+              proposedW = proposedH * initialRatio;
+              proposedX = initialFieldProps.x + (initialW - proposedW);
+            }
+            nextX = Math.max(0, proposedX);
+            nextW = Math.max(minSize, proposedW);
+            nextH = Math.max(minSize, proposedH);
+          } else if (activeHandle === 'ne') {
+            const change = Math.abs(deltaXMm) > Math.abs(-deltaYMm) ? deltaXMm : -deltaYMm * initialRatio;
+            let proposedW = Math.max(minSize, initialW + change);
+            let proposedH = proposedW / initialRatio;
+            let proposedY = initialFieldProps.y + (initialH - proposedH);
+            if (nextX + proposedW > widthMm) {
+              proposedW = widthMm - nextX;
+              proposedH = proposedW / initialRatio;
+              proposedY = initialFieldProps.y + (initialH - proposedH);
+            }
+            if (proposedY < 0) {
+              proposedH = initialFieldProps.y + initialH;
+              proposedW = proposedH * initialRatio;
+              proposedY = 0;
+            }
+            nextY = Math.max(0, proposedY);
+            nextW = Math.max(minSize, proposedW);
+            nextH = Math.max(minSize, proposedH);
+          } else if (activeHandle === 'nw') {
+            const change = Math.abs(-deltaXMm) > Math.abs(-deltaYMm) ? -deltaXMm : -deltaYMm * initialRatio;
+            let proposedW = Math.max(minSize, initialW + change);
+            let proposedH = proposedW / initialRatio;
+            let proposedX = initialFieldProps.x + (initialW - proposedW);
+            let proposedY = initialFieldProps.y + (initialH - proposedH);
+            if (proposedX < 0) {
+              proposedW = initialFieldProps.x + initialW;
+              proposedH = proposedW / initialRatio;
+              proposedX = 0;
+              proposedY = initialFieldProps.y + (initialH - proposedH);
+            }
+            if (proposedY < 0) {
+              proposedH = initialFieldProps.y + initialH;
+              proposedW = proposedH * initialRatio;
+              proposedY = 0;
+              proposedX = initialFieldProps.x + (initialW - proposedW);
+            }
+            nextX = Math.max(0, proposedX);
+            nextY = Math.max(0, proposedY);
+            nextW = Math.max(minSize, proposedW);
+            nextH = Math.max(minSize, proposedH);
+          } else if (activeHandle === 'e' || activeHandle === 'w') {
+            const rawDeltaW = activeHandle === 'e' ? deltaXMm : -deltaXMm;
+            let proposedW = Math.max(minSize, initialW + rawDeltaW);
+            let proposedH = proposedW / initialRatio;
+            let proposedX = activeHandle === 'w' ? initialFieldProps.x + (initialW - proposedW) : initialFieldProps.x;
+            let proposedY = initialFieldProps.y + (initialH - proposedH) / 2;
+            if (proposedX < 0) proposedX = 0;
+            if (proposedY < 0) proposedY = 0;
+            if (proposedX + proposedW > widthMm) { proposedW = widthMm - proposedX; proposedH = proposedW / initialRatio; }
+            if (proposedY + proposedH > heightMm) { proposedH = heightMm - proposedY; proposedW = proposedH * initialRatio; }
+            nextX = Math.max(0, proposedX);
+            nextY = Math.max(0, proposedY);
+            nextW = Math.max(minSize, proposedW);
+            nextH = Math.max(minSize, proposedH);
+          } else if (activeHandle === 's' || activeHandle === 'n') {
+            const rawDeltaH = activeHandle === 's' ? deltaYMm : -deltaYMm;
+            let proposedH = Math.max(minSize, initialH + rawDeltaH);
+            let proposedW = proposedH * initialRatio;
+            let proposedY = activeHandle === 'n' ? initialFieldProps.y + (initialH - proposedH) : initialFieldProps.y;
+            let proposedX = initialFieldProps.x + (initialW - proposedW) / 2;
+            if (proposedX < 0) proposedX = 0;
+            if (proposedY < 0) proposedY = 0;
+            if (proposedX + proposedW > widthMm) { proposedW = widthMm - proposedX; proposedH = proposedW / initialRatio; }
+            if (proposedY + proposedH > heightMm) { proposedH = heightMm - proposedY; proposedW = proposedH * initialRatio; }
+            nextX = Math.max(0, proposedX);
+            nextY = Math.max(0, proposedY);
+            nextW = Math.max(minSize, proposedW);
+            nextH = Math.max(minSize, proposedH);
           }
-        }
-        if (activeHandle.includes('n')) {
-          const proposedH = Math.max(minSize, applySnap(initialFieldProps.height - deltaYMm));
-          const proposedY = initialFieldProps.y + (initialFieldProps.height - proposedH);
-          if (proposedY >= 0) {
-            nextY = proposedY;
-            nextH = proposedH;
+        } else {
+          // Free / Unconstrained resize (Snapping applied)
+          if (activeHandle.includes('e')) {
+            nextW = Math.max(minSize, applySnap(initialFieldProps.width + deltaXMm));
+            nextW = Math.min(widthMm - nextX, nextW);
+          }
+          if (activeHandle.includes('s')) {
+            nextH = Math.max(minSize, applySnap(initialFieldProps.height + deltaYMm));
+            nextH = Math.min(heightMm - nextY, nextH);
+          }
+          if (activeHandle.includes('w')) {
+            const proposedW = Math.max(minSize, applySnap(initialFieldProps.width - deltaXMm));
+            const proposedX = initialFieldProps.x + (initialFieldProps.width - proposedW);
+            if (proposedX >= 0) {
+              nextX = proposedX;
+              nextW = proposedW;
+            }
+          }
+          if (activeHandle.includes('n')) {
+            const proposedH = Math.max(minSize, applySnap(initialFieldProps.height - deltaYMm));
+            const proposedY = initialFieldProps.y + (initialFieldProps.height - proposedH);
+            if (proposedY >= 0) {
+              nextY = proposedY;
+              nextH = proposedH;
+            }
           }
         }
 
@@ -687,7 +798,7 @@ export function TemplateEditor({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isDragging, dragStartPos, initialFieldProps, selectedField, pxPerMm, snapToGrid, showSmartGuides, widthMm, heightMm]
+    [isDragging, dragStartPos, initialFieldProps, selectedField, pxPerMm, snapToGrid, showSmartGuides, lockAspectRatio, widthMm, heightMm]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -1136,7 +1247,7 @@ export function TemplateEditor({
           </div>
 
           <p className="mt-4 text-[11px] text-slate-500 font-medium">
-            Click to select · Drag to move · Arrow keys: <strong>0.1mm</strong> · Shift + Arrow: <strong>1.0mm</strong>
+            Click to select · Drag to move · <strong>Hold Shift while resizing to preserve aspect ratio</strong> · Arrow keys: 0.1mm · Shift + Arrow: 1.0mm
           </p>
         </div>
 
@@ -1351,9 +1462,24 @@ export function TemplateEditor({
 
               {/* Exact Physical Coordinates (X, Y, W, H in mm) */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Physical Position & Size (mm)
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Physical Position & Size (mm)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setLockAspectRatio(!lockAspectRatio)}
+                    title={lockAspectRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio (or hold Shift while resizing)'}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition cursor-pointer ${
+                      lockAspectRatio
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200 font-bold'
+                        : 'text-slate-500 hover:text-slate-800 bg-slate-100'
+                    }`}
+                  >
+                    {lockAspectRatio ? <Lock size={10} className="text-blue-700" /> : <Unlock size={10} />}
+                    <span>Ratio Lock</span>
+                  </button>
+                </div>
                 <div className="mt-1 grid grid-cols-4 gap-1.5">
                   <label className="block text-[10px] text-slate-500">
                     <span>X (mm)</span>
@@ -1381,7 +1507,16 @@ export function TemplateEditor({
                       type="number"
                       step="0.1"
                       value={selectedField.width}
-                      onChange={(e) => updateSelectedField({ width: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const newW = Number(e.target.value);
+                        if (lockAspectRatio && selectedField.width > 0 && selectedField.height > 0) {
+                          const ratio = selectedField.width / selectedField.height;
+                          const newH = Number((newW / ratio).toFixed(2));
+                          updateSelectedField({ width: newW, height: newH });
+                        } else {
+                          updateSelectedField({ width: newW });
+                        }
+                      }}
                       className="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-xs font-mono"
                     />
                   </label>
@@ -1391,7 +1526,16 @@ export function TemplateEditor({
                       type="number"
                       step="0.1"
                       value={selectedField.height}
-                      onChange={(e) => updateSelectedField({ height: Number(e.target.value) })}
+                      onChange={(e) => {
+                        const newH = Number(e.target.value);
+                        if (lockAspectRatio && selectedField.height > 0 && selectedField.width > 0) {
+                          const ratio = selectedField.width / selectedField.height;
+                          const newW = Number((newH * ratio).toFixed(2));
+                          updateSelectedField({ width: newW, height: newH });
+                        } else {
+                          updateSelectedField({ height: newH });
+                        }
+                      }}
                       className="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-xs font-mono"
                     />
                   </label>
