@@ -390,29 +390,47 @@ export function fileToDataUrl(file: File | Blob): Promise<string> {
 
 /**
  * Uploads a school / institution logo file to Supabase Storage and returns its public URL.
- * If storage bucket upload encounters any error (e.g. bucket permissions or network),
- * it seamlessly falls back to a high-fidelity base64 Data URL so logo upload never fails.
+ * If storage bucket upload encounters any error or takes longer than 6 seconds,
+ * it seamlessly falls back to a high-fidelity base64 Data URL so logo upload never stalls or fails.
  */
 export async function uploadSchoolLogo(projectId: string, file: File): Promise<string> {
   const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `logos/${projectId}_${Date.now()}_${cleanFileName}`;
 
-  try {
-    return await executeWithAuthRetry(
-      async (client) => {
-        const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
-          upsert: true,
-          contentType: file.type || 'image/png',
-        });
-        if (uploadError) throw classifySupabaseError(uploadError);
+  const storageUploadWithTimeout = async (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Storage upload timed out'));
+      }, 6000);
 
-        const { data: publicUrlData } = client.storage.from(PHOTO_BUCKET).getPublicUrl(path);
-        return publicUrlData?.publicUrl || path;
-      },
-      { operationName: 'uploadSchoolLogo' }
-    );
+      executeWithAuthRetry(
+        async (client) => {
+          const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
+            upsert: true,
+            contentType: file.type || 'image/png',
+          });
+          if (uploadError) throw classifySupabaseError(uploadError);
+
+          const { data: publicUrlData } = client.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+          return publicUrlData?.publicUrl || path;
+        },
+        { operationName: 'uploadSchoolLogo' }
+      )
+        .then((url) => {
+          clearTimeout(timer);
+          resolve(url);
+        })
+        .catch((err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+    });
+  };
+
+  try {
+    return await storageUploadWithTimeout();
   } catch (storageErr) {
-    console.warn('[uploadSchoolLogo] Storage upload failed, falling back to base64 data URL:', storageErr);
+    console.warn('[uploadSchoolLogo] Storage upload failed or timed out, falling back to base64 data URL:', storageErr);
     return await fileToDataUrl(file);
   }
 }

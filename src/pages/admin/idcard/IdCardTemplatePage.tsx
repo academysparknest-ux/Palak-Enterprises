@@ -73,6 +73,7 @@ export default function IdCardTemplatePage() {
   } | null>(null);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadLogoError, setUploadLogoError] = useState<string | null>(null);
 
   // Derive dynamic template field schema in real-time
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(layout), [layout]);
@@ -91,21 +92,27 @@ export default function IdCardTemplatePage() {
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadLogoError(null);
     setUploadingLogo(true);
-    try {
-      const publicUrl = await uploadSchoolLogo(project.id, file);
 
-      // Check if there is already a school_logo field on front fields
+    try {
+      // 1. Instant local base64 preview (0ms UI lag)
+      const reader = new FileReader();
+      const localDataUrlPromise = new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      const localDataUrl = await localDataUrlPromise;
+
       const frontFields = [...layout.fields];
       const hasLogo = frontFields.some((f) => f.key === 'school_logo');
 
       let updatedFrontFields: TemplateField[];
       if (hasLogo) {
         updatedFrontFields = frontFields.map((f) =>
-          f.key === 'school_logo' ? { ...f, customText: publicUrl, visible: true } : f
+          f.key === 'school_logo' ? { ...f, customText: localDataUrl, visible: true } : f
         );
       } else {
-        // Automatically add school_logo field to the card canvas so the logo is immediately visible!
         updatedFrontFields = [
           {
             id: `logo-auto-${Date.now()}`,
@@ -115,17 +122,38 @@ export default function IdCardTemplatePage() {
             width: 14.0,
             height: 14.0,
             visible: true,
-            customText: publicUrl,
+            customText: localDataUrl,
           },
           ...frontFields,
         ];
       }
 
-      // Update layout's schoolLogoUrl and any school_logo fields
-      const updatedLayout: TemplateLayout = {
+      // Apply optimistic update immediately
+      const initialLayout: TemplateLayout = {
         ...layout,
-        schoolLogoUrl: publicUrl,
+        schoolLogoUrl: localDataUrl,
         fields: updatedFrontFields,
+        back: layout.back
+          ? {
+              ...layout.back,
+              fields: layout.back.fields.map((f) =>
+                f.key === 'school_logo' ? { ...f, customText: localDataUrl, visible: true } : f
+              ),
+            }
+          : undefined,
+      };
+      setLayout(initialLayout);
+
+      // 2. Upload with 6s timeout guard
+      const publicUrl = await uploadSchoolLogo(project.id, file);
+
+      // 3. Finalize with storage public URL or base64
+      const finalLayout: TemplateLayout = {
+        ...initialLayout,
+        schoolLogoUrl: publicUrl,
+        fields: updatedFrontFields.map((f) =>
+          f.key === 'school_logo' ? { ...f, customText: publicUrl, visible: true } : f
+        ),
         back: layout.back
           ? {
               ...layout.back,
@@ -135,21 +163,24 @@ export default function IdCardTemplatePage() {
             }
           : undefined,
       };
-      setLayout(updatedLayout);
+      setLayout(finalLayout);
+
       try {
         if (template?.id) {
-          await updateIdCardTemplate(template.id, { layout: updatedLayout });
+          await updateIdCardTemplate(template.id, { layout: finalLayout });
         }
         await updateIdCardProject(project.id, { logo_url: publicUrl });
       } catch (autoSaveErr) {
         console.warn('Auto-save of logo to DB layout:', autoSaveErr);
       }
+
       await reloadProject();
-      setSaveSuccess('School / Institution logo uploaded and saved!');
+      setSaveSuccess('School / Institution logo uploaded and saved successfully!');
       setTimeout(() => setSaveSuccess(null), 4000);
     } catch (err) {
       const appErr = classifySupabaseError(err);
-      alert(errorCodeToUserMessage(appErr.code, appErr.message));
+      const msg = errorCodeToUserMessage(appErr.code, appErr.message);
+      setUploadLogoError(msg);
     } finally {
       setUploadingLogo(false);
       e.target.value = '';
@@ -838,6 +869,22 @@ export default function IdCardTemplatePage() {
                 className="w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:border-slate-400 focus:outline-none"
               />
             </div>
+
+            {uploadLogoError && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700 mt-1">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle size={14} className="shrink-0 text-red-600" />
+                  <span>{uploadLogoError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUploadLogoError(null)}
+                  className="rounded px-1 text-[11px] font-bold text-red-600 hover:bg-red-100 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
