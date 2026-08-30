@@ -113,16 +113,55 @@ export async function verifyDigitalId(identifier: string): Promise<DigitalIdVeri
       p_identifier: cleanId,
     });
 
-    if (error) {
-      console.warn("[DigitalIdService] RPC lookup notice:", error.message);
-      return {
-        success: false,
-        error: "RECORD_NOT_FOUND",
-        rawStatus: "invalid",
-      };
-    }
+    if (error || !data || data.status === "invalid" || data.error === "RECORD_NOT_FOUND") {
+      // Direct database fallback to idcard_persons table
+      const { data: personRows } = await supabase
+        .from("idcard_persons")
+        .select("*, project:idcard_projects(*)")
+        .or(`student_id.eq.${cleanId},id.eq.${cleanId}`)
+        .limit(1);
 
-    if (!data || data.status === "invalid" || data.error === "RECORD_NOT_FOUND") {
+      if (personRows && personRows.length > 0) {
+        const p = personRows[0] as any;
+        const proj = p.project || {};
+        const profile: DigitalIdProfile = {
+          id: p.student_id || p.id,
+          name: p.name || "Student",
+          personType: "student",
+          status: "active",
+          verificationStatus: "VERIFIED",
+          photoUrl: p.photo_url || null,
+          organization: {
+            name: proj.name || "Educational Institution",
+            academicYear: proj.academic_year || null,
+            logoUrl: null,
+            website: "https://palakenterprises.com",
+            address: "Chakia, East Champaran, Bihar",
+            phone: "+91 9403527354",
+          },
+          fields: {
+            studentId: p.student_id,
+            class: p.class || undefined,
+            section: p.section || undefined,
+            rollNumber: p.roll_number || undefined,
+            fatherName: p.father_name || undefined,
+            motherName: p.mother_name || undefined,
+            bloodGroup: p.blood_group || undefined,
+            dateOfBirth: p.date_of_birth || undefined,
+            phone: p.phone || undefined,
+            address: p.address || undefined,
+            academicYear: proj.academic_year || undefined,
+          },
+          verifiedAt: new Date().toISOString(),
+        };
+
+        return {
+          success: true,
+          profile,
+          rawStatus: "active",
+        };
+      }
+
       return {
         success: false,
         error: "RECORD_NOT_FOUND",

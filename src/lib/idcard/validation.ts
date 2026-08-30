@@ -39,7 +39,7 @@ export function sanitizeStudentId(val?: string | null): string {
 }
 
 /**
- * Generates structured, professional payload for ID card QR code
+ * Generates official Digital ID Verification URL for QR code
  */
 export function getQrCodePayload(
   person: {
@@ -54,25 +54,15 @@ export function getQrCodePayload(
   schoolName?: string
 ): string {
   const cleanId = sanitizeStudentId(person.student_id);
-  const classSec = [person.class, person.section ? `Sec ${person.section}` : null]
-    .filter(Boolean)
-    .join(' ');
-
-  const parts = [
-    schoolName ? `School: ${schoolName}` : '',
-    person.name ? `Name: ${person.name}` : '',
-    cleanId ? `ID: ${cleanId}` : '',
-    classSec ? `Class: ${classSec}` : '',
-    person.roll_number ? `Roll: ${person.roll_number}` : '',
-    person.blood_group ? `Blood: ${person.blood_group}` : '',
-    person.phone ? `Emergency: ${person.phone}` : '',
-  ].filter(Boolean);
-
-  if (parts.length >= 2) {
-    return parts.join('\n');
+  if (cleanId) {
+    const origin =
+      typeof window !== 'undefined' && window.location.origin
+        ? window.location.origin
+        : 'https://palakenterprises.com';
+    return `${origin}/verify/${encodeURIComponent(cleanId)}`;
   }
 
-  return cleanId || person.name || 'STUDENT';
+  return person.name || 'STUDENT';
 }
 
 /**
