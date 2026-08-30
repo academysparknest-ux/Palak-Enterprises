@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { normalizeDate, normalizeBloodGroup, normalizePhone, sanitizeStudentId } from './validation';
 import type { CsvValidationRow, IdCardPerson, IdCardTemplate, TemplateFieldSchema, TemplateLayout } from './types';
-import { extractTemplateFieldSchema } from './templateFieldSchema';
+import { extractTemplateFieldSchema, resolveCanonicalStudentKey, CANONICAL_DISPLAY_LABELS } from './templateFieldSchema';
 
 export interface ParseCsvResult {
   rows: CsvValidationRow[];
@@ -548,14 +548,21 @@ export function getTemplateSampleData(
     ],
   };
 
-  const headers = relevantItems.map((item) => item.label);
+  const headers = relevantItems.map((item) => {
+    const canon = resolveCanonicalStudentKey(item.key, item.label);
+    return CANONICAL_DISPLAY_LABELS[canon] || item.label;
+  });
+
   const rows: string[][] = [0, 1, 2].map((studentIndex) => {
     return relevantItems.map((item) => {
-      const sampleVals = SAMPLE_STUDENT_VALUES[item.key] || [
-        `Sample ${item.label} 1`,
-        `Sample ${item.label} 2`,
-        `Sample ${item.label} 3`,
-      ];
+      const canon = resolveCanonicalStudentKey(item.key, item.label);
+      const sampleVals =
+        SAMPLE_STUDENT_VALUES[canon] ||
+        SAMPLE_STUDENT_VALUES[item.key] || [
+          `Sample ${item.label} 1`,
+          `Sample ${item.label} 2`,
+          `Sample ${item.label} 3`,
+        ];
       return sampleVals[studentIndex] || `Sample ${studentIndex + 1}`;
     });
   });

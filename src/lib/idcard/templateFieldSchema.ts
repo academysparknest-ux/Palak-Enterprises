@@ -435,6 +435,46 @@ export function extractTemplateFieldSchema(
 }
 
 /**
+ * Resolves any field key, slug, or label into its standard canonical student key
+ */
+export function resolveCanonicalStudentKey(key: string, label?: string): string {
+  const norm = (key || label || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (norm.includes('student_id') || norm.includes('admission') || norm.includes('scholar') || norm === 'id' || norm === 'id_no' || norm === 'roll_id' || norm === 'card_no') return 'student_id';
+  if (norm.includes('student_name') || norm.includes('full_name') || norm === 'name' || norm === 'student' || norm === 'studentname') return 'student_name';
+  if (norm.includes('class') || norm.includes('grade') || norm.includes('standard') || norm === 'std' || norm.includes('course')) return 'class';
+  if (norm.includes('section') || norm === 'sec' || norm.includes('division') || norm === 'div') return 'section';
+  if (norm.includes('roll') || norm === 'r_no' || norm === 'rno') return 'roll_number';
+  if (norm.includes('birth') || norm.includes('dob') || norm.includes('bday') || norm === 'd_o_b') return 'date_of_birth';
+  if (norm.includes('blood')) return 'blood_group';
+  if (norm.includes('batch') || norm.includes('academic_year') || norm.includes('session')) return 'batch';
+  if (norm.includes('father') || norm.includes('guardian') || norm.includes('parent')) return 'father_name';
+  if (norm.includes('mother')) return 'mother_name';
+  if (norm.includes('emergency')) return 'emergency_no';
+  if (norm.includes('phone') || norm.includes('mobile') || norm.includes('contact') || norm.includes('tel')) return 'phone';
+  if (norm.includes('address') || norm.includes('location') || norm.includes('city') || norm.includes('residence')) return 'address';
+  return norm;
+}
+
+export const CANONICAL_DISPLAY_LABELS: Record<string, string> = {
+  student_id: 'Student ID',
+  student_name: 'Student Name',
+  name: 'Student Name',
+  class: 'Class',
+  section: 'Section',
+  roll_number: 'Roll Number',
+  date_of_birth: 'Date of Birth',
+  blood_group: 'Blood Group',
+  batch: 'Batch',
+  father_name: "Father's Name",
+  mother_name: "Mother's Name",
+  parent_info: 'Parent Info',
+  phone: 'Phone',
+  emergency_no: 'Emergency No',
+  emergency_number: 'Emergency No',
+  address: 'Address',
+};
+
+/**
  * Standard logical ordering for student ID card import and data fields:
  * Student ID first, then Student Name, followed by Class, Section, Roll No, etc.
  */
@@ -459,11 +499,11 @@ export const STANDARD_STUDENT_FIELD_ORDER: string[] = [
 
 export function sortStudentFieldsByStandardOrder(items: TemplateFieldSchemaItem[]): TemplateFieldSchemaItem[] {
   return [...items].sort((a, b) => {
-    const keyA = a.key.toLowerCase();
-    const keyB = b.key.toLowerCase();
+    const canonA = resolveCanonicalStudentKey(a.key, a.label);
+    const canonB = resolveCanonicalStudentKey(b.key, b.label);
 
-    let indexA = STANDARD_STUDENT_FIELD_ORDER.indexOf(keyA);
-    let indexB = STANDARD_STUDENT_FIELD_ORDER.indexOf(keyB);
+    let indexA = STANDARD_STUDENT_FIELD_ORDER.indexOf(canonA);
+    let indexB = STANDARD_STUDENT_FIELD_ORDER.indexOf(canonB);
 
     if (indexA === -1) indexA = 999;
     if (indexB === -1) indexB = 999;
