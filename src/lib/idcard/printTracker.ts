@@ -88,7 +88,8 @@ export function recordPrintSuccess(
   person: IdCardPerson,
   generationId?: string,
   templateName?: string,
-  printedBy?: string
+  printedBy?: string,
+  sessionId?: string
 ): PrintHistoryEntry {
   const history = getPrintHistory(projectId);
   const personHistory = history.filter((e) => e.person_id === person.id && e.status === 'SUCCESS');
@@ -101,6 +102,7 @@ export function recordPrintSuccess(
     student_id: person.student_id,
     generation_id: generationId,
     template_name: templateName,
+    session_id: sessionId,
     print_number: nextPrintNumber,
     status: 'SUCCESS',
     printed_by: printedBy || 'Admin',
@@ -117,7 +119,8 @@ export function recordPrintFailure(
   person: IdCardPerson,
   errorNotes?: string,
   generationId?: string,
-  printedBy?: string
+  printedBy?: string,
+  sessionId?: string
 ): PrintHistoryEntry {
   const history = getPrintHistory(projectId);
   const personHistory = history.filter((e) => e.person_id === person.id && e.status === 'SUCCESS');
@@ -128,6 +131,7 @@ export function recordPrintFailure(
     person_id: person.id,
     student_id: person.student_id,
     generation_id: generationId,
+    session_id: sessionId,
     print_number: personHistory.length,
     status: 'FAILED',
     notes: errorNotes || 'Print operation failed or was cancelled.',

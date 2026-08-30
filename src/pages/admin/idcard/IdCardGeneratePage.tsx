@@ -37,6 +37,21 @@ import { BatchValidationConfirmModal } from '../../../components/idcard/BatchVal
 import { StudentMissingInfoModal } from '../../../components/idcard/StudentMissingInfoModal'
 import { StudentPrintHistoryModal } from '../../../components/idcard/StudentPrintHistoryModal'
 import { ReprintRequestModal } from '../../../components/idcard/ReprintRequestModal'
+import { PrePrintReviewModal } from '../../../components/idcard/PrePrintReviewModal'
+import { LivePrintQueueModal } from '../../../components/idcard/LivePrintQueueModal'
+import { InterruptedSessionModal } from '../../../components/idcard/InterruptedSessionModal'
+import { PrintSessionsHistoryModal } from '../../../components/idcard/PrintSessionsHistoryModal'
+import {
+  createPrintSession,
+  recordSessionCompletion,
+  getActivePrintSession,
+  handleInterruptedPrintSession,
+  isStudentPrintLocked,
+  verifyStudentCardIntegrity,
+  generatePrintSessionId,
+  getProjectPrintSessions,
+  type PrintSession,
+} from '../../../lib/idcard/printSessionManager'
 import { Modal } from '../../../components/ui/Modal'
 import { useScrollLock } from '../../../hooks/useScrollLock'
 import {
@@ -694,6 +709,26 @@ export default function IdCardGeneratePage() {
   const [selectedPersonForReprint, setSelectedPersonForReprint] = useState<IdCardPerson | null>(null)
   const [duplicateWarningPerson, setDuplicateWarningPerson] = useState<IdCardPerson | null>(null)
 
+  // Print Session States
+  const [activeSession, setActiveSession] = useState<PrintSession | null>(null)
+  const [showPrePrintReview, setShowPrePrintReview] = useState(false)
+  const [prePrintReviewSessionId, setPrePrintReviewSessionId] = useState('')
+  const [prePrintOrderedPersons, setPrePrintOrderedPersons] = useState<IdCardPerson[]>([])
+  const [showLiveQueueModal, setShowLiveQueueModal] = useState(false)
+  const [isSessionPrinting, setIsSessionPrinting] = useState(false)
+  const [showInterruptedModal, setShowInterruptedModal] = useState(false)
+  const [interruptedSession, setInterruptedSession] = useState<PrintSession | null>(null)
+  const [showSessionHistoryModal, setShowSessionHistoryModal] = useState(false)
+
+  // Detect previous interrupted session on mount
+  useEffect(() => {
+    const interrupted = getActivePrintSession(project.id)
+    if (interrupted && (interrupted.status === 'INTERRUPTED' || interrupted.status === 'IN_PROGRESS')) {
+      setInterruptedSession(interrupted)
+      setShowInterruptedModal(true)
+    }
+  }, [project.id])
+
   const imageCacheRef = useRef(new CardImageCache())
   const isMountedRef = useRef(true)
 
@@ -1196,7 +1231,7 @@ export default function IdCardGeneratePage() {
     }
   }, [])
 
-  // ── Safe Batch Print ───────────────────────────────────────
+  // ── Safe Batch Print (Pre-Flight Review & Session Safety) ──
   function handleRequestPrint(targets: IdCardPerson[]) {
     if (!layout || !template || cardImages.size === 0) return
 
@@ -1206,6 +1241,19 @@ export default function IdCardGeneratePage() {
     for (const p of targets) {
       const statusInfo = studentStatusMap.get(p.id)
       const gen = latestGenerationFor(p.id)
+
+      // Concurrency Lock check
+      if (isStudentPrintLocked(project.id, p.id)) {
+        skipped.push({ person: p, reason: 'Currently locked by another active print session' })
+        continue
+      }
+
+      // Card Version & Data Integrity check
+      const integrity = verifyStudentCardIntegrity(p, template, gen)
+      if (!integrity.valid) {
+        skipped.push({ person: p, reason: integrity.detail || 'Card data changed / regeneration required' })
+        continue
+      }
 
       if (!gen || gen.status !== 'SUCCESS') {
         skipped.push({ person: p, reason: 'Card not generated yet' })
@@ -1226,7 +1274,7 @@ export default function IdCardGeneratePage() {
       return
     }
 
-    if (skipped.length > 0) {
+    if (skipped.length > 0 && printable.length === 0) {
       setBatchModalConfig({
         isOpen: true,
         mode: 'print',
@@ -1236,11 +1284,56 @@ export default function IdCardGeneratePage() {
       return
     }
 
-    executePrint(printable)
+    // Sort targets according to current printOrder mode
+    const ordered = getStudentsInPrintOrder(targets, printOrder, filteredAndSortedPersons, studentStatusMap)
+    const existingSessions = getProjectPrintSessions(project.id)
+    const nextSessionId = generatePrintSessionId(existingSessions.length)
+
+    setPrePrintReviewSessionId(nextSessionId)
+    setPrePrintOrderedPersons(ordered)
+    setShowPrePrintReview(true)
+  }
+
+  // ── Start Print Session from Review Screen ─────────────────
+  function handleStartPrintSession() {
+    if (!template || prePrintOrderedPersons.length === 0) return
+
+    const printableOnly = prePrintOrderedPersons.filter((p) => {
+      const info = studentStatusMap.get(p.id)
+      return info?.status === 'READY_TO_PRINT' || info?.status === 'REPRINT_REQUIRED' || info?.status === 'PRINT_FAILED'
+    })
+
+    if (printableOnly.length === 0) {
+      alert('No cards are in a ready state to print.')
+      setShowPrePrintReview(false)
+      return
+    }
+
+    const { session, lockError } = createPrintSession({
+      projectId: project.id,
+      template,
+      operator: 'Admin',
+      printOrder,
+      orderedPersons: printableOnly,
+      generations,
+    })
+
+    if (lockError || !session) {
+      alert(lockError || 'Failed to initialize print session locks.')
+      setShowPrePrintReview(false)
+      return
+    }
+
+    setActiveSession(session)
+    setShowPrePrintReview(false)
+    setShowLiveQueueModal(true)
+    setIsSessionPrinting(true)
+
+    executePrint(printableOnly, session.sessionId)
   }
 
   // ── Browser Print Execution ────────────────────────────────
-  function executePrint(targetsToPrint: IdCardPerson[]) {
+  function executePrint(targetsToPrint: IdCardPerson[], _currentSessionId?: string) {
     if (!layout || !template || targetsToPrint.length === 0) return
 
     const targetIds = new Set(targetsToPrint.map((p) => p.id))
@@ -1283,6 +1376,7 @@ export default function IdCardGeneratePage() {
 
     if (!pagesHtml.trim()) {
       alert('No valid images found to print for the selected students.')
+      setIsSessionPrinting(false)
       return
     }
 
@@ -1325,6 +1419,7 @@ export default function IdCardGeneratePage() {
     const win = window.open('', '_blank')
     if (!win) {
       alert('Pop-up blocked. Please allow pop-ups for this site and try again.')
+      setIsSessionPrinting(false)
       return
     }
     win.document.write(html)
@@ -1337,6 +1432,7 @@ export default function IdCardGeneratePage() {
     function onAllLoaded() {
       win!.focus()
       win!.print()
+      setIsSessionPrinting(false)
       if (printableGenIds.length > 0) {
         setPendingPrintGenIds(printableGenIds)
         setPendingPrintPersons(targetsToPrint)
@@ -1347,6 +1443,7 @@ export default function IdCardGeneratePage() {
     if (total === 0) {
       win.close()
       alert('No valid card renders found to print.')
+      setIsSessionPrinting(false)
       return
     }
 
@@ -1365,10 +1462,26 @@ export default function IdCardGeneratePage() {
   async function confirmPrintedSuccess() {
     try {
       await markGenerationsAsPrinted(pendingPrintGenIds)
-      for (const p of pendingPrintPersons) {
-        const gen = latestGenerationFor(p.id)
-        recordPrintSuccess(project.id, p, gen?.id, template?.name)
+
+      if (activeSession) {
+        const results = pendingPrintPersons.map((p) => ({
+          personId: p.id,
+          status: 'PRINTED' as const,
+        }))
+        const updated = recordSessionCompletion({
+          sessionId: activeSession.sessionId,
+          projectId: project.id,
+          results,
+          templateName: template?.name,
+        })
+        setActiveSession(updated)
+      } else {
+        for (const p of pendingPrintPersons) {
+          const gen = latestGenerationFor(p.id)
+          recordPrintSuccess(project.id, p, gen?.id, template?.name)
+        }
       }
+
       const gens = await getIdCardGenerations(project.id)
       setGenerations(gens)
     } catch {
@@ -1381,10 +1494,26 @@ export default function IdCardGeneratePage() {
   }
 
   function confirmPrintedFailed() {
-    for (const p of pendingPrintPersons) {
-      const gen = latestGenerationFor(p.id)
-      recordPrintFailure(project.id, p, 'User flagged print operation as failed / misprinted.', gen?.id)
+    if (activeSession) {
+      const results = pendingPrintPersons.map((p) => ({
+        personId: p.id,
+        status: 'FAILED' as const,
+        failureReason: 'Physical print failed or was cancelled by user.',
+      }))
+      const updated = recordSessionCompletion({
+        sessionId: activeSession.sessionId,
+        projectId: project.id,
+        results,
+        templateName: template?.name,
+      })
+      setActiveSession(updated)
+    } else {
+      for (const p of pendingPrintPersons) {
+        const gen = latestGenerationFor(p.id)
+        recordPrintFailure(project.id, p, 'User flagged print operation as failed / misprinted.', gen?.id)
+      }
     }
+
     setShowPrintConfirm(false)
     setPendingPrintGenIds([])
     setPendingPrintPersons([])
@@ -1392,9 +1521,48 @@ export default function IdCardGeneratePage() {
   }
 
   function cancelPrintConfirm() {
+    if (activeSession) {
+      const results = pendingPrintPersons.map((p) => ({
+        personId: p.id,
+        status: 'UNCONFIRMED' as const,
+      }))
+      const updated = recordSessionCompletion({
+        sessionId: activeSession.sessionId,
+        projectId: project.id,
+        results,
+        templateName: template?.name,
+      })
+      setActiveSession(updated)
+    }
     setShowPrintConfirm(false)
     setPendingPrintGenIds([])
     setPendingPrintPersons([])
+  }
+
+  // ── Retry Failed Session Cards ─────────────────────────────
+  function handleRetryFailedSessionItems(failedPersonIds: string[]) {
+    const targets = persons.filter((p) => failedPersonIds.includes(p.id))
+    if (targets.length === 0) return
+    setShowLiveQueueModal(false)
+    handleRequestPrint(targets)
+  }
+
+  // ── Interrupted Session Handlers ───────────────────────────
+  function handleContinueInterruptedSession(session: PrintSession) {
+    setShowInterruptedModal(false)
+    const unconfirmedIds = new Set(
+      session.items.filter((i) => i.status === 'UNCONFIRMED' || i.status === 'QUEUED' || i.status === 'PRINTING').map((i) => i.personId)
+    )
+    const targets = persons.filter((p) => unconfirmedIds.has(p.id))
+    if (targets.length > 0) {
+      handleRequestPrint(targets)
+    }
+  }
+
+  function handleCancelInterruptedSession(session: PrintSession) {
+    handleInterruptedPrintSession(project.id, session.sessionId)
+    setShowInterruptedModal(false)
+    setInterruptedSession(null)
   }
 
   // ── PDF Download ───────────────────────────────────────────
@@ -1544,6 +1712,15 @@ export default function IdCardGeneratePage() {
             title="Export currently filtered and sorted records to Excel spreadsheet"
           >
             <FileSpreadsheet size={14} /> Export Current View
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowSessionHistoryModal(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 cursor-pointer shadow-2xs"
+            title="View previous print sessions and physical print audit trail"
+          >
+            <History size={14} /> Print Sessions
           </button>
         </div>
 
@@ -2439,6 +2616,61 @@ export default function IdCardGeneratePage() {
           onConfirmSuccess={confirmPrintedSuccess}
           onConfirmFailed={confirmPrintedFailed}
           onDismiss={cancelPrintConfirm}
+        />
+      )}
+
+      {showPrePrintReview && (
+        <PrePrintReviewModal
+          isOpen={showPrePrintReview}
+          onClose={() => setShowPrePrintReview(false)}
+          onConfirmStart={handleStartPrintSession}
+          sessionId={prePrintReviewSessionId}
+          template={template}
+          printOrder={printOrder}
+          orderedPersons={prePrintOrderedPersons}
+          statusMap={studentStatusMap}
+          operator="Admin"
+        />
+      )}
+
+      {showLiveQueueModal && (
+        <LivePrintQueueModal
+          isOpen={showLiveQueueModal}
+          onClose={() => setShowLiveQueueModal(false)}
+          session={activeSession}
+          isPrinting={isSessionPrinting}
+          onRetryFailed={handleRetryFailedSessionItems}
+          onConfirmComplete={() => {
+            setShowLiveQueueModal(false)
+            load()
+          }}
+        />
+      )}
+
+      {showInterruptedModal && (
+        <InterruptedSessionModal
+          isOpen={showInterruptedModal}
+          onClose={() => setShowInterruptedModal(false)}
+          session={interruptedSession}
+          onContinuePrinting={handleContinueInterruptedSession}
+          onCancelRemaining={handleCancelInterruptedSession}
+          onViewSessionDetails={(s) => {
+            setShowInterruptedModal(false)
+            setActiveSession(s)
+            setShowLiveQueueModal(true)
+          }}
+        />
+      )}
+
+      {showSessionHistoryModal && (
+        <PrintSessionsHistoryModal
+          isOpen={showSessionHistoryModal}
+          onClose={() => setShowSessionHistoryModal(false)}
+          projectId={project.id}
+          onSelectSessionForView={(s) => {
+            setActiveSession(s)
+            setShowLiveQueueModal(true)
+          }}
         />
       )}
     </div>

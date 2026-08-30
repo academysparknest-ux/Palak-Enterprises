@@ -217,6 +217,7 @@ export interface PrintHistoryEntry {
   generation_id?: string;
   template_id?: string;
   template_name?: string;
+  session_id?: string;
   print_number: number;
   status: 'SUCCESS' | 'FAILED' | 'REPRINT_REQUESTED';
   reprint_reason?: ReprintReason | string;
