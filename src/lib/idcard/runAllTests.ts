@@ -26,6 +26,8 @@ const testFiles = [
   'src/lib/idcard/templatePresets.test.ts',
   'src/lib/idcard/logoUpload.test.ts',
   'src/lib/idcard/masterDataArchitecture.test.ts',
+  'src/lib/idcard/idCardStatusEngine.test.ts',
+  'src/lib/idcard/studentSort.test.ts',
 ];
 
 console.log('╔═══════════════════════════════════════════════════════════════╗');

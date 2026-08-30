@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { useOutletContext } from 'react-router-dom'
 import {
   Loader2, Printer, Download, Eye, CheckCircle2, XCircle, Settings2,
-  ChevronLeft, ChevronRight, X, Scissors,
+  ChevronLeft, ChevronRight, X, Scissors, AlertTriangle, RotateCcw, History,
+  Sparkles,
 } from 'lucide-react'
 import { getIdCardPersons, getIdCardTemplates, getIdCardGenerations, markGenerationsAsPrinted } from '../../../lib/idcard/database'
 import {
@@ -16,8 +17,20 @@ import {
 import { validateBatchBeforeGeneration } from '../../../lib/idcard/templateValidation'
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors'
 import { sanitizeStudentId } from '../../../lib/idcard/validation'
+import { extractTemplateFieldSchema } from '../../../lib/idcard/templateFieldSchema'
+import { computeStudentIdCardStatus, validateStudentForIdCard } from '../../../lib/idcard/statusEngine'
+import {
+  recordPrintSuccess,
+  recordPrintFailure,
+  getPrintStats,
+} from '../../../lib/idcard/printTracker'
 import { GenerationProgressBar } from '../../../components/idcard/GenerationProgress'
-import { ConfirmModal } from '../../../components/ui/Modal'
+import { IdCardStatusBadge } from '../../../components/idcard/IdCardStatusBadge'
+import { BatchValidationConfirmModal } from '../../../components/idcard/BatchValidationConfirmModal'
+import { StudentMissingInfoModal } from '../../../components/idcard/StudentMissingInfoModal'
+import { StudentPrintHistoryModal } from '../../../components/idcard/StudentPrintHistoryModal'
+import { ReprintRequestModal } from '../../../components/idcard/ReprintRequestModal'
+import { Modal, ConfirmModal } from '../../../components/ui/Modal'
 import { useScrollLock } from '../../../hooks/useScrollLock'
 import {
   calculatePrintLayout,
@@ -36,35 +49,75 @@ import {
   type Alignment,
 } from '../../../lib/idcard/printLayoutEngine'
 import { CardImageCache } from '../../../lib/idcard/imageCache'
-import type { IdCardProject, IdCardPerson, IdCardTemplate, IdCardGeneration } from '../../../lib/idcard/types'
-
-type ProjectContext = { project: IdCardProject }
-type PageState = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready' }
+import type {
+  IdCardProject,
+  IdCardPerson,
+  IdCardTemplate,
+  IdCardGeneration,
+  StudentIdCardStatusInfo,
+} from '../../../lib/idcard/types'
 
 // ────────────────────────────────────────────────────────────────
-// Print confirmation dialog
+// Print confirmation dialog with Success & Failure branches
 // ────────────────────────────────────────────────────────────────
 
 function PrintConfirmDialog({
   count,
-  onConfirm,
-  onCancel,
+  onConfirmSuccess,
+  onConfirmFailed,
+  onDismiss,
 }: {
   count: number
-  onConfirm: () => void
-  onCancel: () => void
+  onConfirmSuccess: () => void
+  onConfirmFailed: () => void
+  onDismiss: () => void
 }) {
   return (
-    <ConfirmModal
+    <Modal
       isOpen={true}
-      onClose={onCancel}
-      onConfirm={onConfirm}
-      title="Print Complete?"
-      message={`Did the ${count} ID card${count !== 1 ? 's' : ''} print successfully? Marking as printed will update their status.`}
-      confirmText="Yes, Mark as Printed"
-      cancelText="No, Keep Status"
-      isDestructive={false}
-    />
+      onClose={onDismiss}
+      title="Print Operation Complete?"
+      subtitle={`Verify physical print results for ${count} ID card${count !== 1 ? 's' : ''}`}
+      size="sm"
+      closeOnBackdropClick={false}
+      footer={
+        <div className="flex flex-col sm:flex-row gap-2 w-full justify-between items-center">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="w-full sm:w-auto px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer"
+          >
+            Decide Later
+          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={onConfirmFailed}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 cursor-pointer shadow-2xs"
+            >
+              <XCircle size={14} /> Print Failed
+            </button>
+            <button
+              type="button"
+              onClick={onConfirmSuccess}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-2xs"
+            >
+              <CheckCircle2 size={14} /> Yes, Mark Printed
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div className="space-y-3 text-xs text-slate-600">
+        <p>
+          Did the physical printer complete all <strong>{count} cards</strong> accurately without paper jams or alignment issues?
+        </p>
+        <div className="rounded-lg bg-slate-50 p-2.5 border border-slate-200 space-y-1 text-[11px]">
+          <p>• <strong>Yes, Mark Printed:</strong> Updates status to <strong>PRINTED</strong> and increments print count history.</p>
+          <p>• <strong>Print Failed:</strong> Marks status as <strong>PRINT FAILED</strong>, preserving retry actions for administrators.</p>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -120,10 +173,10 @@ function PrintPreviewModal({
   if (typeof document === 'undefined') return null
 
   return createPortal(
-    <div 
+    <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex flex-col bg-black/75 backdrop-blur-xs overflow-hidden touch-none" 
+      className="fixed inset-0 z-50 flex flex-col bg-black/75 backdrop-blur-xs overflow-hidden touch-none"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       {/* Header Bar */}
@@ -145,64 +198,66 @@ function PrintPreviewModal({
           <div className="flex items-center gap-1 text-xs text-slate-300">
             <button
               onClick={() => scrollToPage(Math.max(0, currentPage - 1))}
-              disabled={currentPage === 0}
+              disabled={currentPage <= 0}
               className="rounded p-1 hover:bg-white/10 disabled:opacity-30"
-              title="Previous sheet"
             >
               <ChevronLeft size={16} />
             </button>
-            <span>Sheet {currentPage + 1} of {totalPages}</span>
+            <span>
+              Page {currentPage + 1} of {totalPages}
+            </span>
             <button
               onClick={() => scrollToPage(Math.min(totalPages - 1, currentPage + 1))}
               disabled={currentPage >= totalPages - 1}
               className="rounded p-1 hover:bg-white/10 disabled:opacity-30"
-              title="Next sheet"
             >
               <ChevronRight size={16} />
             </button>
           </div>
-          <div className="mx-2 h-5 w-px bg-white/20" />
-          <button
-            onClick={onPrint}
-            className="flex items-center gap-1.5 rounded-md bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-900 hover:bg-slate-100 shadow-sm"
-          >
-            <Printer size={14} /> Print
-          </button>
+
+          <div className="h-4 w-px bg-white/20" />
+
           <button
             onClick={onDownloadPdf}
-            className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 shadow-sm"
+            className="flex items-center gap-1.5 rounded-md bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
           >
-            <Download size={14} /> PDF
+            <Download size={14} /> Download PDF
           </button>
-          <button onClick={onClose} className="rounded p-1 text-white/70 hover:bg-white/10 hover:text-white">
+          <button
+            onClick={onPrint}
+            className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+          >
+            <Printer size={14} /> Print Now
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+          >
             <X size={18} />
           </button>
         </div>
       </div>
 
-      {/* Scrollable pages */}
-      <div className="flex-1 overflow-y-auto bg-slate-800/60 p-6">
-        <div className="mx-auto flex flex-col items-center gap-8">
-          {layout.pages.map((page, idx) => (
-            <div key={idx} id={`preview-page-${idx}`} className="flex flex-col items-center">
-              {/* Page label */}
-              <div className="mb-2 flex w-full items-center justify-between text-xs text-slate-300" style={{ width: `${layout.paperWidthMm * screenScale}px` }}>
-                <span className="font-semibold text-slate-200">Sheet {idx + 1} of {totalPages}</span>
-                <span className="text-slate-400">{page.cards.length} card{page.cards.length !== 1 ? 's' : ''} on this sheet · {config.paperSize.toUpperCase()} {layout.orientation}</span>
+      {/* Pages Container */}
+      <div className="flex-1 overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto space-y-8" style={{ width: `${maxWidth}px` }}>
+          {layout.pages.map((page, pageIdx) => (
+            <div key={pageIdx} id={`preview-page-${pageIdx}`} className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-semibold text-slate-200">Sheet {pageIdx + 1} of {totalPages}</span>
+                <span>{page.cards.length} cards · {page.cards.filter((c) => c.side === 'front').length} front, {page.cards.filter((c) => c.side === 'back').length} back</span>
               </div>
-              {/* Physical paper sheet representation */}
+
               <div
-                className="relative bg-white shadow-2xl transition-all"
+                className="relative mx-auto bg-white shadow-2xl transition-all"
                 style={{
                   width: `${layout.paperWidthMm * screenScale}px`,
                   height: `${layout.paperHeightMm * screenScale}px`,
                 }}
               >
-                {/* Cards placed at exact physical millimeter positions */}
                 {page.cards.map((card, cardIdx) => {
                   const key = `${card.personId}:${card.side}`
                   const imageUrl = cardImages.get(key)
-
                   return (
                     <div
                       key={cardIdx}
@@ -276,7 +331,7 @@ function NumberField({
 }: {
   label: string
   value: number
-  onChange: (v: number) => void
+  onChange: (val: number) => void
   min?: number
   step?: number
   suffix?: string
@@ -284,16 +339,16 @@ function NumberField({
   return (
     <label className="block">
       <span className="text-[11px] font-medium text-slate-500">{label}</span>
-      <div className="mt-0.5 flex items-center">
+      <div className="mt-0.5 flex items-center rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus-within:border-blue-400">
         <input
           type="number"
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           min={min}
           step={step}
-          className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-800 focus:border-blue-400 focus:outline-none"
+          className="w-full bg-transparent text-xs focus:outline-none"
         />
-        {suffix && <span className="ml-1 text-[10px] text-slate-400">{suffix}</span>}
+        {suffix && <span className="text-[10px] text-slate-400">{suffix}</span>}
       </div>
     </label>
   )
@@ -454,40 +509,42 @@ function SettingsPanel({
 
             {/* Right column */}
             <div className="space-y-3">
-              {/* Print mode (only for double-sided templates) */}
-              {isDoubleSided && (
-                <div>
-                  <span className="text-[11px] font-medium text-slate-500">Print Mode</span>
-                  <div className="mt-1 space-y-1.5">
-                    {([
-                      { value: 'front-only', label: 'Front Only' },
-                      { value: 'front-back-together', label: 'Front + Back Together (Side by Side)' },
-                      { value: 'duplex', label: 'Duplex Sheets (Interleaved Pages)' },
-                    ] as const).map(({ value, label }) => (
-                      <label key={value} className="flex items-center gap-1.5 text-xs text-slate-700">
+              {/* Print Mode */}
+              <div>
+                <span className="text-[11px] font-medium text-slate-500">Print Mode</span>
+                <div className="mt-1 space-y-1.5">
+                  {([
+                    { value: 'front-only', label: 'Front only (Single-sided cards)' },
+                    { value: 'duplex', label: 'Duplex (Alternating Front / Back pages)' },
+                    { value: 'side-by-side', label: 'Side by Side (Front & Back adjacent on same sheet)' },
+                  ] as const).map(({ value, label }) => {
+                    const disabled = !isDoubleSided && value !== 'front-only'
+                    return (
+                      <label key={value} className={`flex items-center gap-2 text-xs ${disabled ? 'opacity-40' : 'text-slate-700'}`}>
                         <input
                           type="radio"
                           name="printMode"
                           value={value}
                           checked={config.printMode === value}
+                          disabled={disabled}
                           onChange={() => set('printMode', value as PrintMode)}
                           className="h-3.5 w-3.5"
                         />
                         {label}
                       </label>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
-              )}
+              </div>
 
-              {/* Duplex flip */}
+              {/* Duplex Flip */}
               {config.printMode === 'duplex' && (
                 <div>
-                  <span className="text-[11px] font-medium text-slate-500">Duplex Flip Direction</span>
+                  <span className="text-[11px] font-medium text-slate-500">Duplex Flip Edge</span>
                   <div className="mt-1 flex gap-3">
                     {([
-                      { value: 'long-edge', label: 'Flip on Long Edge' },
-                      { value: 'short-edge', label: 'Flip on Short Edge' },
+                      { value: 'long-edge', label: 'Long Edge (Standard)' },
+                      { value: 'short-edge', label: 'Short Edge (Top Bound)' },
                     ] as const).map(({ value, label }) => (
                       <label key={value} className="flex items-center gap-1 text-xs text-slate-700">
                         <input
@@ -505,47 +562,27 @@ function SettingsPanel({
                 </div>
               )}
 
-              {/* Cut guides */}
-              <label className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  checked={config.showCutGuides}
-                  onChange={(e) => set('showCutGuides', e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="flex items-center gap-1 text-xs font-medium text-slate-700">
-                  <Scissors size={13} />
-                  Show Cutting Guides (Dashed Lines)
-                </span>
-              </label>
+              {/* Checkboxes */}
+              <div className="space-y-1.5 pt-1">
+                <label className="flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={config.showCutGuides}
+                    onChange={(e) => set('showCutGuides', e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-slate-300"
+                  />
+                  Show dashed cutting guides around each card
+                </label>
+              </div>
 
-              {/* Calculated diagnostic summary */}
+              {/* Summary info */}
               {layout && (
-                <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-700">Live Layout Diagnostic</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-700">
-                    <span className="text-slate-500">Paper:</span>
-                    <span className="font-semibold text-slate-900">{config.paperSize.toUpperCase()} {layout.orientation}</span>
-                    <span className="text-slate-500">Paper Size:</span>
-                    <span className="font-medium">{layout.paperWidthMm} × {layout.paperHeightMm} mm</span>
-                    <span className="text-slate-500">Card:</span>
-                    <span className="font-medium">{layout.cardWidthMm} × {layout.cardHeightMm} mm</span>
-                    <span className="text-slate-500">Margins (T/B/L/R):</span>
-                    <span className="font-medium">{config.marginTopMm}/{config.marginBottomMm}/{config.marginLeftMm}/{config.marginRightMm} mm</span>
-                    <span className="text-slate-500">Gap (H/V):</span>
-                    <span className="font-medium">{config.gapHorizontalMm} / {config.gapVerticalMm} mm</span>
-                    <span className="text-slate-500">Card Orientation:</span>
-                    <span className="font-medium">{layout.cardOrientation}</span>
-                    <span className="text-slate-500">Columns:</span>
-                    <strong className="text-blue-700">{layout.columns}</strong>
-                    <span className="text-slate-500">Rows:</span>
-                    <strong className="text-blue-700">{layout.rows}</strong>
-                    <span className="text-slate-500">Cards / Sheet:</span>
-                    <strong className="text-emerald-700 font-bold text-sm">{layout.cardsPerPage}</strong>
-                    <span className="text-slate-500">Selected Cards:</span>
-                    <span className="font-medium">{selectedCount}</span>
-                    <span className="text-slate-500">Total Sheets:</span>
-                    <strong className="text-emerald-700 font-bold text-sm">{layout.totalSheets}</strong>
+                <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                  <div className="font-semibold text-slate-800">Physical Layout Summary</div>
+                  <div className="mt-1 space-y-0.5">
+                    <div>Grid: <strong>{layout.columns} cols × {layout.rows} rows</strong> ({layout.cardsPerPage} cards/sheet)</div>
+                    <div>Page Size: <strong>{layout.paperWidthMm} × {layout.paperHeightMm} mm</strong> ({layout.orientation})</div>
+                    <div>Cards to print: <strong>{selectedCount}</strong> → <strong>{layout.totalSheets} total sheet{layout.totalSheets !== 1 ? 's' : ''}</strong></div>
                   </div>
                 </div>
               )}
@@ -558,29 +595,12 @@ function SettingsPanel({
 }
 
 // ────────────────────────────────────────────────────────────────
-// Status badge
-// ────────────────────────────────────────────────────────────────
-
-function StatusBadge({ status, printedAt }: { status?: 'PENDING' | 'SUCCESS' | 'FAILED'; printedAt?: string | null }) {
-  if (!status) return <span className="text-xs text-slate-400">Not generated</span>
-  if (status === 'SUCCESS' && printedAt) {
-    return <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">PRINTED</span>
-  }
-  const styles = {
-    PENDING: 'bg-slate-100 text-slate-600',
-    SUCCESS: 'bg-emerald-100 text-emerald-700',
-    FAILED: 'bg-red-100 text-red-700',
-  }
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[status]}`}>{status}</span>
-}
-
-// ────────────────────────────────────────────────────────────────
-// Main generate page
+// Main Page Component
 // ────────────────────────────────────────────────────────────────
 
 export default function IdCardGeneratePage() {
-  const { project } = useOutletContext<ProjectContext>()
-  const [state, setState] = useState<PageState>({ kind: 'loading' })
+  const { project } = useOutletContext<{ project: IdCardProject }>()
+  const [state, setState] = useState<{ kind: 'loading' } | { kind: 'ready' } | { kind: 'error'; message: string }>({ kind: 'loading' })
   const [persons, setPersons] = useState<IdCardPerson[]>([])
   const [templates, setTemplates] = useState<IdCardTemplate[]>([])
   const [template, setTemplate] = useState<IdCardTemplate | null>(null)
@@ -593,8 +613,22 @@ export default function IdCardGeneratePage() {
   const [showPrintConfirm, setShowPrintConfirm] = useState(false)
   const [settingsExpanded, setSettingsExpanded] = useState(false)
   const [pendingPrintGenIds, setPendingPrintGenIds] = useState<string[]>([])
+  const [pendingPrintPersons, setPendingPrintPersons] = useState<IdCardPerson[]>([])
   const [cardImages, setCardImages] = useState<Map<string, string>>(new Map())
   const [loadingImages, setLoadingImages] = useState(false)
+
+  // Modals for batch validation, duplicate warnings, history, and reprints
+  const [batchModalConfig, setBatchModalConfig] = useState<{
+    isOpen: boolean;
+    mode: 'generate' | 'print';
+    readyPersons: IdCardPerson[];
+    skippedPersons: Array<{ person: IdCardPerson; reason: string }>;
+  } | null>(null);
+
+  const [selectedPersonForMissing, setSelectedPersonForMissing] = useState<IdCardPerson | null>(null);
+  const [selectedPersonForHistory, setSelectedPersonForHistory] = useState<IdCardPerson | null>(null);
+  const [selectedPersonForReprint, setSelectedPersonForReprint] = useState<IdCardPerson | null>(null);
+  const [duplicateWarningPerson, setDuplicateWarningPerson] = useState<IdCardPerson | null>(null);
 
   const imageCacheRef = useRef(new CardImageCache())
   const isMountedRef = useRef(true)
@@ -633,6 +667,8 @@ export default function IdCardGeneratePage() {
     }
     return printConfig
   }, [printConfig, isDoubleSided])
+
+  const fieldSchema = useMemo(() => extractTemplateFieldSchema(template?.layout), [template])
 
   // ── Data loading ──────────────────────────────────
   async function load() {
@@ -689,6 +725,22 @@ export default function IdCardGeneratePage() {
     return generations.find((g) => g.person_id === personId)
   }
 
+  // Status mapping for all students
+  const studentStatusMap = useMemo(() => {
+    const map = new Map<string, StudentIdCardStatusInfo>()
+    for (const person of persons) {
+      const latestGen = latestGenerationFor(person.id)
+      const info = computeStudentIdCardStatus({
+        person,
+        schema: fieldSchema,
+        template,
+        latestGen,
+      })
+      map.set(person.id, info)
+    }
+    return map
+  }, [persons, generations, fieldSchema, template])
+
   const selectedPersons = useMemo(() => persons.filter((p) => selected.has(p.id)), [persons, selected])
   const actionTargets = selectedPersons.length > 0 ? selectedPersons : persons
 
@@ -708,7 +760,6 @@ export default function IdCardGeneratePage() {
   }, [effectiveConfig, cardInputs, validation.valid])
 
   // ── Prepare Card Images (Front + Back) ─────────────
-  // Loads and caches high-res canvas renders of both front and back
   useEffect(() => {
     let active = true
     if (!template || actionTargets.length === 0) {
@@ -732,7 +783,7 @@ export default function IdCardGeneratePage() {
           )
           map.set(`${person.id}:front`, frontUrl)
 
-          // 2. Render actual BACK face (if template has back, or placeholder if missing)
+          // 2. Render actual BACK face
           if (isDoubleSided || effectiveConfig.printMode !== 'front-only') {
             const backUrl = await renderCardToDataUrl(
               person,
@@ -783,32 +834,53 @@ export default function IdCardGeneratePage() {
     }
   }
 
-  // ── Generation ────────────────────────────────────
-  async function handleGenerate(targets: IdCardPerson[]) {
-    if (!template || targets.length === 0) return;
+  // ── Safe Batch Generation Handler ─────────────────
+  function handleRequestGenerate(targets: IdCardPerson[]) {
+    if (!template || targets.length === 0) return
 
-    // Validate batch
-    const batchValidation = validateBatchBeforeGeneration(targets, template);
-    if (!batchValidation.valid) {
-      alert(`Cannot generate cards:\n\n• ${batchValidation.errors.join('\n• ')}`);
-      return;
-    }
-    if (batchValidation.warnings.length > 0) {
-      const proceed = confirm(`Notice before generation:\n\n• ${batchValidation.warnings.join('\n• ')}\n\nDo you want to proceed?`);
-      if (!proceed) return;
+    const ready: IdCardPerson[] = []
+    const skipped: Array<{ person: IdCardPerson; reason: string }> = []
+
+    for (const p of targets) {
+      const val = validateStudentForIdCard(p, fieldSchema, template)
+      if (val.ready) {
+        ready.push(p)
+      } else {
+        skipped.push({
+          person: p,
+          reason: `Missing: ${val.missingFields.join(', ')}`,
+        })
+      }
     }
 
-    setGenerating(true);
-    setProgress({ total: targets.length, completed: 0, succeeded: 0, failed: 0 });
+    if (skipped.length > 0) {
+      setBatchModalConfig({
+        isOpen: true,
+        mode: 'generate',
+        readyPersons: ready,
+        skippedPersons: skipped,
+      })
+      return
+    }
+
+    executeGeneration(ready)
+  }
+
+  async function executeGeneration(targets: IdCardPerson[]) {
+    if (!template || targets.length === 0) return
+
+    setGenerating(true)
+    setProgress({ total: targets.length, completed: 0, succeeded: 0, failed: 0 })
     try {
-      await generateCardsForPersons(targets, template, project.id, project.name, project.academic_year, setProgress);
+      await generateCardsForPersons(targets, template, project.id, project.name, project.academic_year, setProgress)
     } finally {
-      if (!isMountedRef.current) return;
-      setGenerating(false);
-      imageCacheRef.current.clear();
-      const gens = await getIdCardGenerations(project.id);
-      if (!isMountedRef.current) return;
-      setGenerations(gens);
+      if (!isMountedRef.current) return
+      setGenerating(false)
+      setBatchModalConfig(null)
+      imageCacheRef.current.clear()
+      const gens = await getIdCardGenerations(project.id)
+      if (!isMountedRef.current) return
+      setGenerations(gens)
     }
   }
 
@@ -818,12 +890,57 @@ export default function IdCardGeneratePage() {
     }
   }, [])
 
-  // ── Print (Browser) ───────────────────────────────
-  function handlePrint() {
+  // ── Safe Batch Print Handler ──────────────────────
+  function handleRequestPrint(targets: IdCardPerson[]) {
     if (!layout || !template || cardImages.size === 0) return
 
+    const printable: IdCardPerson[] = []
+    const skipped: Array<{ person: IdCardPerson; reason: string }> = []
+
+    for (const p of targets) {
+      const statusInfo = studentStatusMap.get(p.id)
+      const gen = latestGenerationFor(p.id)
+
+      if (!gen || gen.status !== 'SUCCESS') {
+        skipped.push({ person: p, reason: 'Card not generated yet' })
+      } else if (statusInfo?.status === 'PRINTED') {
+        skipped.push({
+          person: p,
+          reason: `Already printed ${statusInfo.printCount} time(s) (Reprint request needed)`,
+        })
+      } else if (statusInfo?.status === 'NOT_READY') {
+        skipped.push({ person: p, reason: 'Incomplete information' })
+      } else {
+        printable.push(p)
+      }
+    }
+
+    // If single target was already printed, trigger duplicate warning modal
+    if (targets.length === 1 && printable.length === 0 && skipped[0]?.reason.includes('Already printed')) {
+      setDuplicateWarningPerson(targets[0])
+      return
+    }
+
+    if (skipped.length > 0) {
+      setBatchModalConfig({
+        isOpen: true,
+        mode: 'print',
+        readyPersons: printable,
+        skippedPersons: skipped,
+      })
+      return
+    }
+
+    executePrint(printable)
+  }
+
+  // ── Print (Browser) ───────────────────────────────
+  function executePrint(targetsToPrint: IdCardPerson[]) {
+    if (!layout || !template || targetsToPrint.length === 0) return
+
+    const targetIds = new Set(targetsToPrint.map((p) => p.id))
     const printableGenIds: string[] = []
-    for (const p of actionTargets) {
+    for (const p of targetsToPrint) {
       const gen = latestGenerationFor(p.id)
       if (gen) printableGenIds.push(gen.id)
     }
@@ -837,6 +954,8 @@ export default function IdCardGeneratePage() {
     for (const page of layout.pages) {
       let cardsHtml = ''
       for (const card of page.cards) {
+        if (!targetIds.has(card.personId)) continue
+
         const key = `${card.personId}:${card.side}`
         const imageUrl = cardImages.get(key)
         if (!imageUrl) continue
@@ -851,7 +970,15 @@ export default function IdCardGeneratePage() {
           style="position:absolute; left:${card.xMm}mm; top:${card.yMm}mm; width:${layout.cardWidthMm}mm; height:${layout.cardHeightMm}mm; object-fit:fill; display:block; ${cutGuideStyle}"
         />`
       }
-      pagesHtml += `<div class="print-sheet" style="position:relative; width:${paperW}mm; height:${paperH}mm; page-break-after:always; break-after:page; overflow:hidden; background:#fff;">${cardsHtml}</div>`
+
+      if (cardsHtml.trim()) {
+        pagesHtml += `<div class="print-sheet" style="position:relative; width:${paperW}mm; height:${paperH}mm; page-break-after:always; break-after:page; overflow:hidden; background:#fff;">${cardsHtml}</div>`
+      }
+    }
+
+    if (!pagesHtml.trim()) {
+      alert('No valid images found to print for the selected students.')
+      return
     }
 
     const html = `<!DOCTYPE html>
@@ -907,13 +1034,14 @@ export default function IdCardGeneratePage() {
       win!.print()
       if (printableGenIds.length > 0) {
         setPendingPrintGenIds(printableGenIds)
+        setPendingPrintPersons(targetsToPrint)
         setShowPrintConfirm(true)
       }
     }
 
     if (total === 0) {
       win.close()
-      alert('No valid images found to print. Please ensure cards are generated and images are loaded.')
+      alert('No valid card renders found to print.')
       return
     }
 
@@ -928,10 +1056,14 @@ export default function IdCardGeneratePage() {
     })
   }
 
-  // ── Print confirmation ────────────────────────────
-  async function confirmPrinted() {
+  // ── Print confirmation: Success & Failure Handling ──
+  async function confirmPrintedSuccess() {
     try {
       await markGenerationsAsPrinted(pendingPrintGenIds)
+      for (const p of pendingPrintPersons) {
+        const gen = latestGenerationFor(p.id)
+        recordPrintSuccess(project.id, p, gen?.id, template?.name)
+      }
       const gens = await getIdCardGenerations(project.id)
       setGenerations(gens)
     } catch {
@@ -939,12 +1071,25 @@ export default function IdCardGeneratePage() {
     } finally {
       setShowPrintConfirm(false)
       setPendingPrintGenIds([])
+      setPendingPrintPersons([])
     }
+  }
+
+  function confirmPrintedFailed() {
+    for (const p of pendingPrintPersons) {
+      const gen = latestGenerationFor(p.id)
+      recordPrintFailure(project.id, p, 'User flagged print operation as failed / misprinted.', gen?.id)
+    }
+    setShowPrintConfirm(false)
+    setPendingPrintGenIds([])
+    setPendingPrintPersons([])
+    load()
   }
 
   function cancelPrintConfirm() {
     setShowPrintConfirm(false)
     setPendingPrintGenIds([])
+    setPendingPrintPersons([])
   }
 
   // ── PDF download ──────────────────────────────────
@@ -974,7 +1119,7 @@ export default function IdCardGeneratePage() {
   if (state.kind === 'loading') {
     return (
       <div className="flex h-40 items-center justify-center text-slate-400">
-        <Loader2 className="mr-2 animate-spin" size={18} /> Loading...
+        <Loader2 className="mr-2 animate-spin" size={18} /> Loading card studio...
       </div>
     )
   }
@@ -1000,18 +1145,18 @@ export default function IdCardGeneratePage() {
       {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-2">
         <button
-          onClick={() => handleGenerate(selectedPersons)}
+          onClick={() => handleRequestGenerate(selectedPersons)}
           disabled={generating || selectedPersons.length === 0}
-          className="rounded-md border border-slate-200 px-3.5 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+          className="rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-40 cursor-pointer shadow-2xs"
         >
           Generate Selected ({selectedPersons.length})
         </button>
         <button
-          onClick={() => handleGenerate(persons)}
+          onClick={() => handleRequestGenerate(persons)}
           disabled={generating || persons.length === 0}
-          className="rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 cursor-pointer shadow-2xs"
         >
-          Generate All ({persons.length})
+          <Sparkles size={14} /> Generate All Ready Cards ({persons.length})
         </button>
 
         <div className="mx-1 h-5 w-px bg-slate-200" />
@@ -1019,23 +1164,23 @@ export default function IdCardGeneratePage() {
         <button
           onClick={() => setShowPreview(true)}
           disabled={!validation.valid || loadingImages || cardImages.size === 0}
-          className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3.5 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-40 cursor-pointer shadow-2xs"
         >
-          <Eye size={15} /> {loadingImages ? 'Preparing...' : 'Preview'}
+          <Eye size={14} /> {loadingImages ? 'Preparing...' : 'Preview'}
         </button>
         <button
-          onClick={handlePrint}
+          onClick={() => handleRequestPrint(actionTargets)}
           disabled={!validation.valid || loadingImages || cardImages.size === 0}
-          className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3.5 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 cursor-pointer shadow-2xs"
         >
-          <Printer size={15} /> Print
+          <Printer size={14} /> Print All Ready Cards
         </button>
         <button
           onClick={handleDownloadPdf}
           disabled={buildingPdf || !validation.valid || loadingImages || cardImages.size === 0}
-          className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3.5 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-40 cursor-pointer shadow-2xs"
         >
-          <Download size={15} /> {buildingPdf ? 'Building PDF...' : 'Download PDF'}
+          <Download size={14} /> {buildingPdf ? 'Building PDF...' : 'Download PDF'}
         </button>
 
         {templates.length > 1 && (
@@ -1063,7 +1208,7 @@ export default function IdCardGeneratePage() {
         <button
           onClick={handlePrintCalibration}
           title="Print physical measurement test page with 10mm rulers and duplex alignment boxes"
-          className="flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+          className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 cursor-pointer shadow-2xs"
         >
           <Scissors size={14} /> Print Calibration Test
         </button>
@@ -1108,47 +1253,150 @@ export default function IdCardGeneratePage() {
       </div>
 
       {/* Students table */}
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50 text-left text-slate-600 border-b border-slate-200 font-semibold">
             <tr>
-              <th className="w-10 px-3 py-2">
+              <th className="w-9 px-3 py-2.5">
                 <input
                   type="checkbox"
                   checked={selected.size === persons.length && persons.length > 0}
                   onChange={() => (selected.size === persons.length ? deselectAll() : selectAll())}
+                  className="rounded border-slate-300 text-slate-900 cursor-pointer"
                 />
               </th>
-              <th className="px-3 py-2 font-medium">Name</th>
-              <th className="px-3 py-2 font-medium">Student ID</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Actions</th>
+              <th className="px-3 py-2.5 font-semibold text-slate-800">Student & ID</th>
+              <th className="px-3 py-2.5 font-semibold text-slate-700">Readiness & Print Status</th>
+              <th className="px-3 py-2.5 font-semibold text-slate-700">Print Stats</th>
+              <th className="px-3 py-2.5 font-semibold text-slate-700 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {persons.map((person) => {
               const gen = latestGenerationFor(person.id)
+              const statusInfo = studentStatusMap.get(person.id) || computeStudentIdCardStatus({ person, schema: fieldSchema, template, latestGen: gen })
+
               return (
-                <tr key={person.id} className="hover:bg-slate-50">
-                  <td className="px-3 py-2">
-                    <input type="checkbox" checked={selected.has(person.id)} onChange={() => toggle(person.id)} />
+                <tr key={person.id} className="hover:bg-slate-50/80 transition">
+                  <td className="px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(person.id)}
+                      onChange={() => toggle(person.id)}
+                      className="rounded border-slate-300 text-slate-900 cursor-pointer"
+                    />
                   </td>
-                  <td className="px-3 py-2 font-medium text-slate-900">{person.name}</td>
-                  <td className="px-3 py-2 text-slate-600">{sanitizeStudentId(person.student_id)}</td>
-                  <td className="px-3 py-2">
-                    <StatusBadge status={gen?.status} printedAt={gen?.printed_at} />
+
+                  {/* Student */}
+                  <td className="px-3 py-2.5 font-medium text-slate-900">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                        {person.photo_url ? (
+                          <img src={person.photo_url} alt={person.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-[9px] text-amber-600 font-bold">No Pic</span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">{person.name}</p>
+                        <p className="font-mono text-[10px] text-slate-500">{sanitizeStudentId(person.student_id)}</p>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-3 py-2">
-                    {gen?.status === 'SUCCESS' && gen.file_url && (
-                      <a
-                        href={gen.file_url}
-                        download={`${sanitizeStudentId(person.student_id)}.png`}
-                        className="flex items-center gap-1 text-slate-500 hover:text-slate-800"
-                      >
-                        <Download size={14} /> Download
-                      </a>
+
+                  {/* Status Badge */}
+                  <td className="px-3 py-2.5">
+                    <IdCardStatusBadge
+                      statusInfo={statusInfo}
+                      onMissingClick={() => setSelectedPersonForMissing(person)}
+                      onHistoryClick={() => setSelectedPersonForHistory(person)}
+                      onReprintClick={() => setSelectedPersonForReprint(person)}
+                    />
+                  </td>
+
+                  {/* Print Stats */}
+                  <td className="px-3 py-2.5 text-slate-600">
+                    {statusInfo.printCount > 0 ? (
+                      <div className="text-[11px]">
+                        <span className="font-semibold text-slate-800">Print Count: {statusInfo.printCount}</span>
+                        {statusInfo.lastPrintedAt && (
+                          <p className="text-[10px] text-slate-400">
+                            Last: {new Date(statusInfo.lastPrintedAt).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 text-[11px]">Not Printed Yet</span>
                     )}
-                    {gen?.status === 'FAILED' && <span className="text-xs text-red-500">{gen.error_message}</span>}
+                  </td>
+
+                  {/* Actions */}
+                  <td className="px-3 py-2.5 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {statusInfo.canGenerate && (
+                        <button
+                          type="button"
+                          onClick={() => executeGeneration([person])}
+                          title="Generate card"
+                          className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-200 cursor-pointer shadow-2xs"
+                        >
+                          <Sparkles size={11} /> {gen?.status === 'SUCCESS' ? 'Regen' : 'Generate'}
+                        </button>
+                      )}
+
+                      {statusInfo.status === 'READY_TO_PRINT' && (
+                        <button
+                          type="button"
+                          onClick={() => executePrint([person])}
+                          title="Print ID card"
+                          className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-2xs"
+                        >
+                          <Printer size={11} /> Print
+                        </button>
+                      )}
+
+                      {statusInfo.status === 'PRINT_FAILED' && (
+                        <button
+                          type="button"
+                          onClick={() => executePrint([person])}
+                          title="Retry print"
+                          className="inline-flex items-center gap-1 rounded bg-rose-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-rose-700 cursor-pointer shadow-2xs"
+                        >
+                          <RotateCcw size={11} /> Retry Print
+                        </button>
+                      )}
+
+                      {statusInfo.status === 'PRINTED' && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPersonForReprint(person)}
+                          title="Request card reprint"
+                          className="inline-flex items-center gap-1 rounded bg-purple-100 px-2 py-1 text-[10px] font-bold text-purple-800 hover:bg-purple-200 cursor-pointer shadow-2xs"
+                        >
+                          <RotateCcw size={11} /> Reprint
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPersonForHistory(person)}
+                        title="View history"
+                        className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+                      >
+                        <History size={13} />
+                      </button>
+
+                      {gen?.status === 'SUCCESS' && gen.file_url && (
+                        <a
+                          href={gen.file_url}
+                          download={`${sanitizeStudentId(person.student_id)}.png`}
+                          className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+                          title="Download high-res PNG"
+                        >
+                          <Download size={13} />
+                        </a>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )
@@ -1156,6 +1404,112 @@ export default function IdCardGeneratePage() {
           </tbody>
         </table>
       </div>
+
+      {/* Batch Validation Confirm Modal (For Pre-Generation and Pre-Printing) */}
+      {batchModalConfig && (
+        <BatchValidationConfirmModal
+          isOpen={batchModalConfig.isOpen}
+          mode={batchModalConfig.mode}
+          totalCount={batchModalConfig.readyPersons.length + batchModalConfig.skippedPersons.length}
+          readyPersons={batchModalConfig.readyPersons}
+          skippedPersons={batchModalConfig.skippedPersons}
+          onClose={() => setBatchModalConfig(null)}
+          onConfirm={() => {
+            if (batchModalConfig.mode === 'generate') {
+              executeGeneration(batchModalConfig.readyPersons)
+            } else {
+              setBatchModalConfig(null)
+              executePrint(batchModalConfig.readyPersons)
+            }
+          }}
+        />
+      )}
+
+      {/* Duplicate Print Warning Modal */}
+      {duplicateWarningPerson && (
+        <Modal
+          isOpen={true}
+          onClose={() => setDuplicateWarningPerson(null)}
+          title="ID Card Already Printed"
+          subtitle="Duplicate print protection active"
+          size="sm"
+          footer={
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDuplicateWarningPerson(null)}
+                className="rounded-lg px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const p = duplicateWarningPerson
+                  setDuplicateWarningPerson(null)
+                  setSelectedPersonForReprint(p)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-purple-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-purple-800 cursor-pointer shadow-2xs"
+              >
+                <RotateCcw size={13} /> Request Official Reprint
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-3 text-xs text-slate-600">
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-slate-900">
+                  This ID card for {duplicateWarningPerson.name} ({duplicateWarningPerson.student_id}) has already been printed.
+                </p>
+                <p className="text-[11px] text-slate-600 mt-1">
+                  To prevent accidental duplicate prints, physical reprinting requires an explicit reprint request with a logged reason.
+                </p>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modals for Missing Info, History, and Reprint */}
+      {selectedPersonForMissing && (
+        <StudentMissingInfoModal
+          person={selectedPersonForMissing}
+          template={template}
+          schema={fieldSchema}
+          isOpen={true}
+          onClose={() => setSelectedPersonForMissing(null)}
+          onEdit={() => setSelectedPersonForMissing(null)}
+        />
+      )}
+
+      {selectedPersonForHistory && (
+        <StudentPrintHistoryModal
+          person={selectedPersonForHistory}
+          generations={generations}
+          projectId={project.id}
+          isOpen={true}
+          onClose={() => setSelectedPersonForHistory(null)}
+          onRequestReprint={(person) => {
+            setSelectedPersonForHistory(null)
+            setSelectedPersonForReprint(person)
+          }}
+        />
+      )}
+
+      {selectedPersonForReprint && (
+        <ReprintRequestModal
+          person={selectedPersonForReprint}
+          projectId={project.id}
+          isOpen={true}
+          onClose={() => setSelectedPersonForReprint(null)}
+          onRequested={() => {
+            setSelectedPersonForReprint(null)
+            load()
+          }}
+        />
+      )}
 
       {/* Print Preview Modal */}
       {showPreview && layout && (
@@ -1165,7 +1519,7 @@ export default function IdCardGeneratePage() {
           config={effectiveConfig}
           selectedCount={actionTargets.length}
           onClose={() => setShowPreview(false)}
-          onPrint={() => { setShowPreview(false); handlePrint() }}
+          onPrint={() => { setShowPreview(false); handleRequestPrint(actionTargets) }}
           onDownloadPdf={() => { setShowPreview(false); handleDownloadPdf() }}
         />
       )}
@@ -1173,9 +1527,10 @@ export default function IdCardGeneratePage() {
       {/* Print Confirmation Dialog */}
       {showPrintConfirm && (
         <PrintConfirmDialog
-          count={pendingPrintGenIds.length}
-          onConfirm={confirmPrinted}
-          onCancel={cancelPrintConfirm}
+          count={pendingPrintPersons.length}
+          onConfirmSuccess={confirmPrintedSuccess}
+          onConfirmFailed={confirmPrintedFailed}
+          onDismiss={cancelPrintConfirm}
         />
       )}
     </div>

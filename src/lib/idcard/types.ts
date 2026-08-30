@@ -192,6 +192,56 @@ export interface IdCardTemplate {
 
 export type GenerationStatus = 'PENDING' | 'SUCCESS' | 'FAILED';
 
+export type IdCardStatus =
+  | 'NOT_READY'              // Incomplete required student info / photo based on active template
+  | 'READY_TO_GENERATE'     // Fully validated, complete, ready for card generation
+  | 'READY_TO_PRINT'        // Card successfully generated, queued / ready for physical printing
+  | 'PRINTED'               // Successfully printed
+  | 'PRINT_FAILED'          // Print operation failed or was interrupted -> eligible for retry
+  | 'REPRINT_REQUIRED'      // Damaged/lost/misprint or admin requested reprint with reason
+  | 'OUTDATED';             // Student data or photo was modified after last generation/print
+
+export type ReprintReason =
+  | 'DAMAGED_CARD'
+  | 'INCORRECT_PRINT'
+  | 'LOST_CARD'
+  | 'INFO_CHANGED'
+  | 'PHOTO_CHANGED'
+  | 'ADMIN_REQUEST';
+
+export interface PrintHistoryEntry {
+  id: string;
+  project_id: string;
+  person_id: string;
+  student_id: string;
+  generation_id?: string;
+  template_id?: string;
+  template_name?: string;
+  print_number: number;
+  status: 'SUCCESS' | 'FAILED' | 'REPRINT_REQUESTED';
+  reprint_reason?: ReprintReason | string;
+  notes?: string;
+  printed_by?: string;
+  timestamp: string;
+}
+
+export interface StudentIdCardStatusInfo {
+  status: IdCardStatus;
+  ready: boolean;
+  missingFields: string[];
+  missingFieldKeys: string[];
+  lastGeneration?: IdCardGeneration | null;
+  printCount: number;
+  firstPrintedAt?: string | null;
+  lastPrintedAt?: string | null;
+  lastFailedAt?: string | null;
+  reprintReason?: string | null;
+  isOutdated: boolean;
+  outdatedReason?: string | null;
+  canGenerate: boolean;
+  canPrint: boolean;
+}
+
 export interface IdCardGeneration {
   id: string;
   project_id: string;

@@ -154,8 +154,8 @@ export async function getAllIdCardPersons(projectId: string): Promise<IdCardPers
         .from('idcard_persons')
         .select('*')
         .eq('project_id', projectId)
-        .order('name', { ascending: true })
-        .limit(5000);
+        .order('student_id', { ascending: true })
+        .limit(10000);
 
       if (error) throw classifySupabaseError(error);
       return (data as IdCardPerson[]) || [];
