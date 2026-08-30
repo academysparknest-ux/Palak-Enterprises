@@ -852,16 +852,41 @@ export interface TemplatePreset {
   layout: TemplateLayout;
 }
 
+export const MY_SCHOOL_SINGLE_LAYOUT: TemplateLayout = {
+  backgroundColor: '#FFFFFF',
+  backgroundUrl: '/idcard-templates/sample-template1-front.png',
+  backgroundFit: 'fill',
+  backgroundOpacity: 100,
+  backgroundScale: 105,
+  schoolLogoUrl: null,
+  isDoubleSided: false,
+  templateType: 'single',
+  headerSvg: null,
+  footerSvg: null,
+  presetId: 'my-school-single-sided',
+  fields: structuredClone(SAMPLE_TEMPLATE_1_LAYOUT.fields),
+};
+
 export const TEMPLATE_PRESETS: TemplatePreset[] = [
   {
     id: 'my-school-template',
-    name: 'My School Template',
+    name: 'My School Template (Dual Sided)',
     description: 'Standard double-sided card template with front & back artwork backgrounds, circular photo, student details, QR, Barcode, validity and return disclaimer',
     orientation: 'portrait',
     cardWidthMm: 54,
     cardHeightMm: 85.6,
     isDoubleSided: true,
     layout: SAMPLE_TEMPLATE_1_LAYOUT,
+  },
+  {
+    id: 'my-school-single-sided',
+    name: 'My School Template (Single Side / Front Only)',
+    description: 'Single-sided card template with front artwork background, circular photo, and essential student details',
+    orientation: 'portrait',
+    cardWidthMm: 54,
+    cardHeightMm: 85.6,
+    isDoubleSided: false,
+    layout: MY_SCHOOL_SINGLE_LAYOUT,
   },
   {
     id: 'sparknest-dual-sided',

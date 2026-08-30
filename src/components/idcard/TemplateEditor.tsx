@@ -46,6 +46,7 @@ import {
 import {
   FIELD_LABELS,
   TEMPLATE_PRESETS,
+  SAMPLE_TEMPLATE_1_LAYOUT,
   formatFieldDisplay,
   getCustomDefaultTemplate,
   saveCustomDefaultTemplate,
@@ -741,47 +742,9 @@ export function TemplateEditor({
   // ── Side & Double-Sided Toggles ────────────────────────────
   function setTemplateType(type: 'single' | 'double') {
     if (type === 'double') {
-      const defaultBack: TemplateSideLayout = layout.back || {
+      const defaultBack: TemplateSideLayout = layout.back || SAMPLE_TEMPLATE_1_LAYOUT.back || {
         backgroundColor: '#FFFFFF',
-        fields: [
-          {
-            id: `field-back-${Date.now()}-1`,
-            key: 'student_id',
-            x: 4,
-            y: 10,
-            width: 46,
-            height: 3.5,
-            fontSize: 7,
-            fontWeight: 'bold',
-            color: '#1B2A4A',
-            visible: true,
-            labelPrefix: 'ID:',
-          },
-          {
-            id: `field-back-${Date.now()}-2`,
-            key: 'qr_code',
-            x: 20,
-            y: 35,
-            width: 14,
-            height: 14,
-            visible: true,
-          },
-          {
-            id: `field-back-${Date.now()}-3`,
-            key: 'valid_till',
-            x: 3,
-            y: 60,
-            width: 48,
-            height: 3.5,
-            fontSize: 7,
-            fontWeight: 'bold',
-            color: '#E74C3C',
-            textAlign: 'center',
-            visible: true,
-            labelPrefix: 'VALID TILL:',
-            customText: '30-MAY-26',
-          },
-        ],
+        fields: [],
       };
       const nextLayout: TemplateLayout = {
         ...layout,
