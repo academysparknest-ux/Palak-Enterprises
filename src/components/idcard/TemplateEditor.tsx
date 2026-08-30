@@ -165,6 +165,10 @@ export function TemplateEditor({
   const [historyIndex, setHistoryIndex] = useState<number>(0);
   const isInternalHistoryUpdate = useRef(false);
 
+  // Inline Desktop Text Editing State
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [inlineDraftText, setInlineDraftText] = useState<string>('');
+
   // Dragging & Resizing interaction state
   const canvasRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -368,6 +372,98 @@ export function TemplateEditor({
     );
     updateActiveFields(newFields, pushToHistory);
   }
+
+  // ── Desktop Inline Text Editing Handlers ───────────────────
+  const startEditingField = useCallback(
+    (field: TemplateField) => {
+      if (IMAGE_FIELDS.includes(field.key)) return;
+      if (field.locked) return;
+
+      setSelectedFieldId(field.id || null);
+      setEditingFieldId(field.id || null);
+
+      const isCustomOrStatic =
+        field.key === 'school_name' ||
+        field.key === 'school_subtitle' ||
+        field.key === 'custom_text' ||
+        field.key === 'designation' ||
+        field.key === 'valid_till' ||
+        field.key === 'terms' ||
+        field.key === 'website' ||
+        field.key === 'academic_year' ||
+        field.key === 'batch' ||
+        field.source === 'static';
+
+      if (isCustomOrStatic) {
+        const initial =
+          field.customText !== undefined
+            ? field.customText
+            : field.key === 'school_name'
+            ? (schoolName || 'SPARKNEST ACADEMY')
+            : field.key === 'school_subtitle'
+            ? 'Affiliated to CBSE, New Delhi'
+            : (FIELD_LABELS[field.key] || field.key);
+        setInlineDraftText(initial);
+      } else {
+        if (field.labelPrefix !== undefined && field.labelPrefix !== null && field.labelPrefix !== '') {
+          setInlineDraftText(field.labelPrefix);
+        } else if (field.customText !== undefined && field.customText !== '') {
+          setInlineDraftText(field.customText);
+        } else {
+          setInlineDraftText(field.labelPrefix ?? FIELD_LABELS[field.key] ?? field.key);
+        }
+      }
+    },
+    [schoolName]
+  );
+
+  const commitInlineEditing = useCallback(
+    (newText?: string) => {
+      if (!editingFieldId) return;
+      const targetField = activeFields.find((f) => f.id === editingFieldId);
+      if (!targetField) {
+        setEditingFieldId(null);
+        return;
+      }
+
+      const textToSave = newText !== undefined ? newText : inlineDraftText;
+
+      const isCustomOrStatic =
+        targetField.key === 'school_name' ||
+        targetField.key === 'school_subtitle' ||
+        targetField.key === 'custom_text' ||
+        targetField.key === 'designation' ||
+        targetField.key === 'valid_till' ||
+        targetField.key === 'terms' ||
+        targetField.key === 'website' ||
+        targetField.key === 'academic_year' ||
+        targetField.key === 'batch' ||
+        targetField.source === 'static';
+
+      if (isCustomOrStatic) {
+        const newFields = activeFields.map((f) =>
+          f.id === targetField.id ? { ...f, customText: textToSave } : f
+        );
+        updateActiveFields(newFields, true);
+      } else {
+        const newFields = activeFields.map((f) => {
+          if (f.id !== targetField.id) return f;
+          if (targetField.labelPrefix !== undefined && targetField.labelPrefix !== null && targetField.labelPrefix !== '') {
+            return { ...f, labelPrefix: textToSave };
+          } else if (targetField.customText !== undefined) {
+            return { ...f, customText: textToSave };
+          } else {
+            return { ...f, labelPrefix: textToSave };
+          }
+        });
+        updateActiveFields(newFields, true);
+      }
+
+      setEditingFieldId(null);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editingFieldId, inlineDraftText, activeFields]
+  );
 
   // Detail / body fields (excluding images and fixed header/footer blocks)
   const isDetailField = (f: TemplateField) => {
@@ -897,7 +993,11 @@ export function TemplateEditor({
   // ── Keyboard Arrow Precision Positioning ───────────────────
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Shortcuts when no input is focused
+      // Shortcuts when no input is focused or when not editing inline
+      if (editingFieldId) {
+        return;
+      }
+
       const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (targetTag === 'input' || targetTag === 'select' || targetTag === 'textarea') {
         return;
@@ -917,6 +1017,15 @@ export function TemplateEditor({
       }
 
       if (!selectedField || selectedField.locked) return;
+
+      // Enter / F2 to edit text directly like desktop
+      if (e.key === 'Enter' || e.key === 'F2') {
+        if (!IMAGE_FIELDS.includes(selectedField.key)) {
+          e.preventDefault();
+          startEditingField(selectedField);
+          return;
+        }
+      }
 
       // Duplicate: Ctrl + D
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
@@ -954,7 +1063,7 @@ export function TemplateEditor({
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedField, widthMm, heightMm, historyIndex, history]
+    [selectedField, widthMm, heightMm, historyIndex, history, editingFieldId, startEditingField]
   );
 
   useEffect(() => {
@@ -964,6 +1073,9 @@ export function TemplateEditor({
 
   // ── Mouse Drag & Resize Handlers ───────────────────────────
   function handleCanvasMouseDown(e: React.MouseEvent) {
+    if (editingFieldId) {
+      commitInlineEditing();
+    }
     if ((e.target as HTMLElement).getAttribute('data-element-id') === null) {
       setSelectedFieldId(null);
     }
@@ -971,6 +1083,21 @@ export function TemplateEditor({
 
   function handleElementMouseDown(e: React.MouseEvent, field: TemplateField) {
     e.stopPropagation();
+
+    if (editingFieldId === field.id) {
+      return;
+    }
+
+    if (editingFieldId && editingFieldId !== field.id) {
+      commitInlineEditing();
+    }
+
+    // If clicking on an already selected text element and not locked -> enter inline text editing mode
+    if (selectedFieldId === field.id && !IMAGE_FIELDS.includes(field.key) && !field.locked) {
+      startEditingField(field);
+      return;
+    }
+
     setSelectedFieldId(field.id || null);
 
     if (field.locked) return;
@@ -1837,9 +1964,25 @@ export function TemplateEditor({
                     key={field.id}
                     data-element-id={field.id}
                     onMouseDown={(e) => handleElementMouseDown(e, field)}
+                    onDoubleClick={() => {
+                      if (!isImg && !field.locked) {
+                        startEditingField(field);
+                      }
+                    }}
+                    title={
+                      isImg
+                        ? undefined
+                        : isSelected
+                        ? editingFieldId === field.id
+                          ? undefined
+                          : 'Click again or double click to edit text directly'
+                        : 'Click to select, double click to edit text directly'
+                    }
                     className={`group absolute cursor-move transition-shadow ${
                       isSelected
-                        ? 'ring-2 ring-blue-500 ring-offset-1 z-20 shadow-md'
+                        ? editingFieldId === field.id
+                          ? 'z-40'
+                          : 'ring-2 ring-blue-500 ring-offset-1 z-20 shadow-md'
                         : 'hover:ring-1 hover:ring-blue-300 z-10'
                     } ${field.locked ? 'cursor-not-allowed opacity-90' : ''}`}
                     style={{
@@ -1920,6 +2063,94 @@ export function TemplateEditor({
                           </div>
                         )}
                       </div>
+                    ) : editingFieldId === field.id ? (
+                      <div className="relative h-full w-full">
+                        {/* Floating Desktop Tooltip / Pill Badge */}
+                        <div
+                          className="absolute -top-8 left-0 z-50 flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1 text-[10px] font-medium text-white shadow-xl pointer-events-auto whitespace-nowrap animate-in fade-in"
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="font-bold text-emerald-300">Editing Text</span>
+                          <span className="text-slate-500">|</span>
+                          <span className="text-slate-300 text-[9.5px]">Shift+↵ for new line · Esc/click outside to save</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              commitInlineEditing();
+                            }}
+                            className="ml-1.5 rounded bg-blue-600 px-2 py-0.5 text-[9.5px] font-bold text-white hover:bg-blue-500 transition cursor-pointer shadow-xs"
+                          >
+                            Done ✓
+                          </button>
+                        </div>
+
+                        {/* In-place Editable Textarea */}
+                        <textarea
+                          autoFocus
+                          ref={(el) => {
+                            if (el) {
+                              el.focus();
+                            }
+                          }}
+                          value={inlineDraftText}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setInlineDraftText(val);
+                            const isCustomOrStatic =
+                              field.key === 'school_name' ||
+                              field.key === 'school_subtitle' ||
+                              field.key === 'custom_text' ||
+                              field.key === 'designation' ||
+                              field.key === 'valid_till' ||
+                              field.key === 'terms' ||
+                              field.key === 'website' ||
+                              field.key === 'academic_year' ||
+                              field.key === 'batch' ||
+                              field.source === 'static';
+                            if (isCustomOrStatic) {
+                              updateSelectedField({ customText: val }, false);
+                            } else {
+                              if (field.labelPrefix !== undefined && field.labelPrefix !== null && field.labelPrefix !== '') {
+                                updateSelectedField({ labelPrefix: val }, false);
+                              } else if (field.customText !== undefined) {
+                                updateSelectedField({ customText: val }, false);
+                              } else {
+                                updateSelectedField({ labelPrefix: val }, false);
+                              }
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Escape') {
+                              e.preventDefault();
+                              commitInlineEditing();
+                            } else if (e.key === 'Enter') {
+                              if (e.shiftKey || e.altKey) {
+                                return;
+                              }
+                              e.preventDefault();
+                              commitInlineEditing();
+                            }
+                          }}
+                          onBlur={() => {
+                            commitInlineEditing();
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="h-full w-full resize-none border-2 border-dashed border-blue-500 bg-white/95 text-slate-900 shadow-md outline-none ring-2 ring-blue-400/50 rounded-xs p-0.5 m-0 overflow-auto"
+                          style={{
+                            fontSize: (field.fontSize ?? 10) * (pxPerMm / 2.835),
+                            fontWeight: field.fontWeight === 'bold' ? 700 : field.fontWeight || 400,
+                            fontStyle: field.fontStyle === 'italic' ? 'italic' : undefined,
+                            fontFamily: field.fontFamily || "'Times New Roman', serif",
+                            color: field.color ?? '#1B2A4A',
+                            textAlign: field.textAlign ?? 'left',
+                            lineHeight: field.lineHeight || 1.2,
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
                     ) : (
                       <div
                         className="h-full w-full overflow-hidden leading-tight whitespace-pre-line"
@@ -1938,8 +2169,23 @@ export function TemplateEditor({
                       </div>
                     )}
 
-                    {/* Resize Handles (8 points) when selected and not locked */}
-                    {isSelected && !field.locked && (
+                    {/* Quick Edit Pill on Hover/Selection for Text Elements */}
+                    {isSelected && !isImg && !field.locked && editingFieldId !== field.id && (
+                      <button
+                        type="button"
+                        title="Edit text directly on canvas (or double-click text)"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditingField(field);
+                        }}
+                        className="absolute -top-3 -right-3 z-40 flex h-5.5 w-5.5 items-center justify-center rounded-full bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:scale-110 transition cursor-pointer"
+                      >
+                        <Type size={11} />
+                      </button>
+                    )}
+
+                    {/* Resize Handles (8 points) when selected, not locked, and not editing inline */}
+                    {isSelected && !field.locked && editingFieldId !== field.id && (
                       <>
                         {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as ResizeHandle[]).map(
                           (handle) => {
@@ -1970,8 +2216,8 @@ export function TemplateEditor({
               })}
           </div>
 
-          <p className="mt-4 text-[11px] text-slate-500 font-medium">
-            Click to select · Drag to move · <strong>Hold Shift while resizing to preserve aspect ratio</strong> · Arrow keys: 0.1mm · Shift + Arrow: 1.0mm
+          <p className="mt-4 text-[11px] text-slate-500 font-medium text-center">
+            Click text to edit like desktop · Drag to move · <strong>Hold Shift while resizing for aspect ratio</strong> · Arrow keys: 0.1mm · Shift + Arrow: 1.0mm
           </p>
         </div>
 
@@ -2881,6 +3127,20 @@ export function TemplateEditor({
               {/* Typography Controls for Text Fields */}
               {!IMAGE_FIELDS.includes(selectedField.key) && (
                 <div className="space-y-2 border-t border-slate-100 pt-2">
+                  <div className="flex flex-col gap-1.5 p-2 rounded-lg bg-blue-50/70 border border-blue-200/80 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => startEditingField(selectedField)}
+                      className="w-full flex items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition shadow-xs cursor-pointer"
+                    >
+                      <Type size={13} />
+                      <span>Edit Text Directly on Canvas</span>
+                    </button>
+                    <p className="text-[10px] text-blue-700 leading-tight text-center">
+                      💡 Tip: Click or double-click directly on any text on the card to edit like desktop!
+                    </p>
+                  </div>
+
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Typography & Styling
                   </p>
@@ -3192,8 +3452,30 @@ export function TemplateEditor({
                           value={selectedField.customText ?? effectiveSchoolLogo ?? ''}
                           onChange={(e) => {
                             const val = e.target.value;
-                            updateSelectedField({ customText: val });
-                            onChange({ ...layout, schoolLogoUrl: val || null });
+                            const newFields = activeFields.map((f) =>
+                              f.id === selectedFieldId || f.key === 'school_logo'
+                                ? { ...f, customText: val }
+                                : f
+                            );
+                            let nextLayout: TemplateLayout;
+                            if (currentSide === 'front') {
+                              nextLayout = {
+                                ...layout,
+                                schoolLogoUrl: val || null,
+                                fields: newFields,
+                              };
+                            } else {
+                              nextLayout = {
+                                ...layout,
+                                schoolLogoUrl: val || null,
+                                back: {
+                                  ...(layout.back || { backgroundColor: '#FFFFFF', fields: [] }),
+                                  fields: newFields,
+                                },
+                              };
+                            }
+                            onChange(nextLayout);
+                            pushHistory(nextLayout);
                           }}
                           placeholder={effectiveSchoolLogo || 'https://.../school-logo.png'}
                           className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs font-mono"

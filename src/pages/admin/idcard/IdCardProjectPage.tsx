@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Loader2, Trash2 } from 'lucide-react';
 import { getIdCardProject, updateIdCardProject, deleteIdCardProject } from '../../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors';
@@ -25,12 +25,16 @@ export default function IdCardProjectPage() {
 
   const load = useCallback(async () => {
     if (!projectId) return;
-    setState({ kind: 'loading' });
+    setState((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
     try {
       const project = await getIdCardProject(projectId);
       setState({ kind: 'ready', project });
     } catch (err) {
-      setState({ kind: 'error', message: errorCodeToUserMessage(classifySupabaseError(err).code) });
+      setState((prev) =>
+        prev.kind === 'ready'
+          ? prev
+          : { kind: 'error', message: errorCodeToUserMessage(classifySupabaseError(err).code) }
+      );
     }
   }, [projectId]);
 
@@ -89,9 +93,11 @@ export default function IdCardProjectPage() {
   }
 
   const { project } = state;
+  const location = useLocation();
+  const isTemplateRoute = location.pathname.endsWith('/template');
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
+    <div className={`mx-auto px-2 sm:px-4 py-4 sm:py-6 transition-all ${isTemplateRoute ? 'max-w-[1720px] w-full' : 'max-w-5xl'}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>

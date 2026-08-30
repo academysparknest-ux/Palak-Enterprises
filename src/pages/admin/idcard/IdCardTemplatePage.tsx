@@ -185,6 +185,7 @@ export default function IdCardTemplatePage() {
     setUploadLogoError(null);
     setUploadingLogo(true);
     let previewUrl: string | null = null;
+    const backupLayout = layout;
 
     try {
       // 1. Instant local Object URL preview (0ms UI latency)
@@ -193,26 +194,23 @@ export default function IdCardTemplatePage() {
       const frontFields = [...layout.fields];
       const hasLogo = frontFields.some((f) => f.key === 'school_logo');
 
-      let updatedFrontFields: TemplateField[];
-      if (hasLogo) {
-        updatedFrontFields = frontFields.map((f) =>
-          f.key === 'school_logo' ? { ...f, customText: previewUrl!, visible: true } : f
-        );
-      } else {
-        updatedFrontFields = [
-          {
-            id: `logo-auto-${Date.now()}`,
-            key: 'school_logo',
-            x: 5.5,
-            y: 4.5,
-            width: 14.0,
-            height: 14.0,
-            visible: true,
-            customText: previewUrl!,
-          },
-          ...frontFields,
-        ];
-      }
+      const updatedFrontFields = hasLogo
+        ? frontFields.map((f) =>
+            f.key === 'school_logo' ? { ...f, customText: previewUrl!, visible: true } : f
+          )
+        : [
+            {
+              id: `logo-auto-${Date.now()}`,
+              key: 'school_logo' as const,
+              x: 5.5,
+              y: 4.5,
+              width: 14.0,
+              height: 14.0,
+              visible: true,
+              customText: previewUrl!,
+            },
+            ...frontFields,
+          ];
 
       // Apply optimistic update immediately
       const initialLayout: TemplateLayout = {
@@ -273,8 +271,8 @@ export default function IdCardTemplatePage() {
       const appErr = classifySupabaseError(err);
       const msg = errorCodeToUserMessage(appErr.code, appErr.message);
       setUploadLogoError(msg);
-      // Revert layout on failure to previous valid state
-      setLayout(layout);
+      // Revert layout on failure to backup state
+      setLayout(backupLayout);
     } finally {
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
