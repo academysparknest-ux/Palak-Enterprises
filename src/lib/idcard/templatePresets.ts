@@ -873,6 +873,69 @@ export function getPresetById(id: string): TemplatePreset | undefined {
 }
 
 /**
+ * Storage helpers for user-defined custom default template layout
+ */
+export interface CustomDefaultTemplate {
+  layout: TemplateLayout;
+  cardWidthMm: number;
+  cardHeightMm: number;
+  updatedAt: string;
+}
+
+export const CUSTOM_DEFAULT_TEMPLATE_STORAGE_KEY = 'palak_custom_default_template';
+
+export function getCustomDefaultTemplate(): CustomDefaultTemplate | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = localStorage.getItem(CUSTOM_DEFAULT_TEMPLATE_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function saveCustomDefaultTemplate(
+  layout: TemplateLayout,
+  cardWidthMm: number = 54,
+  cardHeightMm: number = 85.6
+): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const data: CustomDefaultTemplate = {
+      layout: structuredClone(layout),
+      cardWidthMm,
+      cardHeightMm,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(CUSTOM_DEFAULT_TEMPLATE_STORAGE_KEY, JSON.stringify(data));
+  } catch (err) {
+    console.error('Failed to save custom default template', err);
+  }
+}
+
+export function clearCustomDefaultTemplate(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.removeItem(CUSTOM_DEFAULT_TEMPLATE_STORAGE_KEY);
+  } catch (err) {
+    console.error('Failed to clear custom default template', err);
+  }
+}
+
+export function getDefaultTemplateLayout(): TemplateLayout {
+  const custom = getCustomDefaultTemplate();
+  return custom ? structuredClone(custom.layout) : structuredClone(TEMPLATE_PRESETS[0].layout);
+}
+
+export function getDefaultCardDimensions(): { cardWidthMm: number; cardHeightMm: number } {
+  const custom = getCustomDefaultTemplate();
+  return custom
+    ? { cardWidthMm: custom.cardWidthMm, cardHeightMm: custom.cardHeightMm }
+    : { cardWidthMm: 54, cardHeightMm: 85.6 };
+}
+
+/**
  * Cleanly format field label prefix and value without double-spacing or trailing whitespace bugs
  */
 export function formatFieldDisplay(labelPrefix?: string | null, value?: string | null): string {

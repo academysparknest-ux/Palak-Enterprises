@@ -45,6 +45,11 @@ import {
   DEFAULT_CARD_WIDTH,
   DEFAULT_CARD_HEIGHT,
 } from '../../../components/idcard/TemplateEditor';
+import {
+  saveCustomDefaultTemplate,
+  getDefaultTemplateLayout,
+  getDefaultCardDimensions,
+} from '../../../lib/idcard/templatePresets';
 import type { IdCardProject, IdCardTemplate, TemplateLayout, TemplateField } from '../../../lib/idcard/types';
 import { useUnsavedChanges } from '../../../hooks/useUnsavedChanges';
 
@@ -434,12 +439,14 @@ export default function IdCardTemplatePage() {
           cardHeight: existing.card_height_mm,
         });
       } else {
-        // No templates exist yet: default editor layout
+        // No templates exist yet: use custom default or standard preset layout
+        const defaultLayout = getDefaultTemplateLayout();
+        const defaultDimensions = getDefaultCardDimensions();
         const initialName = `${project.name} Template`;
         const initialLayout = {
-          ...DEFAULT_TEMPLATE_LAYOUT,
+          ...defaultLayout,
           schoolLogoUrl: resolvedLogo,
-          fields: DEFAULT_TEMPLATE_LAYOUT.fields.map((f) =>
+          fields: defaultLayout.fields.map((f) =>
             f.key === 'school_logo'
               ? { ...f, customText: resolvedLogo || undefined, borderRadius: 0 }
               : f
@@ -448,13 +455,13 @@ export default function IdCardTemplatePage() {
         setTemplate(null);
         setName(initialName);
         setLayout(initialLayout);
-        setCardWidth(DEFAULT_CARD_WIDTH);
-        setCardHeight(DEFAULT_CARD_HEIGHT);
+        setCardWidth(defaultDimensions.cardWidthMm);
+        setCardHeight(defaultDimensions.cardHeightMm);
         lastSavedSnapshotRef.current = JSON.stringify({
           name: initialName,
           layout: initialLayout,
-          cardWidth: DEFAULT_CARD_WIDTH,
-          cardHeight: DEFAULT_CARD_HEIGHT,
+          cardWidth: defaultDimensions.cardWidthMm,
+          cardHeight: defaultDimensions.cardHeightMm,
         });
       }
       setState({ kind: 'ready' });
@@ -486,13 +493,21 @@ export default function IdCardTemplatePage() {
   }
 
   function handleNewTemplate() {
+    const defaultLayout = getDefaultTemplateLayout();
+    const defaultDimensions = getDefaultCardDimensions();
     setTemplate(null);
     setName(`${project.name} New Design`);
-    setLayout(DEFAULT_TEMPLATE_LAYOUT);
-    setCardWidth(DEFAULT_CARD_WIDTH);
-    setCardHeight(DEFAULT_CARD_HEIGHT);
+    setLayout(defaultLayout);
+    setCardWidth(defaultDimensions.cardWidthMm);
+    setCardHeight(defaultDimensions.cardHeightMm);
     setSearchParams({});
     setSaveSuccess(null);
+  }
+
+  function handleSetAsDefaultDesign() {
+    saveCustomDefaultTemplate(layout, cardWidth, cardHeight);
+    setSaveSuccess('Current design saved as default for all new templates!');
+    setTimeout(() => setSaveSuccess(null), 4000);
   }
 
   async function handleSetActive(target: IdCardTemplate) {
@@ -884,6 +899,15 @@ export default function IdCardTemplatePage() {
             className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 cursor-pointer"
           >
             <Eye size={14} /> Preview Design
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSetAsDefaultDesign}
+            className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 shadow-xs hover:bg-amber-100 cursor-pointer transition"
+            title="Make this current layout the default design whenever you click '+ New Template' or create a new project"
+          >
+            <Star size={13} className="text-amber-600 fill-amber-500" /> Set as Default for New Templates
           </button>
 
           {isEditingExisting && (

@@ -45,7 +45,13 @@ import {
   FIELD_LABELS,
   TEMPLATE_PRESETS,
   formatFieldDisplay,
+  getCustomDefaultTemplate,
+  saveCustomDefaultTemplate,
+  clearCustomDefaultTemplate,
+  getDefaultTemplateLayout,
+  getDefaultCardDimensions,
   type TemplatePreset,
+  type CustomDefaultTemplate,
 } from '../../lib/idcard/templatePresets';
 import type {
   TemplateField,
@@ -149,6 +155,8 @@ export function TemplateEditor({
     savedTemplates.length > 0 ? 'saved' : 'presets'
   );
   const [showBgFilters, setShowBgFilters] = useState<boolean>(false);
+  const [customDefault, setCustomDefault] = useState<CustomDefaultTemplate | null>(() => getCustomDefaultTemplate());
+  const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
 
   // History for Undo/Redo
   const [history, setHistory] = useState<HistoryEntry[]>([
@@ -340,14 +348,10 @@ export function TemplateEditor({
     if (currentSide === 'front') {
       nextLayout = { ...layout, fields: newFields };
     } else {
+      const currentBack = layout.back || { backgroundColor: '#FFFFFF', fields: [] };
       const backLayout: TemplateSideLayout = {
-        backgroundColor: layout.back?.backgroundColor || layout.backgroundColor,
-        backgroundUrl: layout.back?.backgroundUrl,
-        backgroundFit: layout.back?.backgroundFit,
-        headerGradientColors: layout.back?.headerGradientColors || layout.headerGradientColors,
-        footerGradientColors: layout.back?.footerGradientColors || layout.footerGradientColors,
-        headerSvg: layout.back?.headerSvg,
-        footerSvg: layout.back?.footerSvg,
+        ...currentBack,
+        backgroundColor: currentBack.backgroundColor || layout.backgroundColor || '#FFFFFF',
         fields: newFields,
       };
       nextLayout = { ...layout, back: backLayout };
@@ -1439,6 +1443,33 @@ export function TemplateEditor({
     setCurrentSide('front');
   }
 
+  // Save current design as global default for new templates
+  function handleSaveCurrentAsDefault() {
+    saveCustomDefaultTemplate(layout, widthMm, heightMm);
+    setCustomDefault(getCustomDefaultTemplate());
+    setSavedDefaultSuccess(true);
+    setTimeout(() => setSavedDefaultSuccess(false), 3500);
+  }
+
+  // Apply custom default template
+  function handleApplyCustomDefault() {
+    const def = getCustomDefaultTemplate();
+    if (def) {
+      onChange(structuredClone(def.layout));
+      onDimensionsChange?.(def.cardWidthMm, def.cardHeightMm);
+      setShowPresets(false);
+      setSelectedFieldId(null);
+      setCurrentSide('front');
+      pushHistory(def.layout, def.cardWidthMm, def.cardHeightMm);
+    }
+  }
+
+  // Clear custom default template (reset back to system standard)
+  function handleClearCustomDefault() {
+    clearCustomDefaultTemplate();
+    setCustomDefault(null);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* ── Top Toolbar ───────────────────────────────────────── */}
@@ -1989,6 +2020,24 @@ export function TemplateEditor({
                   </button>
                 </div>
 
+                {/* Global Custom Default Setting Bar */}
+                <div className="pt-1 pb-1 border-b border-slate-200/80">
+                  <button
+                    type="button"
+                    onClick={handleSaveCurrentAsDefault}
+                    className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-amber-50 border border-amber-300 py-1.5 px-2 text-[11px] font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs cursor-pointer"
+                    title="Make this exact layout the default whenever you create a new template"
+                  >
+                    <Star size={12} className="text-amber-600 fill-amber-500" />
+                    Set Current as Default for New Templates
+                  </button>
+                  {savedDefaultSuccess && (
+                    <p className="text-[10px] font-semibold text-emerald-700 text-center mt-1 flex items-center justify-center gap-1">
+                      <CheckCircle2 size={11} /> Saved as your default template!
+                    </p>
+                  )}
+                </div>
+
                 {presetTab === 'saved' && (
                   <div className="space-y-1 max-h-56 overflow-y-auto pr-0.5">
                     {savedTemplates.length === 0 ? (
@@ -2018,7 +2067,39 @@ export function TemplateEditor({
                 )}
 
                 {presetTab === 'presets' && (
-                  <div className="space-y-1 max-h-56 overflow-y-auto pr-0.5">
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-0.5">
+                    {/* If user has a custom default template saved */}
+                    {customDefault && (
+                      <div className="rounded-lg border-2 border-amber-300 bg-amber-50/70 p-2 text-left">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Star size={12} className="text-amber-600 fill-amber-500" />
+                            <p className="text-xs font-bold text-amber-950">My Custom Default Template</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleApplyCustomDefault}
+                            className="rounded bg-amber-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-amber-700 transition cursor-pointer shadow-2xs"
+                          >
+                            Apply →
+                          </button>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-[10px] text-amber-900">
+                          <span>
+                            {customDefault.cardWidthMm} × {customDefault.cardHeightMm} mm · {customDefault.layout?.isDoubleSided || customDefault.layout?.back ? 'Dual-Sided' : 'Single Side'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleClearCustomDefault}
+                            className="text-amber-700 hover:text-red-700 underline font-medium cursor-pointer"
+                            title="Reset to system preset"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {TEMPLATE_PRESETS.map((preset) => (
                       <button
                         key={preset.id}
