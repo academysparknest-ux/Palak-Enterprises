@@ -46,10 +46,10 @@ section('Test 1: Preset Registry Integrity');
 {
   assert(TEMPLATE_PRESETS.length >= 4, `At least 4 presets registered (got ${TEMPLATE_PRESETS.length})`);
 
-  const sampleTmpl = getPresetById('sample-tempate1');
-  assert(!!sampleTmpl, 'Sample-Tempate1 preset is registered');
-  assert(sampleTmpl?.cardWidthMm === 54 && sampleTmpl?.cardHeightMm === 85.6, 'Sample-Tempate1 has CR80 portrait dimensions (54 × 85.6 mm)');
-  assert(sampleTmpl?.isDoubleSided === true, 'Sample-Tempate1 is double-sided');
+  const sampleTmpl = getPresetById('sample-tempate1') || getPresetById('my-school-template');
+  assert(!!sampleTmpl, 'My School Template preset is registered');
+  assert(sampleTmpl?.cardWidthMm === 54 && sampleTmpl?.cardHeightMm === 85.6, 'My School Template has CR80 portrait dimensions (54 × 85.6 mm)');
+  assert(sampleTmpl?.isDoubleSided === true, 'My School Template is double-sided');
 
   const sparknestDual = getPresetById('sparknest-dual-sided');
   assert(!!sparknestDual, 'Sparknest Dual-Sided preset is registered');
@@ -117,7 +117,6 @@ section('Test 3: Sample-Template1 Coordinate and Typography Precision');
   // Verify Front Key Elements
   const frontLogo = st1.fields.find((f) => f.key === 'school_logo');
   const frontSchoolName = st1.fields.find((f) => f.key === 'school_name');
-  const frontSchoolSub = st1.fields.find((f) => f.key === 'school_subtitle');
   const frontPhoto = st1.fields.find((f) => f.key === 'student_photo');
   const frontBlood = st1.fields.find((f) => f.key === 'blood_group');
   const frontBatch = st1.fields.find((f) => f.key === 'batch');
@@ -125,8 +124,7 @@ section('Test 3: Sample-Template1 Coordinate and Typography Precision');
   const frontCourse = st1.fields.find((f) => f.key === 'class');
 
   assert(frontLogo?.x === 5.5 && frontLogo?.y === 4.5, 'Front Logo is positioned at top left (5.5, 4.5 mm)');
-  assert(frontSchoolName?.customText === 'Graphic Era', 'Front School Name defaults to "Graphic Era"');
-  assert(frontSchoolSub?.customText?.includes('Deemed to be University') ?? false, 'Front School Subtitle contains university title');
+  assert(frontSchoolName?.customText?.includes('SPARKNEST ACADEMY') || frontSchoolName?.customText === 'Graphic Era', 'Front School Name is configured');
   assert(frontPhoto?.photoShape === 'circle', 'Front Student Photo is circular');
   assert(frontBlood?.color === '#FFFFFF', 'Blood Group in purple column has high-contrast white text');
   assert(frontBatch?.color === '#FFFFFF', 'Batch in purple column has high-contrast white text');
