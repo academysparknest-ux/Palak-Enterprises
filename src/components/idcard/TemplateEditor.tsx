@@ -157,6 +157,8 @@ export function TemplateEditor({
   const [showBgFilters, setShowBgFilters] = useState<boolean>(false);
   const [customDefault, setCustomDefault] = useState<CustomDefaultTemplate | null>(() => getCustomDefaultTemplate());
   const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
+  const [showJsonModal, setShowJsonModal] = useState(false);
+  const [copiedJson, setCopiedJson] = useState(false);
 
   // History for Undo/Redo
   const [history, setHistory] = useState<HistoryEntry[]>([
@@ -1761,8 +1763,75 @@ export function TemplateEditor({
               100%
             </button>
           </div>
+
+          {/* Inspect / Copy JSON Button */}
+          <button
+            type="button"
+            onClick={() => setShowJsonModal(true)}
+            title="Inspect or Copy full layout coordinates JSON"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 shadow-2xs transition cursor-pointer"
+          >
+            <span className="font-mono font-bold text-blue-600">{'{ }'}</span> Inspect JSON
+          </button>
         </div>
       </div>
+
+      {/* JSON Inspector Modal */}
+      {showJsonModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span className="font-mono text-blue-600 font-bold">{'{ }'}</span> Template Layout JSON Data
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {widthMm}×{heightMm}mm · Front: {layout.fields.length} elements · Back: {layout.back?.fields?.length || 0} elements
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify({ cardWidthMm: widthMm, cardHeightMm: heightMm, layout }, null, 2));
+                    setCopiedJson(true);
+                    setTimeout(() => setCopiedJson(false), 3000);
+                  }}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
+                    copiedJson
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  <Copy size={13} /> {copiedJson ? 'Copied to Clipboard!' : 'Copy JSON'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowJsonModal(false)}
+                  className="rounded-lg border border-slate-200 p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4 bg-slate-950 text-slate-100 font-mono text-xs leading-relaxed select-text">
+              <pre>{JSON.stringify({ cardWidthMm: widthMm, cardHeightMm: heightMm, layout }, null, 2)}</pre>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3 bg-slate-50 text-xs text-slate-600">
+              <span>You can copy and paste this JSON directly in chat to analyze coordinates.</span>
+              <button
+                type="button"
+                onClick={() => setShowJsonModal(false)}
+                className="rounded-lg bg-slate-200 px-4 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-300 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main Editor Work Area ─────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_380px]">
