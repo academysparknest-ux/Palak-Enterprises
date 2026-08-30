@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { normalizeDate, normalizeBloodGroup, normalizePhone } from './validation';
+import { normalizeDate, normalizeBloodGroup, normalizePhone, sanitizeStudentId } from './validation';
 import type { CsvValidationRow, IdCardPerson, IdCardTemplate, TemplateFieldSchema, TemplateLayout } from './types';
 import { extractTemplateFieldSchema } from './templateFieldSchema';
 
@@ -328,7 +328,7 @@ export function parseAndValidateCsv(
     }
 
     const rowData: Partial<IdCardPerson> = {
-      student_id: cleanedRaw.student_id || '',
+      student_id: sanitizeStudentId(cleanedRaw.student_id) || '',
       name: cleanedRaw.name || '',
       class: cleanedRaw.class || null,
       section: cleanedRaw.section || null,

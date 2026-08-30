@@ -14,6 +14,7 @@ import {
 } from '../../../lib/idcard/generation'
 import { validateBatchBeforeGeneration } from '../../../lib/idcard/templateValidation'
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors'
+import { sanitizeStudentId } from '../../../lib/idcard/validation'
 import { GenerationProgressBar } from '../../../components/idcard/GenerationProgress'
 import {
   calculatePrintLayout,
@@ -1126,7 +1127,7 @@ export default function IdCardGeneratePage() {
                     <input type="checkbox" checked={selected.has(person.id)} onChange={() => toggle(person.id)} />
                   </td>
                   <td className="px-3 py-2 font-medium text-slate-900">{person.name}</td>
-                  <td className="px-3 py-2 text-slate-600">{person.student_id}</td>
+                  <td className="px-3 py-2 text-slate-600">{sanitizeStudentId(person.student_id)}</td>
                   <td className="px-3 py-2">
                     <StatusBadge status={gen?.status} printedAt={gen?.printed_at} />
                   </td>
@@ -1134,7 +1135,7 @@ export default function IdCardGeneratePage() {
                     {gen?.status === 'SUCCESS' && gen.file_url && (
                       <a
                         href={gen.file_url}
-                        download={`${person.student_id}.png`}
+                        download={`${sanitizeStudentId(person.student_id)}.png`}
                         className="flex items-center gap-1 text-slate-500 hover:text-slate-800"
                       >
                         <Download size={14} /> Download

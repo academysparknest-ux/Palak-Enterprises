@@ -5,6 +5,7 @@ import { getIdCardPersons, getIdCardTemplates, getIdCardTemplate } from '../../.
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors';
 import { validatePersonForTemplate } from '../../../lib/idcard/templateFieldSchema';
 import { IdCardPreview } from '../../../components/idcard/IdCardPreview';
+import { sanitizeStudentId } from '../../../lib/idcard/validation';
 import type { IdCardProject, IdCardPerson, IdCardTemplate } from '../../../lib/idcard/types';
 
 type ProjectContext = { project: IdCardProject };
@@ -147,7 +148,7 @@ export default function IdCardPreviewPage() {
           >
             {persons.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} ({p.student_id})
+                {p.name} ({sanitizeStudentId(p.student_id)})
               </option>
             ))}
           </select>

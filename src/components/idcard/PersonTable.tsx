@@ -1,5 +1,6 @@
 import { Pencil, Trash2, Phone, Check } from 'lucide-react';
 import type { IdCardPerson } from '../../lib/idcard/types';
+import { sanitizeStudentId } from '../../lib/idcard/validation';
 
 export function PersonTable({
   persons,
@@ -52,7 +53,7 @@ export function PersonTable({
                 {/* Name & ID */}
                 <td className="px-3 py-2.5">
                   <p className="font-semibold text-slate-900">{person.name}</p>
-                  <p className="font-mono text-[11px] text-slate-500">{person.student_id}</p>
+                  <p className="font-mono text-[11px] text-slate-500">{sanitizeStudentId(person.student_id)}</p>
                 </td>
 
                 {/* Academic */}

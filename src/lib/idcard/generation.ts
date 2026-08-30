@@ -3,6 +3,7 @@ import { executeWithAuthRetry } from '../supabase/authSession';
 import { getPhotoSignedUrl, recordGenerationResult } from './database';
 import type { IdCardPerson, IdCardTemplate, TemplateField, TemplateSideLayout } from './types';
 import { jsPDF } from 'jspdf';
+import { sanitizeStudentId, getQrCodePayload } from './validation';
 
 export const MM_TO_PX = 300 / 25.4; // 300 DPI high-precision physical-to-pixel conversion
 
@@ -16,7 +17,7 @@ export function fieldValue(
     case 'student_name':
       return person.name || '';
     case 'student_id':
-      return person.student_id || '';
+      return sanitizeStudentId(person.student_id);
     case 'class':
       return person.class ? (person.class.toLowerCase().includes('class') ? person.class : `CLASS: ${person.class}`) : '';
     case 'section':
@@ -279,7 +280,8 @@ async function renderSideToCanvas(
     // 2. QR Code
     if (field.key === 'qr_code') {
       try {
-        const qrDataUrl = await QRCode.toDataURL(person.student_id || person.name || '000000', {
+        const qrPayload = getQrCodePayload(person, schoolName);
+        const qrDataUrl = await QRCode.toDataURL(qrPayload, {
           width: Math.round(w),
           margin: 0,
           color: { dark: '#1B2A4A', light: '#FFFFFF' },
@@ -295,7 +297,8 @@ async function renderSideToCanvas(
     // 3. Barcode
     if (field.key === 'barcode') {
       try {
-        const barCanvas = generateBarcodeCanvas(person.student_id || '012345678901', w, h);
+        const barcodePayload = sanitizeStudentId(person.student_id) || '012345678901';
+        const barCanvas = generateBarcodeCanvas(barcodePayload, w, h);
         ctx.drawImage(barCanvas, x, y, w, h);
       } catch {
         // Ignore Barcode error

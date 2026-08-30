@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { User, GraduationCap, Users, Phone, AlertCircle } from 'lucide-react';
-import { bloodGroups, normalizeDate, normalizeBloodGroup, normalizePhone } from '../../lib/idcard/validation';
+import { bloodGroups, normalizeDate, normalizeBloodGroup, normalizePhone, sanitizeStudentId } from '../../lib/idcard/validation';
 import type { IdCardPerson, TemplateFieldSchema, TemplateFieldSchemaItem } from '../../lib/idcard/types';
 import { extractTemplateFieldSchema } from '../../lib/idcard/templateFieldSchema';
 
@@ -141,6 +141,8 @@ export function PersonForm({
 
     const sanitizedData: Record<string, any> = {
       ...values,
+      student_id: sanitizeStudentId(values.student_id),
+      name: values.name?.trim() || '',
       date_of_birth: values.date_of_birth ? normalizeDate(values.date_of_birth) : null,
       blood_group: values.blood_group ? normalizeBloodGroup(values.blood_group) : null,
       phone: values.phone ? normalizePhone(values.phone) : null,

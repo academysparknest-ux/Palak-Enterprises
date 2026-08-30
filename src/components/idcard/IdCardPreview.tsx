@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { getPhotoSignedUrl } from '../../lib/idcard/database';
 import type { IdCardPerson, IdCardTemplate, TemplateFieldKey, TemplateSideLayout } from '../../lib/idcard/types';
+import { sanitizeStudentId, getQrCodePayload } from '../../lib/idcard/validation';
 
 // ============================================================
 // BARCODE: Code128-style SVG rendering
@@ -79,7 +80,7 @@ function SingleCardFace({
       case 'student_name':
         return person.name;
       case 'student_id':
-        return person.student_id;
+        return sanitizeStudentId(person.student_id);
       case 'class':
         return person.class ? (person.class.toLowerCase().includes('class') ? person.class : `CLASS: ${person.class}`) : '';
       case 'section':
@@ -260,8 +261,9 @@ function SingleCardFace({
 
           // Barcode
           if (field.key === 'barcode') {
+            const barcodePayload = sanitizeStudentId(person.student_id) || '012345678901';
             const barcodeHtml = generateBarcodeSvg(
-              person.student_id || '012345678901',
+              barcodePayload,
               field.width * scale,
               field.height * scale
             );
@@ -371,7 +373,8 @@ export function IdCardPreview({
     };
   }, [person.photo_url]);
 
-  const qrData = useQrDataUrl(person.student_id || person.name);
+  const qrPayload = getQrCodePayload(person, schoolName);
+  const qrData = useQrDataUrl(qrPayload);
   const isDoubleSided = Boolean(
     template.layout.isDoubleSided || template.layout.templateType === 'double' || template.layout.back
   );

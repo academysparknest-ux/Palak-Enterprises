@@ -30,6 +30,52 @@ export function normalizePhone(val?: string | null): string {
 }
 
 /**
+ * Sanitizes student IDs by stripping accidental image file extensions (.jpg, .jpeg, .png, etc.)
+ */
+export function sanitizeStudentId(val?: string | null): string {
+  if (!val) return '';
+  const trimmed = String(val).trim();
+  return trimmed.replace(/\.(jpe?g|png|webp|gif|bmp|tiff)$/i, '');
+}
+
+/**
+ * Generates structured, professional payload for ID card QR code
+ */
+export function getQrCodePayload(
+  person: {
+    student_id?: string | null;
+    name?: string | null;
+    class?: string | null;
+    section?: string | null;
+    roll_number?: string | null;
+    blood_group?: string | null;
+    phone?: string | null;
+  },
+  schoolName?: string
+): string {
+  const cleanId = sanitizeStudentId(person.student_id);
+  const classSec = [person.class, person.section ? `Sec ${person.section}` : null]
+    .filter(Boolean)
+    .join(' ');
+
+  const parts = [
+    schoolName ? `School: ${schoolName}` : '',
+    person.name ? `Name: ${person.name}` : '',
+    cleanId ? `ID: ${cleanId}` : '',
+    classSec ? `Class: ${classSec}` : '',
+    person.roll_number ? `Roll: ${person.roll_number}` : '',
+    person.blood_group ? `Blood: ${person.blood_group}` : '',
+    person.phone ? `Emergency: ${person.phone}` : '',
+  ].filter(Boolean);
+
+  if (parts.length >= 2) {
+    return parts.join('\n');
+  }
+
+  return cleanId || person.name || 'STUDENT';
+}
+
+/**
  * Parses various date formats into standard YYYY-MM-DD string
  */
 export function normalizeDate(val?: string | number | null): string {

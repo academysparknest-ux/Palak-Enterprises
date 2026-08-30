@@ -51,6 +51,7 @@ const CartPage = lazyWithRetry(() => import("./pages/CartPage").then((m) => ({ d
 const CheckoutPage = lazyWithRetry(() => import("./pages/CheckoutPage").then((m) => ({ default: m.CheckoutPage })));
 const TrackOrderPage = lazyWithRetry(() => import("./pages/TrackOrderPage").then((m) => ({ default: m.TrackOrderPage })));
 const VerifyInvoicePage = lazyWithRetry(() => import("./pages/VerifyInvoicePage").then((m) => ({ default: m.VerifyInvoicePage })));
+const DigitalIdVerificationPage = lazyWithRetry(() => import("./pages/DigitalIdVerificationPage").then((m) => ({ default: m.DigitalIdVerificationPage })));
 const AccountPage = lazyWithRetry(() => import("./pages/AccountPage").then((m) => ({ default: m.AccountPage })));
 // Admin Panel — Route-based layout with nested pages
 const AdminLayout = lazyWithRetry(() => import("./components/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })));
@@ -261,7 +262,12 @@ export function AppContent() {
                 <Route path="/verify-invoice/:invoiceNumber" element={<VerifyInvoicePage />} />
                 <Route path="/verify-invoice" element={<VerifyInvoicePage />} />
                 <Route path="/invoice/verify/:invoiceNumber" element={<VerifyInvoicePage />} />
-                <Route path="/verify" element={<VerifyInvoicePage />} />
+
+                {/* 🛡️ Online Digital ID Card & QR Verification System */}
+                <Route path="/verify/:id" element={<DigitalIdVerificationPage />} />
+                <Route path="/verify" element={<DigitalIdVerificationPage />} />
+                <Route path="/verify-id/:id" element={<DigitalIdVerificationPage />} />
+                <Route path="/verify-id" element={<DigitalIdVerificationPage />} />
 
                 {/* User Account & History */}
                 <Route path="/account" element={<AccountPage />} />
