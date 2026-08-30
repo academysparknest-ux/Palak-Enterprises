@@ -93,29 +93,56 @@ function SingleCardFace({
       case 'school_subtitle':
         return field.value || field.customText || 'Motihari, Bihar';
       case 'student_name':
-        return person.name || (person as any).student_name || '';
+        return person.name || (person as any).student_name || (person as any).fullName || person.custom_fields?.student_name || person.custom_fields?.name || '';
       case 'student_id':
-        return sanitizeStudentId(person.student_id);
+        return sanitizeStudentId(person.student_id || (person as any).id_no || (person as any).admission_no || (person as any).scholar_no || person.custom_fields?.student_id || person.custom_fields?.admission_no);
       case 'class':
-        return person.class ?? '';
+        return person.class ?? (person as any).grade ?? (person as any).standard ?? person.custom_fields?.class ?? person.custom_fields?.grade ?? '';
       case 'section':
-        return person.section ?? '';
+        return person.section ?? (person as any).sec ?? person.custom_fields?.section ?? person.custom_fields?.sec ?? '';
       case 'roll_number':
-        return person.roll_number ?? '';
+      case 'roll_no':
+      case 'roll':
+      case 'rollno':
+      case 'r_no':
+      case 'rno':
+      case 'roll_num': {
+        const val =
+          person.roll_number ??
+          (person as any).roll_no ??
+          (person as any).roll ??
+          (person as any).rollno ??
+          (person as any).r_no ??
+          (person as any).rno ??
+          person.custom_fields?.roll_number ??
+          person.custom_fields?.roll_no ??
+          person.custom_fields?.roll ??
+          person.custom_fields?.rollno ??
+          person.custom_fields?.r_no ??
+          person.custom_fields?.rno ??
+          person.custom_fields?.['Roll No'] ??
+          person.custom_fields?.['Roll Number'] ??
+          person.custom_fields?.['Roll No.'] ??
+          person.custom_fields?.['Roll'] ??
+          (field.value ?? field.customText ?? '');
+        return String(val);
+      }
       case 'date_of_birth':
-        return person.date_of_birth ?? '';
+      case 'dob':
+        return person.date_of_birth ?? (person as any).dob ?? person.custom_fields?.date_of_birth ?? person.custom_fields?.dob ?? '';
       case 'blood_group':
-        return person.blood_group ?? '';
+      case 'blood':
+        return person.blood_group ?? (person as any).blood ?? person.custom_fields?.blood_group ?? person.custom_fields?.blood ?? '';
       case 'parent_info':
         return [person.father_name, person.mother_name].filter(Boolean).join(' / ');
       case 'father_name':
-        return person.father_name ?? '';
+        return person.father_name ?? (person as any).father ?? person.custom_fields?.father_name ?? person.custom_fields?.father ?? '';
       case 'mother_name':
-        return person.mother_name ?? '';
+        return person.mother_name ?? (person as any).mother ?? (person as any).mothers_name ?? person.custom_fields?.mother_name ?? person.custom_fields?.mothers_name ?? '';
       case 'phone':
-        return person.phone ?? '';
+        return person.phone ?? (person as any).mobile ?? (person as any).contact ?? person.custom_fields?.phone ?? person.custom_fields?.mobile ?? '';
       case 'address':
-        return person.address ?? '';
+        return person.address ?? (person as any).addr ?? person.custom_fields?.address ?? '';
       case 'academic_year':
         return field.value || field.customText || academicYear;
       case 'batch':
@@ -123,17 +150,72 @@ function SingleCardFace({
       case 'designation':
         return (person as any).designation ?? (person.custom_fields?.designation ?? (field.value || field.customText || 'Student'));
       case 'emergency_no':
-        return person.emergency_number ?? (person as any).emergency_no ?? (person.custom_fields?.emergency_no ?? (field.value || field.customText || ''));
+        return person.emergency_number ?? (person as any).emergency_no ?? (person.custom_fields?.emergency_no ?? (person.custom_fields?.emergency_number ?? (field.value || field.customText || '')));
       case 'valid_till':
         return field.value || field.customText || '';
       case 'terms':
         return field.value || field.customText || '';
       case 'website':
         return field.value || field.customText || '';
-      case 'custom_text':
+      case 'custom_text': {
+        const normalizedPrefix = (field.labelPrefix || '').toLowerCase().replace(/[\s_.:-]/g, '');
+        if (normalizedPrefix.includes('roll')) {
+          const rollVal =
+            person.roll_number ??
+            (person as any).roll_no ??
+            (person as any).roll ??
+            (person as any).rollno ??
+            person.custom_fields?.roll_number ??
+            person.custom_fields?.roll_no ??
+            person.custom_fields?.roll ??
+            person.custom_fields?.['Roll No'] ??
+            person.custom_fields?.['Roll Number'] ??
+            person.custom_fields?.['Roll No.'];
+          if (rollVal !== undefined && rollVal !== null && String(rollVal).trim() !== '') {
+            return String(rollVal);
+          }
+        }
         return field.value ?? field.customText ?? '';
+      }
       default: {
-        const customVal = (person as any)[field.key] ?? (person.custom_fields?.[field.key] ?? undefined);
+        const normalizedKey = (field.key || '').toLowerCase().replace(/[\s_.-]/g, '');
+        const normalizedPrefix = (field.labelPrefix || '').toLowerCase().replace(/[\s_.:-]/g, '');
+        const normalizedLabel = ((field as any).label || (field as any).name || '').toLowerCase().replace(/[\s_.:-]/g, '');
+
+        if (
+          normalizedKey.includes('roll') ||
+          normalizedPrefix.includes('roll') ||
+          normalizedLabel.includes('roll') ||
+          normalizedKey === 'rno' ||
+          normalizedKey === 'r_no'
+        ) {
+          const rollVal =
+            person.roll_number ??
+            (person as any).roll_no ??
+            (person as any).roll ??
+            (person as any).rollno ??
+            (person as any).r_no ??
+            (person as any).rno ??
+            person.custom_fields?.roll_number ??
+            person.custom_fields?.roll_no ??
+            person.custom_fields?.roll ??
+            person.custom_fields?.rollno ??
+            person.custom_fields?.r_no ??
+            person.custom_fields?.rno ??
+            person.custom_fields?.['Roll No'] ??
+            person.custom_fields?.['Roll Number'] ??
+            person.custom_fields?.['Roll No.'] ??
+            person.custom_fields?.['Roll'];
+          if (rollVal !== undefined && rollVal !== null && String(rollVal).trim() !== '') {
+            return String(rollVal);
+          }
+        }
+
+        const customVal =
+          (person as any)[field.key] ??
+          person.custom_fields?.[field.key] ??
+          (person as any)[normalizedKey] ??
+          person.custom_fields?.[normalizedKey];
         if (customVal !== undefined && customVal !== null && String(customVal).trim() !== '') {
           return String(customVal);
         }

@@ -37,10 +37,21 @@ export function PersonForm({
     const initialMap: Record<string, string> = {};
     for (const field of dynamicFields) {
       const modelK = String(field.modelKey || field.key);
+      const isRoll = field.key.includes('roll') || modelK.includes('roll');
       const val =
         (initial as any)?.[modelK] ??
         (initial as any)?.[field.key] ??
         initial?.custom_fields?.[field.key] ??
+        (isRoll
+          ? (initial as any)?.roll_number ??
+            (initial as any)?.roll_no ??
+            (initial as any)?.roll ??
+            initial?.custom_fields?.roll_number ??
+            initial?.custom_fields?.roll_no ??
+            initial?.custom_fields?.roll ??
+            initial?.custom_fields?.['Roll No'] ??
+            initial?.custom_fields?.['Roll Number']
+          : undefined) ??
         '';
       initialMap[field.key] = val ? String(val) : '';
     }
