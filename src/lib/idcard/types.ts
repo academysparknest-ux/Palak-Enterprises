@@ -185,6 +185,7 @@ export interface IdCardTemplate {
   card_height_mm: number;
   background_url: string | null;
   logo_url?: string | null;
+  version?: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -248,6 +249,8 @@ export interface IdCardGeneration {
   project_id: string;
   person_id: string;
   template_id: string;
+  template_version?: number | null;
+  template_layout_snapshot?: TemplateLayout | null;
   status: GenerationStatus;
   file_url: string | null;
   error_message: string | null;

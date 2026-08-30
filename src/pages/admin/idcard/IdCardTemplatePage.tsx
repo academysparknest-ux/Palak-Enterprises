@@ -46,6 +46,7 @@ import {
   DEFAULT_CARD_HEIGHT,
 } from '../../../components/idcard/TemplateEditor';
 import type { IdCardProject, IdCardTemplate, TemplateLayout, TemplateField } from '../../../lib/idcard/types';
+import { useUnsavedChanges } from '../../../hooks/useUnsavedChanges';
 
 type ProjectContext = { project: IdCardProject; reloadProject: () => void | Promise<void> };
 
@@ -76,6 +77,18 @@ export default function IdCardTemplatePage() {
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadLogoError, setUploadLogoError] = useState<string | null>(null);
+
+  // Unsaved changes tracking (Fix H2)
+  const lastSavedSnapshotRef = useRef<string>('');
+  const currentSnapshot = useMemo(() => {
+    return JSON.stringify({ name, layout, cardWidth, cardHeight });
+  }, [name, layout, cardWidth, cardHeight]);
+
+  const isDirty = useMemo(() => {
+    return Boolean(lastSavedSnapshotRef.current && lastSavedSnapshotRef.current !== currentSnapshot);
+  }, [currentSnapshot]);
+
+  useUnsavedChanges(isDirty, 'You have unsaved ID card template modifications. Are you sure you want to leave?');
 
   // School / Institution Details (Configured once by admin and synced across ID card templates)
   const [showSchoolDetails, setShowSchoolDetails] = useState(true);
@@ -414,11 +427,16 @@ export default function IdCardTemplatePage() {
         setLayout(sanitizedLayout);
         setCardWidth(existing.card_width_mm);
         setCardHeight(existing.card_height_mm);
+        lastSavedSnapshotRef.current = JSON.stringify({
+          name: existing.name,
+          layout: sanitizedLayout,
+          cardWidth: existing.card_width_mm,
+          cardHeight: existing.card_height_mm,
+        });
       } else {
         // No templates exist yet: default editor layout
-        setTemplate(null);
-        setName(`${project.name} Template`);
-        setLayout({
+        const initialName = `${project.name} Template`;
+        const initialLayout = {
           ...DEFAULT_TEMPLATE_LAYOUT,
           schoolLogoUrl: resolvedLogo,
           fields: DEFAULT_TEMPLATE_LAYOUT.fields.map((f) =>
@@ -426,9 +444,18 @@ export default function IdCardTemplatePage() {
               ? { ...f, customText: resolvedLogo || undefined, borderRadius: 0 }
               : f
           ),
-        });
+        };
+        setTemplate(null);
+        setName(initialName);
+        setLayout(initialLayout);
         setCardWidth(DEFAULT_CARD_WIDTH);
         setCardHeight(DEFAULT_CARD_HEIGHT);
+        lastSavedSnapshotRef.current = JSON.stringify({
+          name: initialName,
+          layout: initialLayout,
+          cardWidth: DEFAULT_CARD_WIDTH,
+          cardHeight: DEFAULT_CARD_HEIGHT,
+        });
       }
       setState({ kind: 'ready' });
     } catch (err) {
@@ -617,6 +644,12 @@ export default function IdCardTemplatePage() {
       setLayout(savedTemplate.layout);
       setCardWidth(savedTemplate.card_width_mm);
       setCardHeight(savedTemplate.card_height_mm);
+      lastSavedSnapshotRef.current = JSON.stringify({
+        name: savedTemplate.name,
+        layout: savedTemplate.layout,
+        cardWidth: savedTemplate.card_width_mm,
+        cardHeight: savedTemplate.card_height_mm,
+      });
       setSearchParams({ templateId: savedTemplate.id });
 
       // Always ensure the project points to this active saved template ID

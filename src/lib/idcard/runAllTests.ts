@@ -31,6 +31,7 @@ const testFiles = [
   'src/lib/idcard/productionTable.test.ts',
   'src/lib/idcard/spreadsheetTableEngine.test.ts',
   'src/lib/idcard/printSessionHardening.test.ts',
+  'src/lib/idcard/productionReadiness.test.ts',
 ];
 
 

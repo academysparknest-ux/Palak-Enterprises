@@ -1,3 +1,5 @@
+import { executeWithAuthRetry } from '../supabase/authSession';
+import { classifySupabaseError } from './errors';
 import type { IdCardPerson, PrintHistoryEntry, ReprintReason } from './types';
 
 const STORAGE_PREFIX = 'idcard_print_history_v1_';
@@ -21,7 +23,11 @@ function getStorageKey(projectId: string): string {
   return `${STORAGE_PREFIX}${projectId}`;
 }
 
-export function getPrintHistory(projectId: string, personId?: string): PrintHistoryEntry[] {
+// ============================================================
+// LOCAL STORAGE CACHE (fast reads, fallback when DB unavailable)
+// ============================================================
+
+function getLocalPrintHistory(projectId: string, personId?: string): PrintHistoryEntry[] {
   const storage = getStorage();
   if (!storage) return [];
   try {
@@ -39,7 +45,7 @@ export function getPrintHistory(projectId: string, personId?: string): PrintHist
   }
 }
 
-export function savePrintHistoryEntries(projectId: string, entries: PrintHistoryEntry[]): void {
+function saveLocalPrintHistory(projectId: string, entries: PrintHistoryEntry[]): void {
   const storage = getStorage();
   if (!storage) return;
   try {
@@ -47,6 +53,117 @@ export function savePrintHistoryEntries(projectId: string, entries: PrintHistory
   } catch (err) {
     console.warn('Failed to save print history to localStorage:', err);
   }
+}
+
+// ============================================================
+// DATABASE OPERATIONS (authoritative source of truth)
+// ============================================================
+
+async function fetchDbPrintHistory(projectId: string, personId?: string): Promise<PrintHistoryEntry[]> {
+  try {
+    return await executeWithAuthRetry(
+      async (client) => {
+        let query = client
+          .from('idcard_print_history')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: false });
+
+        if (personId) {
+          query = query.eq('person_id', personId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw classifySupabaseError(error);
+
+        // Map DB columns to PrintHistoryEntry shape
+        return (data || []).map((row: any) => ({
+          id: row.id,
+          project_id: row.project_id,
+          person_id: row.person_id,
+          student_id: row.student_id,
+          generation_id: row.generation_id || undefined,
+          template_id: row.template_id || undefined,
+          template_name: row.template_name || undefined,
+          session_id: row.session_id || undefined,
+          print_number: row.print_number,
+          status: row.status,
+          reprint_reason: row.reprint_reason || undefined,
+          notes: row.notes || undefined,
+          printed_by: row.printed_by_name || 'Admin',
+          timestamp: row.created_at,
+        }));
+      },
+      { operationName: 'fetchDbPrintHistory' }
+    );
+  } catch (err) {
+    console.warn('Failed to fetch print history from DB, falling back to localStorage:', err);
+    return [];
+  }
+}
+
+async function insertDbPrintEntry(entry: PrintHistoryEntry & { project_id: string }): Promise<void> {
+  try {
+    await executeWithAuthRetry(
+      async (client) => {
+        const { data: userData } = await client.auth.getUser();
+        const userId = userData?.user?.id || null;
+
+        const { error } = await client.from('idcard_print_history').insert({
+          project_id: entry.project_id,
+          person_id: entry.person_id,
+          student_id: entry.student_id,
+          generation_id: entry.generation_id || null,
+          template_id: entry.template_id || null,
+          template_name: entry.template_name || null,
+          session_id: entry.session_id || null,
+          print_number: entry.print_number,
+          status: entry.status,
+          reprint_reason: entry.reprint_reason || null,
+          notes: entry.notes || null,
+          printed_by: userId,
+          printed_by_name: entry.printed_by || 'Admin',
+        });
+        if (error) throw classifySupabaseError(error);
+      },
+      { operationName: 'insertDbPrintEntry' }
+    );
+  } catch (err) {
+    console.warn('Failed to save print history to DB (localStorage used as fallback):', err);
+  }
+}
+
+// ============================================================
+// PUBLIC API (DB-first with localStorage cache)
+// ============================================================
+
+/**
+ * Gets print history. Tries DB first, falls back to localStorage.
+ * Syncs DB data to localStorage cache on success.
+ */
+export async function getPrintHistoryAsync(projectId: string, personId?: string): Promise<PrintHistoryEntry[]> {
+  const dbHistory = await fetchDbPrintHistory(projectId, personId);
+  if (dbHistory.length > 0) {
+    // Sync full project history to localStorage cache
+    if (!personId) {
+      saveLocalPrintHistory(projectId, dbHistory);
+    }
+    return dbHistory;
+  }
+  // Fallback to localStorage if DB returned nothing
+  return getLocalPrintHistory(projectId, personId);
+}
+
+/**
+ * Synchronous version for status engine compatibility.
+ * Reads from localStorage cache. Call getPrintHistoryAsync first to populate.
+ */
+export function getPrintHistory(projectId: string, personId?: string): PrintHistoryEntry[] {
+  return getLocalPrintHistory(projectId, personId);
+}
+
+export function savePrintHistoryEntries(projectId: string, entries: PrintHistoryEntry[]): void {
+  saveLocalPrintHistory(projectId, entries);
 }
 
 export function getPrintStats(projectId: string, personId: string): {
@@ -109,8 +226,15 @@ export function recordPrintSuccess(
     timestamp: new Date().toISOString(),
   };
 
+  // Write to localStorage immediately (synchronous)
   history.unshift(entry);
   savePrintHistoryEntries(projectId, history);
+
+  // Write to DB asynchronously (fire-and-forget with error logging)
+  insertDbPrintEntry(entry).catch(() => {
+    // Already logged in insertDbPrintEntry
+  });
+
   return entry;
 }
 
@@ -141,6 +265,10 @@ export function recordPrintFailure(
 
   history.unshift(entry);
   savePrintHistoryEntries(projectId, history);
+
+  // Write to DB asynchronously
+  insertDbPrintEntry(entry).catch(() => {});
+
   return entry;
 }
 
@@ -169,5 +297,41 @@ export function recordReprintRequest(
 
   history.unshift(entry);
   savePrintHistoryEntries(projectId, history);
+
+  // Write to DB asynchronously
+  insertDbPrintEntry(entry).catch(() => {});
+
   return entry;
+}
+
+/**
+ * Migrates existing localStorage print history to the database.
+ * Called once on first load of a project. Idempotent — checks if DB already has data.
+ */
+export async function migrateLocalStorageToDb(projectId: string): Promise<{ migrated: number; skipped: boolean }> {
+  try {
+    // Check if DB already has entries for this project
+    const dbEntries = await fetchDbPrintHistory(projectId);
+    if (dbEntries.length > 0) {
+      return { migrated: 0, skipped: true };
+    }
+
+    const localEntries = getLocalPrintHistory(projectId);
+    if (localEntries.length === 0) {
+      return { migrated: 0, skipped: true };
+    }
+
+    // Batch insert to DB
+    let migrated = 0;
+    for (const entry of localEntries) {
+      await insertDbPrintEntry({ ...entry, project_id: projectId });
+      migrated++;
+    }
+
+    console.info(`[PRINT_TRACKER] Migrated ${migrated} print history entries from localStorage to DB for project ${projectId}`);
+    return { migrated, skipped: false };
+  } catch (err) {
+    console.warn('Failed to migrate localStorage print history to DB:', err);
+    return { migrated: 0, skipped: true };
+  }
 }

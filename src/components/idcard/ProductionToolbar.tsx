@@ -127,6 +127,22 @@ export function ProductionToolbar({
     });
   }
 
+  // Local search state with 150ms debounce for 60fps input typing
+  const [localSearch, setLocalSearch] = React.useState(filters.search);
+
+  React.useEffect(() => {
+    setLocalSearch(filters.search);
+  }, [filters.search]);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== filters.search) {
+        onFiltersChange({ ...filters, search: localSearch });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [localSearch, filters, onFiltersChange]);
+
   return (
     <div className="sticky top-0 z-20 space-y-2.5 rounded-xl border border-slate-200 bg-white/95 p-3.5 shadow-sm backdrop-blur-md">
       {/* Top row: Global Search + Primary Action Buttons + Column/Export/Sort tools */}
@@ -136,16 +152,19 @@ export function ProductionToolbar({
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            value={filters.search}
-            onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="🔍 Search name, ID, roll, phone, parent..."
             className="w-full rounded-lg border border-slate-200 bg-slate-50/70 py-1.5 pl-9 pr-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
-          {filters.search && (
+          {localSearch && (
             <button
               type="button"
-              onClick={() => onFiltersChange({ ...filters, search: '' })}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              onClick={() => {
+                setLocalSearch('');
+                onFiltersChange({ ...filters, search: '' });
+              }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X size={13} />
             </button>

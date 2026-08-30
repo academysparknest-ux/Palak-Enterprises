@@ -55,10 +55,10 @@ export function getQrCodePayload(
 ): string {
   const cleanId = sanitizeStudentId(person.student_id);
   if (cleanId) {
-    const origin =
-      typeof window !== 'undefined' && window.location.origin
-        ? window.location.origin
-        : 'https://palakenterprises.com';
+    const envUrl = typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_URL
+      ? String(import.meta.env.VITE_APP_URL).replace(/\/+$/, '')
+      : '';
+    const origin = envUrl || (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://palak-enterprises-ghit.vercel.app');
     return `${origin}/verify/${encodeURIComponent(cleanId)}`;
   }
 

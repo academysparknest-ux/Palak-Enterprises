@@ -1,6 +1,11 @@
 import { executeWithAuthRetry } from '../supabase/authSession';
 import { classifySupabaseError } from './errors';
 import { uploadAndPersistSchoolLogo } from './logoUpload';
+import {
+  auditStudentCreated, auditStudentUpdated, auditStudentDeleted,
+  auditBulkImport, auditPhotoChanged, auditTemplateUpdated,
+  auditCardGenerated,
+} from './auditLog';
 import type {
   IdCardProject,
   IdCardPerson,
@@ -150,15 +155,32 @@ export async function getIdCardPersons(
 export async function getAllIdCardPersons(projectId: string): Promise<IdCardPerson[]> {
   return executeWithAuthRetry(
     async (client) => {
-      const { data, error } = await client
-        .from('idcard_persons')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('student_id', { ascending: true })
-        .limit(10000);
+      const allPersons: IdCardPerson[] = [];
+      const batchSize = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      if (error) throw classifySupabaseError(error);
-      return (data as IdCardPerson[]) || [];
+      while (hasMore) {
+        const to = from + batchSize - 1;
+        const { data, error } = await client
+          .from('idcard_persons')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('student_id', { ascending: true })
+          .range(from, to);
+
+        if (error) throw classifySupabaseError(error);
+        const batch = (data as IdCardPerson[]) || [];
+        allPersons.push(...batch);
+
+        if (batch.length < batchSize) {
+          hasMore = false;
+        } else {
+          from += batchSize;
+        }
+      }
+
+      return allPersons;
     },
     { operationName: 'getAllIdCardPersons' }
   );
@@ -180,7 +202,7 @@ export async function createIdCardPerson(
 ): Promise<IdCardPerson> {
   return executeWithAuthRetry(
     async (client) => {
-      const sanitized = {
+      const sanitized: Record<string, any> = {
         project_id: input.project_id,
         student_id: input.student_id,
         name: input.name,
@@ -196,9 +218,15 @@ export async function createIdCardPerson(
         address: input.address ?? null,
         photo_url: input.photo_url ?? null,
       };
+      // Include custom fields if present
+      if (input.custom_fields && Object.keys(input.custom_fields).length > 0) {
+        sanitized.custom_fields = input.custom_fields;
+      }
       const { data, error } = await client.from('idcard_persons').insert(sanitized).select().single();
       if (error) throw classifySupabaseError(error);
-      return data as IdCardPerson;
+      const person = data as IdCardPerson;
+      auditStudentCreated(person.project_id, person.student_id, person.name);
+      return person;
     },
     { operationName: 'createIdCardPerson' }
   );
@@ -209,25 +237,37 @@ export async function createIdCardPersonsBulk(
 ): Promise<{ inserted: number }> {
   return executeWithAuthRetry(
     async (client) => {
-      const sanitized = inputs.map((input) => ({
-        project_id: input.project_id,
-        student_id: input.student_id,
-        name: input.name,
-        class: input.class ?? null,
-        section: input.section ?? null,
-        roll_number: input.roll_number ?? null,
-        date_of_birth: input.date_of_birth ?? null,
-        blood_group: input.blood_group ?? null,
-        father_name: input.father_name ?? null,
-        mother_name: input.mother_name ?? null,
-        phone: input.phone ?? null,
-        emergency_number: input.emergency_number ?? null,
-        address: input.address ?? null,
-        photo_url: input.photo_url ?? null,
-      }));
+      const sanitized = inputs.map((input) => {
+        const row: Record<string, any> = {
+          project_id: input.project_id,
+          student_id: input.student_id,
+          name: input.name,
+          class: input.class ?? null,
+          section: input.section ?? null,
+          roll_number: input.roll_number ?? null,
+          date_of_birth: input.date_of_birth ?? null,
+          blood_group: input.blood_group ?? null,
+          father_name: input.father_name ?? null,
+          mother_name: input.mother_name ?? null,
+          phone: input.phone ?? null,
+          emergency_number: input.emergency_number ?? null,
+          address: input.address ?? null,
+          photo_url: input.photo_url ?? null,
+        };
+        // Include custom fields if present (fixes H5: custom fields were silently dropped)
+        if (input.custom_fields && Object.keys(input.custom_fields).length > 0) {
+          row.custom_fields = input.custom_fields;
+        }
+        return row;
+      });
       const { error, count } = await client.from('idcard_persons').insert(sanitized, { count: 'exact' });
       if (error) throw classifySupabaseError(error);
-      return { inserted: count ?? inputs.length };
+      const inserted = count ?? inputs.length;
+      // Audit log for bulk import
+      if (inputs.length > 0) {
+        auditBulkImport(inputs[0].project_id, inserted, 0, 0);
+      }
+      return { inserted };
     },
     { operationName: 'createIdCardPersonsBulk' }
   );
@@ -253,17 +293,22 @@ export async function updateIdCardPerson(
         'emergency_number',
         'address',
         'photo_url',
+        'custom_fields',
         'status',
       ];
       const sanitized: Record<string, any> = {};
+      const changedFields: string[] = [];
       for (const col of allowedCols) {
         if ((patch as any)[col] !== undefined) {
           sanitized[col] = (patch as any)[col];
+          changedFields.push(col);
         }
       }
       const { data, error } = await client.from('idcard_persons').update(sanitized).eq('id', id).select().single();
       if (error) throw classifySupabaseError(error);
-      return data as IdCardPerson;
+      const person = data as IdCardPerson;
+      auditStudentUpdated(person.project_id, person.student_id, person.name, changedFields);
+      return person;
     },
     { operationName: 'updateIdCardPerson' }
   );
@@ -272,8 +317,13 @@ export async function updateIdCardPerson(
 export async function deleteIdCardPerson(id: string): Promise<void> {
   return executeWithAuthRetry(
     async (client) => {
+      // Fetch student info before delete for audit trail
+      const { data: person } = await client.from('idcard_persons').select('project_id, student_id, name').eq('id', id).maybeSingle();
       const { error } = await client.from('idcard_persons').delete().eq('id', id);
       if (error) throw classifySupabaseError(error);
+      if (person) {
+        auditStudentDeleted(person.project_id, person.student_id, person.name);
+      }
     },
     { operationName: 'deleteIdCardPerson' }
   );
@@ -317,7 +367,21 @@ export async function uploadPersonPhoto(personId: string, file: File): Promise<s
       if (uploadError) throw classifySupabaseError(uploadError);
 
       const { error: updateError } = await client.from('idcard_persons').update({ photo_url: path }).eq('id', personId);
-      if (updateError) throw classifySupabaseError(updateError);
+      if (updateError) {
+        // Rollback: clean up orphaned file in storage (best-effort)
+        try {
+          await client.storage.from(PHOTO_BUCKET).remove([path]);
+        } catch (cleanupErr) {
+          console.warn('[PHOTO] Failed to clean up orphaned photo after DB update failure:', cleanupErr);
+        }
+        throw classifySupabaseError(updateError);
+      }
+
+      // Audit the photo change (get project_id from the person record)
+      const { data: personData } = await client.from('idcard_persons').select('project_id, student_id, name').eq('id', personId).maybeSingle();
+      if (personData) {
+        auditPhotoChanged(personData.project_id, personData.student_id, personData.name);
+      }
 
       return path;
     },
@@ -429,9 +493,11 @@ export async function updateIdCardTemplate(
       }
       const { data, error } = await client.from('idcard_templates').update(dbPatch).eq('id', id).select().maybeSingle();
       if (error) throw classifySupabaseError(error);
-      if (data) return data as IdCardTemplate;
-      const { data: fallback } = await client.from('idcard_templates').select('*').eq('id', id).single();
-      return fallback as IdCardTemplate;
+      const updated = (data as IdCardTemplate) || (await client.from('idcard_templates').select('*').eq('id', id).single()).data;
+      if (updated) {
+        auditTemplateUpdated(updated.project_id || '', updated.id, updated.name, updated.version || 1);
+      }
+      return updated as IdCardTemplate;
     },
     { operationName: 'updateIdCardTemplate' }
   );
@@ -475,6 +541,8 @@ export async function recordGenerationResult(input: {
   project_id: string;
   person_id: string;
   template_id: string;
+  template_version?: number | null;
+  template_layout_snapshot?: any;
   status: 'SUCCESS' | 'FAILED';
   file_url?: string;
   error_message?: string;
@@ -493,7 +561,11 @@ export async function recordGenerationResult(input: {
         .single();
 
       if (error) throw classifySupabaseError(error);
-      return data as IdCardGeneration;
+      const gen = data as IdCardGeneration;
+      if (gen.status === 'SUCCESS') {
+        auditCardGenerated(gen.project_id, gen.person_id, `Person ${gen.person_id}`, gen.template_id);
+      }
+      return gen;
     },
     { operationName: 'recordGenerationResult' }
   );

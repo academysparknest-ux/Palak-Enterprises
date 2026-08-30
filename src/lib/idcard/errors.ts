@@ -89,13 +89,6 @@ export function classifySupabaseError(err: unknown): AppError {
     return new AppError('STORAGE_ERROR', message, err);
   }
 
-  if (code === '23505' || /unique constraint|duplicate key/i.test(message)) {
-    return new AppError('VALIDATION_ERROR', 'Duplicate student ID detected. Each student ID must be unique within a project.', err);
-  }
-
-  if (code === '42501' || /permission denied|row-level security/i.test(message)) {
-    return new AppError('ACCESS_DENIED', 'Permission denied. Please ensure you are logged in.', err);
-  }
 
   if ((status && status >= 500) || code?.startsWith('PGRST') || code?.startsWith('42')) {
     return new AppError('DATABASE_ERROR', message || 'Database operation failed. Please try again.', err);
