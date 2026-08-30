@@ -1348,10 +1348,8 @@ export default function IdCardGeneratePage() {
       if (gen) printableGenIds.push(gen.id)
     }
 
-    const orientationStr = layout.orientation
     const paperW = layout.paperWidthMm
     const paperH = layout.paperHeightMm
-    const paperSizeName = effectiveConfig.paperSize.toUpperCase()
 
     let pagesHtml = ''
     for (const page of layout.pages) {
@@ -1386,36 +1384,48 @@ export default function IdCardGeneratePage() {
     }
 
     const html = `<!DOCTYPE html>
-<html><head><title>Print ID Cards - ${project.name}</title>
+<html><head><meta charset="utf-8" /><title>Print ID Cards - ${project.name}</title>
 <style>
   @page {
-    size: ${paperSizeName} ${orientationStr};
-    margin: 0mm;
+    size: ${paperW}mm ${paperH}mm;
+    margin: 0 !important;
   }
-  * {
+  *, *::before, *::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
   }
   html, body {
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: ${paperW}mm;
+    height: auto;
     background: #fff;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
   .print-sheet {
+    box-sizing: border-box;
     position: relative;
+    width: ${paperW}mm;
+    height: ${paperH}mm;
+    max-height: ${paperH}mm;
+    overflow: hidden;
+    background: #fff;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     page-break-after: always;
     break-after: page;
-    overflow: hidden;
+    display: block;
   }
   .print-sheet:last-child {
-    page-break-after: avoid !important;
-    break-after: avoid !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
   img {
     display: block;
+    -webkit-user-select: none;
+    user-select: none;
   }
 </style>
 </head>
@@ -1779,7 +1789,7 @@ export default function IdCardGeneratePage() {
       {/* Actual Size 100% Print Notice */}
       <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
         <span>
-          💡 <strong>Printing Standard:</strong> Print Scale: <strong>100% (Actual Size)</strong> · Fit to Page: <strong>OFF</strong> to guarantee physical mm accuracy.
+          💡 <strong>Printer Dialog Settings:</strong> Margins: <strong>None</strong> (or 0mm) · Print Scale: <strong>100% (Actual Size)</strong> · Fit to Page: <strong>OFF</strong> to guarantee 0 blank pages and exact physical mm accuracy.
         </span>
       </div>
 

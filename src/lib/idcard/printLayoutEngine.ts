@@ -723,36 +723,50 @@ export function printSheetsInBrowser(
           <style>
             @page {
               size: ${layout.paperWidthMm}mm ${layout.paperHeightMm}mm;
-              margin: 0mm;
+              margin: 0 !important;
             }
-            * {
+            *, *::before, *::after {
               box-sizing: border-box;
               margin: 0;
               padding: 0;
             }
             html, body {
+              width: ${layout.paperWidthMm}mm;
+              height: auto;
               background: #fff;
               color: #000;
-              margin: 0;
-              padding: 0;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
+              margin: 0 !important;
+              padding: 0 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             .sheet {
+              box-sizing: border-box;
               position: relative;
-              page-break-after: always;
-              break-after: page;
+              width: ${layout.paperWidthMm}mm;
+              height: ${layout.paperHeightMm}mm;
+              max-height: ${layout.paperHeightMm}mm;
               overflow: hidden;
               background: #fff;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              page-break-after: always;
+              break-after: page;
+              display: block;
             }
             .sheet:last-child {
-              page-break-after: auto;
-              break-after: auto;
+              page-break-after: auto !important;
+              break-after: auto !important;
             }
             .card-box {
               position: absolute;
               overflow: hidden;
               background: transparent;
+            }
+            img {
+              display: block;
+              -webkit-user-select: none;
+              user-select: none;
             }
           </style>
         </head>
