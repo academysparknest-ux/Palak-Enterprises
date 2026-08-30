@@ -11,7 +11,6 @@ import {
   ZoomIn,
   ZoomOut,
   Upload,
-  AlertTriangle,
   Grid,
   Magnet,
   Type,
@@ -26,6 +25,11 @@ import {
   RotateCcw,
   Sparkles,
   Move,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  MoveVertical,
+  ArrowUpDown,
 } from 'lucide-react';
 import {
   FIELD_LABELS,
@@ -41,7 +45,7 @@ import type {
 } from '../../lib/idcard/types';
 
 // ============================================================
-// CONSTANTS
+// CONSTANTS & TYPES
 // ============================================================
 
 export const DEFAULT_CARD_WIDTH = 54.0;
@@ -67,6 +71,32 @@ interface HistoryEntry {
   layout: TemplateLayout;
   widthMm: number;
   heightMm: number;
+}
+
+export interface GapGuide {
+  fromY: number; // mm
+  toY: number;   // mm
+  x: number;     // mm
+  gapMm: number; // exact gap in mm
+  isEqual?: boolean;
+  label?: string;
+}
+
+export interface AlignmentLine {
+  type: 'x' | 'y';
+  pos: number;
+  min: number;
+  max: number;
+  label?: string;
+}
+
+export interface ActiveGuidesState {
+  x: number | null;
+  y: number | null;
+  alignmentLines?: AlignmentLine[];
+  gapAbove?: GapGuide | null;
+  gapBelow?: GapGuide | null;
+  equalGaps?: GapGuide[];
 }
 
 // ============================================================
@@ -107,7 +137,6 @@ export function TemplateEditor({
   const [presetTab, setPresetTab] = useState<'saved' | 'presets'>(
     savedTemplates.length > 0 ? 'saved' : 'presets'
   );
-  const [aspectWarning, setAspectWarning] = useState<string | null>(null);
   const [showBgFilters, setShowBgFilters] = useState<boolean>(false);
 
   // History for Undo/Redo
@@ -129,11 +158,15 @@ export function TemplateEditor({
     height: number;
   } | null>(null);
 
-  // Smart Guide lines currently active
-  const [activeGuides, setActiveGuides] = useState<{
-    x: number | null;
-    y: number | null;
-  }>({ x: null, y: null });
+  // Smart Guide lines & In-between Vertical Gaps currently active
+  const [activeGuides, setActiveGuides] = useState<ActiveGuidesState>({
+    x: null,
+    y: null,
+    alignmentLines: [],
+    gapAbove: null,
+    gapBelow: null,
+    equalGaps: [],
+  });
 
   // Base scale calculation: 100% zoom = 4.2 pixels per mm
   const pxPerMm = (4.2 * zoom) / 100;
@@ -302,6 +335,221 @@ export function TemplateEditor({
     updateActiveFields(newFields, pushToHistory);
   }
 
+  // ── Vertical Gap & Spacing Helpers ─────────────────────────
+  const getFieldGapInfo = useCallback(
+    (fieldId: string | null) => {
+      if (!fieldId) return { above: null, below: null };
+      const current = activeFields.find((f) => f.id === fieldId);
+      if (!current) return { above: null, below: null };
+
+      const otherVisible = activeFields.filter(
+        (f) => f.id !== fieldId && f.visible !== false
+      );
+
+      // Closest element above
+      const aboveElems = otherVisible
+        .filter((f) => f.y + f.height <= current.y + 0.5)
+        .sort((a, b) => b.y + b.height - (a.y + a.height));
+      const aboveElem = aboveElems[0] || null;
+
+      // Closest element below
+      const belowElems = otherVisible
+        .filter((f) => f.y >= current.y + current.height - 0.5)
+        .sort((a, b) => a.y - b.y);
+      const belowElem = belowElems[0] || null;
+
+      const gapAbove = aboveElem
+        ? Number((current.y - (aboveElem.y + aboveElem.height)).toFixed(2))
+        : null;
+      const gapBelow = belowElem
+        ? Number((belowElem.y - (current.y + current.height)).toFixed(2))
+        : null;
+
+      return {
+        above: aboveElem ? { field: aboveElem, gapMm: gapAbove! } : null,
+        below: belowElem ? { field: belowElem, gapMm: gapBelow! } : null,
+      };
+    },
+    [activeFields]
+  );
+
+  const setGapToAbove = (targetGapMm: number) => {
+    if (!selectedField) return;
+    const { above } = getFieldGapInfo(selectedField.id || null);
+    if (!above) return;
+    const newY = Number((above.field.y + above.field.height + targetGapMm).toFixed(2));
+    if (newY >= 0 && newY + selectedField.height <= heightMm) {
+      updateSelectedField({ y: newY });
+    }
+  };
+
+  const setGapToBelow = (targetGapMm: number) => {
+    if (!selectedField) return;
+    const { below } = getFieldGapInfo(selectedField.id || null);
+    if (!below) return;
+    const newY = Number((below.field.y - selectedField.height - targetGapMm).toFixed(2));
+    if (newY >= 0 && newY + selectedField.height <= heightMm) {
+      updateSelectedField({ y: newY });
+    }
+  };
+
+  // Evenly distribute text fields vertically
+  const distributeTextElementsVertically = () => {
+    const textFields = activeFields
+      .filter((f) => f.visible !== false && !IMAGE_FIELDS.includes(f.key))
+      .sort((a, b) => a.y - b.y);
+
+    if (textFields.length < 3) return;
+
+    const topField = textFields[0];
+    const bottomField = textFields[textFields.length - 1];
+
+    const totalHeightOfElements = textFields.reduce((sum, f) => sum + f.height, 0);
+    const totalSpan = bottomField.y + bottomField.height - topField.y;
+    const totalGapSpace = totalSpan - totalHeightOfElements;
+    const uniformGap = Math.max(0.5, totalGapSpace / (textFields.length - 1));
+
+    let currentY = topField.y;
+    const updatedMap = new Map<string, number>();
+
+    for (let i = 0; i < textFields.length; i++) {
+      const f = textFields[i];
+      if (i === 0) {
+        updatedMap.set(f.id!, f.y);
+        currentY += f.height + uniformGap;
+      } else if (i === textFields.length - 1) {
+        updatedMap.set(f.id!, bottomField.y);
+      } else {
+        updatedMap.set(f.id!, Number(currentY.toFixed(2)));
+        currentY += f.height + uniformGap;
+      }
+    }
+
+    const newFields = activeFields.map((f) =>
+      updatedMap.has(f.id!) ? { ...f, y: updatedMap.get(f.id!)! } : f
+    );
+    updateActiveFields(newFields, true);
+  };
+
+  // Set uniform gap between successive text fields
+  const applyUniformVerticalGap = (gapMm: number) => {
+    const textFields = activeFields
+      .filter((f) => f.visible !== false && !IMAGE_FIELDS.includes(f.key))
+      .sort((a, b) => a.y - b.y);
+
+    if (textFields.length < 2) return;
+
+    let currentY = textFields[0].y;
+    const updatedMap = new Map<string, number>();
+
+    for (let i = 0; i < textFields.length; i++) {
+      const f = textFields[i];
+      if (i === 0) {
+        updatedMap.set(f.id!, f.y);
+        currentY += f.height + gapMm;
+      } else {
+        const nextY = Math.min(heightMm - f.height, Number(currentY.toFixed(2)));
+        updatedMap.set(f.id!, nextY);
+        currentY += f.height + gapMm;
+      }
+    }
+
+    const newFields = activeFields.map((f) =>
+      updatedMap.has(f.id!) ? { ...f, y: updatedMap.get(f.id!)! } : f
+    );
+    updateActiveFields(newFields, true);
+  };
+
+  // Align text fields horizontally
+  const alignTextFields = (alignment: 'left' | 'center' | 'right') => {
+    const textFields = activeFields.filter(
+      (f) => f.visible !== false && !IMAGE_FIELDS.includes(f.key)
+    );
+    if (textFields.length < 2) return;
+
+    if (alignment === 'left') {
+      const minLeft = Math.min(...textFields.map((f) => f.x));
+      const newFields = activeFields.map((f) => {
+        if (textFields.some((tf) => tf.id === f.id)) {
+          return { ...f, x: minLeft };
+        }
+        return f;
+      });
+      updateActiveFields(newFields, true);
+    } else if (alignment === 'right') {
+      const maxRight = Math.max(...textFields.map((f) => f.x + f.width));
+      const newFields = activeFields.map((f) => {
+        if (textFields.some((tf) => tf.id === f.id)) {
+          return { ...f, x: Number((maxRight - f.width).toFixed(2)) };
+        }
+        return f;
+      });
+      updateActiveFields(newFields, true);
+    } else if (alignment === 'center') {
+      const avgCenter =
+        textFields.reduce((sum, f) => sum + (f.x + f.width / 2), 0) / textFields.length;
+      const newFields = activeFields.map((f) => {
+        if (textFields.some((tf) => tf.id === f.id)) {
+          return { ...f, x: Number((avgCenter - f.width / 2).toFixed(2)) };
+        }
+        return f;
+      });
+      updateActiveFields(newFields, true);
+    }
+  };
+
+  function renderGapGuide(gap: GapGuide, key: string) {
+    if (gap.gapMm < 0.2 || gap.fromY >= gap.toY) return null;
+    const topPx = gap.fromY * pxPerMm;
+    const heightPx = (gap.toY - gap.fromY) * pxPerMm;
+    const leftPx = gap.x * pxPerMm;
+
+    return (
+      <div
+        key={key}
+        className="pointer-events-none absolute z-40"
+        style={{ left: leftPx, top: topPx, height: heightPx }}
+      >
+        {/* Top Horizontal T-Tick */}
+        <div
+          className={`absolute -top-[1px] -left-1.5 w-3 border-t-2 ${
+            gap.isEqual ? 'border-emerald-500' : 'border-rose-500'
+          }`}
+        />
+
+        {/* Vertical Connecting Line */}
+        <div
+          className={`absolute top-0 bottom-0 left-0 border-l-2 ${
+            gap.isEqual
+              ? 'border-emerald-500 bg-emerald-500/10'
+              : 'border-rose-500 bg-rose-500/10'
+          }`}
+        />
+
+        {/* Bottom Horizontal T-Tick */}
+        <div
+          className={`absolute -bottom-[1px] -left-1.5 w-3 border-b-2 ${
+            gap.isEqual ? 'border-emerald-500' : 'border-rose-500'
+          }`}
+        />
+
+        {/* Gap Distance Badge */}
+        <div
+          className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[9px] font-mono font-bold shadow-md ring-1 ring-white/90"
+          style={{
+            backgroundColor: gap.isEqual ? '#059669' : '#e11d48',
+            color: '#ffffff',
+          }}
+        >
+          <span>↕ {gap.gapMm.toFixed(1)} mm</span>
+          {gap.isEqual && (
+            <span className="rounded bg-white/20 px-1 text-[8px] tracking-tight">EQUAL</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ── Side & Double-Sided Toggles ────────────────────────────
   function setTemplateType(type: 'single' | 'double') {
     if (type === 'double') {
@@ -374,52 +622,35 @@ export function TemplateEditor({
       const dataUrl = e.target?.result as string;
       if (!dataUrl) return;
 
-      // Check image aspect ratio vs card dimensions
-      const img = new Image();
-      img.onload = () => {
-        const imgAspect = img.width / img.height;
-        const cardAspect = widthMm / heightMm;
-        const aspectDiff = Math.abs(imgAspect - cardAspect) / cardAspect;
-
-        if (aspectDiff > 0.05) {
-          setAspectWarning(
-            `Uploaded ${side} image aspect ratio (${imgAspect.toFixed(2)}) differs from card dimensions (${cardAspect.toFixed(2)}). You can adjust background fit or set matching dimensions below.`
-          );
-        } else {
-          setAspectWarning(null);
-        }
-
-        if (side === 'front') {
-          const nextLayout: TemplateLayout = {
-            ...layout,
-            backgroundUrl: dataUrl,
-            backgroundFit: 'fill',
-            headerSvg: null,
-            footerSvg: null,
-            headerGradientColors: null,
-            footerGradientColors: null,
-          };
-          onChange(nextLayout);
-          pushHistory(nextLayout);
-        } else {
-          const nextBack: TemplateSideLayout = {
-            ...(layout.back || { backgroundColor: '#FFFFFF', fields: [] }),
-            backgroundUrl: dataUrl,
-            backgroundFit: 'fill',
-            headerSvg: null,
-            footerSvg: null,
-            headerGradientColors: null,
-            footerGradientColors: null,
-          };
-          const nextLayout: TemplateLayout = {
-            ...layout,
-            back: nextBack,
-          };
-          onChange(nextLayout);
-          pushHistory(nextLayout);
-        }
-      };
-      img.src = dataUrl;
+      if (side === 'front') {
+        const nextLayout: TemplateLayout = {
+          ...layout,
+          backgroundUrl: dataUrl,
+          backgroundFit: 'fill',
+          headerSvg: null,
+          footerSvg: null,
+          headerGradientColors: null,
+          footerGradientColors: null,
+        };
+        onChange(nextLayout);
+        pushHistory(nextLayout);
+      } else {
+        const nextBack: TemplateSideLayout = {
+          ...(layout.back || { backgroundColor: '#FFFFFF', fields: [] }),
+          backgroundUrl: dataUrl,
+          backgroundFit: 'fill',
+          headerSvg: null,
+          footerSvg: null,
+          headerGradientColors: null,
+          footerGradientColors: null,
+        };
+        const nextLayout: TemplateLayout = {
+          ...layout,
+          back: nextBack,
+        };
+        onChange(nextLayout);
+        pushHistory(nextLayout);
+      }
     };
     reader.readAsDataURL(file);
   }
@@ -440,7 +671,6 @@ export function TemplateEditor({
       onChange(nextLayout);
       pushHistory(nextLayout);
     }
-    setAspectWarning(null);
   }
 
   // ── Element Actions (Add, Duplicate, Lock, Delete) ─────────
@@ -675,31 +905,215 @@ export function TemplateEditor({
         let rawX = initialFieldProps.x + deltaXMm;
         let rawY = initialFieldProps.y + deltaYMm;
 
-        // Snapping
+        // Grid Snapping
         rawX = applySnap(rawX);
         rawY = applySnap(rawY);
 
-        // Smart center guides
         let guideX: number | null = null;
         let guideY: number | null = null;
+        let gapAboveGuide: GapGuide | null = null;
+        let gapBelowGuide: GapGuide | null = null;
+        const alignLines: AlignmentLine[] = [];
+        const equalGapsList: GapGuide[] = [];
 
         if (showSmartGuides) {
+          const snapThreshold = 0.65; // mm
+
+          // Other visible fields on the canvas (excluding current)
+          const otherFields = activeFields.filter(
+            (f) => f.id !== selectedField.id && f.visible !== false
+          );
+
+          // 1. Card Center Snapping
           const cardCenterX = widthMm / 2;
           const cardCenterY = heightMm / 2;
-          const elementCenterX = rawX + nextW / 2;
-          const elementCenterY = rawY + nextH / 2;
+          const elemCenterX = rawX + nextW / 2;
+          const elemCenterY = rawY + nextH / 2;
 
-          if (Math.abs(elementCenterX - cardCenterX) < 0.8) {
+          if (Math.abs(elemCenterX - cardCenterX) < snapThreshold) {
             rawX = Number((cardCenterX - nextW / 2).toFixed(2));
             guideX = cardCenterX;
           }
-          if (Math.abs(elementCenterY - cardCenterY) < 0.8) {
+          if (Math.abs(elemCenterY - cardCenterY) < snapThreshold) {
             rawY = Number((cardCenterY - nextH / 2).toFixed(2));
             guideY = cardCenterY;
           }
+
+          // 2. Element-to-Element Edge & Center Snapping (X & Y Axis)
+          for (const other of otherFields) {
+            const otherCenterX = other.x + other.width / 2;
+            const curCenterX = rawX + nextW / 2;
+
+            // Left to Left
+            if (Math.abs(rawX - other.x) < snapThreshold) {
+              rawX = other.x;
+              alignLines.push({
+                type: 'x',
+                pos: other.x,
+                min: Math.min(rawY, other.y),
+                max: Math.max(rawY + nextH, other.y + other.height),
+                label: 'Left',
+              });
+            }
+            // Center to Center
+            else if (Math.abs(curCenterX - otherCenterX) < snapThreshold) {
+              rawX = Number((otherCenterX - nextW / 2).toFixed(2));
+              alignLines.push({
+                type: 'x',
+                pos: otherCenterX,
+                min: Math.min(rawY, other.y),
+                max: Math.max(rawY + nextH, other.y + other.height),
+                label: 'Center',
+              });
+            }
+            // Right to Right
+            else if (Math.abs(rawX + nextW - (other.x + other.width)) < snapThreshold) {
+              rawX = Number((other.x + other.width - nextW).toFixed(2));
+              alignLines.push({
+                type: 'x',
+                pos: other.x + other.width,
+                min: Math.min(rawY, other.y),
+                max: Math.max(rawY + nextH, other.y + other.height),
+                label: 'Right',
+              });
+            }
+
+            // Top to Top
+            if (Math.abs(rawY - other.y) < snapThreshold) {
+              rawY = other.y;
+              alignLines.push({
+                type: 'y',
+                pos: other.y,
+                min: Math.min(rawX, other.x),
+                max: Math.max(rawX + nextW, other.x + other.width),
+                label: 'Top',
+              });
+            }
+            // Bottom to Bottom
+            else if (Math.abs(rawY + nextH - (other.y + other.height)) < snapThreshold) {
+              rawY = Number((other.y + other.height - nextH).toFixed(2));
+              alignLines.push({
+                type: 'y',
+                pos: other.y + other.height,
+                min: Math.min(rawX, other.x),
+                max: Math.max(rawX + nextW, other.x + other.width),
+                label: 'Bottom',
+              });
+            }
+          }
+
+          // 3. IN-BETWEEN VERTICAL GAP & SPACING CALCULATIONS
+          const elementsAbove = otherFields
+            .filter((f) => f.y + f.height <= rawY + 1.0)
+            .sort((a, b) => b.y + b.height - (a.y + a.height));
+          const aboveElem = elementsAbove[0] || null;
+          const aboveAboveElem = elementsAbove[1] || null;
+
+          const elementsBelow = otherFields
+            .filter((f) => f.y >= rawY + nextH - 1.0)
+            .sort((a, b) => a.y - b.y);
+          const belowElem = elementsBelow[0] || null;
+          const belowBelowElem = elementsBelow[1] || null;
+
+          let isEqualGapSnapped = false;
+
+          // A. Equal Spacing between aboveElem and belowElem:
+          if (aboveElem && belowElem) {
+            const availableSpace = belowElem.y - (aboveElem.y + aboveElem.height) - nextH;
+            if (availableSpace >= 0) {
+              const equalGap = availableSpace / 2;
+              const targetY = aboveElem.y + aboveElem.height + equalGap;
+              if (Math.abs(rawY - targetY) < snapThreshold * 1.2) {
+                rawY = Number(targetY.toFixed(2));
+                isEqualGapSnapped = true;
+              }
+            }
+          }
+
+          // B. Match spacing to the gap above (if aboveAboveElem exists):
+          if (!isEqualGapSnapped && aboveElem && aboveAboveElem) {
+            const refGap = aboveElem.y - (aboveAboveElem.y + aboveAboveElem.height);
+            if (refGap > 0.5) {
+              const targetY = aboveElem.y + aboveElem.height + refGap;
+              if (Math.abs(rawY - targetY) < snapThreshold * 1.2) {
+                rawY = Number(targetY.toFixed(2));
+                isEqualGapSnapped = true;
+                equalGapsList.push({
+                  fromY: aboveAboveElem.y + aboveAboveElem.height,
+                  toY: aboveElem.y,
+                  x: Math.min(aboveElem.x + aboveElem.width / 2, aboveAboveElem.x + aboveAboveElem.width / 2),
+                  gapMm: Number(refGap.toFixed(1)),
+                  isEqual: true,
+                  label: `${refGap.toFixed(1)} mm`,
+                });
+              }
+            }
+          }
+
+          // C. Match spacing to the gap below (if belowBelowElem exists):
+          if (!isEqualGapSnapped && belowElem && belowBelowElem) {
+            const refGap = belowBelowElem.y - (belowElem.y + belowElem.height);
+            if (refGap > 0.5) {
+              const targetY = belowElem.y - nextH - refGap;
+              if (Math.abs(rawY - targetY) < snapThreshold * 1.2) {
+                rawY = Number(targetY.toFixed(2));
+                isEqualGapSnapped = true;
+                equalGapsList.push({
+                  fromY: belowElem.y + belowElem.height,
+                  toY: belowBelowElem.y,
+                  x: Math.min(belowElem.x + belowElem.width / 2, belowBelowElem.x + belowBelowElem.width / 2),
+                  gapMm: Number(refGap.toFixed(1)),
+                  isEqual: true,
+                  label: `${refGap.toFixed(1)} mm`,
+                });
+              }
+            }
+          }
+
+          // Build Gap Guide Objects
+          if (aboveElem) {
+            const curGapAbove = rawY - (aboveElem.y + aboveElem.height);
+            if (curGapAbove >= 0 && curGapAbove <= 40) {
+              gapAboveGuide = {
+                fromY: aboveElem.y + aboveElem.height,
+                toY: rawY,
+                x: Math.max(
+                  Math.min(rawX + nextW / 2, aboveElem.x + aboveElem.width / 2),
+                  Math.min(rawX, aboveElem.x) + 4
+                ),
+                gapMm: Number(curGapAbove.toFixed(1)),
+                isEqual: isEqualGapSnapped,
+                label: FIELD_LABELS[aboveElem.key] || aboveElem.key,
+              };
+            }
+          }
+
+          if (belowElem) {
+            const curGapBelow = belowElem.y - (rawY + nextH);
+            if (curGapBelow >= 0 && curGapBelow <= 40) {
+              gapBelowGuide = {
+                fromY: rawY + nextH,
+                toY: belowElem.y,
+                x: Math.max(
+                  Math.min(rawX + nextW / 2, belowElem.x + belowElem.width / 2),
+                  Math.min(rawX, belowElem.x) + 4
+                ),
+                gapMm: Number(curGapBelow.toFixed(1)),
+                isEqual: isEqualGapSnapped,
+                label: FIELD_LABELS[belowElem.key] || belowElem.key,
+              };
+            }
+          }
         }
 
-        setActiveGuides({ x: guideX, y: guideY });
+        setActiveGuides({
+          x: guideX,
+          y: guideY,
+          alignmentLines: alignLines,
+          gapAbove: gapAboveGuide,
+          gapBelow: gapBelowGuide,
+          equalGaps: equalGapsList,
+        });
 
         nextX = Math.max(0, Math.min(widthMm - nextW, rawX));
         nextY = Math.max(0, Math.min(heightMm - nextH, rawY));
@@ -865,7 +1279,14 @@ export function TemplateEditor({
       setActiveHandle(null);
       setDragStartPos(null);
       setInitialFieldProps(null);
-      setActiveGuides({ x: null, y: null });
+      setActiveGuides({
+        x: null,
+        y: null,
+        alignmentLines: [],
+        gapAbove: null,
+        gapBelow: null,
+        equalGaps: [],
+      });
       // Push history state at completion of mouse gesture
       pushHistory(layout);
     }
@@ -1053,44 +1474,6 @@ export function TemplateEditor({
         </div>
       </div>
 
-      {/* Aspect Ratio Warning Alert */}
-      {aspectWarning && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="text-amber-600 shrink-0" size={16} />
-            <span>{aspectWarning}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                if (currentSide === 'front') {
-                  onChange({ ...layout, backgroundFit: 'crop' });
-                } else if (layout.back) {
-                  onChange({ ...layout, back: { ...layout.back, backgroundFit: 'crop' } });
-                }
-              }}
-              className="rounded bg-amber-200 px-2 py-1 font-semibold hover:bg-amber-300"
-            >
-              Crop
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (currentSide === 'front') {
-                  onChange({ ...layout, backgroundFit: 'fit' });
-                } else if (layout.back) {
-                  onChange({ ...layout, back: { ...layout.back, backgroundFit: 'fit' } });
-                }
-              }}
-              className="rounded bg-amber-200 px-2 py-1 font-semibold hover:bg-amber-300"
-            >
-              Fit
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ── Main Editor Work Area ─────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_380px]">
         {/* Canvas Area */}
@@ -1155,6 +1538,98 @@ export function TemplateEditor({
                 className="pointer-events-none absolute left-0 right-0 z-30 border-t border-dashed border-indigo-500"
                 style={{ top: activeGuides.y * pxPerMm }}
               />
+            )}
+
+            {/* Smart Alignment Lines (Edge & Center) */}
+            {showSmartGuides &&
+              activeGuides.alignmentLines?.map((line, idx) => {
+                if (line.type === 'x') {
+                  return (
+                    <div
+                      key={`align-x-${idx}`}
+                      className="pointer-events-none absolute z-35 border-l border-dashed border-rose-500"
+                      style={{
+                        left: line.pos * pxPerMm,
+                        top: line.min * pxPerMm,
+                        height: Math.max(6, (line.max - line.min) * pxPerMm),
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <div
+                    key={`align-y-${idx}`}
+                    className="pointer-events-none absolute z-35 border-t border-dashed border-rose-500"
+                    style={{
+                      top: line.pos * pxPerMm,
+                      left: line.min * pxPerMm,
+                      width: Math.max(6, (line.max - line.min) * pxPerMm),
+                    }}
+                  />
+                );
+              })}
+
+            {/* In-Between Vertical Gap Guides & Distance Badges */}
+            {showSmartGuides && (
+              <>
+                {/* 1. Dragging Gap Guides */}
+                {activeGuides.gapAbove && renderGapGuide(activeGuides.gapAbove, 'gap-drag-above')}
+                {activeGuides.gapBelow && renderGapGuide(activeGuides.gapBelow, 'gap-drag-below')}
+                {activeGuides.equalGaps?.map((eg, idx) =>
+                  renderGapGuide(eg, `gap-drag-equal-${idx}`)
+                )}
+
+                {/* 2. Idle Selected Field Gap Indicators */}
+                {!isDragging && selectedField && (
+                  <>
+                    {(() => {
+                      const gapInfo = getFieldGapInfo(selectedField.id || null);
+                      return (
+                        <>
+                          {gapInfo.above &&
+                            renderGapGuide(
+                              {
+                                fromY: gapInfo.above.field.y + gapInfo.above.field.height,
+                                toY: selectedField.y,
+                                x: Math.max(
+                                  Math.min(
+                                    selectedField.x + selectedField.width / 2,
+                                    gapInfo.above.field.x + gapInfo.above.field.width / 2
+                                  ),
+                                  Math.min(selectedField.x, gapInfo.above.field.x) + 4
+                                ),
+                                gapMm: gapInfo.above.gapMm,
+                                label:
+                                  FIELD_LABELS[gapInfo.above.field.key] ||
+                                  gapInfo.above.field.key,
+                              },
+                              'idle-gap-above'
+                            )}
+                          {gapInfo.below &&
+                            renderGapGuide(
+                              {
+                                fromY: selectedField.y + selectedField.height,
+                                toY: gapInfo.below.field.y,
+                                x: Math.max(
+                                  Math.min(
+                                    selectedField.x + selectedField.width / 2,
+                                    gapInfo.below.field.x + gapInfo.below.field.width / 2
+                                  ),
+                                  Math.min(selectedField.x, gapInfo.below.field.x) + 4
+                                ),
+                                gapMm: gapInfo.below.gapMm,
+                                label:
+                                  FIELD_LABELS[gapInfo.below.field.key] ||
+                                  gapInfo.below.field.key,
+                              },
+                              'idle-gap-below'
+                            )}
+                        </>
+                      );
+                    })()}
+                  </>
+                )}
+              </>
             )}
 
             {/* SVG Wave Decorations (Preset compatibility) */}
@@ -1886,6 +2361,178 @@ export function TemplateEditor({
                   </label>
                 </div>
               </div>
+
+              {/* In-Between Spacing & Vertical Gap Controls */}
+              {(() => {
+                const gapInfo = getFieldGapInfo(selectedField.id || null);
+                return (
+                  <div className="space-y-2 border-t border-slate-100 pt-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        In-Between Spacing & Vertical Gap
+                      </p>
+                      <span className="text-[10px] font-semibold text-indigo-600 flex items-center gap-1">
+                        <MoveVertical size={11} /> Smart Spacing
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Gap Above Element */}
+                      <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-2">
+                        <div className="flex items-center justify-between text-[10px] font-medium text-slate-600">
+                          <span
+                            className="truncate"
+                            title={
+                              gapInfo.above
+                                ? FIELD_LABELS[gapInfo.above.field.key] || gapInfo.above.field.key
+                                : 'Top Edge'
+                            }
+                          >
+                            ⬆️ Above: {gapInfo.above ? (FIELD_LABELS[gapInfo.above.field.key] || gapInfo.above.field.key) : 'None'}
+                          </span>
+                          <span className="font-mono font-bold text-slate-900 shrink-0">
+                            {gapInfo.above ? `${gapInfo.above.gapMm.toFixed(1)} mm` : '-'}
+                          </span>
+                        </div>
+                        {gapInfo.above && (
+                          <div className="mt-1.5 flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="0.2"
+                              min="0"
+                              value={gapInfo.above.gapMm}
+                              onChange={(e) => setGapToAbove(Number(e.target.value))}
+                              className="w-full rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs font-mono"
+                            />
+                            <span className="text-[10px] text-slate-400">mm</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Gap Below Element */}
+                      <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-2">
+                        <div className="flex items-center justify-between text-[10px] font-medium text-slate-600">
+                          <span
+                            className="truncate"
+                            title={
+                              gapInfo.below
+                                ? FIELD_LABELS[gapInfo.below.field.key] || gapInfo.below.field.key
+                                : 'Bottom Edge'
+                            }
+                          >
+                            ⬇️ Below: {gapInfo.below ? (FIELD_LABELS[gapInfo.below.field.key] || gapInfo.below.field.key) : 'None'}
+                          </span>
+                          <span className="font-mono font-bold text-slate-900 shrink-0">
+                            {gapInfo.below ? `${gapInfo.below.gapMm.toFixed(1)} mm` : '-'}
+                          </span>
+                        </div>
+                        {gapInfo.below && (
+                          <div className="mt-1.5 flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="0.2"
+                              min="0"
+                              value={gapInfo.below.gapMm}
+                              onChange={(e) => setGapToBelow(Number(e.target.value))}
+                              className="w-full rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs font-mono"
+                            />
+                            <span className="text-[10px] text-slate-400">mm</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick Equalize Button */}
+                    {gapInfo.above && gapInfo.below && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!gapInfo.above || !gapInfo.below) return;
+                          const available =
+                            gapInfo.below.field.y -
+                            (gapInfo.above.field.y + gapInfo.above.field.height) -
+                            selectedField.height;
+                          if (available >= 0) {
+                            const eqGap = Number((available / 2).toFixed(2));
+                            setGapToAbove(eqGap);
+                          }
+                        }}
+                        className="w-full rounded border border-indigo-200 bg-indigo-50/60 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <ArrowUpDown size={12} /> Equalize In-Between Gap (Center Vertically)
+                      </button>
+                    )}
+
+                    {/* Batch Text Alignment & Distribution */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <span>Align & Spacing Tools</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => alignTextFields('left')}
+                          title="Align all text fields to left"
+                          className="flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        >
+                          <AlignLeft size={11} /> Align Left
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => alignTextFields('center')}
+                          title="Center align all text fields"
+                          className="flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        >
+                          <AlignCenter size={11} /> Align Center
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => alignTextFields('right')}
+                          title="Right align all text fields"
+                          className="flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        >
+                          <AlignRight size={11} /> Align Right
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1 pt-1">
+                        <button
+                          type="button"
+                          onClick={distributeTextElementsVertically}
+                          title="Evenly distribute vertical gaps across all text items"
+                          className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 cursor-pointer"
+                        >
+                          Auto-Distribute
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyUniformVerticalGap(2.0)}
+                          title="Set 2.0mm uniform gap between text lines"
+                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
+                        >
+                          2.0mm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyUniformVerticalGap(2.5)}
+                          title="Set 2.5mm uniform gap between text lines"
+                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
+                        >
+                          2.5mm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applyUniformVerticalGap(3.0)}
+                          title="Set 3.0mm uniform gap between text lines"
+                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
+                        >
+                          3.0mm
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Typography Controls for Text Fields */}
               {!IMAGE_FIELDS.includes(selectedField.key) && (
