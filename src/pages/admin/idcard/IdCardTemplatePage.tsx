@@ -116,7 +116,7 @@ export default function IdCardTemplatePage() {
     }
   };
 
-  const handleLogoUrlChange = async (url: string) => {
+  const handleLogoUrlChange = (url: string) => {
     const trimmed = url.trim();
     const updatedLayout: TemplateLayout = {
       ...layout,
@@ -134,13 +134,9 @@ export default function IdCardTemplatePage() {
         : undefined,
     };
     setLayout(updatedLayout);
-    if (trimmed) {
-      await updateIdCardProject(project.id, { logo_url: trimmed });
-      await reloadProject();
-    }
   };
 
-  const handleRemoveLogo = async () => {
+  const handleRemoveLogo = () => {
     const updatedLayout: TemplateLayout = {
       ...layout,
       schoolLogoUrl: null,
@@ -157,9 +153,7 @@ export default function IdCardTemplatePage() {
         : undefined,
     };
     setLayout(updatedLayout);
-    await updateIdCardProject(project.id, { logo_url: null });
-    await reloadProject();
-    setSaveSuccess('School logo removed.');
+    setSaveSuccess('School logo removed from layout.');
     setTimeout(() => setSaveSuccess(null), 3000);
   };
 
@@ -423,8 +417,8 @@ export default function IdCardTemplatePage() {
       setCardHeight(savedTemplate.card_height_mm);
       setSearchParams({ templateId: savedTemplate.id });
 
-      // Always ensure the project points to this active saved template ID & school logo
-      await updateIdCardProject(project.id, { template_id: savedTemplate.id, logo_url: currentSchoolLogo });
+      // Always ensure the project points to this active saved template ID
+      await updateIdCardProject(project.id, { template_id: savedTemplate.id });
 
       // Clear any cached canvas renders to prevent stale preview/print images
       clearCardDataUrlCache();
@@ -928,6 +922,7 @@ export default function IdCardTemplatePage() {
           savedTemplates={templates}
           onSelectSavedTemplate={handleSelectTemplate}
           schoolLogoUrl={currentSchoolLogo}
+          schoolName={project.name}
         />
       </div>
     </div>

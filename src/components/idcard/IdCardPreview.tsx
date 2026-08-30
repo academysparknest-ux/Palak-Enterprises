@@ -81,7 +81,7 @@ function SingleCardFace({
   function valueFor(key: TemplateFieldKey, customText?: string): string {
     switch (key) {
       case 'school_name':
-        return schoolName;
+        return customText || schoolName;
       case 'school_subtitle':
         return customText || 'Motihari, Bihar';
       case 'student_name':

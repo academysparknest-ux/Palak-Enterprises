@@ -35,7 +35,7 @@ export const SPARKNEST_RED = '#E74C3C';
 export const FIELD_LABELS: Record<string, string> = {
   school_logo: 'School Logo',
   school_name: 'School Name',
-  school_subtitle: 'School Subtitle',
+  school_subtitle: 'School Title / Subtitle',
   student_photo: 'Student Photo',
   student_name: 'Student Name',
   student_id: 'Student ID',

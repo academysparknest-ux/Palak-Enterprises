@@ -78,6 +78,7 @@ export function TemplateEditor({
   savedTemplates = [],
   onSelectSavedTemplate,
   schoolLogoUrl,
+  schoolName,
 }: {
   layout: TemplateLayout;
   onChange: (layout: TemplateLayout) => void;
@@ -87,6 +88,7 @@ export function TemplateEditor({
   savedTemplates?: IdCardTemplate[];
   onSelectSavedTemplate?: (template: IdCardTemplate) => void;
   schoolLogoUrl?: string | null;
+  schoolName?: string;
 }) {
   const effectiveSchoolLogo = schoolLogoUrl || layout.schoolLogoUrl || null;
   // ── State ──────────────────────────────────────────────────
@@ -439,7 +441,7 @@ export function TemplateEditor({
         key === 'school_logo'
           ? effectiveSchoolLogo || undefined
           : key === 'school_name'
-          ? 'SPARKNEST ACADEMY'
+          ? (schoolName || 'SPARKNEST ACADEMY')
           : key === 'school_subtitle'
           ? 'Affiliated to CBSE, New Delhi'
           : key === 'custom_text'
@@ -1107,9 +1109,21 @@ export function TemplateEditor({
                 const isSelected = selectedFieldId === field.id;
                 const isImg = IMAGE_FIELDS.includes(field.key);
 
+                const fieldDefaultText =
+                  field.key === 'school_name'
+                    ? (schoolName || 'SPARKNEST ACADEMY')
+                    : field.key === 'school_subtitle'
+                    ? 'Affiliated to CBSE, New Delhi'
+                    : (FIELD_LABELS[field.key] || field.key);
+
+                const rawText =
+                  field.customText !== undefined && field.customText !== ''
+                    ? field.customText
+                    : fieldDefaultText;
+
                 const displayText = field.labelPrefix
-                  ? `${field.labelPrefix} ${field.customText || FIELD_LABELS[field.key] || field.key}`
-                  : field.customText || FIELD_LABELS[field.key] || field.key;
+                  ? `${field.labelPrefix} ${rawText}`
+                  : rawText;
 
                 return (
                   <div
@@ -1617,34 +1631,102 @@ export function TemplateEditor({
                   </div>
 
                   {/* Label Prefix & Content */}
-                  <div className="space-y-1.5 pt-1">
-                    <label className="block text-xs text-slate-600">
-                      <span>Label Prefix (e.g. "BLOOD GROUP:")</span>
-                      <input
-                        type="text"
-                        value={selectedField.labelPrefix ?? ''}
-                        onChange={(e) => updateSelectedField({ labelPrefix: e.target.value })}
-                        placeholder='e.g. "ID:" or "ROLL:"'
-                        className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
-                      />
-                    </label>
+                  <div className="space-y-2 pt-1 border-t border-slate-100">
+                    {/* School Name Editable Text */}
+                    {selectedField.key === 'school_name' && (
+                      <div className="space-y-1.5 rounded-lg bg-amber-50/60 p-2 border border-amber-200">
+                        <label className="block text-xs font-bold text-amber-950">
+                          <span>School / Institution Name (Editable Text)</span>
+                          <input
+                            type="text"
+                            value={
+                              selectedField.customText !== undefined
+                                ? selectedField.customText
+                                : schoolName || 'SPARKNEST ACADEMY'
+                            }
+                            onChange={(e) => updateSelectedField({ customText: e.target.value })}
+                            placeholder={schoolName || 'e.g. SPARKNEST ACADEMY'}
+                            className="mt-1 w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
+                          />
+                        </label>
+                        {schoolName &&
+                          selectedField.customText &&
+                          selectedField.customText !== schoolName && (
+                            <button
+                              type="button"
+                              onClick={() => updateSelectedField({ customText: schoolName })}
+                              className="text-[10.5px] font-medium text-amber-800 hover:underline cursor-pointer flex items-center gap-1"
+                            >
+                              ↺ Reset to Project Name: <strong>"{schoolName}"</strong>
+                            </button>
+                          )}
+                      </div>
+                    )}
 
+                    {/* School Subtitle / Title Editable Text */}
+                    {selectedField.key === 'school_subtitle' && (
+                      <div className="space-y-1.5 rounded-lg bg-amber-50/60 p-2 border border-amber-200">
+                        <label className="block text-xs font-bold text-amber-950">
+                          <span>School Title / Subtitle (Editable Text)</span>
+                          <input
+                            type="text"
+                            value={
+                              selectedField.customText !== undefined
+                                ? selectedField.customText
+                                : 'Affiliated to CBSE, New Delhi'
+                            }
+                            onChange={(e) => updateSelectedField({ customText: e.target.value })}
+                            placeholder="e.g. Affiliated to CBSE, New Delhi / Motihari, Bihar"
+                            className="mt-1 w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-amber-500 focus:outline-none"
+                          />
+                        </label>
+                        <p className="text-[10px] text-amber-700">
+                          Used for affiliation details, branch, or location tagline.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Other Custom / Static Text Fields */}
                     {(selectedField.key === 'custom_text' ||
                       selectedField.key === 'designation' ||
                       selectedField.key === 'emergency_no' ||
                       selectedField.key === 'valid_till' ||
                       selectedField.key === 'terms' ||
-                      selectedField.key === 'website') && (
+                      selectedField.key === 'website' ||
+                      selectedField.key === 'academic_year' ||
+                      selectedField.key === 'batch') && (
                       <label className="block text-xs text-slate-600">
-                        <span>Static Text Content</span>
+                        <span className="font-medium">Static / Custom Text Content</span>
                         <input
                           type="text"
                           value={selectedField.customText ?? ''}
                           onChange={(e) => updateSelectedField({ customText: e.target.value })}
-                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                          placeholder="Enter text..."
+                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-800"
                         />
                       </label>
                     )}
+
+                    {/* Prefix for Dynamic Student Fields */}
+                    {selectedField.key !== 'school_name' &&
+                      selectedField.key !== 'school_subtitle' &&
+                      selectedField.key !== 'custom_text' &&
+                      selectedField.key !== 'designation' &&
+                      selectedField.key !== 'emergency_no' &&
+                      selectedField.key !== 'valid_till' &&
+                      selectedField.key !== 'terms' &&
+                      selectedField.key !== 'website' && (
+                        <label className="block text-xs text-slate-600">
+                          <span>Label Prefix (e.g. "BLOOD GROUP:" or "ID:")</span>
+                          <input
+                            type="text"
+                            value={selectedField.labelPrefix ?? ''}
+                            onChange={(e) => updateSelectedField({ labelPrefix: e.target.value })}
+                            placeholder='e.g. "ID:" or "ROLL:"'
+                            className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                          />
+                        </label>
+                      )}
                   </div>
                 </div>
               )}
@@ -1986,7 +2068,12 @@ export function TemplateEditor({
                     }`}
                   >
                     <span className="truncate min-w-0 pr-2">
-                      {FIELD_LABELS[field.key] || field.key}
+                      <span className="font-medium">{FIELD_LABELS[field.key] || field.key}</span>
+                      {field.customText && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1 truncate">
+                          ({field.customText})
+                        </span>
+                      )}
                     </span>
                     <div className="flex items-center gap-1 shrink-0 text-slate-400">
                       <span className="font-mono text-[10px]">

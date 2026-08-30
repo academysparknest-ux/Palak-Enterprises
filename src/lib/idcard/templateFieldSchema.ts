@@ -190,7 +190,7 @@ export const FIELD_METADATA_REGISTRY: Record<TemplateFieldKey, FieldMetadata> = 
   },
   school_subtitle: {
     key: 'school_subtitle',
-    label: 'School Subtitle',
+    label: 'School Title / Subtitle',
     category: 'static',
     type: 'text',
     defaultRequired: false,

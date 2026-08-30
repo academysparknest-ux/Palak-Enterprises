@@ -43,7 +43,7 @@ export function fieldValue(
     case 'batch':
       return academicYear;
     case 'school_name':
-      return schoolName;
+      return field.customText || schoolName;
     case 'school_subtitle':
       return field.customText || 'Motihari, Bihar';
     case 'designation':

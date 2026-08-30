@@ -60,9 +60,10 @@ export async function createIdCardProject(input: {
         throw classifySupabaseError(userError || { status: 401, message: 'Active login required' });
       }
 
+      const { logo_url: _logo, ...dbInput } = input;
       const { data, error } = await client
         .from('idcard_projects')
-        .insert({ ...input, created_by: userData.user.id })
+        .insert({ ...dbInput, created_by: userData.user.id })
         .select()
         .single();
 
@@ -79,7 +80,8 @@ export async function updateIdCardProject(
 ): Promise<IdCardProject> {
   return executeWithAuthRetry(
     async (client) => {
-      const { data, error } = await client.from('idcard_projects').update(patch).eq('id', id).select().single();
+      const { logo_url: _logo, ...dbPatch } = patch;
+      const { data, error } = await client.from('idcard_projects').update(dbPatch).eq('id', id).select().single();
       if (error) throw classifySupabaseError(error);
       return data as IdCardProject;
     },
@@ -335,9 +337,10 @@ export async function createIdCardTemplate(
         throw classifySupabaseError(userError || { status: 401, message: 'Active login required' });
       }
 
+      const { logo_url: _logo, ...dbInput } = input;
       const { data, error } = await client
         .from('idcard_templates')
-        .insert({ ...input, created_by: userData.user.id })
+        .insert({ ...dbInput, created_by: userData.user.id })
         .select()
         .single();
 
@@ -354,7 +357,8 @@ export async function updateIdCardTemplate(
 ): Promise<IdCardTemplate> {
   return executeWithAuthRetry(
     async (client) => {
-      const { data, error } = await client.from('idcard_templates').update(patch).eq('id', id).select().single();
+      const { logo_url: _logo, ...dbPatch } = patch;
+      const { data, error } = await client.from('idcard_templates').update(dbPatch).eq('id', id).select().single();
       if (error) throw classifySupabaseError(error);
       return data as IdCardTemplate;
     },
@@ -363,7 +367,7 @@ export async function updateIdCardTemplate(
 }
 
 /**
- * Uploads a school / institution logo file to Supabase Storage and attaches it to the project & template
+ * Uploads a school / institution logo file to Supabase Storage and returns its public URL
  */
 export async function uploadSchoolLogo(projectId: string, file: File): Promise<string> {
   const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -378,12 +382,7 @@ export async function uploadSchoolLogo(projectId: string, file: File): Promise<s
       if (uploadError) throw classifySupabaseError(uploadError);
 
       const { data: publicUrlData } = client.storage.from(PHOTO_BUCKET).getPublicUrl(path);
-      const publicUrl = publicUrlData?.publicUrl || path;
-
-      // Update project logo_url
-      await client.from('idcard_projects').update({ logo_url: publicUrl }).eq('id', projectId);
-
-      return publicUrl;
+      return publicUrlData?.publicUrl || path;
     },
     { operationName: 'uploadSchoolLogo' }
   );
