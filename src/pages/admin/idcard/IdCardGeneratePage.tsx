@@ -565,23 +565,26 @@ function SettingsPanel({
                   {([
                     { value: 'front-only', label: 'Front only (Single-sided cards)' },
                     { value: 'duplex', label: 'Duplex (Alternating Front / Back pages)' },
-                    { value: 'side-by-side', label: 'Side by Side (Front & Back adjacent on same sheet)' },
+                    { value: 'front-back-together', label: 'Side by Side (Front & Back adjacent on same sheet)' },
                   ] as const).map(({ value, label }) => {
-                    const disabled = !isDoubleSided && value !== 'front-only'
+                    const isSelected =
+                      config.printMode === value ||
+                      (value === 'front-back-together' && ((config.printMode as string) === 'side-by-side' || config.printMode === 'front-back-together'));
+                    const disabled = !isDoubleSided && value !== 'front-only';
                     return (
                       <label key={value} className={`flex items-center gap-2 text-xs cursor-pointer ${disabled ? 'opacity-40 cursor-not-allowed' : 'text-slate-700'}`}>
                         <input
                           type="radio"
                           name="printMode"
                           value={value}
-                          checked={config.printMode === value}
+                          checked={isSelected}
                           disabled={disabled}
                           onChange={() => set('printMode', value as PrintMode)}
                           className="h-3.5 w-3.5"
                         />
                         {label}
                       </label>
-                    )
+                    );
                   })}
                 </div>
               </div>
@@ -768,7 +771,9 @@ export default function IdCardGeneratePage() {
     }
   }, [columnVisibility, project.id])
 
-  const isDoubleSided = Boolean(template?.layout?.isDoubleSided && template?.layout?.back)
+  const isDoubleSided = Boolean(
+    template?.layout?.isDoubleSided || template?.layout?.templateType === 'double' || template?.layout?.back
+  )
   const effectiveConfig = useMemo(() => {
     if (!isDoubleSided && printConfig.printMode !== 'front-only') {
       return { ...printConfig, printMode: 'front-only' as PrintMode }

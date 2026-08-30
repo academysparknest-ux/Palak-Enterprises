@@ -317,16 +317,16 @@ export function PrintSettingsPanel({
                         />
                         <span>Front Only</span>
                       </label>
-                      <label className="flex items-center gap-1.5">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
                         <input
                           type="radio"
                           name="printMode"
                           value="front-back-together"
-                          checked={config.printMode === 'front-back-together'}
+                          checked={config.printMode === 'front-back-together' || (config.printMode as string) === 'side-by-side'}
                           onChange={(e) => handleConfigChange({ printMode: e.target.value as PrintMode })}
                           className="text-blue-600 focus:ring-blue-500"
                         />
-                        <span>Front + Back Together</span>
+                        <span>Side by Side (Front + Back on same sheet)</span>
                       </label>
                       <label className="flex items-center gap-1.5">
                         <input

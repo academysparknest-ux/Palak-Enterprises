@@ -23,7 +23,7 @@ export type PaperOrientation = 'auto' | 'portrait' | 'landscape'
 
 export type CardOrientation = 'auto' | 'portrait' | 'landscape'
 
-export type PrintMode = 'front-only' | 'front-back-together' | 'duplex'
+export type PrintMode = 'front-only' | 'front-back-together' | 'side-by-side' | 'duplex'
 
 export type DuplexFlip = 'long-edge' | 'short-edge'
 
@@ -516,6 +516,7 @@ export function calculatePrintLayout(
       pages = layoutFrontOnly(cards, grid, offsetX, offsetY, cardW, cardH, config.gapHorizontalMm, config.gapVerticalMm)
       break
     case 'front-back-together':
+    case 'side-by-side':
       pages = layoutFrontBackTogether(cards, grid, offsetX, offsetY, cardW, cardH, config.gapHorizontalMm, config.gapVerticalMm)
       break
     case 'duplex':
