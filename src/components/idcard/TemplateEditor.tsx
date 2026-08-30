@@ -35,6 +35,7 @@ import type {
   TemplateSideLayout,
   IdCardTemplate,
 } from '../../lib/idcard/types';
+import { business } from '../../config/business';
 
 // ============================================================
 // CONSTANTS
@@ -432,7 +433,7 @@ export function TemplateEditor({
       overflowStrategy: 'wrap',
       customText:
         key === 'school_logo'
-          ? layout.schoolLogoUrl || undefined
+          ? layout.schoolLogoUrl || business.logoPath
           : key === 'school_name'
           ? 'SPARKNEST ACADEMY'
           : key === 'school_subtitle'
@@ -1031,15 +1032,28 @@ export function TemplateEditor({
                               }`
                             : '1px dashed #cbd5e1',
                           backgroundColor:
-                            field.key === 'student_photo' ? '#e2e8f0' : '#f1f5f9',
+                            field.key === 'student_photo'
+                              ? '#e2e8f0'
+                              : field.key === 'school_logo'
+                              ? '#ffffff'
+                              : '#f1f5f9',
                         }}
                       >
-                        {field.key === 'school_logo' && field.customText ? (
-                          <img
-                            src={field.customText}
-                            alt="Logo"
-                            className="h-full w-full object-contain"
-                          />
+                        {field.key === 'school_logo' ? (
+                          (field.customText || layout.schoolLogoUrl || business.logoPath) ? (
+                            <img
+                              src={field.customText || layout.schoolLogoUrl || business.logoPath}
+                              alt="School Logo"
+                              className={`h-full w-full ${field.photoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-amber-600 bg-amber-50/70 h-full w-full">
+                              <Building2 size={Math.max(12, field.height * pxPerMm * 0.4)} />
+                              <span className="text-[7.5px] font-bold text-amber-800 uppercase">
+                                Logo
+                              </span>
+                            </div>
+                          )
                         ) : field.key === 'student_photo' ? (
                           <div className="flex flex-col items-center justify-center text-slate-400">
                             <UserIcon size={Math.max(12, field.height * pxPerMm * 0.4)} />

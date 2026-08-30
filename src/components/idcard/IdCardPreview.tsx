@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { getPhotoSignedUrl } from '../../lib/idcard/database';
 import type { IdCardPerson, IdCardTemplate, TemplateFieldKey, TemplateSideLayout } from '../../lib/idcard/types';
 import { sanitizeStudentId, getQrCodePayload } from '../../lib/idcard/validation';
+import { business } from '../../config/business';
 
 // ============================================================
 // BARCODE: Code128-style SVG rendering
@@ -64,6 +65,7 @@ function SingleCardFace({
   schoolName,
   academicYear,
   backgroundUrl,
+  schoolLogoUrl,
 }: {
   sideLayout: TemplateSideLayout;
   widthMm: number;
@@ -75,6 +77,7 @@ function SingleCardFace({
   schoolName: string;
   academicYear: string;
   backgroundUrl?: string | null;
+  schoolLogoUrl?: string | null;
 }) {
   function valueFor(key: TemplateFieldKey, customText?: string): string {
     switch (key) {
@@ -215,7 +218,7 @@ function SingleCardFace({
 
           // School Logo
           if (field.key === 'school_logo') {
-            const logoSrc = field.customText;
+            const logoSrc = field.customText || schoolLogoUrl || business.logoPath;
             return (
               <div
                 key={idx}
@@ -229,10 +232,15 @@ function SingleCardFace({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  backgroundColor: '#ffffff',
                 }}
               >
                 {logoSrc ? (
-                  <img src={logoSrc} alt="School Logo" className="h-full w-full object-contain" />
+                  <img
+                    src={logoSrc}
+                    alt="School Logo"
+                    className={`h-full w-full ${field.photoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+                  />
                 ) : (
                   /* Default School Shield Emblem */
                   <svg viewBox="0 0 100 120" className="h-full w-full">
@@ -454,6 +462,7 @@ export function IdCardPreview({
               schoolName={schoolName}
               academicYear={academicYear}
               backgroundUrl={frontBackground}
+              schoolLogoUrl={template.layout?.schoolLogoUrl || template.logo_url}
             />
           </div>
         )}
@@ -473,6 +482,7 @@ export function IdCardPreview({
               schoolName={schoolName}
               academicYear={academicYear}
               backgroundUrl={backSideLayout.backgroundUrl ?? null}
+              schoolLogoUrl={template.layout?.schoolLogoUrl || template.logo_url}
             />
           </div>
         )}

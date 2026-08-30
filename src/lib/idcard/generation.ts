@@ -4,6 +4,7 @@ import { getPhotoSignedUrl, recordGenerationResult } from './database';
 import type { IdCardPerson, IdCardTemplate, TemplateField, TemplateSideLayout } from './types';
 import { jsPDF } from 'jspdf';
 import { sanitizeStudentId, getQrCodePayload } from './validation';
+import { business } from '../../config/business';
 
 export const MM_TO_PX = 300 / 25.4; // 300 DPI high-precision physical-to-pixel conversion
 
@@ -157,7 +158,8 @@ async function renderSideToCanvas(
   person: IdCardPerson,
   schoolName: string,
   academicYear: string,
-  backgroundUrl?: string | null
+  backgroundUrl?: string | null,
+  schoolLogoUrl?: string | null
 ): Promise<HTMLCanvasElement> {
   const widthPx = Math.round(cardWidthMm * MM_TO_PX);
   const heightPx = Math.round(cardHeightMm * MM_TO_PX);
@@ -309,10 +311,11 @@ async function renderSideToCanvas(
 
     // 4. School Logo
     if (field.key === 'school_logo') {
-      if (field.customText) {
+      const logoSrc = field.customText || schoolLogoUrl || business.logoPath;
+      if (logoSrc) {
         try {
-          const logo = await loadImage(field.customText);
-          drawImageFitted(ctx, logo, x, y, w, h, 'contain');
+          const logo = await loadImage(logoSrc);
+          drawImageFitted(ctx, logo, x, y, w, h, field.photoFit || 'contain');
         } catch {
           // Logo load failed
         }
@@ -442,6 +445,8 @@ export async function renderCardToBlob(
     footerGradientColors: template.layout.footerGradientColors,
   };
 
+  const schoolLogoUrl = template.layout.schoolLogoUrl || template.logo_url || null;
+
   if (side === 'back') {
     if (template.layout.back) {
       const canvas = await renderSideToCanvas(
@@ -451,7 +456,8 @@ export async function renderCardToBlob(
         person,
         schoolName,
         academicYear,
-        template.layout.back.backgroundUrl ?? null
+        template.layout.back.backgroundUrl ?? null,
+        schoolLogoUrl
       );
       return new Promise((resolve, reject) => {
         canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob failed'))), 'image/png');
@@ -471,7 +477,8 @@ export async function renderCardToBlob(
     person,
     schoolName,
     academicYear,
-    frontBackground
+    frontBackground,
+    schoolLogoUrl
   );
 
   return new Promise((resolve, reject) => {
@@ -499,7 +506,8 @@ export async function renderCardToDataUrl(
       ? template.layout.backgroundUrl
       : template.background_url;
 
-  const cacheKey = `${person.id}_${template.id}_${template.updated_at || ''}_${person.updated_at || ''}_${side}_${frontBackground || ''}_${template.layout.back?.backgroundUrl || ''}`;
+  const schoolLogoUrl = template.layout.schoolLogoUrl || template.logo_url || null;
+  const cacheKey = `${person.id}_${template.id}_${template.updated_at || ''}_${person.updated_at || ''}_${side}_${frontBackground || ''}_${template.layout.back?.backgroundUrl || ''}_${schoolLogoUrl || ''}`;
   const cached = cardDataUrlCache.get(cacheKey);
   if (cached) return cached;
 
@@ -512,7 +520,8 @@ export async function renderCardToDataUrl(
         person,
         schoolName,
         academicYear,
-        template.layout.back.backgroundUrl ?? null
+        template.layout.back.backgroundUrl ?? null,
+        schoolLogoUrl
       );
       const dataUrl = canvas.toDataURL('image/png');
       cardDataUrlCache.set(cacheKey, dataUrl);
@@ -543,7 +552,8 @@ export async function renderCardToDataUrl(
     person,
     schoolName,
     academicYear,
-    frontBackground
+    frontBackground,
+    schoolLogoUrl
   );
 
   const dataUrl = canvas.toDataURL('image/png');
