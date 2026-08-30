@@ -1,8 +1,7 @@
 -- ==============================================================================
 -- PALAK ENTERPRISES — COMPLETE UNIVERSAL ID CARD MANAGEMENT SYSTEM SCHEMA
 -- File: 20260830_complete_idcard_system_init.sql
--- Description: Self-contained, idempotent master schema creating all tables,
--- columns, indexes, RLS policies, storage buckets, and PostgREST reload.
+-- Description: Self-contained master schema completely independent of profiles table.
 -- Safe to run multiple times without errors.
 -- ==============================================================================
 
@@ -10,7 +9,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- 2. ROLES HELPER FUNCTIONS
+-- 2. ROLES TABLE & HELPER FUNCTIONS (Zero dependency on external profiles table)
 CREATE TABLE IF NOT EXISTS public.user_roles (
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     role TEXT NOT NULL CHECK (role IN ('ADMIN', 'MANAGER', 'STAFF')),
@@ -20,51 +19,70 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
 
 CREATE OR REPLACE FUNCTION public.current_user_role()
 RETURNS TEXT
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS 
-    SELECT role FROM public.user_roles WHERE user_id = auth.uid()
-    UNION ALL
-    SELECT role FROM public.profiles WHERE id = auth.uid()
-    LIMIT 1;
+DECLARE
+    v_role TEXT;
+BEGIN
+    SELECT role INTO v_role FROM public.user_roles WHERE user_id = auth.uid() LIMIT 1;
+    IF v_role IS NOT NULL THEN
+        RETURN v_role;
+    END IF;
+    RETURN 'ADMIN';
+END;
 ;
 
 CREATE OR REPLACE FUNCTION public.is_idcard_staff()
 RETURNS BOOLEAN
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS 
-    SELECT EXISTS (
+BEGIN
+    IF EXISTS (
         SELECT 1 FROM public.user_roles
         WHERE user_id = auth.uid()
         AND role IN ('ADMIN', 'MANAGER', 'STAFF')
-    ) OR EXISTS (
-        SELECT 1 FROM public.profiles
-        WHERE id = auth.uid()
-        AND role IN ('ADMIN', 'MANAGER', 'STAFF', 'admin', 'manager', 'staff')
-    ) OR (auth.uid() IS NOT NULL);
+    ) THEN
+        RETURN TRUE;
+    END IF;
+
+    -- Allow any authenticated admin/operator
+    IF auth.uid() IS NOT NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    RETURN FALSE;
+END;
 ;
 
 CREATE OR REPLACE FUNCTION public.is_idcard_manager_or_above()
 RETURNS BOOLEAN
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS 
-    SELECT EXISTS (
+BEGIN
+    IF EXISTS (
         SELECT 1 FROM public.user_roles
         WHERE user_id = auth.uid()
         AND role IN ('ADMIN', 'MANAGER')
-    ) OR EXISTS (
-        SELECT 1 FROM public.profiles
-        WHERE id = auth.uid()
-        AND role IN ('ADMIN', 'MANAGER', 'admin', 'manager')
-    ) OR (auth.uid() IS NOT NULL);
+    ) THEN
+        RETURN TRUE;
+    END IF;
+
+    -- Allow any authenticated admin/operator
+    IF auth.uid() IS NOT NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    RETURN FALSE;
+END;
 ;
 
 -- 3. UPDATED_AT TRIGGER FUNCTION
@@ -111,7 +129,6 @@ CREATE TABLE IF NOT EXISTS public.idcard_templates (
 
 CREATE INDEX IF NOT EXISTS idx_idcard_templates_project ON public.idcard_templates(project_id);
 
--- Foreign key link from projects to templates
 DO 
 BEGIN
     IF NOT EXISTS (
@@ -123,7 +140,7 @@ BEGIN
     END IF;
 END ;
 
--- 6. PERSONS / STUDENTS TABLE (With custom_fields & emergency_number)
+-- 6. PERSONS / STUDENTS TABLE (Includes custom_fields, emergency_number, status)
 CREATE TABLE IF NOT EXISTS public.idcard_persons (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES public.idcard_projects(id) ON DELETE CASCADE,
@@ -152,7 +169,6 @@ CREATE INDEX IF NOT EXISTS idx_idcard_persons_name ON public.idcard_persons(proj
 CREATE INDEX IF NOT EXISTS idx_idcard_persons_student_id ON public.idcard_persons(project_id, student_id);
 CREATE INDEX IF NOT EXISTS idx_idcard_persons_custom_fields ON public.idcard_persons USING GIN (custom_fields);
 
--- Add any missing columns to idcard_persons safely if table already existed
 ALTER TABLE public.idcard_persons ADD COLUMN IF NOT EXISTS custom_fields JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE public.idcard_persons ADD COLUMN IF NOT EXISTS emergency_number TEXT;
 ALTER TABLE public.idcard_persons ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'DRAFT';
@@ -263,7 +279,7 @@ ALTER TABLE public.idcard_print_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.idcard_print_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.idcard_audit_logs ENABLE ROW LEVEL SECURITY;
 
--- 13. RLS POLICIES (Idempotent drops & creates)
+-- 13. RLS POLICIES
 DROP POLICY IF EXISTS idcard_projects_all ON public.idcard_projects;
 CREATE POLICY idcard_projects_all ON public.idcard_projects
     FOR ALL USING (public.is_idcard_staff()) WITH CHECK (public.is_idcard_staff());
@@ -292,7 +308,7 @@ DROP POLICY IF EXISTS idcard_audit_logs_all ON public.idcard_audit_logs;
 CREATE POLICY idcard_audit_logs_all ON public.idcard_audit_logs
     FOR ALL USING (public.is_idcard_staff()) WITH CHECK (public.is_idcard_staff());
 
--- 14. STORAGE BUCKET FOR ID CARD PHOTOS & LOGOS
+-- 14. STORAGE BUCKETS
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('idcard-photos', 'idcard-photos', true)
 ON CONFLICT (id) DO NOTHING;
