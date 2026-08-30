@@ -33,6 +33,7 @@ const testFiles = [
   'src/lib/idcard/printSessionHardening.test.ts',
   'src/lib/idcard/productionReadiness.test.ts',
   'src/lib/idcard/studioDesigner.test.ts',
+  'src/lib/idcard/landscapeTemplateWorkflow.test.ts',
 ];
 
 

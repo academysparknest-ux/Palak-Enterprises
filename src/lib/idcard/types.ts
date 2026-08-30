@@ -167,6 +167,7 @@ export interface TemplateLayout {
   footerGradientColors?: [string, string] | null; // [primary, accent]
   presetId?: string; // identifier for the base preset
   orientation?: 'portrait' | 'landscape';
+  cardType?: 'student' | 'staff' | 'employee' | 'faculty' | 'visitor' | 'event' | 'custom';
   widthMm?: number;
   heightMm?: number;
   isDoubleSided?: boolean;
@@ -183,6 +184,8 @@ export interface IdCardTemplate {
   layout: TemplateLayout;
   card_width_mm: number;
   card_height_mm: number;
+  orientation?: 'portrait' | 'landscape';
+  card_type?: string;
   background_url: string | null;
   logo_url?: string | null;
   version?: number;

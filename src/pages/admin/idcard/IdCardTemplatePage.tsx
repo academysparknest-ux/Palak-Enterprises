@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   Building2,
   RefreshCw,
+  Wand2,
 } from 'lucide-react';
 import {
   getIdCardTemplates,
@@ -49,8 +50,13 @@ import {
   saveCustomDefaultTemplate,
   getDefaultTemplateLayout,
   getDefaultCardDimensions,
+  LANDSCAPE_STUDENT_LAYOUT,
 } from '../../../lib/idcard/templatePresets';
-import type { IdCardProject, IdCardTemplate, TemplateLayout, TemplateField } from '../../../lib/idcard/types';
+import {
+  CreateIdCardWizardModal,
+  type WizardResult,
+} from '../../../components/idcard/CreateIdCardWizardModal';
+import type { IdCardProject, IdCardTemplate, TemplateLayout, TemplateField, IdCardPerson } from '../../../lib/idcard/types';
 import { useUnsavedChanges } from '../../../hooks/useUnsavedChanges';
 
 type ProjectContext = { project: IdCardProject; reloadProject: () => void | Promise<void> };
@@ -68,6 +74,8 @@ export default function IdCardTemplatePage() {
   const [template, setTemplate] = useState<IdCardTemplate | null>(null);
   const [name, setName] = useState('Sparknest Academy');
   const [layout, setLayout] = useState<TemplateLayout>(DEFAULT_TEMPLATE_LAYOUT);
+  const [projectPersons, setProjectPersons] = useState<IdCardPerson[]>([]);
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [cardWidth, setCardWidth] = useState(DEFAULT_CARD_WIDTH);
   const [cardHeight, setCardHeight] = useState(DEFAULT_CARD_HEIGHT);
   const [saving, setSaving] = useState(false);
@@ -400,8 +408,12 @@ export default function IdCardTemplatePage() {
   const loadTemplates = useCallback(async (targetId?: string | null) => {
     setState({ kind: 'loading' });
     try {
-      const list = await getIdCardTemplates(project.id);
+      const [list, personsList] = await Promise.all([
+        getIdCardTemplates(project.id),
+        getAllIdCardPersons(project.id).catch(() => []),
+      ]);
       setTemplates(list);
+      setProjectPersons(personsList);
 
       const activeTargetId = targetId !== undefined ? targetId : (queryTemplateId || project.template_id);
       const existing = activeTargetId ? (list.find((t) => t.id === activeTargetId) ?? null) : (list[0] ?? null);
@@ -497,15 +509,35 @@ export default function IdCardTemplatePage() {
   }
 
   function handleNewTemplate() {
-    const defaultLayout = getDefaultTemplateLayout();
-    const defaultDimensions = getDefaultCardDimensions();
+    setShowCreateWizard(true);
+  }
+
+  function handleWizardComplete(result: WizardResult) {
+    setShowCreateWizard(false);
     setTemplate(null);
-    setName(`${project.name} New Design`);
-    setLayout(defaultLayout);
-    setCardWidth(defaultDimensions.cardWidthMm);
-    setCardHeight(defaultDimensions.cardHeightMm);
+    setName(result.name);
+    setLayout(result.layout);
+    setCardWidth(result.cardWidthMm);
+    setCardHeight(result.cardHeightMm);
+    lastSavedSnapshotRef.current = '';
     setSearchParams({});
-    setSaveSuccess(null);
+    setSaveSuccess(
+      `Configured "${result.name}" (${result.orientation.toUpperCase()} ${result.cardWidthMm} × ${result.cardHeightMm} mm). Customize fields and click "Save Template".`
+    );
+    setTimeout(() => setSaveSuccess(null), 5000);
+  }
+
+  function handleImportReferenceDesign() {
+    setTemplate(null);
+    const newName = `${project.name} Landscape Student ID`;
+    setName(newName);
+    setLayout(structuredClone(LANDSCAPE_STUDENT_LAYOUT));
+    setCardWidth(85.6);
+    setCardHeight(54.0);
+    lastSavedSnapshotRef.current = '';
+    setSearchParams({});
+    setSaveSuccess('Imported Landscape Reference Design (85.6 × 54.0 mm). Ready to customize and save!');
+    setTimeout(() => setSaveSuccess(null), 5000);
   }
 
   function handleSetAsDefaultDesign() {
@@ -752,20 +784,29 @@ export default function IdCardTemplatePage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleNewTemplate}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer"
-          >
-            <Plus size={14} /> Create New Template
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleImportReferenceDesign}
+              title="Load standard Landscape reference design with front/back artwork"
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition cursor-pointer border border-emerald-200"
+            >
+              <Wand2 size={14} className="text-emerald-600" /> Import Reference Design
+            </button>
+            <button
+              type="button"
+              onClick={handleNewTemplate}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition shadow-2xs cursor-pointer"
+            >
+              <Plus size={14} /> + Create New Template
+            </button>
+          </div>
         </div>
 
         {/* Templates List Cards */}
         {templates.length === 0 ? (
           <div className="mt-3 rounded-lg border border-dashed border-slate-200 p-6 text-center text-xs text-slate-400">
-            No templates saved for this project yet. Customize the design below and click{' '}
-            <strong className="text-slate-700 font-semibold">Save Template</strong>.
+            No templates saved for this project yet. Click <strong className="text-slate-700 font-semibold">+ Create New Template</strong> or <strong className="text-emerald-700 font-semibold">Import Reference Design</strong> to get started.
           </div>
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -773,6 +814,7 @@ export default function IdCardTemplatePage() {
               const isSelected = template?.id === t.id;
               const isActive = project.template_id === t.id;
               const isDouble = Boolean(t.layout?.isDoubleSided || t.layout?.back);
+              const isLandscape = t.card_width_mm > t.card_height_mm;
 
               return (
                 <div
@@ -797,8 +839,8 @@ export default function IdCardTemplatePage() {
                           <Edit3 size={10} /> Editing Now
                         </span>
                       )}
-                      <span className="rounded bg-slate-200/70 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
-                        {t.card_width_mm}×{t.card_height_mm}mm
+                      <span className={`rounded px-1.5 py-0.5 font-bold text-[10px] ${isLandscape ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'}`}>
+                        {isLandscape ? 'Landscape' : 'Portrait'} ({t.card_width_mm}×{t.card_height_mm}mm)
                       </span>
                       <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[10px] text-slate-700">
                         {isDouble ? 'Dual-Sided' : 'Single-Sided'}
@@ -810,7 +852,7 @@ export default function IdCardTemplatePage() {
                       {t.name}
                     </h3>
                     <p className="mt-0.5 text-[11px] text-slate-500">
-                      {t.layout?.backgroundUrl ? '🎨 Custom Artwork BG' : '📄 Color / SVG Template'}
+                      {t.layout?.backgroundUrl ? '🎨 Custom Artwork BG' : '📄 Color / Clean Template'}
                     </p>
                   </div>
 
@@ -1349,8 +1391,20 @@ export default function IdCardTemplatePage() {
           onSelectSavedTemplate={handleSelectTemplate}
           schoolLogoUrl={currentSchoolLogo}
           schoolName={project.name}
+          persons={projectPersons}
         />
       </div>
+
+      {/* Create New ID Card Step-by-Step Wizard Modal */}
+      {showCreateWizard && (
+        <CreateIdCardWizardModal
+          isOpen={showCreateWizard}
+          onClose={() => setShowCreateWizard(false)}
+          onComplete={handleWizardComplete}
+          savedTemplates={templates}
+          projectName={project.name}
+        />
+      )}
     </div>
   );
 }

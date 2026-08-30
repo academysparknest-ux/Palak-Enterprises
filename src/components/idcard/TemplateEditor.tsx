@@ -42,6 +42,7 @@ import {
   Rows,
   Star,
   CheckCircle2,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   FIELD_LABELS,
@@ -121,6 +122,8 @@ export interface ActiveGuidesState {
 // TEMPLATE EDITOR COMPONENT
 // ============================================================
 
+import type { IdCardPerson } from '../../lib/idcard/types';
+
 export function TemplateEditor({
   layout,
   onChange,
@@ -131,6 +134,7 @@ export function TemplateEditor({
   onSelectSavedTemplate,
   schoolLogoUrl,
   schoolName,
+  persons = [],
 }: {
   layout: TemplateLayout;
   onChange: (layout: TemplateLayout) => void;
@@ -141,6 +145,7 @@ export function TemplateEditor({
   onSelectSavedTemplate?: (template: IdCardTemplate) => void;
   schoolLogoUrl?: string | null;
   schoolName?: string;
+  persons?: IdCardPerson[];
 }) {
   const effectiveSchoolLogo = schoolLogoUrl || layout.schoolLogoUrl || null;
   // ── State ──────────────────────────────────────────────────
@@ -149,6 +154,7 @@ export function TemplateEditor({
   const [zoom, setZoom] = useState<number>(100); // 50 to 200%
   const [snapToGrid, setSnapToGrid] = useState<boolean>(true);
   const [showSmartGuides, setShowSmartGuides] = useState<boolean>(true);
+  const [showSafeZone, setShowSafeZone] = useState<boolean>(true);
   const [lockAspectRatio, setLockAspectRatio] = useState<boolean>(false);
   const gridSizeMm = 0.5; // 0.5 mm grid
   const [showPresets, setShowPresets] = useState<boolean>(false);
@@ -160,6 +166,10 @@ export function TemplateEditor({
   const [savedDefaultSuccess, setSavedDefaultSuccess] = useState(false);
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
+
+  // Live student preview roster selection (-1 = Sample Student, >= 0 = persons index)
+  const [previewStudentIdx, setPreviewStudentIdx] = useState<number>(-1);
+  const activePreviewPerson = previewStudentIdx >= 0 && persons[previewStudentIdx] ? persons[previewStudentIdx] : null;
 
   // History for Undo/Redo
   const [history, setHistory] = useState<HistoryEntry[]>([
@@ -1651,6 +1661,52 @@ export function TemplateEditor({
             </button>
           </div>
 
+          {/* Orientation & Safe Zone */}
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                if (onDimensionsChange) onDimensionsChange(85.6, 54.0);
+              }}
+              title="Switch to CR80 Landscape ID (85.6 × 54.0 mm)"
+              className={`flex items-center gap-1 rounded px-2.5 py-1 font-bold transition cursor-pointer ${
+                widthMm > heightMm
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'text-slate-700 hover:bg-white'
+              }`}
+            >
+              Landscape
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (onDimensionsChange) onDimensionsChange(54.0, 85.6);
+              }}
+              title="Switch to CR80 Portrait ID (54.0 × 85.6 mm)"
+              className={`flex items-center gap-1 rounded px-2.5 py-1 font-bold transition cursor-pointer ${
+                widthMm <= heightMm
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'text-slate-700 hover:bg-white'
+              }`}
+            >
+              Portrait
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowSafeZone(!showSafeZone)}
+            title="Toggle 2mm Safe-Zone and 1.5mm Bleed Guides overlay"
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+              showSafeZone
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <ShieldAlert size={13} className={showSafeZone ? 'text-emerald-600' : 'text-slate-400'} />
+            <span>Safe Zone</span>
+          </button>
+
           {/* Grid Snap & Guides */}
           <button
             type="button"
@@ -1677,6 +1733,43 @@ export function TemplateEditor({
           >
             <Magnet size={13} /> Guides
           </button>
+
+          {/* Live Roster Student Preview Switcher */}
+          {persons.length > 0 && (
+            <div className="flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50/70 p-1 text-xs text-purple-900">
+              <UserIcon size={13} className="text-purple-600 ml-1" />
+              <button
+                type="button"
+                onClick={() => setPreviewStudentIdx((prev) => Math.max(-1, prev - 1))}
+                disabled={previewStudentIdx <= -1}
+                className="rounded p-0.5 hover:bg-purple-200 disabled:opacity-30 cursor-pointer"
+                title="Previous Student"
+              >
+                ◀
+              </button>
+              <select
+                value={previewStudentIdx}
+                onChange={(e) => setPreviewStudentIdx(Number(e.target.value))}
+                className="rounded border border-purple-300 bg-white px-2 py-0.5 text-xs font-semibold text-purple-950 focus:outline-none max-w-[150px] truncate"
+              >
+                <option value={-1}>Sample Student</option>
+                {persons.map((p, idx) => (
+                  <option key={p.id} value={idx}>
+                    {p.name} ({p.student_id})
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setPreviewStudentIdx((prev) => Math.min(persons.length - 1, prev + 1))}
+                disabled={previewStudentIdx >= persons.length - 1}
+                className="rounded p-0.5 hover:bg-purple-200 disabled:opacity-30 cursor-pointer"
+                title="Next Student"
+              >
+                ▶
+              </button>
+            </div>
+          )}
 
           {/* Quick Layout & Spacing Tools */}
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
@@ -1802,10 +1895,20 @@ export function TemplateEditor({
         <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-100/80 p-8 shadow-inner min-h-[520px] overflow-auto">
           {/* Card Dimensions & Side Tag */}
           <div className="mb-3 flex items-center justify-between gap-4 text-xs text-slate-600" style={{ width: widthMm * pxPerMm }}>
-            <span className="font-semibold text-slate-800">
-              {currentSide === 'front' ? 'FRONT SIDE DESIGN' : 'BACK SIDE DESIGN'}
-            </span>
-            <span className="font-mono text-[11px] text-slate-500">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-900 uppercase">
+                {currentSide === 'front' ? 'FRONT SIDE' : 'BACK SIDE'}
+              </span>
+              <span className="rounded bg-blue-100 text-blue-800 font-bold px-2 py-0.5 text-[10px]">
+                {widthMm > heightMm ? 'LANDSCAPE' : 'PORTRAIT'}
+              </span>
+              {activePreviewPerson && (
+                <span className="rounded bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 text-[10px] truncate max-w-[200px]">
+                  👤 {activePreviewPerson.name}
+                </span>
+              )}
+            </div>
+            <span className="font-mono text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
               {widthMm.toFixed(1)} × {heightMm.toFixed(1)} mm
             </span>
           </div>
@@ -1845,6 +1948,23 @@ export function TemplateEditor({
                 <span>BG: {activeBgFit}</span>
                 {activeBgOpacity < 100 && <span>· {activeBgOpacity}%</span>}
                 {activeBgScale !== 100 && <span>· {activeBgScale}% zoom</span>}
+              </div>
+            )}
+
+            {/* Safe Zone (2mm inset) & Bleed Guides Overlay */}
+            {showSafeZone && (
+              <div
+                className="pointer-events-none absolute z-25 border border-dashed border-emerald-500/70"
+                style={{
+                  left: 2.0 * pxPerMm,
+                  top: 2.0 * pxPerMm,
+                  width: (widthMm - 4.0) * pxPerMm,
+                  height: (heightMm - 4.0) * pxPerMm,
+                }}
+              >
+                <span className="absolute bottom-0.5 right-1 text-[7.5px] font-bold text-emerald-700 bg-white/80 px-1 rounded-xs">
+                  2mm Safe Zone
+                </span>
               </div>
             )}
 
@@ -1977,6 +2097,28 @@ export function TemplateEditor({
                 const isSelected = selectedFieldId === field.id;
                 const isImg = IMAGE_FIELDS.includes(field.key);
 
+                // Check live student roster preview data
+                let studentDataVal: string | null = null;
+                if (activePreviewPerson) {
+                  if (field.key === 'student_name') studentDataVal = activePreviewPerson.name;
+                  else if (field.key === 'student_id') studentDataVal = activePreviewPerson.student_id;
+                  else if (field.key === 'class') studentDataVal = activePreviewPerson.class;
+                  else if (field.key === 'section') studentDataVal = activePreviewPerson.section;
+                  else if (field.key === 'roll_number') studentDataVal = activePreviewPerson.roll_number;
+                  else if (field.key === 'father_name') studentDataVal = activePreviewPerson.father_name;
+                  else if (field.key === 'mother_name') studentDataVal = activePreviewPerson.mother_name;
+                  else if (field.key === 'date_of_birth') studentDataVal = activePreviewPerson.date_of_birth;
+                  else if (field.key === 'blood_group') studentDataVal = activePreviewPerson.blood_group;
+                  else if (field.key === 'phone') studentDataVal = activePreviewPerson.phone;
+                  else if (field.key === 'emergency_no') studentDataVal = activePreviewPerson.emergency_number || activePreviewPerson.phone;
+                  else if (field.key === 'address') studentDataVal = activePreviewPerson.address;
+                  else if (field.customKey && activePreviewPerson.custom_fields?.[field.customKey]) {
+                    studentDataVal = String(activePreviewPerson.custom_fields[field.customKey]);
+                  } else if (activePreviewPerson.custom_fields?.[field.key]) {
+                    studentDataVal = String(activePreviewPerson.custom_fields[field.key]);
+                  }
+                }
+
                 const fieldDefaultText =
                   field.key === 'school_name'
                     ? (schoolName || 'SPARKNEST ACADEMY')
@@ -1985,7 +2127,9 @@ export function TemplateEditor({
                     : (FIELD_LABELS[field.key] || field.key);
 
                 const rawText =
-                  field.customText !== undefined && field.customText !== ''
+                  studentDataVal !== null && studentDataVal !== ''
+                    ? studentDataVal
+                    : field.customText !== undefined && field.customText !== ''
                     ? field.customText
                     : fieldDefaultText;
 
@@ -2077,12 +2221,23 @@ export function TemplateEditor({
                             );
                           })()
                         ) : field.key === 'student_photo' ? (
-                          <div className="flex flex-col items-center justify-center text-slate-400">
-                            <UserIcon size={Math.max(12, field.height * pxPerMm * 0.4)} />
-                            <span className="text-[7.5px] font-semibold text-slate-500 uppercase">
-                              Photo
-                            </span>
-                          </div>
+                          (() => {
+                            const photoSrc = activePreviewPerson?.photo_url || field.customText || null;
+                            return photoSrc ? (
+                              <img
+                                src={photoSrc}
+                                alt="Student Photo"
+                                className={`h-full w-full pointer-events-none ${field.photoFit === 'contain' ? 'object-contain' : 'object-cover'}`}
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-slate-400">
+                                <UserIcon size={Math.max(12, field.height * pxPerMm * 0.4)} />
+                                <span className="text-[7.5px] font-semibold text-slate-500 uppercase">
+                                  Photo
+                                </span>
+                              </div>
+                            );
+                          })()
                         ) : field.key === 'qr_code' ? (
                           <div className="flex flex-col items-center justify-center text-slate-600">
                             <QrIcon size={Math.max(12, field.height * pxPerMm * 0.5)} />
