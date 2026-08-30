@@ -479,7 +479,7 @@ export const sampleItems: SampleItem[] = [
       hi: "डोरी, होल्डर और बारकोड के साथ मजबूत प्लास्टिक फोटो आईडी कार्ड का नमूना।",
     },
     badge: { en: "Sample / Reference", hi: "सैंपल / संदर्भ" },
-    image: "/gallery/pvc-id-card-sample.svg",
+    image: "/idcard-templates/sample-template1-front.png",
     fallbackType: "id-card",
     source: { name: "Palak Enterprises", url: "#", license: "Sample Reference" },
     featured: false,
