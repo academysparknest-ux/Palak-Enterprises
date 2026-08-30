@@ -1373,7 +1373,7 @@ export default function IdCardGeneratePage() {
       }
 
       if (cardsHtml.trim()) {
-        pagesHtml += `<div class="print-sheet" style="position:relative; width:${paperW}mm; height:${paperH}mm; page-break-after:always; break-after:page; overflow:hidden; background:#fff;">${cardsHtml}</div>`
+        pagesHtml += `<div class="print-sheet">${cardsHtml}</div>`
       }
     }
 
@@ -1388,7 +1388,7 @@ export default function IdCardGeneratePage() {
 <style>
   @page {
     size: ${paperW}mm ${paperH}mm;
-    margin: 0 !important;
+    margin: 0mm !important;
   }
   *, *::before, *::after {
     margin: 0;
@@ -1408,15 +1408,17 @@ export default function IdCardGeneratePage() {
     box-sizing: border-box;
     position: relative;
     width: ${paperW}mm;
-    height: ${paperH}mm;
-    max-height: ${paperH}mm;
+    height: calc(${paperH}mm - 0.5mm);
+    max-height: calc(${paperH}mm - 0.5mm);
     overflow: hidden;
     background: #fff;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    page-break-after: always;
-    break-after: page;
     display: block;
+  }
+  .print-sheet:not(:last-child) {
+    page-break-after: always !important;
+    break-after: page !important;
   }
   .print-sheet:last-child {
     page-break-after: auto !important;
@@ -1429,7 +1431,7 @@ export default function IdCardGeneratePage() {
   }
 </style>
 </head>
-<body>${pagesHtml}</body></html>`
+<body>${pagesHtml.trim()}</body></html>`
 
     const win = window.open('', '_blank')
     if (!win) {

@@ -706,11 +706,7 @@ export function printSheetsInBrowser(
           })
           .join('');
 
-        return `
-          <div class="sheet" style="width: ${layout.paperWidthMm}mm; height: ${layout.paperHeightMm}mm;">
-            ${cardsHtml}
-          </div>
-        `;
+        return `<div class="sheet">${cardsHtml}</div>`;
       })
       .join('');
 
@@ -723,7 +719,7 @@ export function printSheetsInBrowser(
           <style>
             @page {
               size: ${layout.paperWidthMm}mm ${layout.paperHeightMm}mm;
-              margin: 0 !important;
+              margin: 0mm !important;
             }
             *, *::before, *::after {
               box-sizing: border-box;
@@ -744,15 +740,17 @@ export function printSheetsInBrowser(
               box-sizing: border-box;
               position: relative;
               width: ${layout.paperWidthMm}mm;
-              height: ${layout.paperHeightMm}mm;
-              max-height: ${layout.paperHeightMm}mm;
+              height: calc(${layout.paperHeightMm}mm - 0.5mm);
+              max-height: calc(${layout.paperHeightMm}mm - 0.5mm);
               overflow: hidden;
               background: #fff;
               page-break-inside: avoid !important;
               break-inside: avoid !important;
-              page-break-after: always;
-              break-after: page;
               display: block;
+            }
+            .sheet:not(:last-child) {
+              page-break-after: always !important;
+              break-after: page !important;
             }
             .sheet:last-child {
               page-break-after: auto !important;
