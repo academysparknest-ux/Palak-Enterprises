@@ -24,6 +24,7 @@ const testFiles = [
   'src/lib/idcard/savedTemplatePreview.test.ts',
   'src/lib/idcard/templateFirstDataFlow.test.ts',
   'src/lib/idcard/templatePresets.test.ts',
+  'src/lib/idcard/logoUpload.test.ts',
 ];
 
 console.log('╔═══════════════════════════════════════════════════════════════╗');
@@ -37,7 +38,7 @@ for (const testFile of testFiles) {
   const fileName = path.basename(testFile);
   console.log(`▶ Running: ${fileName}...`);
   
-  const result = spawnSync('npx', ['--yes', 'tsx', testFile], {
+  const result = spawnSync(`npx --yes tsx "${testFile}"`, {
     stdio: 'inherit',
     shell: true,
     cwd: process.cwd(),

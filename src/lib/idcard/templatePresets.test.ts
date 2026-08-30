@@ -18,9 +18,6 @@ import {
   getPresetById,
   formatFieldDisplay,
   SAMPLE_TEMPLATE_1_LAYOUT,
-  SPARKNEST_NAVY,
-  SPARKNEST_GOLD,
-  SPARKNEST_RED,
 } from './templatePresets';
 import { fieldValue } from './generation';
 import type { IdCardPerson } from './types';
@@ -129,7 +126,7 @@ section('Test 3: Sample-Template1 Coordinate and Typography Precision');
 
   assert(frontLogo?.x === 5.5 && frontLogo?.y === 4.5, 'Front Logo is positioned at top left (5.5, 4.5 mm)');
   assert(frontSchoolName?.customText === 'Graphic Era', 'Front School Name defaults to "Graphic Era"');
-  assert(frontSchoolSub?.customText?.includes('Deemed to be University'), 'Front School Subtitle contains university title');
+  assert(frontSchoolSub?.customText?.includes('Deemed to be University') ?? false, 'Front School Subtitle contains university title');
   assert(frontPhoto?.photoShape === 'circle', 'Front Student Photo is circular');
   assert(frontBlood?.color === '#FFFFFF', 'Blood Group in purple column has high-contrast white text');
   assert(frontBatch?.color === '#FFFFFF', 'Batch in purple column has high-contrast white text');
@@ -155,8 +152,8 @@ section('Test 3: Sample-Template1 Coordinate and Typography Precision');
   assert(backQr?.width === 17 && backQr?.height === 17, 'QR code is 17 × 17 mm');
   assert(backBarcode?.width === 38 && backBarcode?.height === 7.5, 'Barcode is 38 × 7.5 mm');
   assert(backValid?.labelPrefix === 'VALID TILL : ', 'Valid Till has prefix');
-  assert(backTerms?.customText?.includes('Graphic Era'), 'Terms text references Graphic Era University');
-  assert(backWebsite?.customText?.includes('www.geu.ac.in'), 'Website references geu.ac.in');
+  assert(backTerms?.customText?.includes('Graphic Era') ?? false, 'Terms text references Graphic Era University');
+  assert(backWebsite?.customText?.includes('www.geu.ac.in') ?? false, 'Website references geu.ac.in');
 }
 
 // ── Test 4: formatFieldDisplay Helper ──

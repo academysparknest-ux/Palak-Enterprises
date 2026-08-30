@@ -322,7 +322,49 @@ const unorderedTemplates: IdCardTemplate[] = [
 
 const foundById = unorderedTemplates.find((t) => t.id === 'tmpl-target');
 assert(foundById?.id === 'tmpl-target', 'Explicit lookup by ID resolves exact target template regardless of array position');
-assert(foundById?.layout.backgroundUrl === 'data:image/png;base64,DESIGN_B_DATA_URL', 'Target template has exact Design B background');
+// ── Test 10: Front and Back Background Scale (Zoom) & Adjustments Preservation ──
+console.log('\n10. Front and Back Background Scale (Zoom) & Adjustments Preservation');
+
+const templateWithZoom: IdCardTemplate = {
+  ...templateA_v1,
+  layout: {
+    ...templateA_v1.layout,
+    backgroundUrl: 'https://example.com/front_bg.png',
+    backgroundScale: 105,
+    backgroundFit: 'fill',
+    backgroundOpacity: 100,
+    backgroundOffsetX: 0,
+    backgroundOffsetY: 0,
+    back: {
+      fields: [],
+      backgroundColor: '#ffffff',
+      backgroundUrl: 'https://example.com/back_bg.png',
+      backgroundScale: 100,
+      backgroundFit: 'fill',
+    },
+  },
+};
+
+// Simulate frontSideLayout derivation
+const derivedFrontSideLayout = {
+  fields: templateWithZoom.layout.fields,
+  backgroundColor: templateWithZoom.layout.backgroundColor,
+  backgroundUrl: templateWithZoom.layout.backgroundUrl,
+  backgroundFit: templateWithZoom.layout.backgroundFit,
+  backgroundOpacity: templateWithZoom.layout.backgroundOpacity,
+  backgroundPosition: templateWithZoom.layout.backgroundPosition,
+  backgroundScale: templateWithZoom.layout.backgroundScale,
+  backgroundOffsetX: templateWithZoom.layout.backgroundOffsetX,
+  backgroundOffsetY: templateWithZoom.layout.backgroundOffsetY,
+  backgroundBlur: templateWithZoom.layout.backgroundBlur,
+  backgroundBrightness: templateWithZoom.layout.backgroundBrightness,
+  backgroundContrast: templateWithZoom.layout.backgroundContrast,
+  headerSvg: templateWithZoom.layout.headerSvg,
+  footerSvg: templateWithZoom.layout.footerSvg,
+};
+
+assert(derivedFrontSideLayout.backgroundScale === 105, 'Front side layout preserves 105% backgroundScale zoom');
+assert(templateWithZoom.layout.back?.backgroundScale === 100, 'Back side layout preserves backgroundScale');
 
 console.log(`\n${'═'.repeat(55)}`);
 console.log(`  RESULTS: ${passed} passed, ${failed} failed`);

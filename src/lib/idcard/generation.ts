@@ -478,6 +478,14 @@ export async function renderCardToBlob(
     backgroundColor: template.layout.backgroundColor,
     backgroundUrl: frontBackground,
     backgroundFit: template.layout.backgroundFit,
+    backgroundOpacity: template.layout.backgroundOpacity,
+    backgroundPosition: template.layout.backgroundPosition,
+    backgroundScale: template.layout.backgroundScale,
+    backgroundOffsetX: template.layout.backgroundOffsetX,
+    backgroundOffsetY: template.layout.backgroundOffsetY,
+    backgroundBlur: template.layout.backgroundBlur,
+    backgroundBrightness: template.layout.backgroundBrightness,
+    backgroundContrast: template.layout.backgroundContrast,
     headerSvg: template.layout.headerSvg,
     footerSvg: template.layout.footerSvg,
     headerGradientColors: template.layout.headerGradientColors,
@@ -546,7 +554,7 @@ export async function renderCardToDataUrl(
       : template.background_url;
 
   const schoolLogoUrl = template.layout.schoolLogoUrl || template.logo_url || null;
-  const cacheKey = `${person.id}_${template.id}_${template.updated_at || ''}_${person.updated_at || ''}_${side}_${frontBackground || ''}_${template.layout.back?.backgroundUrl || ''}_${schoolLogoUrl || ''}`;
+  const cacheKey = `${person.id}_${template.id}_${template.updated_at || ''}_${person.updated_at || ''}_${side}_${frontBackground || ''}_${template.layout.backgroundScale || 100}_${template.layout.backgroundFit || ''}_${template.layout.back?.backgroundUrl || ''}_${template.layout.back?.backgroundScale || 100}_${schoolLogoUrl || ''}`;
   const cached = cardDataUrlCache.get(cacheKey);
   if (cached) return cached;
 
@@ -578,6 +586,14 @@ export async function renderCardToDataUrl(
     backgroundColor: template.layout.backgroundColor,
     backgroundUrl: frontBackground,
     backgroundFit: template.layout.backgroundFit,
+    backgroundOpacity: template.layout.backgroundOpacity,
+    backgroundPosition: template.layout.backgroundPosition,
+    backgroundScale: template.layout.backgroundScale,
+    backgroundOffsetX: template.layout.backgroundOffsetX,
+    backgroundOffsetY: template.layout.backgroundOffsetY,
+    backgroundBlur: template.layout.backgroundBlur,
+    backgroundBrightness: template.layout.backgroundBrightness,
+    backgroundContrast: template.layout.backgroundContrast,
     headerSvg: template.layout.headerSvg,
     footerSvg: template.layout.footerSvg,
     headerGradientColors: template.layout.headerGradientColors,

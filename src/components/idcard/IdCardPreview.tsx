@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { getPhotoSignedUrl } from '../../lib/idcard/database';
 import type { IdCardPerson, IdCardTemplate, TemplateFieldKey, TemplateSideLayout } from '../../lib/idcard/types';
 import { sanitizeStudentId, getQrCodePayload } from '../../lib/idcard/validation';
+import { formatFieldDisplay } from '../../lib/idcard/templatePresets';
 
 // ============================================================
 // BARCODE: Code128-style SVG rendering
@@ -422,6 +423,14 @@ export function IdCardPreview({
     backgroundColor: template.layout.backgroundColor,
     backgroundUrl: frontBackground,
     backgroundFit: template.layout.backgroundFit,
+    backgroundOpacity: template.layout.backgroundOpacity,
+    backgroundPosition: template.layout.backgroundPosition,
+    backgroundScale: template.layout.backgroundScale,
+    backgroundOffsetX: template.layout.backgroundOffsetX,
+    backgroundOffsetY: template.layout.backgroundOffsetY,
+    backgroundBlur: template.layout.backgroundBlur,
+    backgroundBrightness: template.layout.backgroundBrightness,
+    backgroundContrast: template.layout.backgroundContrast,
     headerSvg: template.layout.headerSvg,
     footerSvg: template.layout.footerSvg,
     headerGradientColors: template.layout.headerGradientColors,

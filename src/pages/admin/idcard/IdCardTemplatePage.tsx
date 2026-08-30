@@ -30,6 +30,7 @@ import {
   uploadSchoolLogo,
 } from '../../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors';
+import { validateLogoFile } from '../../../lib/idcard/logoUpload';
 import { validateIdCardTemplate } from '../../../lib/idcard/templateValidation';
 import { clearCardDataUrlCache } from '../../../lib/idcard/generation';
 import {
@@ -90,19 +91,25 @@ export default function IdCardTemplatePage() {
   const hasLogoFieldOnCanvas = Boolean(canvasLogoField);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validate before upload
+    const validation = validateLogoFile(file);
+    if (!validation.valid) {
+      setUploadLogoError(validation.error || 'Invalid logo file');
+      e.target.value = '';
+      return;
+    }
+
     setUploadLogoError(null);
     setUploadingLogo(true);
+    let previewUrl: string | null = null;
 
     try {
-      // 1. Instant local base64 preview (0ms UI lag)
-      const reader = new FileReader();
-      const localDataUrlPromise = new Promise<string>((resolve) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-      const localDataUrl = await localDataUrlPromise;
+      // 1. Instant local Object URL preview (0ms UI latency)
+      previewUrl = URL.createObjectURL(file);
 
       const frontFields = [...layout.fields];
       const hasLogo = frontFields.some((f) => f.key === 'school_logo');
@@ -110,7 +117,7 @@ export default function IdCardTemplatePage() {
       let updatedFrontFields: TemplateField[];
       if (hasLogo) {
         updatedFrontFields = frontFields.map((f) =>
-          f.key === 'school_logo' ? { ...f, customText: localDataUrl, visible: true } : f
+          f.key === 'school_logo' ? { ...f, customText: previewUrl!, visible: true } : f
         );
       } else {
         updatedFrontFields = [
@@ -122,7 +129,7 @@ export default function IdCardTemplatePage() {
             width: 14.0,
             height: 14.0,
             visible: true,
-            customText: localDataUrl,
+            customText: previewUrl!,
           },
           ...frontFields,
         ];
@@ -131,23 +138,23 @@ export default function IdCardTemplatePage() {
       // Apply optimistic update immediately
       const initialLayout: TemplateLayout = {
         ...layout,
-        schoolLogoUrl: localDataUrl,
+        schoolLogoUrl: previewUrl,
         fields: updatedFrontFields,
         back: layout.back
           ? {
               ...layout.back,
               fields: layout.back.fields.map((f) =>
-                f.key === 'school_logo' ? { ...f, customText: localDataUrl, visible: true } : f
+                f.key === 'school_logo' ? { ...f, customText: previewUrl!, visible: true } : f
               ),
             }
           : undefined,
       };
       setLayout(initialLayout);
 
-      // 2. Upload with 6s timeout guard
+      // 2. Upload, optimize, and atomically persist to idcard_projects.logo_url
       const publicUrl = await uploadSchoolLogo(project.id, file);
 
-      // 3. Finalize with storage public URL or base64
+      // 3. Finalize with storage public URL
       const finalLayout: TemplateLayout = {
         ...initialLayout,
         schoolLogoUrl: publicUrl,
@@ -165,17 +172,21 @@ export default function IdCardTemplatePage() {
       };
       setLayout(finalLayout);
 
-      try {
-        if (template?.id) {
+      // 4. Update template layout in DB if editing an existing template
+      if (template?.id) {
+        try {
           await updateIdCardTemplate(template.id, { layout: finalLayout });
           setTemplates((prev) =>
             prev.map((t) => (t.id === template.id ? { ...t, layout: finalLayout } : t))
           );
           setTemplate((prev) => (prev ? { ...prev, layout: finalLayout } : null));
+        } catch (autoSaveErr) {
+          console.warn('Auto-save of logo to DB layout:', autoSaveErr);
         }
-      } catch (autoSaveErr) {
-        console.warn('Auto-save of logo to DB layout:', autoSaveErr);
       }
+
+      // 5. Synchronize parent project context state without reloading page
+      await reloadProject();
 
       setSaveSuccess('School / Institution logo uploaded and saved successfully!');
       setTimeout(() => setSaveSuccess(null), 4000);
@@ -183,13 +194,18 @@ export default function IdCardTemplatePage() {
       const appErr = classifySupabaseError(err);
       const msg = errorCodeToUserMessage(appErr.code, appErr.message);
       setUploadLogoError(msg);
+      // Revert layout on failure to previous valid state
+      setLayout(layout);
     } finally {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
       setUploadingLogo(false);
       e.target.value = '';
     }
   };
 
-  const handleLogoUrlChange = (url: string) => {
+  const handleLogoUrlChange = async (url: string) => {
     const trimmed = url.trim();
     const frontFields = [...layout.fields];
     const hasLogo = frontFields.some((f) => f.key === 'school_logo');
@@ -231,9 +247,19 @@ export default function IdCardTemplatePage() {
         : undefined,
     };
     setLayout(updatedLayout);
+
+    try {
+      await updateIdCardProject(project.id, { logo_url: trimmed || null });
+      if (template?.id) {
+        await updateIdCardTemplate(template.id, { layout: updatedLayout });
+      }
+      await reloadProject();
+    } catch (err) {
+      console.warn('Error saving logo URL to project:', err);
+    }
   };
 
-  const handleRemoveLogo = () => {
+  const handleRemoveLogo = async () => {
     const updatedLayout: TemplateLayout = {
       ...layout,
       schoolLogoUrl: null,
@@ -250,8 +276,19 @@ export default function IdCardTemplatePage() {
         : undefined,
     };
     setLayout(updatedLayout);
-    setSaveSuccess('School logo removed from layout.');
-    setTimeout(() => setSaveSuccess(null), 3000);
+
+    try {
+      await updateIdCardProject(project.id, { logo_url: null });
+      if (template?.id) {
+        await updateIdCardTemplate(template.id, { layout: updatedLayout });
+      }
+      await reloadProject();
+      setSaveSuccess('School logo removed from project.');
+      setTimeout(() => setSaveSuccess(null), 3000);
+    } catch (err) {
+      const appErr = classifySupabaseError(err);
+      alert(errorCodeToUserMessage(appErr.code, appErr.message));
+    }
   };
 
   const handleAddLogoToCanvas = () => {
@@ -846,7 +883,11 @@ export default function IdCardTemplatePage() {
           {/* Action Buttons & Direct Input */}
           <div className="flex-1 w-full space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <label className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer shadow-xs">
+              <label
+                className={`inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition ${
+                  uploadingLogo ? 'opacity-60 cursor-not-allowed pointer-events-none' : 'hover:bg-slate-800 cursor-pointer'
+                }`}
+              >
                 {uploadingLogo ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                 <span>{uploadingLogo ? 'Uploading Logo...' : currentSchoolLogo ? 'Change School Logo' : 'Upload School Logo'}</span>
                 <input
@@ -862,7 +903,8 @@ export default function IdCardTemplatePage() {
                 <button
                   type="button"
                   onClick={handleRemoveLogo}
-                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50/50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition cursor-pointer"
+                  disabled={uploadingLogo}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50/50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 transition cursor-pointer"
                 >
                   <Trash2 size={12} /> Remove Logo
                 </button>
@@ -872,6 +914,7 @@ export default function IdCardTemplatePage() {
             <div className="flex items-center gap-2">
               <input
                 type="url"
+                disabled={uploadingLogo}
                 value={currentSchoolLogo || ''}
                 onChange={(e) => handleLogoUrlChange(e.target.value)}
                 placeholder="Or enter direct image URL (e.g. https://.../school-logo.png)"

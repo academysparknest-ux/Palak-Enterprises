@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Camera, Loader2, X, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Camera, Loader2, X, AlertCircle, CheckCircle2, AlertTriangle, Crop } from 'lucide-react';
 import { uploadPersonPhoto, deletePersonPhoto, getPhotoSignedUrl } from '../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../lib/idcard/errors';
 import {
@@ -13,6 +13,7 @@ import {
   formatBytes,
   type PhotoValidationResult,
 } from '../../lib/idcard/photoValidation';
+import { ImageCropModal } from './ImageCropModal';
 
 export interface PhotoUploadProps {
   personId?: string | null;
@@ -35,6 +36,8 @@ export function PhotoUpload({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationInfo, setValidationInfo] = useState<PhotoValidationResult | null>(null);
+  const [isCropOpen, setIsCropOpen] = useState(false);
+  const [rawFileName, setRawFileName] = useState<string>('photo.jpg');
 
   // Sync with photoPath from server if present
   useEffect(() => {
@@ -74,6 +77,8 @@ export function PhotoUpload({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setRawFileName(file.name);
+
     // Validate (type, 50KB-500KB, min 300x360 dimensions) without image processing
     const result = await validatePhoto(file);
 
@@ -105,6 +110,33 @@ export function PhotoUpload({
     }
 
     e.target.value = '';
+  };
+
+  const handleCropComplete = async (croppedFile: File, newPreviewUrl: string) => {
+    setError(null);
+    setPreviewUrl(newPreviewUrl);
+    setRawFileName(croppedFile.name);
+
+    // Re-validate photo dimensions & size
+    const result = await validatePhoto(croppedFile);
+    if (result.valid) {
+      setValidationInfo(result);
+    }
+
+    onFileSelect?.(croppedFile, newPreviewUrl);
+
+    if (personId) {
+      setBusy(true);
+      try {
+        const path = await uploadPersonPhoto(personId, croppedFile);
+        onChange?.(path);
+      } catch (err: any) {
+        const appErr = classifySupabaseError(err);
+        setError(appErr.message || errorCodeToUserMessage(appErr.code));
+      } finally {
+        setBusy(false);
+      }
+    }
   };
 
   // Remove photo
@@ -153,18 +185,28 @@ export function PhotoUpload({
               <img
                 src={previewUrl}
                 alt="Student Photo"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-cover cursor-pointer"
+                onClick={() => setIsCropOpen(true)}
+                title="Click to crop photo"
               />
 
-              {/* Hover overlay with Remove button */}
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 opacity-0 backdrop-blur-2xs transition-opacity group-hover:opacity-100">
+              {/* Hover overlay with Crop & Remove buttons */}
+              <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-slate-950/60 opacity-0 backdrop-blur-2xs transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCropOpen(true)}
+                  title="Crop Photo"
+                  className="rounded-full bg-amber-500 p-2 text-slate-950 hover:bg-amber-400 shadow-xs transition active:scale-95 cursor-pointer"
+                >
+                  <Crop size={15} />
+                </button>
                 <button
                   type="button"
                   onClick={handleRemove}
                   title="Remove Photo"
-                  className="rounded-full bg-rose-600 p-2 text-white hover:bg-rose-500 shadow-xs transition"
+                  className="rounded-full bg-rose-600 p-2 text-white hover:bg-rose-500 shadow-xs transition active:scale-95 cursor-pointer"
                 >
-                  <X size={16} />
+                  <X size={15} />
                 </button>
               </div>
             </div>
@@ -222,7 +264,7 @@ export function PhotoUpload({
 
           {/* Action Row */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition">
+            <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition active:scale-95">
               <Camera size={13} />
               <span>{previewUrl ? 'Change Photo' : 'Choose Photo'}</span>
               <input
@@ -234,14 +276,25 @@ export function PhotoUpload({
             </label>
 
             {previewUrl && (
-              <button
-                type="button"
-                onClick={handleRemove}
-                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 transition"
-              >
-                <X size={13} />
-                <span>Remove</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsCropOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 shadow-2xs transition active:scale-95 cursor-pointer"
+                >
+                  <Crop size={13} className="text-amber-700" />
+                  <span>Crop</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRemove}
+                  className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 transition active:scale-95 cursor-pointer"
+                >
+                  <X size={13} />
+                  <span>Remove</span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -253,6 +306,19 @@ export function PhotoUpload({
           <AlertCircle size={15} className="shrink-0 text-rose-600" />
           <span>{error}</span>
         </div>
+      )}
+
+      {/* Crop Modal */}
+      {previewUrl && (
+        <ImageCropModal
+          isOpen={isCropOpen}
+          imageSrc={previewUrl}
+          fileName={rawFileName}
+          cropShape={shape === 'circle' ? 'circle' : 'passport'}
+          title="Crop & Align Photo"
+          onClose={() => setIsCropOpen(false)}
+          onCropComplete={handleCropComplete}
+        />
       )}
     </div>
   );

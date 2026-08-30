@@ -1,5 +1,6 @@
 import { executeWithAuthRetry } from '../supabase/authSession';
 import { classifySupabaseError } from './errors';
+import { uploadAndPersistSchoolLogo } from './logoUpload';
 import type {
   IdCardProject,
   IdCardPerson,
@@ -60,10 +61,9 @@ export async function createIdCardProject(input: {
         throw classifySupabaseError(userError || { status: 401, message: 'Active login required' });
       }
 
-      const { logo_url: _logo, ...dbInput } = input;
       const { data, error } = await client
         .from('idcard_projects')
-        .insert({ ...dbInput, created_by: userData.user.id })
+        .insert({ ...input, created_by: userData.user.id })
         .select()
         .single();
 
@@ -80,11 +80,10 @@ export async function updateIdCardProject(
 ): Promise<IdCardProject> {
   return executeWithAuthRetry(
     async (client) => {
-      const { logo_url: _logo, ...dbPatch } = patch;
-      if (Object.keys(dbPatch).length === 0) {
+      if (Object.keys(patch).length === 0) {
         return await getIdCardProject(id);
       }
-      const { data, error } = await client.from('idcard_projects').update(dbPatch).eq('id', id).select().maybeSingle();
+      const { data, error } = await client.from('idcard_projects').update(patch).eq('id', id).select().maybeSingle();
       if (error) throw classifySupabaseError(error);
       if (data) return data as IdCardProject;
       return await getIdCardProject(id);
@@ -286,10 +285,18 @@ export async function deletePersonPhoto(personId: string, path: string): Promise
 }
 
 export async function getPhotoSignedUrl(path: string): Promise<string> {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) {
+    return path;
+  }
   return executeWithAuthRetry(
     async (client) => {
       const { data, error } = await client.storage.from(PHOTO_BUCKET).createSignedUrl(path, 60 * 60);
-      if (error) throw classifySupabaseError(error);
+      if (error) {
+        const { data: pubData } = client.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+        if (pubData?.publicUrl) return pubData.publicUrl;
+        throw classifySupabaseError(error);
+      }
       return data.signedUrl;
     },
     { operationName: 'getPhotoSignedUrl' }
@@ -389,50 +396,11 @@ export function fileToDataUrl(file: File | Blob): Promise<string> {
 }
 
 /**
- * Uploads a school / institution logo file to Supabase Storage and returns its public URL.
- * If storage bucket upload encounters any error or takes longer than 6 seconds,
- * it seamlessly falls back to a high-fidelity base64 Data URL so logo upload never stalls or fails.
+ * Uploads a school / institution logo file to Supabase Storage,
+ * optimizes it client-side if oversized, and persists the resulting URL in idcard_projects.logo_url.
  */
 export async function uploadSchoolLogo(projectId: string, file: File): Promise<string> {
-  const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = `logos/${projectId}_${Date.now()}_${cleanFileName}`;
-
-  const storageUploadWithTimeout = async (): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error('Storage upload timed out'));
-      }, 6000);
-
-      executeWithAuthRetry(
-        async (client) => {
-          const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
-            upsert: true,
-            contentType: file.type || 'image/png',
-          });
-          if (uploadError) throw classifySupabaseError(uploadError);
-
-          const { data: publicUrlData } = client.storage.from(PHOTO_BUCKET).getPublicUrl(path);
-          return publicUrlData?.publicUrl || path;
-        },
-        { operationName: 'uploadSchoolLogo' }
-      )
-        .then((url) => {
-          clearTimeout(timer);
-          resolve(url);
-        })
-        .catch((err) => {
-          clearTimeout(timer);
-          reject(err);
-        });
-    });
-  };
-
-  try {
-    return await storageUploadWithTimeout();
-  } catch (storageErr) {
-    console.warn('[uploadSchoolLogo] Storage upload failed or timed out, falling back to base64 data URL:', storageErr);
-    return await fileToDataUrl(file);
-  }
+  return await uploadAndPersistSchoolLogo(projectId, file);
 }
 
 export async function deleteIdCardTemplate(id: string): Promise<void> {

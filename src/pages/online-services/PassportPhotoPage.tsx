@@ -9,7 +9,9 @@ import {
   Minus,
   X,
   ShieldCheck,
+  Crop,
 } from "lucide-react";
+import { ImageCropModal } from "../../components/ImageCropModal";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
@@ -51,6 +53,7 @@ export const PassportPhotoPage: React.FC = () => {
     previewUrl: string;
   } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [showCropModal, setShowCropModal] = useState<boolean>(false);
 
   const [customerName, setCustomerName] = useState<string>(user?.name || "");
   const [customerPhone, setCustomerPhone] = useState<string>(user?.phone || "");
@@ -408,14 +411,25 @@ export const PassportPhotoPage: React.FC = () => {
                         : "Our studio technicians will fine-tune contrast and crop to clean photo proportions."}
                     </p>
 
-                    <button
-                      type="button"
-                      onClick={handleRemoveFile}
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:underline cursor-pointer"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                      <span>{currentLang === "hi" ? "फोटो बदलें" : "Change Photo"}</span>
-                    </button>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowCropModal(true)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-2xs transition active:scale-95 cursor-pointer"
+                      >
+                        <Crop className="h-3.5 w-3.5 text-emerald-700" />
+                        <span>{currentLang === "hi" ? "फोटो क्रॉप करें" : "Crop & Position Photo"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleRemoveFile}
+                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition active:scale-95 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        <span>{currentLang === "hi" ? "फोटो बदलें" : "Change Photo"}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -763,6 +777,27 @@ export const PassportPhotoPage: React.FC = () => {
           customerPhone={customerPhone}
           paymentMethod={successData.paymentMethod}
           paymentStatus={successData.paymentStatus}
+        />
+      )}
+
+      {/* Image Crop Modal for Passport Photo */}
+      {uploadedFile && (
+        <ImageCropModal
+          isOpen={showCropModal}
+          imageSrc={uploadedFile.previewUrl}
+          fileName={uploadedFile.name}
+          cropShape="passport"
+          title={currentLang === "hi" ? "पासपोर्ट फोटो क्रॉप एवं अलाइन करें" : "Crop & Align Passport Photo"}
+          onClose={() => setShowCropModal(false)}
+          onCropComplete={(croppedFile, previewUrl) => {
+            setUploadedFile({
+              file: croppedFile,
+              name: croppedFile.name,
+              size: croppedFile.size,
+              previewUrl,
+            });
+            setShowCropModal(false);
+          }}
         />
       )}
     </div>

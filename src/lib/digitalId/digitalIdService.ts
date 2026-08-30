@@ -134,7 +134,7 @@ export async function verifyDigitalId(identifier: string): Promise<DigitalIdVeri
           organization: {
             name: proj.name || "Educational Institution",
             academicYear: proj.academic_year || null,
-            logoUrl: null,
+            logoUrl: proj.logo_url || null,
             website: "https://palakenterprises.com",
             address: "Chakia, East Champaran, Bihar",
             phone: "+91 9403527354",
