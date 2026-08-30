@@ -195,7 +195,6 @@ export async function createIdCardPerson(
         emergency_number: input.emergency_number ?? null,
         address: input.address ?? null,
         photo_url: input.photo_url ?? null,
-        custom_fields: input.custom_fields ?? null,
       };
       const { data, error } = await client.from('idcard_persons').insert(sanitized).select().single();
       if (error) throw classifySupabaseError(error);
@@ -225,7 +224,6 @@ export async function createIdCardPersonsBulk(
         emergency_number: input.emergency_number ?? null,
         address: input.address ?? null,
         photo_url: input.photo_url ?? null,
-        custom_fields: input.custom_fields ?? null,
       }));
       const { error, count } = await client.from('idcard_persons').insert(sanitized, { count: 'exact' });
       if (error) throw classifySupabaseError(error);
@@ -241,7 +239,29 @@ export async function updateIdCardPerson(
 ): Promise<IdCardPerson> {
   return executeWithAuthRetry(
     async (client) => {
-      const { data, error } = await client.from('idcard_persons').update(patch).eq('id', id).select().single();
+      const allowedCols = [
+        'student_id',
+        'name',
+        'class',
+        'section',
+        'roll_number',
+        'date_of_birth',
+        'blood_group',
+        'father_name',
+        'mother_name',
+        'phone',
+        'emergency_number',
+        'address',
+        'photo_url',
+        'status',
+      ];
+      const sanitized: Record<string, any> = {};
+      for (const col of allowedCols) {
+        if ((patch as any)[col] !== undefined) {
+          sanitized[col] = (patch as any)[col];
+        }
+      }
+      const { data, error } = await client.from('idcard_persons').update(sanitized).eq('id', id).select().single();
       if (error) throw classifySupabaseError(error);
       return data as IdCardPerson;
     },
