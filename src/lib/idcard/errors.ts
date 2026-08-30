@@ -89,15 +89,23 @@ export function classifySupabaseError(err: unknown): AppError {
     return new AppError('STORAGE_ERROR', message, err);
   }
 
-  if ((status && status >= 500) || code?.startsWith('PGRST') || code?.startsWith('42')) {
-    return new AppError('DATABASE_ERROR', 'Unable to load ID card projects. Please try again.', err);
+  if (code === '23505' || /unique constraint|duplicate key/i.test(message)) {
+    return new AppError('VALIDATION_ERROR', 'Duplicate student ID detected. Each student ID must be unique within a project.', err);
   }
 
-  return new AppError('UNKNOWN_ERROR', message, err);
+  if (code === '42501' || /permission denied|row-level security/i.test(message)) {
+    return new AppError('ACCESS_DENIED', 'Permission denied. Please ensure you are logged in.', err);
+  }
+
+  if ((status && status >= 500) || code?.startsWith('PGRST') || code?.startsWith('42')) {
+    return new AppError('DATABASE_ERROR', message || 'Database operation failed. Please try again.', err);
+  }
+
+  return new AppError('UNKNOWN_ERROR', message || 'An unexpected error occurred. Please try again.', err);
 }
 
 export function errorCodeToUserMessage(code: AppErrorCode, specificMessage?: string): string {
-  if (specificMessage && specificMessage !== 'Unknown error' && !specificMessage.startsWith('{"')) {
+  if (specificMessage && specificMessage !== 'Unknown error' && !specificMessage.startsWith('{"') && specificMessage !== 'Unable to load ID card projects. Please try again.') {
     return specificMessage;
   }
 
@@ -105,18 +113,18 @@ export function errorCodeToUserMessage(code: AppErrorCode, specificMessage?: str
     case 'AUTH_REQUIRED':
       return 'Your session has expired. Please sign in again.';
     case 'ACCESS_DENIED':
-      return 'You do not have permission to access ID card projects.';
+      return 'You do not have permission to perform this action.';
     case 'VALIDATION_ERROR':
       return specificMessage || 'Some of the data provided is invalid.';
     case 'NOT_FOUND':
       return 'The requested record was not found.';
     case 'DATABASE_ERROR':
-      return 'Unable to load ID card projects. Please try again.';
+      return specificMessage || 'Database request failed. Please try again.';
     case 'STORAGE_ERROR':
       return 'File upload/download failed. Please try again.';
     case 'NETWORK_ERROR':
       return 'Unable to connect to the server. Please check your connection and try again.';
     default:
-      return specificMessage || 'Unable to load ID card projects. Please try again.';
+      return specificMessage || 'An unexpected error occurred. Please try again.';
   }
 }

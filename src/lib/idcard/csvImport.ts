@@ -327,11 +327,13 @@ export function parseAndValidateCsv(
   }
 
   // Identify extra columns that are NOT in the active template schema
-  const validCanonicalKeys = new Set<string>(
-    templateRelevantFields.map((f) => String(f.modelKey || f.key))
-  );
+  const validCanonicalKeys = new Set<string>();
   for (const f of templateRelevantFields) {
-    validCanonicalKeys.add(f.key);
+    const rawF = (f.key || '').trim().toLowerCase();
+    const canonF = resolveCanonicalStudentKey(f.key, f.label);
+    validCanonicalKeys.add(rawF);
+    validCanonicalKeys.add(canonF);
+    if (f.modelKey) validCanonicalKeys.add(String(f.modelKey).toLowerCase());
   }
   validCanonicalKeys.add('student_id');
   validCanonicalKeys.add('name');
@@ -341,7 +343,8 @@ export function parseAndValidateCsv(
 
   const ignoredHeaders: string[] = [];
   for (const h of canonicalHeaders) {
-    if (!validCanonicalKeys.has(h)) {
+    const canonH = resolveCanonicalStudentKey(h);
+    if (!validCanonicalKeys.has(h) && !validCanonicalKeys.has(canonH)) {
       // Find human-readable label
       const originalHeader = rawHeaders.find((raw) => mapHeaderToCanonical(raw, customFields) === h) || h;
       if (!ignoredHeaders.includes(originalHeader)) {
@@ -363,9 +366,29 @@ export function parseAndValidateCsv(
 
     const errors: string[] = [];
 
-    // Support student_name or name
-    const studentNameVal = cleanedRaw.name || cleanedRaw.student_name || '';
-    const studentIdVal = cleanedRaw.student_id || '';
+    // Robust value extraction supporting aliases
+    const getVal = (...keys: string[]): string => {
+      for (const k of keys) {
+        if (cleanedRaw[k] !== undefined && cleanedRaw[k] !== null && cleanedRaw[k] !== '') {
+          return cleanedRaw[k];
+        }
+      }
+      return '';
+    };
+
+    const studentNameVal = getVal('student_name', 'name', 'full_name', 'student');
+    const studentIdVal = getVal('student_id', 'id', 'admission_no', 'reg_no', 'scholar_no');
+    const classVal = getVal('class', 'grade', 'standard', 'std', 'course') || null;
+    const sectionVal = getVal('section', 'sec', 'division', 'div') || null;
+    const rollNumberVal = getVal('roll_number', 'roll_no', 'roll', 'r_no', 'rno') || null;
+    const dobVal = getVal('date_of_birth', 'dob', 'birth_date', 'birthdate', 'bday') || null;
+    const bloodGroupVal = getVal('blood_group', 'blood', 'blood_grp', 'blood_type', 'bg') || null;
+    const fatherNameVal = getVal('father_name', 'father', 'fathers_name', 'guardian_name', 'parent_info') || null;
+    const motherNameVal = getVal('mother_name', 'mothers_name', 'mother') || null;
+    const phoneVal = getVal('phone', 'phone_number', 'phone_no', 'mobile', 'mobile_no', 'contact') || null;
+    const emergencyVal = getVal('emergency_number', 'emergency_no', 'emergency_phone', 'emergency_contact', 'emergency') || null;
+    const addressVal = getVal('address', 'location', 'city', 'residential_address') || null;
+    const photoUrlVal = getVal('photo_url', 'photo', 'image_url', 'picture', 'pic') || null;
 
     // Validate student ID
     if (!studentIdVal) {
@@ -379,8 +402,12 @@ export function parseAndValidateCsv(
 
     // Validate other template-required fields
     for (const item of requiredSchemaItems) {
-      const canonicalKey = String(item.modelKey || item.key);
-      const val = cleanedRaw[canonicalKey] || cleanedRaw[item.key];
+      const canonItem = resolveCanonicalStudentKey(item.key, item.label);
+      const val =
+        cleanedRaw[item.key] ||
+        cleanedRaw[canonItem] ||
+        cleanedRaw[String(item.modelKey)] ||
+        getVal(item.key, canonItem);
       if (!val || !val.trim()) {
         const errorMsg = `${item.label} is required by template`;
         if (!errors.includes(errorMsg)) {
@@ -390,38 +417,41 @@ export function parseAndValidateCsv(
     }
 
     // Normalize phone format if provided
-    if (cleanedRaw.phone && !/^[\+0-9\-\s\(\)]{6,20}$/.test(cleanedRaw.phone.trim())) {
+    if (phoneVal && !/^[\+0-9\-\s\(\)]{6,20}$/.test(phoneVal.trim())) {
       errors.push('Invalid phone number format');
     }
-    if (cleanedRaw.emergency_number && !/^[\+0-9\-\s\(\)]{6,20}$/.test(cleanedRaw.emergency_number.trim())) {
+    if (emergencyVal && !/^[\+0-9\-\s\(\)]{6,20}$/.test(emergencyVal.trim())) {
       errors.push('Invalid emergency contact number format');
     }
 
-    // Extract custom dynamic fields
+    // Extract custom dynamic fields & aliases
     const customFieldsData: Record<string, any> = {};
+    if (motherNameVal) customFieldsData.mothers_name = motherNameVal;
+    if (rollNumberVal) customFieldsData.roll_no = rollNumberVal;
+    if (emergencyVal) customFieldsData.emergency_no = emergencyVal;
+
     for (const item of schema.studentInputFields) {
-      if (item.isCustom || !['name', 'student_id', 'class', 'section', 'roll_number', 'date_of_birth', 'blood_group', 'father_name', 'mother_name', 'phone', 'emergency_number', 'address', 'photo_url'].includes(item.key)) {
-        const val = cleanedRaw[item.key] || cleanedRaw[String(item.modelKey)];
-        if (val !== undefined && val !== null && val !== '') {
-          customFieldsData[item.key] = val;
-        }
+      const canonKey = resolveCanonicalStudentKey(item.key, item.label);
+      const val = cleanedRaw[item.key] || cleanedRaw[canonKey] || cleanedRaw[String(item.modelKey)];
+      if (val !== undefined && val !== null && val !== '') {
+        customFieldsData[item.key] = val;
       }
     }
 
     const rowData: Partial<IdCardPerson> = {
       student_id: sanitizeStudentId(studentIdVal) || '',
       name: studentNameVal || '',
-      class: cleanedRaw.class || null,
-      section: cleanedRaw.section || null,
-      roll_number: cleanedRaw.roll_number || null,
-      date_of_birth: cleanedRaw.date_of_birth ? normalizeDate(cleanedRaw.date_of_birth) : null,
-      blood_group: cleanedRaw.blood_group ? normalizeBloodGroup(cleanedRaw.blood_group) : null,
-      father_name: cleanedRaw.father_name || null,
-      mother_name: cleanedRaw.mother_name || null,
-      phone: cleanedRaw.phone ? normalizePhone(cleanedRaw.phone) : null,
-      emergency_number: cleanedRaw.emergency_number ? normalizePhone(cleanedRaw.emergency_number) : null,
-      address: cleanedRaw.address || null,
-      photo_url: cleanedRaw.photo_url || null,
+      class: classVal,
+      section: sectionVal,
+      roll_number: rollNumberVal,
+      date_of_birth: dobVal ? normalizeDate(dobVal) : null,
+      blood_group: bloodGroupVal ? normalizeBloodGroup(bloodGroupVal) : null,
+      father_name: fatherNameVal,
+      mother_name: motherNameVal,
+      phone: phoneVal ? normalizePhone(phoneVal) : null,
+      emergency_number: emergencyVal ? normalizePhone(emergencyVal) : null,
+      address: addressVal,
+      photo_url: photoUrlVal,
       custom_fields: Object.keys(customFieldsData).length > 0 ? customFieldsData : undefined,
     };
 

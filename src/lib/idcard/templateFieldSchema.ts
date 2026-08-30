@@ -95,6 +95,26 @@ export const FIELD_METADATA_REGISTRY: Record<string, FieldMetadata> = {
     modelKey: 'roll_number',
     description: 'Class roll number',
   },
+  roll_no: {
+    key: 'roll_number',
+    label: 'Roll Number',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: true,
+    modelKey: 'roll_number',
+    description: 'Class roll number',
+  },
+  roll: {
+    key: 'roll_number',
+    label: 'Roll Number',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: true,
+    modelKey: 'roll_number',
+    description: 'Class roll number',
+  },
   date_of_birth: {
     key: 'date_of_birth',
     label: 'Date of Birth',
@@ -105,7 +125,27 @@ export const FIELD_METADATA_REGISTRY: Record<string, FieldMetadata> = {
     modelKey: 'date_of_birth',
     description: 'Birth date (YYYY-MM-DD)',
   },
+  dob: {
+    key: 'date_of_birth',
+    label: 'Date of Birth',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'date',
+    defaultRequired: false,
+    modelKey: 'date_of_birth',
+    description: 'Birth date (YYYY-MM-DD)',
+  },
   blood_group: {
+    key: 'blood_group',
+    label: 'Blood Group',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'select',
+    defaultRequired: false,
+    modelKey: 'blood_group',
+    description: 'Blood group (A+, B+, O+, AB+, etc.)',
+  },
+  blood: {
     key: 'blood_group',
     label: 'Blood Group',
     category: 'student_input',
@@ -135,6 +175,26 @@ export const FIELD_METADATA_REGISTRY: Record<string, FieldMetadata> = {
     modelKey: 'mother_name',
     description: "Mother's full name",
   },
+  mothers_name: {
+    key: 'mother_name',
+    label: "Mother's Name",
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: false,
+    modelKey: 'mother_name',
+    description: "Mother's full name",
+  },
+  mother: {
+    key: 'mother_name',
+    label: "Mother's Name",
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: false,
+    modelKey: 'mother_name',
+    description: "Mother's full name",
+  },
   parent_info: {
     key: 'parent_info',
     label: 'Parent Info',
@@ -155,7 +215,57 @@ export const FIELD_METADATA_REGISTRY: Record<string, FieldMetadata> = {
     modelKey: 'phone',
     description: 'Contact phone or mobile number',
   },
+  phone_no: {
+    key: 'phone',
+    label: 'Phone',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: false,
+    modelKey: 'phone',
+    description: 'Contact phone or mobile number',
+  },
+  mobile: {
+    key: 'phone',
+    label: 'Phone',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: false,
+    modelKey: 'phone',
+    description: 'Contact phone or mobile number',
+  },
   emergency_no: {
+    key: 'emergency_no',
+    label: 'Emergency No',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: false,
+    modelKey: 'emergency_number',
+    description: 'Student / Parent emergency contact number',
+  },
+  emergency_number: {
+    key: 'emergency_no',
+    label: 'Emergency No',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: false,
+    modelKey: 'emergency_number',
+    description: 'Student / Parent emergency contact number',
+  },
+  emergency_phone: {
+    key: 'emergency_no',
+    label: 'Emergency No',
+    category: 'student_input',
+    source: 'dynamic',
+    type: 'text',
+    defaultRequired: false,
+    modelKey: 'emergency_number',
+    description: 'Student / Parent emergency contact number',
+  },
+  emergency: {
     key: 'emergency_no',
     label: 'Emergency No',
     category: 'student_input',
@@ -348,7 +458,8 @@ export function extractTemplateFieldSchema(
     const isBack = backFields.some((f) => (f.customKey || f.key) === rawKey);
     const side: 'front' | 'back' | 'both' = isFront && isBack ? 'both' : isFront ? 'front' : 'back';
 
-    const registered = FIELD_METADATA_REGISTRY[element.key];
+    const canonKey = resolveCanonicalStudentKey(rawKey, element.label);
+    const registered = FIELD_METADATA_REGISTRY[element.key] || FIELD_METADATA_REGISTRY[rawKey] || FIELD_METADATA_REGISTRY[canonKey];
 
     // Determine Source & Category:
     // If element explicitly defines source: 'static' | 'dynamic' | 'system', use that.
@@ -360,19 +471,37 @@ export function extractTemplateFieldSchema(
       source = element.source;
       category =
         source === 'dynamic'
-          ? (element.key === 'student_photo' ? 'student_asset' : 'student_input')
+          ? (canonKey === 'student_photo' ? 'student_asset' : 'student_input')
           : source === 'system'
           ? 'auto_generated'
           : 'static';
     } else if (!registered) {
       // Unregistered custom field
-      if (element.key === 'student_photo') {
+      if (canonKey === 'student_photo') {
         source = 'dynamic';
         category = 'student_asset';
-      } else if (element.key === 'qr_code' || element.key === 'barcode') {
+      } else if (canonKey === 'qr_code' || canonKey === 'barcode') {
         source = 'system';
         category = 'auto_generated';
-      } else if (element.customKey || element.dataType || element.key.startsWith('custom_dynamic_')) {
+      } else if (
+        canonKey === 'student_id' ||
+        canonKey === 'student_name' ||
+        canonKey === 'class' ||
+        canonKey === 'section' ||
+        canonKey === 'roll_number' ||
+        canonKey === 'date_of_birth' ||
+        canonKey === 'blood_group' ||
+        canonKey === 'batch' ||
+        canonKey === 'father_name' ||
+        canonKey === 'mother_name' ||
+        canonKey === 'phone' ||
+        canonKey === 'emergency_no' ||
+        canonKey === 'address' ||
+        element.customKey ||
+        element.dataType ||
+        element.key.startsWith('custom_dynamic_') ||
+        (element.label && /roll|mother|father|emergency|blood|phone|mobile|dob|birth|address|class|sec/i.test(element.label))
+      ) {
         source = 'dynamic';
         category = 'student_input';
       } else {
@@ -384,8 +513,8 @@ export function extractTemplateFieldSchema(
     const defaultType = registered ? registered.type : (element.dataType || 'text');
     const rawLabel = element.label || (registered ? registered.label : rawKey.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
     const defaultLabel = rawLabel.replace(/[:\s]+$/, '').trim();
-    const defaultRequired = registered ? registered.defaultRequired : (source === 'dynamic' && (rawKey === 'student_id' || rawKey === 'student_name'));
-    const modelKey = registered ? registered.modelKey : rawKey;
+    const defaultRequired = registered ? registered.defaultRequired : (source === 'dynamic' && (canonKey === 'student_id' || canonKey === 'student_name'));
+    const modelKey = registered ? registered.modelKey : canonKey;
 
     const isExplicitlyRequired = allElements
       .filter((el) => (el.customKey || el.key) === rawKey)

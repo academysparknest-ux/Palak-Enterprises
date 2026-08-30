@@ -180,7 +180,24 @@ export async function createIdCardPerson(
 ): Promise<IdCardPerson> {
   return executeWithAuthRetry(
     async (client) => {
-      const { data, error } = await client.from('idcard_persons').insert(input).select().single();
+      const sanitized = {
+        project_id: input.project_id,
+        student_id: input.student_id,
+        name: input.name,
+        class: input.class ?? null,
+        section: input.section ?? null,
+        roll_number: input.roll_number ?? null,
+        date_of_birth: input.date_of_birth ?? null,
+        blood_group: input.blood_group ?? null,
+        father_name: input.father_name ?? null,
+        mother_name: input.mother_name ?? null,
+        phone: input.phone ?? null,
+        emergency_number: input.emergency_number ?? null,
+        address: input.address ?? null,
+        photo_url: input.photo_url ?? null,
+        custom_fields: input.custom_fields ?? null,
+      };
+      const { data, error } = await client.from('idcard_persons').insert(sanitized).select().single();
       if (error) throw classifySupabaseError(error);
       return data as IdCardPerson;
     },
@@ -193,7 +210,24 @@ export async function createIdCardPersonsBulk(
 ): Promise<{ inserted: number }> {
   return executeWithAuthRetry(
     async (client) => {
-      const { error, count } = await client.from('idcard_persons').insert(inputs, { count: 'exact' });
+      const sanitized = inputs.map((input) => ({
+        project_id: input.project_id,
+        student_id: input.student_id,
+        name: input.name,
+        class: input.class ?? null,
+        section: input.section ?? null,
+        roll_number: input.roll_number ?? null,
+        date_of_birth: input.date_of_birth ?? null,
+        blood_group: input.blood_group ?? null,
+        father_name: input.father_name ?? null,
+        mother_name: input.mother_name ?? null,
+        phone: input.phone ?? null,
+        emergency_number: input.emergency_number ?? null,
+        address: input.address ?? null,
+        photo_url: input.photo_url ?? null,
+        custom_fields: input.custom_fields ?? null,
+      }));
+      const { error, count } = await client.from('idcard_persons').insert(sanitized, { count: 'exact' });
       if (error) throw classifySupabaseError(error);
       return { inserted: count ?? inputs.length };
     },

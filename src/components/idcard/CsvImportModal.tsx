@@ -119,6 +119,7 @@ export function CsvImportModal({
     checkField('father_name', "Father's Name");
     checkField('mother_name', "Mother's Name");
     checkField('phone', 'Phone');
+    checkField('emergency_number', 'Emergency No');
     checkField('address', 'Address');
     checkField('photo_url', 'Photo');
 
