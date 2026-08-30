@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useOutletContext, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Loader2,
@@ -168,13 +168,15 @@ export default function IdCardTemplatePage() {
       try {
         if (template?.id) {
           await updateIdCardTemplate(template.id, { layout: finalLayout });
+          setTemplates((prev) =>
+            prev.map((t) => (t.id === template.id ? { ...t, layout: finalLayout } : t))
+          );
+          setTemplate((prev) => (prev ? { ...prev, layout: finalLayout } : null));
         }
-        await updateIdCardProject(project.id, { logo_url: publicUrl });
       } catch (autoSaveErr) {
         console.warn('Auto-save of logo to DB layout:', autoSaveErr);
       }
 
-      await reloadProject();
       setSaveSuccess('School / Institution logo uploaded and saved successfully!');
       setTimeout(() => setSaveSuccess(null), 4000);
     } catch (err) {
@@ -337,9 +339,16 @@ export default function IdCardTemplatePage() {
     }
   }, [project.id, project.name, project.logo_url, project.template_id, queryTemplateId]);
 
+  const hasInitializedRef = useRef(false);
+  const prevQueryTemplateIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    loadTemplates();
-  }, [loadTemplates]);
+    if (!hasInitializedRef.current || prevQueryTemplateIdRef.current !== queryTemplateId) {
+      hasInitializedRef.current = true;
+      prevQueryTemplateIdRef.current = queryTemplateId;
+      loadTemplates(queryTemplateId);
+    }
+  }, [loadTemplates, queryTemplateId]);
 
   function handleSelectTemplate(target: IdCardTemplate) {
     setTemplate(target);

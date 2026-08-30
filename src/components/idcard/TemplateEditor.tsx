@@ -28,12 +28,23 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignJustify,
+  AlignHorizontalDistributeCenter,
+  AlignHorizontalJustifyCenter,
+  AlignHorizontalJustifyStart,
+  AlignHorizontalJustifyEnd,
+  AlignVerticalJustifyCenter,
+  AlignVerticalJustifyStart,
+  AlignVerticalJustifyEnd,
   MoveVertical,
   ArrowUpDown,
+  Columns,
+  Rows,
 } from 'lucide-react';
 import {
   FIELD_LABELS,
   TEMPLATE_PRESETS,
+  formatFieldDisplay,
   type TemplatePreset,
 } from '../../lib/idcard/templatePresets';
 import type {
@@ -335,6 +346,43 @@ export function TemplateEditor({
     updateActiveFields(newFields, pushToHistory);
   }
 
+  // Detail / body fields (excluding images and fixed header/footer blocks)
+  const isDetailField = (f: TemplateField) => {
+    return (
+      f.visible !== false &&
+      !IMAGE_FIELDS.includes(f.key) &&
+      f.key !== 'school_name' &&
+      f.key !== 'school_subtitle' &&
+      f.key !== 'terms'
+    );
+  };
+
+  // ── Canvas Position Alignment for Selected Element ─────────
+  const alignSelectedFieldToCanvas = (
+    horizontal?: 'left' | 'center' | 'right',
+    vertical?: 'top' | 'center' | 'bottom'
+  ) => {
+    if (!selectedField) return;
+    const patch: Partial<TemplateField> = {};
+    if (horizontal === 'left') {
+      patch.x = 2.0; // Standard 2mm safe card margin
+    } else if (horizontal === 'center') {
+      patch.x = Number(((widthMm - selectedField.width) / 2).toFixed(2));
+    } else if (horizontal === 'right') {
+      patch.x = Number(Math.max(0, widthMm - selectedField.width - 2.0).toFixed(2));
+    }
+
+    if (vertical === 'top') {
+      patch.y = 2.0; // Standard 2mm top margin
+    } else if (vertical === 'center') {
+      patch.y = Number(((heightMm - selectedField.height) / 2).toFixed(2));
+    } else if (vertical === 'bottom') {
+      patch.y = Number(Math.max(0, heightMm - selectedField.height - 2.0).toFixed(2));
+    }
+
+    updateSelectedField(patch);
+  };
+
   // ── Vertical Gap & Spacing Helpers ─────────────────────────
   const getFieldGapInfo = useCallback(
     (fieldId: string | null) => {
@@ -346,14 +394,25 @@ export function TemplateEditor({
         (f) => f.id !== fieldId && f.visible !== false
       );
 
+      // Prioritize elements with horizontal overlap / column alignment
+      const isColumnMatch = (f: TemplateField) => {
+        const overlap =
+          Math.min(current.x + current.width, f.x + f.width) -
+          Math.max(current.x, f.x);
+        return overlap > -2; // overlapping or close horizontal column
+      };
+
+      const columnOthers = otherVisible.filter(isColumnMatch);
+      const candidates = columnOthers.length > 0 ? columnOthers : otherVisible;
+
       // Closest element above
-      const aboveElems = otherVisible
+      const aboveElems = candidates
         .filter((f) => f.y + f.height <= current.y + 0.5)
         .sort((a, b) => b.y + b.height - (a.y + a.height));
       const aboveElem = aboveElems[0] || null;
 
       // Closest element below
-      const belowElems = otherVisible
+      const belowElems = candidates
         .filter((f) => f.y >= current.y + current.height - 0.5)
         .sort((a, b) => a.y - b.y);
       const belowElem = belowElems[0] || null;
@@ -377,47 +436,54 @@ export function TemplateEditor({
     if (!selectedField) return;
     const { above } = getFieldGapInfo(selectedField.id || null);
     if (!above) return;
-    const newY = Number((above.field.y + above.field.height + targetGapMm).toFixed(2));
-    if (newY >= 0 && newY + selectedField.height <= heightMm) {
-      updateSelectedField({ y: newY });
-    }
+    const rawY = above.field.y + above.field.height + targetGapMm;
+    const newY = Math.max(0, Math.min(heightMm - selectedField.height, Number(rawY.toFixed(2))));
+    updateSelectedField({ y: newY });
   };
 
   const setGapToBelow = (targetGapMm: number) => {
     if (!selectedField) return;
     const { below } = getFieldGapInfo(selectedField.id || null);
     if (!below) return;
-    const newY = Number((below.field.y - selectedField.height - targetGapMm).toFixed(2));
-    if (newY >= 0 && newY + selectedField.height <= heightMm) {
-      updateSelectedField({ y: newY });
-    }
+    const rawY = below.field.y - selectedField.height - targetGapMm;
+    const newY = Math.max(0, Math.min(heightMm - selectedField.height, Number(rawY.toFixed(2))));
+    updateSelectedField({ y: newY });
   };
 
-  // Evenly distribute text fields vertically
-  const distributeTextElementsVertically = () => {
-    const textFields = activeFields
-      .filter((f) => f.visible !== false && !IMAGE_FIELDS.includes(f.key))
+  const equalizeInBetweenGap = () => {
+    if (!selectedField) return;
+    const { above, below } = getFieldGapInfo(selectedField.id || null);
+    if (!above || !below) return;
+    const targetY = (above.field.y + above.field.height + (below.field.y - selectedField.height)) / 2;
+    const newY = Math.max(0, Math.min(heightMm - selectedField.height, Number(targetY.toFixed(2))));
+    updateSelectedField({ y: newY });
+  };
+
+  // Evenly distribute detail fields vertically
+  const distributeDetailFieldsVertically = () => {
+    const detailFields = activeFields
+      .filter(isDetailField)
       .sort((a, b) => a.y - b.y);
 
-    if (textFields.length < 3) return;
+    if (detailFields.length < 3) return;
 
-    const topField = textFields[0];
-    const bottomField = textFields[textFields.length - 1];
+    const topField = detailFields[0];
+    const bottomField = detailFields[detailFields.length - 1];
 
-    const totalHeightOfElements = textFields.reduce((sum, f) => sum + f.height, 0);
+    const totalHeightOfElements = detailFields.reduce((sum, f) => sum + f.height, 0);
     const totalSpan = bottomField.y + bottomField.height - topField.y;
     const totalGapSpace = totalSpan - totalHeightOfElements;
-    const uniformGap = Math.max(0.5, totalGapSpace / (textFields.length - 1));
+    const uniformGap = Math.max(0.5, totalGapSpace / (detailFields.length - 1));
 
     let currentY = topField.y;
     const updatedMap = new Map<string, number>();
 
-    for (let i = 0; i < textFields.length; i++) {
-      const f = textFields[i];
+    for (let i = 0; i < detailFields.length; i++) {
+      const f = detailFields[i];
       if (i === 0) {
         updatedMap.set(f.id!, f.y);
         currentY += f.height + uniformGap;
-      } else if (i === textFields.length - 1) {
+      } else if (i === detailFields.length - 1) {
         updatedMap.set(f.id!, bottomField.y);
       } else {
         updatedMap.set(f.id!, Number(currentY.toFixed(2)));
@@ -431,19 +497,19 @@ export function TemplateEditor({
     updateActiveFields(newFields, true);
   };
 
-  // Set uniform gap between successive text fields
+  // Set uniform gap between successive detail fields
   const applyUniformVerticalGap = (gapMm: number) => {
-    const textFields = activeFields
-      .filter((f) => f.visible !== false && !IMAGE_FIELDS.includes(f.key))
+    const detailFields = activeFields
+      .filter(isDetailField)
       .sort((a, b) => a.y - b.y);
 
-    if (textFields.length < 2) return;
+    if (detailFields.length < 2) return;
 
-    let currentY = textFields[0].y;
+    let currentY = detailFields[0].y;
     const updatedMap = new Map<string, number>();
 
-    for (let i = 0; i < textFields.length; i++) {
-      const f = textFields[i];
+    for (let i = 0; i < detailFields.length; i++) {
+      const f = detailFields[i];
       if (i === 0) {
         updatedMap.set(f.id!, f.y);
         currentY += f.height + gapMm;
@@ -460,37 +526,38 @@ export function TemplateEditor({
     updateActiveFields(newFields, true);
   };
 
-  // Align text fields horizontally
-  const alignTextFields = (alignment: 'left' | 'center' | 'right') => {
-    const textFields = activeFields.filter(
-      (f) => f.visible !== false && !IMAGE_FIELDS.includes(f.key)
-    );
-    if (textFields.length < 2) return;
+  // Align detail fields horizontally
+  const alignDetailFields = (alignment: 'left' | 'center' | 'right') => {
+    const detailFields = activeFields.filter(isDetailField);
+    if (detailFields.length === 0) return;
 
     if (alignment === 'left') {
-      const minLeft = Math.min(...textFields.map((f) => f.x));
+      const targetX = selectedField ? selectedField.x : Math.min(...detailFields.map((f) => f.x));
       const newFields = activeFields.map((f) => {
-        if (textFields.some((tf) => tf.id === f.id)) {
-          return { ...f, x: minLeft };
+        if (detailFields.some((df) => df.id === f.id)) {
+          return { ...f, x: targetX };
         }
         return f;
       });
       updateActiveFields(newFields, true);
     } else if (alignment === 'right') {
-      const maxRight = Math.max(...textFields.map((f) => f.x + f.width));
+      const targetRight = selectedField
+        ? selectedField.x + selectedField.width
+        : Math.max(...detailFields.map((f) => f.x + f.width));
       const newFields = activeFields.map((f) => {
-        if (textFields.some((tf) => tf.id === f.id)) {
-          return { ...f, x: Number((maxRight - f.width).toFixed(2)) };
+        if (detailFields.some((df) => df.id === f.id)) {
+          return { ...f, x: Number((targetRight - f.width).toFixed(2)) };
         }
         return f;
       });
       updateActiveFields(newFields, true);
     } else if (alignment === 'center') {
-      const avgCenter =
-        textFields.reduce((sum, f) => sum + (f.x + f.width / 2), 0) / textFields.length;
+      const targetCenter = selectedField
+        ? selectedField.x + selectedField.width / 2
+        : widthMm / 2;
       const newFields = activeFields.map((f) => {
-        if (textFields.some((tf) => tf.id === f.id)) {
-          return { ...f, x: Number((avgCenter - f.width / 2).toFixed(2)) };
+        if (detailFields.some((df) => df.id === f.id)) {
+          return { ...f, x: Number((targetCenter - f.width / 2).toFixed(2)) };
         }
         return f;
       });
@@ -1443,6 +1510,26 @@ export function TemplateEditor({
             <Magnet size={13} /> Guides
           </button>
 
+          {/* Quick Layout & Spacing Tools */}
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={distributeDetailFieldsVertically}
+              title="Evenly distribute vertical gaps across all detail fields"
+              className="flex items-center gap-1 rounded px-2 py-1 text-slate-700 hover:bg-white hover:shadow-xs font-medium cursor-pointer"
+            >
+              <Rows size={12} className="text-blue-600" /> Distribute Details
+            </button>
+            <button
+              type="button"
+              onClick={() => alignDetailFields('center')}
+              title="Center all detail fields horizontally in card"
+              className="flex items-center gap-1 rounded px-2 py-1 text-slate-700 hover:bg-white hover:shadow-xs font-medium cursor-pointer"
+            >
+              <AlignHorizontalDistributeCenter size={12} className="text-indigo-600" /> Center Details
+            </button>
+          </div>
+
           {/* Zoom Controls */}
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs">
             <button
@@ -1667,9 +1754,7 @@ export function TemplateEditor({
                     ? field.customText
                     : fieldDefaultText;
 
-                const displayText = field.labelPrefix
-                  ? `${field.labelPrefix} ${rawText}`
-                  : rawText;
+                const displayText = formatFieldDisplay(field.labelPrefix, rawText);
 
                 return (
                   <div
@@ -1761,7 +1846,7 @@ export function TemplateEditor({
                       </div>
                     ) : (
                       <div
-                        className="h-full w-full overflow-hidden leading-tight"
+                        className="h-full w-full overflow-hidden leading-tight whitespace-pre-line"
                         style={{
                           fontSize: (field.fontSize ?? 10) * (pxPerMm / 2.835),
                           fontWeight:
@@ -2365,6 +2450,73 @@ export function TemplateEditor({
                 </div>
               </div>
 
+              {/* Canvas Position Alignment (Align Element to Card Canvas) */}
+              <div className="space-y-1.5 border-t border-slate-100 pt-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Canvas Position Alignment
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-medium">Card Bounds</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {/* Horizontal Canvas Align */}
+                  <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedFieldToCanvas('left')}
+                      title="Align to Left (2mm margin)"
+                      className="flex-1 flex items-center justify-center gap-1 rounded py-1 text-[10px] font-medium text-slate-700 hover:bg-white hover:shadow-xs transition cursor-pointer"
+                    >
+                      <AlignHorizontalJustifyStart size={11} /> Left
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedFieldToCanvas('center')}
+                      title="Center Horizontally in Card"
+                      className="flex-1 flex items-center justify-center gap-1 rounded py-1 text-[10px] font-medium text-slate-700 hover:bg-white hover:shadow-xs transition cursor-pointer"
+                    >
+                      <AlignHorizontalJustifyCenter size={11} /> Center
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedFieldToCanvas('right')}
+                      title="Align to Right (2mm margin)"
+                      className="flex-1 flex items-center justify-center gap-1 rounded py-1 text-[10px] font-medium text-slate-700 hover:bg-white hover:shadow-xs transition cursor-pointer"
+                    >
+                      <AlignHorizontalJustifyEnd size={11} /> Right
+                    </button>
+                  </div>
+
+                  {/* Vertical Canvas Align */}
+                  <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedFieldToCanvas(undefined, 'top')}
+                      title="Align to Top (2mm margin)"
+                      className="flex-1 flex items-center justify-center gap-1 rounded py-1 text-[10px] font-medium text-slate-700 hover:bg-white hover:shadow-xs transition cursor-pointer"
+                    >
+                      <AlignVerticalJustifyStart size={11} /> Top
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedFieldToCanvas(undefined, 'center')}
+                      title="Center Vertically in Card"
+                      className="flex-1 flex items-center justify-center gap-1 rounded py-1 text-[10px] font-medium text-slate-700 hover:bg-white hover:shadow-xs transition cursor-pointer"
+                    >
+                      <AlignVerticalJustifyCenter size={11} /> Center
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alignSelectedFieldToCanvas(undefined, 'bottom')}
+                      title="Align to Bottom (2mm margin)"
+                      className="flex-1 flex items-center justify-center gap-1 rounded py-1 text-[10px] font-medium text-slate-700 hover:bg-white hover:shadow-xs transition cursor-pointer"
+                    >
+                      <AlignVerticalJustifyEnd size={11} /> Bottom
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* In-Between Spacing & Vertical Gap Controls */}
               {(() => {
                 const gapInfo = getFieldGapInfo(selectedField.id || null);
@@ -2449,93 +2601,102 @@ export function TemplateEditor({
                     {gapInfo.above && gapInfo.below && (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (!gapInfo.above || !gapInfo.below) return;
-                          const available =
-                            gapInfo.below.field.y -
-                            (gapInfo.above.field.y + gapInfo.above.field.height) -
-                            selectedField.height;
-                          if (available >= 0) {
-                            const eqGap = Number((available / 2).toFixed(2));
-                            setGapToAbove(eqGap);
-                          }
-                        }}
+                        onClick={equalizeInBetweenGap}
                         className="w-full rounded border border-indigo-200 bg-indigo-50/60 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition cursor-pointer flex items-center justify-center gap-1"
                       >
                         <ArrowUpDown size={12} /> Equalize In-Between Gap (Center Vertically)
                       </button>
                     )}
-
-                    {/* Batch Text Alignment & Distribution */}
-                    <div className="space-y-1.5 pt-1">
-                      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        <span>Align & Spacing Tools</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => alignTextFields('left')}
-                          title="Align all text fields to left"
-                          className="flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
-                        >
-                          <AlignLeft size={11} /> Align Left
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => alignTextFields('center')}
-                          title="Center align all text fields"
-                          className="flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
-                        >
-                          <AlignCenter size={11} /> Align Center
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => alignTextFields('right')}
-                          title="Right align all text fields"
-                          className="flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
-                        >
-                          <AlignRight size={11} /> Align Right
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-1 pt-1">
-                        <button
-                          type="button"
-                          onClick={distributeTextElementsVertically}
-                          title="Evenly distribute vertical gaps across all text items"
-                          className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 cursor-pointer"
-                        >
-                          Auto-Distribute
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyUniformVerticalGap(2.0)}
-                          title="Set 2.0mm uniform gap between text lines"
-                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
-                        >
-                          2.0mm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyUniformVerticalGap(2.5)}
-                          title="Set 2.5mm uniform gap between text lines"
-                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
-                        >
-                          2.5mm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyUniformVerticalGap(3.0)}
-                          title="Set 3.0mm uniform gap between text lines"
-                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
-                        >
-                          3.0mm
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 );
               })()}
+
+              {/* Batch / Multi-Field Detail Alignment & Spacing */}
+              <div className="space-y-2 border-t border-slate-100 pt-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Detail Fields Alignment & Spacing
+                  </p>
+                  <span className="text-[10px] text-slate-400 font-medium">Batch Column</span>
+                </div>
+
+                {/* Column Horizontal Align */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => alignDetailFields('left')}
+                    title="Align all detail text fields to this element's left edge"
+                    className="flex-1 flex items-center justify-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <Columns size={11} className="text-slate-500" /> Match Left
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => alignDetailFields('center')}
+                    title="Center all detail text fields horizontally in card"
+                    className="flex-1 flex items-center justify-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <AlignHorizontalDistributeCenter size={11} className="text-slate-500" /> Center Details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => alignDetailFields('right')}
+                    title="Align all detail text fields to this element's right edge"
+                    className="flex-1 flex items-center justify-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <AlignRight size={11} className="text-slate-500" /> Match Right
+                  </button>
+                </div>
+
+                {/* Vertical Spacing & Distribution */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Vertical Distribution & Gaps</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={distributeDetailFieldsVertically}
+                      title="Evenly distribute vertical gaps across detail fields between top and bottom"
+                      className="flex-1 rounded border border-blue-200 bg-blue-50/80 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Rows size={11} /> Auto-Distribute
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyUniformVerticalGap(1.5)}
+                      title="Set 1.5mm uniform vertical gap"
+                      className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
+                    >
+                      1.5mm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyUniformVerticalGap(2.0)}
+                      title="Set 2.0mm uniform vertical gap"
+                      className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
+                    >
+                      2.0mm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyUniformVerticalGap(2.5)}
+                      title="Set 2.5mm uniform vertical gap"
+                      className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
+                    >
+                      2.5mm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyUniformVerticalGap(3.0)}
+                      title="Set 3.0mm uniform vertical gap"
+                      className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer font-mono"
+                    >
+                      3.0mm
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {/* Typography Controls for Text Fields */}
               {!IMAGE_FIELDS.includes(selectedField.key) && (
@@ -2588,16 +2749,57 @@ export function TemplateEditor({
                     </label>
 
                     <label className="block text-xs text-slate-600">
-                      <span>Align</span>
-                      <select
-                        value={selectedField.textAlign ?? 'left'}
-                        onChange={(e) => updateSelectedField({ textAlign: e.target.value as any })}
-                        className="mt-0.5 w-full rounded border border-slate-200 px-1.5 py-1 text-xs"
-                      >
-                        <option value="left">Left</option>
-                        <option value="center">Center</option>
-                        <option value="right">Right</option>
-                      </select>
+                      <span>Text Align</span>
+                      <div className="mt-0.5 flex items-center rounded border border-slate-200 bg-slate-50 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedField({ textAlign: 'left' })}
+                          title="Text Left"
+                          className={`flex-1 flex justify-center items-center py-1 rounded cursor-pointer ${
+                            (selectedField.textAlign ?? 'left') === 'left'
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <AlignLeft size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedField({ textAlign: 'center' })}
+                          title="Text Center"
+                          className={`flex-1 flex justify-center items-center py-1 rounded cursor-pointer ${
+                            selectedField.textAlign === 'center'
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <AlignCenter size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedField({ textAlign: 'right' })}
+                          title="Text Right"
+                          className={`flex-1 flex justify-center items-center py-1 rounded cursor-pointer ${
+                            selectedField.textAlign === 'right'
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <AlignRight size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedField({ textAlign: 'justify' })}
+                          title="Text Justify"
+                          className={`flex-1 flex justify-center items-center py-1 rounded cursor-pointer ${
+                            selectedField.textAlign === 'justify'
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <AlignJustify size={12} />
+                        </button>
+                      </div>
                     </label>
 
                     <label className="block text-xs text-slate-600">

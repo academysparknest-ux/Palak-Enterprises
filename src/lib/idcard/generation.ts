@@ -4,6 +4,7 @@ import { getPhotoSignedUrl, recordGenerationResult } from './database';
 import type { IdCardPerson, IdCardTemplate, TemplateField, TemplateSideLayout } from './types';
 import { jsPDF } from 'jspdf';
 import { sanitizeStudentId, getQrCodePayload } from './validation';
+import { formatFieldDisplay } from './templatePresets';
 
 export const MM_TO_PX = 300 / 25.4; // 300 DPI high-precision physical-to-pixel conversion
 
@@ -19,11 +20,11 @@ export function fieldValue(
     case 'student_id':
       return sanitizeStudentId(person.student_id);
     case 'class':
-      return person.class ? (person.class.toLowerCase().includes('class') ? person.class : `CLASS: ${person.class}`) : '';
+      return person.class ?? '';
     case 'section':
-      return person.section ? `Sec: ${person.section}` : '';
+      return person.section ?? '';
     case 'roll_number':
-      return person.roll_number ? `Roll: ${person.roll_number}` : '';
+      return person.roll_number ?? '';
     case 'date_of_birth':
       return person.date_of_birth ?? '';
     case 'blood_group':
@@ -353,7 +354,7 @@ async function renderSideToCanvas(
     const textVal = fieldValue(field, person, academicYear, schoolName);
     if (!textVal && !field.labelPrefix) continue;
 
-    const fullText = field.labelPrefix ? `${field.labelPrefix} ${textVal}` : textVal;
+    const fullText = formatFieldDisplay(field.labelPrefix, textVal);
     if (!fullText) continue;
 
     const basePt = field.fontSize ?? 10;
@@ -367,58 +368,70 @@ async function renderSideToCanvas(
     ctx.textBaseline = 'top';
 
     const alignX = field.textAlign === 'center' ? x + w / 2 : field.textAlign === 'right' ? x + w : x;
+    const lineHeightMultiplier = field.lineHeight || 1.25;
+    let lineHeightPx = fontSizePx * lineHeightMultiplier;
 
     // Auto font scaling down if strategy is 'scale_down'
     if (field.overflowStrategy === 'scale_down') {
       ctx.font = `${fontStyle}${fontWeight}${Math.round(fontSizePx)}px ${fontFamily}`;
-      let textMetrics = ctx.measureText(fullText);
-      while (textMetrics.width > w && fontSizePx > 6) {
+      const paragraphs = fullText.split('\n');
+      let maxLineWidth = 0;
+      for (const p of paragraphs) {
+        const pWidth = ctx.measureText(p).width;
+        if (pWidth > maxLineWidth) maxLineWidth = pWidth;
+      }
+      while (maxLineWidth > w && fontSizePx > 5) {
         fontSizePx -= 0.5;
+        lineHeightPx = fontSizePx * lineHeightMultiplier;
         ctx.font = `${fontStyle}${fontWeight}${Math.round(fontSizePx)}px ${fontFamily}`;
-        textMetrics = ctx.measureText(fullText);
+        maxLineWidth = 0;
+        for (const p of paragraphs) {
+          const pWidth = ctx.measureText(p).width;
+          if (pWidth > maxLineWidth) maxLineWidth = pWidth;
+        }
       }
     } else {
       ctx.font = `${fontStyle}${fontWeight}${Math.round(fontSizePx)}px ${fontFamily}`;
     }
 
-    const lineHeightMultiplier = field.lineHeight || 1.25;
-    const lineHeightPx = fontSizePx * lineHeightMultiplier;
-
-    // Multi-line word wrapping or clipping
-    const words = fullText.split(' ');
-    let line = '';
+    // Split by explicit newline \n first, then word-wrap within each paragraph
+    const paragraphs = fullText.split('\n');
     let curY = y;
-    let linesDrawn = 0;
 
-    for (let i = 0; i < words.length; i++) {
-      const testLine = line ? `${line} ${words[i]}` : words[i];
-      const testWidth = ctx.measureText(testLine).width;
+    for (let pIdx = 0; pIdx < paragraphs.length; pIdx++) {
+      const paragraph = paragraphs[pIdx];
+      const words = paragraph.split(' ');
+      let line = '';
 
-      if (testWidth > w && line.length > 0) {
-        // If out of height bounds, handle ellipsis
-        if (curY + lineHeightPx > y + h && field.overflowStrategy === 'ellipsis') {
-          ctx.fillText(`${line}...`, alignX, curY);
-          line = '';
-          break;
+      for (let i = 0; i < words.length; i++) {
+        const testLine = line ? `${line} ${words[i]}` : words[i];
+        const testWidth = ctx.measureText(testLine).width;
+
+        if (testWidth > w && line.length > 0) {
+          // If out of height bounds, handle ellipsis
+          if (curY + lineHeightPx > y + h && field.overflowStrategy === 'ellipsis') {
+            ctx.fillText(`${line}...`, alignX, curY);
+            line = '';
+            break;
+          }
+
+          ctx.fillText(line, alignX, curY);
+          curY += lineHeightPx;
+
+          if (curY + fontSizePx > y + h + 2) {
+            line = '';
+            break;
+          }
+          line = words[i];
+        } else {
+          line = testLine;
         }
-
-        ctx.fillText(line, alignX, curY);
-        linesDrawn++;
-        curY += lineHeightPx;
-
-        if (curY + fontSizePx > y + h + 2) {
-          // Height overflow
-          line = '';
-          break;
-        }
-        line = words[i];
-      } else {
-        line = testLine;
       }
-    }
 
-    if (line && curY + fontSizePx <= y + h + 4) {
-      ctx.fillText(line, alignX, curY);
+      if (line && curY + fontSizePx <= y + h + 4) {
+        ctx.fillText(line, alignX, curY);
+        curY += lineHeightPx;
+      }
     }
   }
 

@@ -181,7 +181,7 @@ const SPARKNEST_DUAL_BACK: TemplateSideLayout = {
       color: SPARKNEST_NAVY,
       textAlign: 'center',
       visible: true,
-      customText: 'In case of theft or loss it is mandatory for the student to infrom the Administration Office. if found abandoned, may please be returned to SparkNest Academy, Motihari, Bihar',
+      customText: 'In case of theft or loss it is mandatory for the student to inform the Administration Office. If found abandoned, may please be returned to SparkNest Academy, Motihari, Bihar',
     },
     {
       key: 'school_subtitle',
@@ -863,4 +863,16 @@ export const TEMPLATE_PRESETS: TemplatePreset[] = [
 
 export function getPresetById(id: string): TemplatePreset | undefined {
   return TEMPLATE_PRESETS.find((p) => p.id === id);
+}
+
+/**
+ * Cleanly format field label prefix and value without double-spacing or trailing whitespace bugs
+ */
+export function formatFieldDisplay(labelPrefix?: string | null, value?: string | null): string {
+  const val = value !== undefined && value !== null ? String(value) : '';
+  if (!labelPrefix || !labelPrefix.trim()) return val;
+  if (labelPrefix.endsWith(' ') || labelPrefix.endsWith('\n')) {
+    return `${labelPrefix}${val}`;
+  }
+  return `${labelPrefix} ${val}`;
 }

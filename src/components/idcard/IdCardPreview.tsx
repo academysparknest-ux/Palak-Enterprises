@@ -89,11 +89,11 @@ function SingleCardFace({
       case 'student_id':
         return sanitizeStudentId(person.student_id);
       case 'class':
-        return person.class ? (person.class.toLowerCase().includes('class') ? person.class : `CLASS: ${person.class}`) : '';
+        return person.class ?? '';
       case 'section':
-        return person.section ? `Sec: ${person.section}` : '';
+        return person.section ?? '';
       case 'roll_number':
-        return person.roll_number ? `Roll: ${person.roll_number}` : '';
+        return person.roll_number ?? '';
       case 'date_of_birth':
         return person.date_of_birth ?? '';
       case 'blood_group':
@@ -326,11 +326,11 @@ function SingleCardFace({
 
           // Text fields
           const rawValue = valueFor(field.key, field.customText);
-          const hasPrefix = Boolean(field.labelPrefix && field.labelPrefix.trim());
-          const displayText = hasPrefix ? `${field.labelPrefix} ${rawValue}` : rawValue;
+          const displayText = formatFieldDisplay(field.labelPrefix, rawValue);
 
           // Special highlight for VALID TILL date in red
           if (field.key === 'valid_till' && field.labelPrefix) {
+            const prefixStr = field.labelPrefix.endsWith(' ') || field.labelPrefix.endsWith('\n') ? field.labelPrefix : `${field.labelPrefix} `;
             return (
               <div
                 key={idx}
@@ -343,9 +343,9 @@ function SingleCardFace({
                   textAlign: field.textAlign ?? 'left',
                   lineHeight: field.lineHeight || 1.25,
                 }}
-                className="overflow-hidden whitespace-normal"
+                className="overflow-hidden whitespace-pre-line"
               >
-                <span style={{ color: '#1B2A4A' }}>{field.labelPrefix} </span>
+                <span style={{ color: '#1B2A4A' }}>{prefixStr}</span>
                 <span style={{ color: field.color || '#E74C3C' }}>{rawValue}</span>
               </div>
             );
@@ -364,7 +364,7 @@ function SingleCardFace({
                 textAlign: field.textAlign ?? 'left',
                 lineHeight: field.lineHeight || 1.25,
               }}
-              className="overflow-hidden whitespace-normal"
+              className="overflow-hidden whitespace-pre-line"
             >
               {displayText}
             </div>
