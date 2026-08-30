@@ -51,7 +51,7 @@ export function getQrCodePayload(
     blood_group?: string | null;
     phone?: string | null;
   },
-  schoolName?: string
+  _schoolName?: string
 ): string {
   const cleanId = sanitizeStudentId(person.student_id);
   if (cleanId) {
