@@ -37,7 +37,12 @@ function useQrDataUrl(text: string): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!text) return;
-    QRCode.toDataURL(text, { width: 160, margin: 1, color: { dark: '#1B2A4A', light: '#FFFFFF' } })
+    QRCode.toDataURL(text, {
+      width: 240,
+      margin: 1,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#000000', light: '#FFFFFF' },
+    })
       .then(setUrl)
       .catch(() => setUrl(null));
   }, [text]);

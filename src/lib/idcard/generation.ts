@@ -283,8 +283,9 @@ async function renderSideToCanvas(
         const qrPayload = getQrCodePayload(person, schoolName);
         const qrDataUrl = await QRCode.toDataURL(qrPayload, {
           width: Math.round(w),
-          margin: 0,
-          color: { dark: '#1B2A4A', light: '#FFFFFF' },
+          margin: 1,
+          errorCorrectionLevel: 'M',
+          color: { dark: '#000000', light: '#FFFFFF' },
         });
         const qrImg = await loadImage(qrDataUrl);
         ctx.drawImage(qrImg, x, y, w, h);
