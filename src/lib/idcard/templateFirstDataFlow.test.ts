@@ -136,7 +136,7 @@ assert(!sampleDataB.headers.includes('QR Code'), 'Template B sample NEVER includ
 assert(!sampleDataB.headers.includes('Barcode'), 'Template B sample NEVER includes auto-generated Barcode');
 
 const sampleCsvA = generateSampleCsv(templateA_layout);
-assert(sampleCsvA.startsWith('Student Name,Student ID,Class,Roll Number'), 'Sample CSV A has exact headers');
+assert(sampleCsvA.startsWith('Student ID,Student Name,Class,Roll Number'), 'Sample CSV A has exact standard headers (Student ID first, Student Name second)');
 
 // ── Test 4: Excel Import Validation Against Template Schema ──
 console.log('\n4. Excel Import Validation Against Template Schema');

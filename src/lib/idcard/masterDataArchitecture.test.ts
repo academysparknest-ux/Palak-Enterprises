@@ -51,9 +51,9 @@ console.log('--- RUNNING MASTER DATA ARCHITECTURE TEST SUITE (15 TEST MATRIX CAS
   const schema = extractTemplateFieldSchema(layout);
   const sample = getTemplateSampleData(layout);
 
-  assert.deepEqual(schema.studentInputFields.map(f => f.key), ['student_name', 'student_id', 'class', 'blood_group']);
-  assert.deepEqual(sample.headers, ['Student Name', 'Student ID', 'Class', 'Blood Group']);
-  console.log('✅ Test 2 Passed: Dynamic fields appear accurately in schema and Excel sample.');
+  assert.deepEqual(schema.studentInputFields.map(f => f.key), ['student_id', 'student_name', 'class', 'blood_group']);
+  assert.deepEqual(sample.headers, ['Student ID', 'Student Name', 'Class', 'Blood Group']);
+  console.log('✅ Test 2 Passed: Dynamic fields appear accurately in schema and Excel sample with Student ID first.');
 }
 
 // Test 3: Custom dynamic field (Transport Route, House) dynamically appears in schema, sample, import, and renderer
@@ -313,9 +313,9 @@ console.log('--- RUNNING MASTER DATA ARCHITECTURE TEST SUITE (15 TEST MATRIX CAS
   const sampleA = getTemplateSampleData(templateA);
   const sampleB = getTemplateSampleData(templateB);
 
-  assert.deepEqual(sampleA.headers, ['Student Name', 'Student ID', 'Blood Group']);
-  assert.deepEqual(sampleB.headers, ['Student Name', 'Student ID', 'Emergency No', 'Address']);
-  console.log('✅ Test 12 Passed: Different templates generate distinct isolated samples.');
+  assert.deepEqual(sampleA.headers, ['Student ID', 'Student Name', 'Blood Group']);
+  assert.deepEqual(sampleB.headers, ['Student ID', 'Student Name', 'Emergency No', 'Address']);
+  console.log('✅ Test 12 Passed: Different templates generate distinct isolated samples in standard order.');
 }
 
 // Test 13: Existing presets remain valid and render accurately
@@ -383,8 +383,8 @@ console.log('--- RUNNING MASTER DATA ARCHITECTURE TEST SUITE (15 TEST MATRIX CAS
   assert.equal(frontField.side, 'front');
   assert.equal(backField.side, 'back');
 
-  assert.deepEqual(sample.headers, ['Student Name', 'Student ID', "Father's Name", 'Phone']);
-  console.log('✅ Test 15 Passed: Dual-sided front and back static/dynamic integration verified.');
+  assert.deepEqual(sample.headers, ['Student ID', 'Student Name', "Father's Name", 'Phone']);
+  console.log('✅ Test 15 Passed: Dual-sided front and back static/dynamic integration verified in standard order.');
 }
 
 console.log('\n🎉 ALL 15 MASTER DATA ARCHITECTURE TESTS PASSED SUCCESSFULLY! 🎉');

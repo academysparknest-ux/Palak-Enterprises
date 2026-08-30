@@ -496,9 +496,10 @@ export async function parseSpreadsheetFile(
 }
 
 /**
- * Template-Driven Sample Data Generator
- * Generates columns and sample records tailored strictly to the selected template schema.
+ * Template-Driven Sample Data Generator/**
+ * Generates columns and sample records tailored strictly to the selected template schema in standard order.
  * Rule 19 & 35: Excludes photo filename column, static school details, and system QR/barcode.
+ * Student ID is always 1st, Student Name 2nd, followed by Class, Section, Roll No, etc.
  */
 export function getTemplateSampleData(
   schemaOrTemplate?: TemplateFieldSchema | IdCardTemplate | TemplateLayout | null
@@ -508,17 +509,17 @@ export function getTemplateSampleData(
       ? (schemaOrTemplate as TemplateFieldSchema)
       : extractTemplateFieldSchema(schemaOrTemplate as any);
 
-  // ONLY dynamic student input fields are included in the template sample
+  // ONLY dynamic student input fields, guaranteed in standard logical order (Student ID first, Student Name second)
   const relevantItems = schema.studentInputFields;
 
-  // If no fields in template (or fallback), return standard dynamic student set
+  // If no fields in template (or fallback), return standard dynamic student set in strict standard order
   if (relevantItems.length === 0) {
     return {
       headers: ['Student ID', 'Student Name', 'Class', 'Roll Number'],
       rows: [
-        ['0001', 'Olivia Wilson', '8th', '1'],
-        ['0002', 'Rahul Kumar', '9th', '2'],
-        ['0003', 'Priya Sharma', '10th', '3'],
+        ['0001', 'Olivia Wilson', '8th Standard', '1'],
+        ['0002', 'Rahul Kumar', '9th Standard', '2'],
+        ['0003', 'Priya Sharma', '10th Standard', '3'],
       ],
     };
   }
@@ -527,11 +528,13 @@ export function getTemplateSampleData(
   const SAMPLE_STUDENT_VALUES: Record<string, string[]> = {
     student_id: ['0001', '0002', '0003'],
     student_name: ['Olivia Wilson', 'Rahul Kumar', 'Priya Sharma'],
-    class: ['8th', '9th', '10th'],
+    name: ['Olivia Wilson', 'Rahul Kumar', 'Priya Sharma'],
+    class: ['8th Standard', '9th Standard', '10th Standard'],
     section: ['A', 'B', 'A'],
     roll_number: ['1', '2', '3'],
     date_of_birth: ['15/05/2012', '20/11/2011', '08/03/2010'],
     blood_group: ['B+', 'O+', 'AB+'],
+    batch: ['2026', '2026', '2026'],
     father_name: ['Bravia Wilson', 'Suresh Kumar', 'Ramesh Sharma'],
     mother_name: ['Maria Wilson', 'Anita Devi', 'Sunita Sharma'],
     parent_info: ['Bravia Wilson', 'Suresh Kumar', 'Ramesh Sharma'],
@@ -576,7 +579,7 @@ export function generateSampleCsv(
 
 /**
  * Generates a template-specific Excel workbook Blob (.xlsx) for downloading.
- * Formats Student IDs as text cells to preserve leading zeros.
+ * Formats Student IDs, Phone numbers, Emergency numbers as explicit text cells to preserve leading zeros.
  */
 export function generateSampleExcelBlob(
   schemaOrTemplate?: TemplateFieldSchema | IdCardTemplate | TemplateLayout | null
@@ -586,15 +589,28 @@ export function generateSampleExcelBlob(
 
   const worksheet = XLSX.utils.aoa_to_sheet(data, { cellDates: false });
 
-  // Set nice column widths and ensure text formatting for Student ID column
-  const studentIdColIdx = headers.findIndex((h) => h.toLowerCase().includes('id'));
-  worksheet['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 5, 14) }));
+  // Set generous column widths so text is never truncated
+  worksheet['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 6, 16) }));
 
-  if (studentIdColIdx >= 0) {
-    for (let r = 1; r <= rows.length; r++) {
-      const cellRef = XLSX.utils.encode_cell({ r, c: studentIdColIdx });
+  // Explicitly force text format ('@') for sensitive columns (ID, Phone, Roll No, Emergency)
+  const textColIndices = headers
+    .map((h, i) => ({ h: h.toLowerCase(), i }))
+    .filter(({ h }) =>
+      h.includes('id') ||
+      h.includes('phone') ||
+      h.includes('emergency') ||
+      h.includes('roll') ||
+      h.includes('contact') ||
+      h.includes('mobile')
+    )
+    .map(({ i }) => i);
+
+  for (let r = 1; r <= rows.length; r++) {
+    for (const c of textColIndices) {
+      const cellRef = XLSX.utils.encode_cell({ r, c });
       if (worksheet[cellRef]) {
         worksheet[cellRef].t = 's'; // Force string type
+        worksheet[cellRef].z = '@'; // Force text format
       }
     }
   }
