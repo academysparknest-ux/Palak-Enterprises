@@ -3,7 +3,6 @@ import QRCode from 'qrcode';
 import { getPhotoSignedUrl } from '../../lib/idcard/database';
 import type { IdCardPerson, IdCardTemplate, TemplateFieldKey, TemplateSideLayout } from '../../lib/idcard/types';
 import { sanitizeStudentId, getQrCodePayload } from '../../lib/idcard/validation';
-import { business } from '../../config/business';
 
 // ============================================================
 // BARCODE: Code128-style SVG rendering
@@ -218,7 +217,7 @@ function SingleCardFace({
 
           // School Logo
           if (field.key === 'school_logo') {
-            const logoSrc = field.customText || schoolLogoUrl || business.logoPath;
+            const logoSrc = (field.customText && field.customText !== '/logo.webp' && field.customText !== '/images/palak-logo-ram-hanuman.jpeg' ? field.customText : schoolLogoUrl) || null;
             return (
               <div
                 key={idx}
@@ -232,7 +231,7 @@ function SingleCardFace({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'transparent',
                 }}
               >
                 {logoSrc ? (
@@ -240,6 +239,7 @@ function SingleCardFace({
                     src={logoSrc}
                     alt="School Logo"
                     className={`h-full w-full ${field.photoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+                    style={{ background: 'transparent' }}
                   />
                 ) : (
                   /* Default School Shield Emblem */

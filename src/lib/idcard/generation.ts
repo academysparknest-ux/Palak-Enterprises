@@ -4,7 +4,6 @@ import { getPhotoSignedUrl, recordGenerationResult } from './database';
 import type { IdCardPerson, IdCardTemplate, TemplateField, TemplateSideLayout } from './types';
 import { jsPDF } from 'jspdf';
 import { sanitizeStudentId, getQrCodePayload } from './validation';
-import { business } from '../../config/business';
 
 export const MM_TO_PX = 300 / 25.4; // 300 DPI high-precision physical-to-pixel conversion
 
@@ -311,7 +310,7 @@ async function renderSideToCanvas(
 
     // 4. School Logo
     if (field.key === 'school_logo') {
-      const logoSrc = field.customText || schoolLogoUrl || business.logoPath;
+      const logoSrc = (field.customText && field.customText !== '/logo.webp' && field.customText !== '/images/palak-logo-ram-hanuman.jpeg' ? field.customText : schoolLogoUrl) || null;
       if (logoSrc) {
         try {
           const logo = await loadImage(logoSrc);

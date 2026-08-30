@@ -176,6 +176,9 @@ export default function IdCardTemplatePage() {
       visible: true,
       customText: currentSchoolLogo || undefined,
       photoFit: 'contain' as const,
+      photoShape: 'rectangle' as const,
+      borderRadius: 0,
+      borderWidth: 0,
     };
     setLayout({
       ...layout,
@@ -192,17 +195,49 @@ export default function IdCardTemplatePage() {
       const activeTargetId = targetId !== undefined ? targetId : (queryTemplateId || project.template_id);
       const existing = activeTargetId ? (list.find((t) => t.id === activeTargetId) ?? null) : (list[0] ?? null);
 
+      const resolvedLogo = existing?.layout?.schoolLogoUrl || existing?.logo_url || project.logo_url || null;
+
       if (existing) {
         setTemplate(existing);
         setName(existing.name);
-        setLayout(existing.layout);
+
+        // Sanitize layout to clean up any stale /logo.webp and attach resolved school logo
+        const sanitizedLayout: TemplateLayout = {
+          ...existing.layout,
+          schoolLogoUrl: resolvedLogo,
+          fields: existing.layout.fields.map((f) =>
+            f.key === 'school_logo' && (!f.customText || f.customText === '/logo.webp' || f.customText === '/images/palak-logo-ram-hanuman.jpeg')
+              ? { ...f, customText: resolvedLogo || undefined, borderRadius: f.borderRadius ?? 0 }
+              : f
+          ),
+          back: existing.layout.back
+            ? {
+                ...existing.layout.back,
+                fields: existing.layout.back.fields.map((f) =>
+                  f.key === 'school_logo' && (!f.customText || f.customText === '/logo.webp' || f.customText === '/images/palak-logo-ram-hanuman.jpeg')
+                    ? { ...f, customText: resolvedLogo || undefined, borderRadius: f.borderRadius ?? 0 }
+                    : f
+                ),
+              }
+            : undefined,
+        };
+
+        setLayout(sanitizedLayout);
         setCardWidth(existing.card_width_mm);
         setCardHeight(existing.card_height_mm);
       } else {
         // No templates exist yet: default editor layout
         setTemplate(null);
         setName(`${project.name} Template`);
-        setLayout(DEFAULT_TEMPLATE_LAYOUT);
+        setLayout({
+          ...DEFAULT_TEMPLATE_LAYOUT,
+          schoolLogoUrl: resolvedLogo,
+          fields: DEFAULT_TEMPLATE_LAYOUT.fields.map((f) =>
+            f.key === 'school_logo'
+              ? { ...f, customText: resolvedLogo || undefined, borderRadius: 0 }
+              : f
+          ),
+        });
         setCardWidth(DEFAULT_CARD_WIDTH);
         setCardHeight(DEFAULT_CARD_HEIGHT);
       }
@@ -211,7 +246,7 @@ export default function IdCardTemplatePage() {
       const appErr = classifySupabaseError(err);
       setState({ kind: 'error', message: errorCodeToUserMessage(appErr.code, appErr.message) });
     }
-  }, [project.id, project.name, project.template_id, queryTemplateId]);
+  }, [project.id, project.name, project.logo_url, project.template_id, queryTemplateId]);
 
   useEffect(() => {
     loadTemplates();
@@ -892,6 +927,7 @@ export default function IdCardTemplatePage() {
           onDimensionsChange={handleDimensionsChange}
           savedTemplates={templates}
           onSelectSavedTemplate={handleSelectTemplate}
+          schoolLogoUrl={currentSchoolLogo}
         />
       </div>
     </div>

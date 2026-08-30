@@ -35,7 +35,6 @@ import type {
   TemplateSideLayout,
   IdCardTemplate,
 } from '../../lib/idcard/types';
-import { business } from '../../config/business';
 
 // ============================================================
 // CONSTANTS
@@ -78,6 +77,7 @@ export function TemplateEditor({
   onDimensionsChange,
   savedTemplates = [],
   onSelectSavedTemplate,
+  schoolLogoUrl,
 }: {
   layout: TemplateLayout;
   onChange: (layout: TemplateLayout) => void;
@@ -86,7 +86,9 @@ export function TemplateEditor({
   onDimensionsChange?: (w: number, h: number) => void;
   savedTemplates?: IdCardTemplate[];
   onSelectSavedTemplate?: (template: IdCardTemplate) => void;
+  schoolLogoUrl?: string | null;
 }) {
+  const effectiveSchoolLogo = schoolLogoUrl || layout.schoolLogoUrl || null;
   // ── State ──────────────────────────────────────────────────
   const [currentSide, setCurrentSide] = useState<'front' | 'back'>('front');
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
@@ -426,14 +428,15 @@ export function TemplateEditor({
       color: '#1B2A4A',
       textAlign: key === 'school_name' || key === 'school_subtitle' ? 'center' : 'left',
       photoFit: isLogo ? 'contain' : isPhoto ? 'cover' : undefined,
-      photoShape: isLogo ? 'rounded' : isPhoto ? 'circle' : undefined,
-      borderRadius: isLogo ? 10 : undefined,
+      photoShape: isLogo ? 'rectangle' : isPhoto ? 'circle' : undefined,
+      borderRadius: isLogo ? 0 : undefined,
+      borderWidth: isLogo ? 0 : undefined,
       visible: true,
       locked: false,
       overflowStrategy: 'wrap',
       customText:
         key === 'school_logo'
-          ? layout.schoolLogoUrl || business.logoPath
+          ? effectiveSchoolLogo || undefined
           : key === 'school_name'
           ? 'SPARKNEST ACADEMY'
           : key === 'school_subtitle'
@@ -1021,7 +1024,13 @@ export function TemplateEditor({
                         className="flex h-full w-full items-center justify-center overflow-hidden"
                         style={{
                           borderRadius:
-                            field.photoShape === 'circle' || (field.borderRadius ?? 0) >= 45
+                            field.key === 'school_logo'
+                              ? field.photoShape === 'circle'
+                                ? '50%'
+                                : field.borderRadius
+                                ? `${field.borderRadius}%`
+                                : undefined
+                              : field.photoShape === 'circle' || (field.borderRadius ?? 0) >= 45
                               ? '50%'
                               : field.borderRadius
                               ? `${field.borderRadius}%`
@@ -1030,24 +1039,27 @@ export function TemplateEditor({
                             ? `${field.borderWidth * (pxPerMm / 3.78)}px solid ${
                                 field.borderColor || '#cbd5e1'
                               }`
+                            : field.key === 'school_logo'
+                            ? undefined
                             : '1px dashed #cbd5e1',
                           backgroundColor:
                             field.key === 'student_photo'
                               ? '#e2e8f0'
                               : field.key === 'school_logo'
-                              ? '#ffffff'
+                              ? 'transparent'
                               : '#f1f5f9',
                         }}
                       >
                         {field.key === 'school_logo' ? (
-                          (field.customText || layout.schoolLogoUrl || business.logoPath) ? (
+                          (field.customText && field.customText !== '/logo.webp' && field.customText !== '/images/palak-logo-ram-hanuman.jpeg' ? field.customText : effectiveSchoolLogo) ? (
                             <img
-                              src={field.customText || layout.schoolLogoUrl || business.logoPath}
+                              src={(field.customText && field.customText !== '/logo.webp' && field.customText !== '/images/palak-logo-ram-hanuman.jpeg') ? field.customText : (effectiveSchoolLogo || '')}
                               alt="School Logo"
-                              className={`h-full w-full ${field.photoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+                              className={`h-full w-full pointer-events-none ${field.photoFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+                              style={{ background: 'transparent' }}
                             />
                           ) : (
-                            <div className="flex flex-col items-center justify-center text-amber-600 bg-amber-50/70 h-full w-full">
+                            <div className="flex flex-col items-center justify-center text-amber-600 bg-amber-50/60 h-full w-full border border-dashed border-amber-300 rounded">
                               <Building2 size={Math.max(12, field.height * pxPerMm * 0.4)} />
                               <span className="text-[7.5px] font-bold text-amber-800 uppercase">
                                 Logo
@@ -1506,15 +1518,29 @@ export function TemplateEditor({
                         <span>Logo Image URL / Path</span>
                         <input
                           type="text"
-                          value={selectedField.customText || ''}
+                          value={
+                            selectedField.customText === '/logo.webp' || selectedField.customText === '/images/palak-logo-ram-hanuman.jpeg'
+                              ? effectiveSchoolLogo || ''
+                              : (selectedField.customText ?? effectiveSchoolLogo ?? '')
+                          }
                           onChange={(e) => {
                             const val = e.target.value;
                             updateSelectedField({ customText: val });
                           }}
-                          placeholder="https://.../logo.png"
+                          placeholder={effectiveSchoolLogo || 'https://.../school-logo.png'}
                           className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                         />
                       </label>
+
+                      {effectiveSchoolLogo && selectedField.customText !== effectiveSchoolLogo && (
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedField({ customText: effectiveSchoolLogo })}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 cursor-pointer"
+                        >
+                          Use Uploaded School Logo
+                        </button>
+                      )}
                       <div className="grid grid-cols-2 gap-2">
                         <label className="block text-xs text-slate-600">
                           <span>Shape</span>
