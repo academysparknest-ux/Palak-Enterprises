@@ -593,17 +593,26 @@ export async function getIdCardGenerations(projectId: string): Promise<IdCardGen
  * Only updates IDs actually included — does not affect other records.
  */
 export async function markGenerationsAsPrinted(generationIds: string[]): Promise<void> {
-  if (generationIds.length === 0) return;
-  return executeWithAuthRetry(
-    async (client) => {
-      const { error } = await client
-        .from('idcard_generations')
-        .update({ printed_at: new Date().toISOString() })
-        .in('id', generationIds);
+  if (!generationIds || generationIds.length === 0) return;
+  const validIds = generationIds.filter((id) => id && typeof id === 'string' && id.trim().length > 0);
+  if (validIds.length === 0) return;
 
-      if (error) throw classifySupabaseError(error);
-    },
-    { operationName: 'markGenerationsAsPrinted' }
-  );
+  try {
+    await executeWithAuthRetry(
+      async (client) => {
+        const { error } = await client
+          .from('idcard_generations')
+          .update({ printed_at: new Date().toISOString() })
+          .in('id', validIds);
+
+        if (error) {
+          console.warn('Could not update printed_at in Supabase idcard_generations:', error);
+        }
+      },
+      { operationName: 'markGenerationsAsPrinted' }
+    );
+  } catch (err) {
+    console.warn('markGenerationsAsPrinted non-fatal error:', err);
+  }
 }
 

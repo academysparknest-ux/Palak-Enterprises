@@ -1478,35 +1478,51 @@ export default function IdCardGeneratePage() {
   // ── Print Confirmation Actions ─────────────────────────────
   async function confirmPrintedSuccess() {
     try {
-      await markGenerationsAsPrinted(pendingPrintGenIds)
+      if (pendingPrintGenIds.length > 0) {
+        await markGenerationsAsPrinted(pendingPrintGenIds);
+      }
+
+      // Record print success for all target persons
+      for (const p of pendingPrintPersons) {
+        const gen = latestGenerationFor(p.id);
+        recordPrintSuccess(project.id, p, gen?.id, template?.name);
+      }
 
       if (activeSession) {
-        const results = pendingPrintPersons.map((p) => ({
-          personId: p.id,
-          status: 'PRINTED' as const,
-        }))
-        const updated = recordSessionCompletion({
-          sessionId: activeSession.sessionId,
-          projectId: project.id,
-          results,
-          templateName: template?.name,
-        })
-        setActiveSession(updated)
-      } else {
-        for (const p of pendingPrintPersons) {
-          const gen = latestGenerationFor(p.id)
-          recordPrintSuccess(project.id, p, gen?.id, template?.name)
+        try {
+          const results = pendingPrintPersons.map((p) => ({
+            personId: p.id,
+            status: 'PRINTED' as const,
+          }));
+          const updated = recordSessionCompletion({
+            sessionId: activeSession.sessionId,
+            projectId: project.id,
+            results,
+            templateName: template?.name,
+          });
+          setActiveSession(updated);
+        } catch (sessionErr) {
+          console.warn('Session completion recording warning:', sessionErr);
         }
       }
 
-      const gens = await getIdCardGenerations(project.id)
-      setGenerations(gens)
-    } catch {
-      alert('Failed to update print status. Please try again.')
+      try {
+        const gens = await getIdCardGenerations(project.id);
+        setGenerations(gens);
+      } catch (genErr) {
+        console.warn('Generations reload warning:', genErr);
+      }
+    } catch (err: any) {
+      console.warn('Print confirmation error (fallback executed):', err);
+      for (const p of pendingPrintPersons) {
+        const gen = latestGenerationFor(p.id);
+        recordPrintSuccess(project.id, p, gen?.id, template?.name);
+      }
     } finally {
-      setShowPrintConfirm(false)
-      setPendingPrintGenIds([])
-      setPendingPrintPersons([])
+      setShowPrintConfirm(false);
+      setPendingPrintGenIds([]);
+      setPendingPrintPersons([]);
+      load();
     }
   }
 
