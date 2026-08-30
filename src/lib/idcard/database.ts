@@ -441,10 +441,25 @@ export async function uploadPersonPhoto(personId: string, file: File): Promise<s
 
   return executeWithAuthRetry(
     async (client) => {
-      const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
+      let { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
         upsert: true,
         contentType: file.type || 'image/jpeg',
       });
+
+      // Self-healing: if bucket not found, create bucket and retry upload
+      if (uploadError && /bucket not found|bucket_not_found/i.test(uploadError.message || '')) {
+        try {
+          await client.storage.createBucket(PHOTO_BUCKET, { public: true });
+          const retry = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
+            upsert: true,
+            contentType: file.type || 'image/jpeg',
+          });
+          uploadError = retry.error;
+        } catch {
+          // Ignore create error and let error classifier handle it
+        }
+      }
+
       if (uploadError) throw classifySupabaseError(uploadError);
 
       const { error: updateError } = await client.from('idcard_persons').update({ photo_url: path }).eq('id', personId);

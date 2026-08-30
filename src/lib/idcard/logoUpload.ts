@@ -155,11 +155,26 @@ export async function uploadAndPersistSchoolLogo(projectId: string, file: File):
 
   return executeWithAuthRetry(
     async (client) => {
-      const { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(storagePath, optimized, {
+      let { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(storagePath, optimized, {
         upsert: true,
         contentType: file.type || 'image/png',
         cacheControl: '3600',
       });
+
+      // Self-healing: if bucket not found, create bucket and retry upload
+      if (uploadError && /bucket not found|bucket_not_found/i.test(uploadError.message || '')) {
+        try {
+          await client.storage.createBucket(PHOTO_BUCKET, { public: true });
+          const retry = await client.storage.from(PHOTO_BUCKET).upload(storagePath, optimized, {
+            upsert: true,
+            contentType: file.type || 'image/png',
+            cacheControl: '3600',
+          });
+          uploadError = retry.error;
+        } catch {
+          // Ignore
+        }
+      }
 
       if (uploadError) {
         throw classifySupabaseError(uploadError);
