@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
-import { UploadCloud, X, Loader2, Crop } from 'lucide-react';
+import { UploadCloud, X, Loader2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { ImageCropModal, type CropShapeOption } from '../ImageCropModal';
 
 export interface ImageUploadProps {
   currentImageUrl?: string;
@@ -11,8 +10,6 @@ export interface ImageUploadProps {
   maxSizeMB?: number;
   label?: string;
   className?: string;
-  cropShape?: CropShapeOption;
-  enableCrop?: boolean;
 }
 
 export function ImageUpload({
@@ -22,13 +19,10 @@ export function ImageUpload({
   accept = "image/jpeg, image/png, image/webp",
   maxSizeMB = 5,
   label = "Upload Image",
-  className,
-  cropShape = "free",
-  enableCrop = true,
+  className
 }: ImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isCropOpen, setIsCropOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -97,10 +91,6 @@ export function ImageUpload({
     }
   };
 
-  const handleCropComplete = async (croppedFile: File) => {
-    await validateAndUpload(croppedFile);
-  };
-
   return (
     <div className={cn("w-full", className)}>
       {label && <label className="block text-xs font-semibold text-slate-700 mb-1.5">{label}</label>}
@@ -136,21 +126,11 @@ export function ImageUpload({
               alt="Uploaded preview" 
               className="w-full h-full object-cover rounded-lg"
             />
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
-              {enableCrop && (
-                <button
-                  type="button"
-                  onClick={() => setIsCropOpen(true)}
-                  className="bg-amber-500 text-slate-950 px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-amber-400 transition-colors flex items-center gap-1 cursor-pointer active:scale-95"
-                >
-                  <Crop size={12} />
-                  <span>Crop</span>
-                </button>
-              )}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="bg-white text-slate-900 px-2.5 py-1 rounded-lg text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer active:scale-95"
+                className="bg-white text-slate-900 px-2.5 py-1 rounded-lg text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Change
               </button>
@@ -158,8 +138,7 @@ export function ImageUpload({
                 <button
                   type="button"
                   onClick={onRemove}
-                  className="bg-rose-600 text-white p-1 rounded-lg hover:bg-rose-700 transition-colors cursor-pointer active:scale-95"
-                  title="Remove image"
+                  className="bg-rose-600 text-white p-1 rounded-lg hover:bg-rose-700 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -175,23 +154,12 @@ export function ImageUpload({
               <UploadCloud className="w-4 h-4 text-[#123B70]" />
             </div>
             <p className="text-xs font-bold text-slate-900">Click to upload or drag & drop</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">SVG, PNG, JPG or WEBP (max. {maxSizeMB}MB)</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">SVG, PNG, JPG or GIF (max. {maxSizeMB}MB)</p>
           </div>
         )}
       </div>
 
       {error && <p className="text-[11px] text-rose-600 mt-1">{error}</p>}
-
-      {currentImageUrl && enableCrop && (
-        <ImageCropModal
-          isOpen={isCropOpen}
-          imageSrc={currentImageUrl}
-          cropShape={cropShape}
-          title="Crop & Align Image"
-          onClose={() => setIsCropOpen(false)}
-          onCropComplete={handleCropComplete}
-        />
-      )}
     </div>
   );
 }

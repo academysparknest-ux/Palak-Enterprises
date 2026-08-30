@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { getPhotoSignedUrl } from '../../lib/idcard/database';
-import type { IdCardPerson, IdCardTemplate, TemplateFieldKey, TemplateSideLayout } from '../../lib/idcard/types';
+import type { IdCardPerson, IdCardTemplate, TemplateField, TemplateSideLayout } from '../../lib/idcard/types';
 import { sanitizeStudentId, getQrCodePayload } from '../../lib/idcard/validation';
 import { formatFieldDisplay } from '../../lib/idcard/templatePresets';
 
@@ -79,14 +79,21 @@ function SingleCardFace({
   backgroundUrl?: string | null;
   schoolLogoUrl?: string | null;
 }) {
-  function valueFor(key: TemplateFieldKey, customText?: string): string {
-    switch (key) {
+  function valueFor(field: TemplateField): string {
+    if (field.source === 'static') {
+      if (field.key === 'school_name') {
+        return field.value || field.customText || schoolName;
+      }
+      return field.value ?? field.customText ?? '';
+    }
+
+    switch (field.key) {
       case 'school_name':
-        return customText || schoolName;
+        return field.value || field.customText || schoolName;
       case 'school_subtitle':
-        return customText || 'Motihari, Bihar';
+        return field.value || field.customText || 'Motihari, Bihar';
       case 'student_name':
-        return person.name;
+        return person.name || (person as any).student_name || '';
       case 'student_id':
         return sanitizeStudentId(person.student_id);
       case 'class':
@@ -110,23 +117,28 @@ function SingleCardFace({
       case 'address':
         return person.address ?? '';
       case 'academic_year':
-        return academicYear;
+        return field.value || field.customText || academicYear;
       case 'batch':
-        return academicYear;
+        return field.value || field.customText || academicYear;
       case 'designation':
-        return customText || 'Student';
+        return (person as any).designation ?? (person.custom_fields?.designation ?? (field.value || field.customText || 'Student'));
       case 'emergency_no':
-        return customText || '';
+        return person.emergency_number ?? (person as any).emergency_no ?? (person.custom_fields?.emergency_no ?? (field.value || field.customText || ''));
       case 'valid_till':
-        return customText || '';
+        return field.value || field.customText || '';
       case 'terms':
-        return customText || '';
+        return field.value || field.customText || '';
       case 'website':
-        return customText || '';
+        return field.value || field.customText || '';
       case 'custom_text':
-        return customText ?? '';
-      default:
-        return '';
+        return field.value ?? field.customText ?? '';
+      default: {
+        const customVal = (person as any)[field.key] ?? (person.custom_fields?.[field.key] ?? undefined);
+        if (customVal !== undefined && customVal !== null && String(customVal).trim() !== '') {
+          return String(customVal);
+        }
+        return field.value ?? field.customText ?? '';
+      }
     }
   }
 
@@ -326,7 +338,7 @@ function SingleCardFace({
           }
 
           // Text fields
-          const rawValue = valueFor(field.key, field.customText);
+          const rawValue = valueFor(field);
           const displayText = formatFieldDisplay(field.labelPrefix, rawValue);
 
           // Special highlight for VALID TILL date in red

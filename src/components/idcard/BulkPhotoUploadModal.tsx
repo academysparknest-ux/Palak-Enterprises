@@ -9,6 +9,7 @@ import {
   AlertCircle,
   AlertTriangle,
   RotateCw,
+  Crop,
 } from 'lucide-react';
 import { getAllIdCardPersons, uploadPersonPhoto } from '../../lib/idcard/database';
 import { matchPhotoToPerson, type MatchType } from '../../lib/idcard/photoMatcher';
@@ -16,6 +17,7 @@ import {
   validatePhoto,
   formatBytes,
 } from '../../lib/idcard/photoValidation';
+import { ImageCropModal } from './ImageCropModal';
 import type { IdCardPerson } from '../../lib/idcard/types';
 
 export interface BulkPhotoItem {
@@ -53,6 +55,7 @@ export function BulkPhotoUploadModal({
   const [filterTab, setFilterTab] = useState<'all' | 'valid_matched' | 'unmatched' | 'invalid' | 'failed'>('all');
   const [validationProgress, setValidationProgress] = useState({ current: 0, total: 0 });
   const [uploadProgress, setUploadProgress] = useState({ uploaded: 0, total: 0, failed: 0 });
+  const [cropItem, setCropItem] = useState<BulkPhotoItem | null>(null);
 
   const activeUrlsRef = useRef<Set<string>>(new Set());
 
@@ -170,6 +173,36 @@ export function BulkPhotoUploadModal({
       }
       return prev.filter((p) => p.id !== itemId);
     });
+  }
+
+  async function handleCropComplete(croppedFile: File, newPreviewUrl: string) {
+    if (!cropItem) return;
+    activeUrlsRef.current.add(newPreviewUrl);
+
+    const validation = await validatePhoto(croppedFile);
+
+    setPhotos((prev) =>
+      prev.map((p) => {
+        if (p.id === cropItem.id) {
+          return {
+            ...p,
+            file: croppedFile,
+            previewUrl: newPreviewUrl,
+            size: croppedFile.size,
+            dimensions:
+              validation.width && validation.height
+                ? { width: validation.width, height: validation.height }
+                : undefined,
+            valid: validation.valid,
+            validationError: validation.error,
+            isRecommendedDim: validation.isRecommended,
+          };
+        }
+        return p;
+      })
+    );
+
+    setCropItem(null);
   }
 
   async function handleStartUpload(onlyFailed: boolean = false) {
@@ -508,14 +541,25 @@ export function BulkPhotoUploadModal({
                       )}
                     </div>
 
-                    {/* Right: Remove button */}
-                    <button
-                      onClick={() => handleRemovePhoto(item.id)}
-                      className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600 shrink-0"
-                      title="Remove"
-                    >
-                      <X size={15} />
-                    </button>
+                    {/* Right: Actions (Crop & Remove) */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setCropItem(item)}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-amber-100 hover:text-amber-800 transition"
+                        title="Crop & Align Student Photo"
+                      >
+                        <Crop size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(item.id)}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600 transition"
+                        title="Remove"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -647,6 +691,17 @@ export function BulkPhotoUploadModal({
           )}
         </div>
       </div>
+
+      {/* Single Photo Crop Modal */}
+      <ImageCropModal
+        isOpen={Boolean(cropItem)}
+        imageSrc={cropItem?.previewUrl || null}
+        fileName={cropItem?.file.name || 'student-photo.jpg'}
+        cropShape="circle"
+        title={`Crop Photo for ${cropItem?.person?.name || cropItem?.baseName || 'Student'}`}
+        onClose={() => setCropItem(null)}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 }

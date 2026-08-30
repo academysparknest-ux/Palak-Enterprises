@@ -124,7 +124,6 @@ assert(sampleDataA.headers.includes('Student Name'), 'Template A sample includes
 assert(sampleDataA.headers.includes('Student ID'), 'Template A sample includes Student ID');
 assert(sampleDataA.headers.includes('Class'), 'Template A sample includes Class');
 assert(sampleDataA.headers.includes('Roll Number'), 'Template A sample includes Roll Number');
-assert(sampleDataA.headers.includes('Student Photo'), 'Template A sample includes Photo');
 assert(!sampleDataA.headers.includes("Father's Name"), 'Template A sample does NOT include Father Name');
 assert(!sampleDataA.headers.includes('Address'), 'Template A sample does NOT include Address');
 
@@ -133,12 +132,11 @@ assert(sampleDataB.headers.includes('Student Name'), 'Template B sample includes
 assert(sampleDataB.headers.includes("Father's Name"), "Template B sample includes Father's Name");
 assert(sampleDataB.headers.includes('Date of Birth'), 'Template B sample includes Date of Birth');
 assert(sampleDataB.headers.includes('Address'), 'Template B sample includes Address');
-assert(sampleDataB.headers.includes('Student Photo'), 'Template B sample includes Student Photo');
 assert(!sampleDataB.headers.includes('QR Code'), 'Template B sample NEVER includes auto-generated QR Code');
 assert(!sampleDataB.headers.includes('Barcode'), 'Template B sample NEVER includes auto-generated Barcode');
 
 const sampleCsvA = generateSampleCsv(templateA_layout);
-assert(sampleCsvA.startsWith('Student Name,Student ID,Class,Roll Number,Student Photo'), 'Sample CSV A has exact headers');
+assert(sampleCsvA.startsWith('Student Name,Student ID,Class,Roll Number'), 'Sample CSV A has exact headers');
 
 // ── Test 4: Excel Import Validation Against Template Schema ──
 console.log('\n4. Excel Import Validation Against Template Schema');
@@ -307,7 +305,7 @@ assert(mapHeaderToCanonical('Residential Address') === 'address', 'Maps "Residen
 assert(mapHeaderToCanonical('Permanent Address') === 'address', 'Maps "Permanent Address" -> address');
 assert(mapHeaderToCanonical('DOB') === 'date_of_birth', 'Maps "DOB" -> date_of_birth');
 assert(mapHeaderToCanonical('Blood Group') === 'blood_group', 'Maps "Blood Group" -> blood_group');
-assert(mapHeaderToCanonical('Emergency No') === 'phone', 'Maps "Emergency No" -> phone');
+assert(mapHeaderToCanonical('Emergency No') === 'emergency_number', 'Maps "Emergency No" -> emergency_number');
 assert(mapHeaderToCanonical('Mobile Number') === 'phone', 'Maps "Mobile Number" -> phone');
 
 // ── Test 11: Normalization of Date & Blood Group (Excel Serial, Dots, Slashing) ──

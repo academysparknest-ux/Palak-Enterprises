@@ -11,6 +11,17 @@ export interface ParseCsvResult {
   validCount: number;
   invalidCount: number;
   detectedHeaders: string[];
+  rawHeaders?: string[];
+  canonicalHeaders?: string[];
+  totalRows?: number;
+  validRows?: number;
+  invalidRows?: number;
+  summary?: {
+    total: number;
+    validCount: number;
+    invalidCount: number;
+    hasErrors: boolean;
+  };
 }
 
 /**
@@ -172,10 +183,13 @@ const HEADER_ALIASES: Record<string, string[]> = {
     'mobileno',
     'mobile_no',
     'mobile number',
-    'contact',
-    'contactno',
-    'contact_no',
-    'contact number',
+    'student_phone',
+    'student phone',
+    'student_mobile',
+  ],
+  emergency_number: [
+    'emergency_number',
+    'emergency number',
     'emergency_no',
     'emergency no',
     'emergency_phone',
@@ -186,6 +200,11 @@ const HEADER_ALIASES: Record<string, string[]> = {
     'parent phone',
     'father_phone',
     'father phone',
+    'mother_phone',
+    'guardian_phone',
+    'guardian phone',
+    'emergency_mobile',
+    'parent_mobile',
   ],
   address: [
     'address',
@@ -209,10 +228,40 @@ const HEADER_ALIASES: Record<string, string[]> = {
 /**
  * Normalizes any header into its canonical field name
  */
-export function mapHeaderToCanonical(header: string): string {
+export function mapHeaderToCanonical(
+  header: string,
+  customFields: Array<{ key: string; label?: string; modelKey?: string }> | string[] = []
+): string {
   const clean = header.trim().toLowerCase().replace(/[\-_]/g, ' ').replace(/\s+/g, ' ');
   const cleanNoSpace = clean.replace(/\s+/g, '');
+  const cleanSnake = header.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
+  // 1. Check custom fields first (by key, label, modelKey, or slug)
+  for (const field of customFields) {
+    const key = typeof field === 'string' ? field : field.key;
+    const label = typeof field === 'string' ? '' : (field.label || '');
+    const modelKey = typeof field === 'string' ? '' : (field.modelKey || '');
+
+    const keyClean = key.toLowerCase().replace(/[\-_]/g, ' ').replace(/\s+/g, ' ');
+    const keyNoSpace = keyClean.replace(/\s+/g, '');
+    const keySnake = key.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+    const labelClean = label.toLowerCase().replace(/[\-_]/g, ' ').replace(/\s+/g, ' ');
+    const labelNoSpace = labelClean.replace(/\s+/g, '');
+    const labelSnake = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+    if (
+      clean === keyClean ||
+      cleanNoSpace === keyNoSpace ||
+      cleanSnake === keySnake ||
+      (label && (clean === labelClean || cleanNoSpace === labelNoSpace || cleanSnake === labelSnake)) ||
+      (modelKey && cleanSnake === modelKey.toLowerCase())
+    ) {
+      return key;
+    }
+  }
+
+  // 2. Standard known header aliases
   for (const [canonical, aliases] of Object.entries(HEADER_ALIASES)) {
     for (const alias of aliases) {
       const aliasClean = alias.replace(/[\-_]/g, ' ').replace(/\s+/g, ' ');
@@ -223,64 +272,78 @@ export function mapHeaderToCanonical(header: string): string {
     }
   }
 
-  // Default to cleaned header
-  return header.trim().toLowerCase().replace(/\s+/g, '_');
+  // Default to cleaned snake_case header
+  return cleanSnake;
 }
 
 export function parseAndValidateCsv(
   csvText: string,
   schemaOrTemplate?: TemplateFieldSchema | IdCardTemplate | TemplateLayout | null
 ): ParseCsvResult {
-  const rawHeaders: string[] = [];
-  const parsed = Papa.parse<Record<string, string>>(csvText, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => {
-      rawHeaders.push(h);
-      return mapHeaderToCanonical(h);
-    },
-  });
-
-  const canonicalHeaders = (parsed.meta.fields ?? []).map((h) => h.trim());
-
   // Derive field schema
   const schema: TemplateFieldSchema =
     schemaOrTemplate && 'studentInputFields' in schemaOrTemplate
       ? (schemaOrTemplate as TemplateFieldSchema)
       : extractTemplateFieldSchema(schemaOrTemplate as any);
 
-  // Determine required template fields
-  const templateRelevantFields = [...schema.studentInputFields, ...schema.assetFields];
+  const customFields = schema.studentInputFields.map((f) => ({
+    key: f.key,
+    label: f.label,
+    modelKey: String(f.modelKey || ''),
+  }));
+
+  const rawHeaders: string[] = [];
+  const parsed = Papa.parse<Record<string, string>>(csvText, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (h) => {
+      rawHeaders.push(h);
+      return mapHeaderToCanonical(h, customFields);
+    },
+  });
+
+  const canonicalHeaders = (parsed.meta.fields ?? []).map((h) => h.trim());
+
+  // Determine required template fields (dynamic student fields only)
+  const templateRelevantFields = schema.studentInputFields;
   const requiredSchemaItems = templateRelevantFields.filter((f) => f.required);
 
   const missingHeaders: string[] = [];
 
   if (requiredSchemaItems.length > 0) {
     for (const item of requiredSchemaItems) {
-      const canonicalKey = item.modelKey === 'photo_url' || item.key === 'student_photo' ? 'photo_url' : item.modelKey;
-      if (!canonicalHeaders.includes(canonicalKey as string)) {
+      const canonicalKey = item.modelKey === 'photo_url' || item.key === 'student_photo'
+        ? 'photo_url'
+        : String(item.modelKey || item.key);
+      const isPresent = canonicalHeaders.includes(canonicalKey) || canonicalHeaders.includes(item.key);
+      if (!isPresent) {
         missingHeaders.push(item.label);
       }
     }
   } else {
     // Default fallback requirements if no schema was supplied
-    if (!canonicalHeaders.includes('student_id')) missingHeaders.push('Student ID / ID');
-    if (!canonicalHeaders.includes('name')) missingHeaders.push('Student Name / Name');
+    if (!canonicalHeaders.includes('student_id')) missingHeaders.push('Student ID');
+    if (!canonicalHeaders.includes('name') && !canonicalHeaders.includes('student_name')) missingHeaders.push('Student Name');
   }
 
   // Identify extra columns that are NOT in the active template schema
   const validCanonicalKeys = new Set<string>(
-    templateRelevantFields.map((f) => (f.modelKey === 'photo_url' || f.key === 'student_photo' ? 'photo_url' : String(f.modelKey)))
+    templateRelevantFields.map((f) => String(f.modelKey || f.key))
   );
-  // Also include base identification keys
+  for (const f of templateRelevantFields) {
+    validCanonicalKeys.add(f.key);
+  }
   validCanonicalKeys.add('student_id');
   validCanonicalKeys.add('name');
+  validCanonicalKeys.add('student_name');
+  validCanonicalKeys.add('photo_url');
+  validCanonicalKeys.add('photo');
 
   const ignoredHeaders: string[] = [];
   for (const h of canonicalHeaders) {
     if (!validCanonicalKeys.has(h)) {
       // Find human-readable label
-      const originalHeader = rawHeaders.find((raw) => mapHeaderToCanonical(raw) === h) || h;
+      const originalHeader = rawHeaders.find((raw) => mapHeaderToCanonical(raw, customFields) === h) || h;
       if (!ignoredHeaders.includes(originalHeader)) {
         ignoredHeaders.push(originalHeader);
       }
@@ -300,20 +363,24 @@ export function parseAndValidateCsv(
 
     const errors: string[] = [];
 
+    // Support student_name or name
+    const studentNameVal = cleanedRaw.name || cleanedRaw.student_name || '';
+    const studentIdVal = cleanedRaw.student_id || '';
+
     // Validate student ID
-    if (!cleanedRaw.student_id) {
+    if (!studentIdVal) {
       errors.push('Student ID is required');
     }
 
     // Validate Name
-    if (!cleanedRaw.name) {
+    if (!studentNameVal) {
       errors.push('Student Name is required');
     }
 
     // Validate other template-required fields
     for (const item of requiredSchemaItems) {
-      const canonicalKey = item.modelKey === 'photo_url' || item.key === 'student_photo' ? 'photo_url' : item.modelKey;
-      const val = cleanedRaw[canonicalKey as string];
+      const canonicalKey = String(item.modelKey || item.key);
+      const val = cleanedRaw[canonicalKey] || cleanedRaw[item.key];
       if (!val || !val.trim()) {
         const errorMsg = `${item.label} is required by template`;
         if (!errors.includes(errorMsg)) {
@@ -326,10 +393,24 @@ export function parseAndValidateCsv(
     if (cleanedRaw.phone && !/^[\+0-9\-\s\(\)]{6,20}$/.test(cleanedRaw.phone.trim())) {
       errors.push('Invalid phone number format');
     }
+    if (cleanedRaw.emergency_number && !/^[\+0-9\-\s\(\)]{6,20}$/.test(cleanedRaw.emergency_number.trim())) {
+      errors.push('Invalid emergency contact number format');
+    }
+
+    // Extract custom dynamic fields
+    const customFieldsData: Record<string, any> = {};
+    for (const item of schema.studentInputFields) {
+      if (item.isCustom || !['name', 'student_id', 'class', 'section', 'roll_number', 'date_of_birth', 'blood_group', 'father_name', 'mother_name', 'phone', 'emergency_number', 'address', 'photo_url'].includes(item.key)) {
+        const val = cleanedRaw[item.key] || cleanedRaw[String(item.modelKey)];
+        if (val !== undefined && val !== null && val !== '') {
+          customFieldsData[item.key] = val;
+        }
+      }
+    }
 
     const rowData: Partial<IdCardPerson> = {
-      student_id: sanitizeStudentId(cleanedRaw.student_id) || '',
-      name: cleanedRaw.name || '',
+      student_id: sanitizeStudentId(studentIdVal) || '',
+      name: studentNameVal || '',
       class: cleanedRaw.class || null,
       section: cleanedRaw.section || null,
       roll_number: cleanedRaw.roll_number || null,
@@ -338,9 +419,16 @@ export function parseAndValidateCsv(
       father_name: cleanedRaw.father_name || null,
       mother_name: cleanedRaw.mother_name || null,
       phone: cleanedRaw.phone ? normalizePhone(cleanedRaw.phone) : null,
+      emergency_number: cleanedRaw.emergency_number ? normalizePhone(cleanedRaw.emergency_number) : null,
       address: cleanedRaw.address || null,
       photo_url: cleanedRaw.photo_url || null,
+      custom_fields: Object.keys(customFieldsData).length > 0 ? customFieldsData : undefined,
     };
+
+    // Also populate top-level dynamic keys for direct property access
+    for (const [k, v] of Object.entries(customFieldsData)) {
+      (rowData as any)[k] = v;
+    }
 
     return {
       rowNumber,
@@ -351,19 +439,32 @@ export function parseAndValidateCsv(
   });
 
   const validCount = rows.filter((r) => r.valid).length;
+  const invalidCount = rows.length - validCount;
 
   return {
-    rows,
+    rawHeaders,
+    canonicalHeaders,
+    detectedHeaders: canonicalHeaders,
     missingHeaders,
     ignoredHeaders,
+    rows,
+    totalRows: rows.length,
+    validRows: validCount,
+    invalidRows: invalidCount,
     validCount,
-    invalidCount: rows.length - validCount,
-    detectedHeaders: canonicalHeaders,
+    invalidCount,
+    summary: {
+      total: rows.length,
+      validCount,
+      invalidCount,
+      hasErrors: missingHeaders.length > 0 || rows.some((r) => !r.valid),
+    },
   };
 }
 
 /**
- * Parses either a CSV or Excel (.xlsx / .xls) file into validated student rows
+ * Parses either a CSV or Excel (.xlsx / .xls) file into validated student rows.
+ * Preserves leading zeros for Student IDs (e.g. 0001 remains "0001").
  */
 export async function parseSpreadsheetFile(
   file: File,
@@ -374,14 +475,18 @@ export async function parseSpreadsheetFile(
   if (isExcel) {
     const arrayBuffer = await file.arrayBuffer();
     const data = new Uint8Array(arrayBuffer);
-    const workbook = XLSX.read(data, { type: 'array' });
+    const workbook = XLSX.read(data, {
+      type: 'array',
+      raw: false, // Read formatted text strings to preserve leading zeros
+      cellText: true,
+    });
     const firstSheetName = workbook.SheetNames[0];
     if (!firstSheetName) {
       throw new Error('The uploaded Excel workbook contains no sheets.');
     }
     const worksheet = workbook.Sheets[firstSheetName];
-    // Convert worksheet to CSV string format
-    const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
+    // Convert worksheet to CSV string format preserving strings
+    const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false, forceQuotes: true });
     return parseAndValidateCsv(csvText, schemaOrTemplate);
   }
 
@@ -393,6 +498,7 @@ export async function parseSpreadsheetFile(
 /**
  * Template-Driven Sample Data Generator
  * Generates columns and sample records tailored strictly to the selected template schema.
+ * Rule 19 & 35: Excludes photo filename column, static school details, and system QR/barcode.
  */
 export function getTemplateSampleData(
   schemaOrTemplate?: TemplateFieldSchema | IdCardTemplate | TemplateLayout | null
@@ -402,16 +508,17 @@ export function getTemplateSampleData(
       ? (schemaOrTemplate as TemplateFieldSchema)
       : extractTemplateFieldSchema(schemaOrTemplate as any);
 
-  const relevantItems = [...schema.studentInputFields, ...schema.assetFields];
+  // ONLY dynamic student input fields are included in the template sample
+  const relevantItems = schema.studentInputFields;
 
-  // If no fields in template (or fallback), return standard core set
+  // If no fields in template (or fallback), return standard dynamic student set
   if (relevantItems.length === 0) {
     return {
-      headers: ['Student ID', 'Student Name', 'Class', 'Roll Number', 'Photo'],
+      headers: ['Student ID', 'Student Name', 'Class', 'Roll Number'],
       rows: [
-        ['0001', 'Olivia Wilson', '8th', '1', '0001.jpg'],
-        ['0002', 'Rahul Kumar', '9th', '2', '0002.jpg'],
-        ['0003', 'Priya Sharma', '10th', '3', '0003.jpg'],
+        ['0001', 'Olivia Wilson', '8th', '1'],
+        ['0002', 'Rahul Kumar', '9th', '2'],
+        ['0003', 'Priya Sharma', '10th', '3'],
       ],
     };
   }
@@ -423,13 +530,14 @@ export function getTemplateSampleData(
     class: ['8th', '9th', '10th'],
     section: ['A', 'B', 'A'],
     roll_number: ['1', '2', '3'],
-    student_photo: ['0001.jpg', '0002.jpg', '0003.jpg'],
     date_of_birth: ['15/05/2012', '20/11/2011', '08/03/2010'],
     blood_group: ['B+', 'O+', 'AB+'],
     father_name: ['Bravia Wilson', 'Suresh Kumar', 'Ramesh Sharma'],
     mother_name: ['Maria Wilson', 'Anita Devi', 'Sunita Sharma'],
     parent_info: ['Bravia Wilson', 'Suresh Kumar', 'Ramesh Sharma'],
     phone: ['9876543210', '9123456780', '9876501234'],
+    emergency_no: ['9905238015', '9876543210', '9811223344'],
+    emergency_number: ['9905238015', '9876543210', '9811223344'],
     address: [
       '136-Anandpuri, Motihari, Bihar',
       'Station Road, Motihari, Bihar',
@@ -440,7 +548,11 @@ export function getTemplateSampleData(
   const headers = relevantItems.map((item) => item.label);
   const rows: string[][] = [0, 1, 2].map((studentIndex) => {
     return relevantItems.map((item) => {
-      const sampleVals = SAMPLE_STUDENT_VALUES[item.key] || ['Sample Value', 'Sample Value 2', 'Sample Value 3'];
+      const sampleVals = SAMPLE_STUDENT_VALUES[item.key] || [
+        `Sample ${item.label} 1`,
+        `Sample ${item.label} 2`,
+        `Sample ${item.label} 3`,
+      ];
       return sampleVals[studentIndex] || `Sample ${studentIndex + 1}`;
     });
   });
@@ -463,7 +575,8 @@ export function generateSampleCsv(
 }
 
 /**
- * Generates a template-specific Excel workbook Blob (.xlsx) for downloading
+ * Generates a template-specific Excel workbook Blob (.xlsx) for downloading.
+ * Formats Student IDs as text cells to preserve leading zeros.
  */
 export function generateSampleExcelBlob(
   schemaOrTemplate?: TemplateFieldSchema | IdCardTemplate | TemplateLayout | null
@@ -471,10 +584,20 @@ export function generateSampleExcelBlob(
   const { headers, rows } = getTemplateSampleData(schemaOrTemplate);
   const data = [headers, ...rows];
 
-  const worksheet = XLSX.utils.aoa_to_sheet(data);
+  const worksheet = XLSX.utils.aoa_to_sheet(data, { cellDates: false });
 
-  // Set nice column widths
+  // Set nice column widths and ensure text formatting for Student ID column
+  const studentIdColIdx = headers.findIndex((h) => h.toLowerCase().includes('id'));
   worksheet['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 5, 14) }));
+
+  if (studentIdColIdx >= 0) {
+    for (let r = 1; r <= rows.length; r++) {
+      const cellRef = XLSX.utils.encode_cell({ r, c: studentIdColIdx });
+      if (worksheet[cellRef]) {
+        worksheet[cellRef].t = 's'; // Force string type
+      }
+    }
+  }
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
@@ -484,7 +607,7 @@ export function generateSampleExcelBlob(
 }
 
 /**
- * Generates a complete standard student roster sample containing ALL fields (Front + Back details)
+ * Generates a complete standard student roster sample containing ALL standard dynamic fields
  */
 export function getFullRosterSampleData(): { headers: string[]; rows: string[][] } {
   const headers = [
@@ -499,7 +622,6 @@ export function getFullRosterSampleData(): { headers: string[]; rows: string[][]
     "Mother's Name",
     'Phone',
     'Address',
-    'Photo',
   ];
 
   const rows = [
@@ -515,7 +637,6 @@ export function getFullRosterSampleData(): { headers: string[]; rows: string[][]
       'Sunita Devi',
       '+91 9876543210',
       '136-Anandpuri, Station Road, Motihari, Bihar',
-      '0001.jpg',
     ],
     [
       '0002',
@@ -529,7 +650,6 @@ export function getFullRosterSampleData(): { headers: string[]; rows: string[][]
       'Anita Sharma',
       '+91 9123456780',
       'Main Market, Motihari, Bihar',
-      '0002.jpg',
     ],
     [
       '0003',
@@ -543,7 +663,6 @@ export function getFullRosterSampleData(): { headers: string[]; rows: string[][]
       'Pooja Singh',
       '+91 9876501234',
       'Near Railway Station, Motihari, Bihar',
-      '0003.jpg',
     ],
   ];
 
@@ -565,6 +684,12 @@ export function generateFullRosterSampleExcelBlob(): Blob {
 
   const worksheet = XLSX.utils.aoa_to_sheet(data);
   worksheet['!cols'] = headers.map((h) => ({ wch: Math.max(h.length + 5, 15) }));
+
+  // Force string type on student ID column (first col)
+  for (let r = 1; r <= rows.length; r++) {
+    const cellRef = XLSX.utils.encode_cell({ r, c: 0 });
+    if (worksheet[cellRef]) worksheet[cellRef].t = 's';
+  }
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'All Students');

@@ -25,6 +25,7 @@ const testFiles = [
   'src/lib/idcard/templateFirstDataFlow.test.ts',
   'src/lib/idcard/templatePresets.test.ts',
   'src/lib/idcard/logoUpload.test.ts',
+  'src/lib/idcard/masterDataArchitecture.test.ts',
 ];
 
 console.log('╔═══════════════════════════════════════════════════════════════╗');

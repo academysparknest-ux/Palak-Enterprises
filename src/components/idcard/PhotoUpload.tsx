@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Camera, Loader2, X, AlertCircle, CheckCircle2, AlertTriangle, Crop } from 'lucide-react';
 import { uploadPersonPhoto, deletePersonPhoto, getPhotoSignedUrl } from '../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../lib/idcard/errors';
+import { ImageCropModal } from './ImageCropModal';
 import {
   validatePhoto,
   MIN_PHOTO_BYTES,
@@ -13,7 +14,6 @@ import {
   formatBytes,
   type PhotoValidationResult,
 } from '../../lib/idcard/photoValidation';
-import { ImageCropModal } from './ImageCropModal';
 
 export interface PhotoUploadProps {
   personId?: string | null;
@@ -36,8 +36,12 @@ export function PhotoUpload({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationInfo, setValidationInfo] = useState<PhotoValidationResult | null>(null);
-  const [isCropOpen, setIsCropOpen] = useState(false);
-  const [rawFileName, setRawFileName] = useState<string>('photo.jpg');
+
+  // Crop Modal state
+  const [showCropModal, setShowCropModal] = useState<boolean>(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropFileName, setCropFileName] = useState<string>('student-photo.jpg');
+  const tempCropUrlRef = useRef<string | null>(null);
 
   // Sync with photoPath from server if present
   useEffect(() => {
@@ -61,70 +65,65 @@ export function PhotoUpload({
     };
   }, [photoPath, initialPreviewUrl]);
 
-  // Clean up object URL when component unmounts
+  // Clean up object URLs when component unmounts
   useEffect(() => {
     return () => {
       if (previewUrl && previewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(previewUrl);
       }
+      if (tempCropUrlRef.current && tempCropUrlRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(tempCropUrlRef.current);
+      }
     };
   }, [previewUrl]);
 
-  // Handle image file selection & lightweight browser validation
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle image file selection -> opens ImageCropModal to crop & align student photo
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
-    setValidationInfo(null);
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setRawFileName(file.name);
-
-    // Validate (type, 50KB-500KB, min 300x360 dimensions) without image processing
-    const result = await validatePhoto(file);
-
-    if (!result.valid) {
-      setError(result.error || 'Invalid photo file.');
+    if (!file.type.startsWith('image/')) {
+      setError('Only image files (JPG, PNG, WebP) are allowed.');
       e.target.value = '';
       return;
     }
 
-    setValidationInfo(result);
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
-
-    // Notify parent component for new student state
-    onFileSelect?.(file, objectUrl);
-
-    // If person already exists in DB, upload immediately to Supabase Storage
-    if (personId) {
-      setBusy(true);
-      try {
-        const path = await uploadPersonPhoto(personId, file);
-        onChange?.(path);
-      } catch (err: any) {
-        const appErr = classifySupabaseError(err);
-        setError(appErr.message || errorCodeToUserMessage(appErr.code));
-      } finally {
-        setBusy(false);
-      }
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Photo file size exceeds maximum limit (Max 15MB).');
+      e.target.value = '';
+      return;
     }
 
+    if (tempCropUrlRef.current && tempCropUrlRef.current.startsWith('blob:')) {
+      URL.revokeObjectURL(tempCropUrlRef.current);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    tempCropUrlRef.current = objectUrl;
+    setCropSrc(objectUrl);
+    setCropFileName(file.name);
+    setShowCropModal(true);
     e.target.value = '';
   };
 
+  // Called when user completes cropping in ImageCropModal
   const handleCropComplete = async (croppedFile: File, newPreviewUrl: string) => {
     setError(null);
-    setPreviewUrl(newPreviewUrl);
-    setRawFileName(croppedFile.name);
 
-    // Re-validate photo dimensions & size
+    // Validate cropped photo
     const result = await validatePhoto(croppedFile);
-    if (result.valid) {
-      setValidationInfo(result);
+    setValidationInfo(result);
+
+    // Clean previous preview blob if local
+    if (previewUrl && previewUrl.startsWith('blob:') && previewUrl !== newPreviewUrl) {
+      URL.revokeObjectURL(previewUrl);
     }
 
+    setPreviewUrl(newPreviewUrl);
     onFileSelect?.(croppedFile, newPreviewUrl);
 
+    // If person already exists in DB, upload immediately to Supabase Storage
     if (personId) {
       setBusy(true);
       try {
@@ -137,6 +136,15 @@ export function PhotoUpload({
         setBusy(false);
       }
     }
+  };
+
+  // Open crop modal for current existing/selected photo
+  const handleOpenCropExisting = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!previewUrl) return;
+    setCropSrc(previewUrl);
+    setCropFileName('student-photo.jpg');
+    setShowCropModal(true);
   };
 
   // Remove photo
@@ -185,18 +193,16 @@ export function PhotoUpload({
               <img
                 src={previewUrl}
                 alt="Student Photo"
-                className="h-full w-full object-cover cursor-pointer"
-                onClick={() => setIsCropOpen(true)}
-                title="Click to crop photo"
+                className="h-full w-full object-cover"
               />
 
               {/* Hover overlay with Crop & Remove buttons */}
-              <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-slate-950/60 opacity-0 backdrop-blur-2xs transition-opacity group-hover:opacity-100">
+              <div className="absolute inset-0 flex items-center justify-center gap-2 bg-slate-950/60 opacity-0 backdrop-blur-2xs transition-opacity group-hover:opacity-100">
                 <button
                   type="button"
-                  onClick={() => setIsCropOpen(true)}
-                  title="Crop Photo"
-                  className="rounded-full bg-amber-500 p-2 text-slate-950 hover:bg-amber-400 shadow-xs transition active:scale-95 cursor-pointer"
+                  onClick={handleOpenCropExisting}
+                  title="Crop & Align Photo"
+                  className="rounded-full bg-amber-500 p-2 text-slate-950 hover:bg-amber-400 shadow-xs transition"
                 >
                   <Crop size={15} />
                 </button>
@@ -204,7 +210,7 @@ export function PhotoUpload({
                   type="button"
                   onClick={handleRemove}
                   title="Remove Photo"
-                  className="rounded-full bg-rose-600 p-2 text-white hover:bg-rose-500 shadow-xs transition active:scale-95 cursor-pointer"
+                  className="rounded-full bg-rose-600 p-2 text-white hover:bg-rose-500 shadow-xs transition"
                 >
                   <X size={15} />
                 </button>
@@ -214,7 +220,7 @@ export function PhotoUpload({
             <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1 p-2 text-slate-400 hover:text-[#123B70] transition">
               <Camera size={22} className="text-slate-400" />
               <span className="text-[11px] font-bold text-slate-700">Choose Photo</span>
-              <span className="text-[9px] text-slate-400">50 KB – 500 KB</span>
+              <span className="text-[9px] text-slate-400">Crop & Align</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
@@ -258,13 +264,13 @@ export function PhotoUpload({
               <p className="text-[10px] text-slate-500">
                 Minimum: <span className="font-semibold text-slate-800">{MIN_PHOTO_WIDTH}×{MIN_PHOTO_HEIGHT} px</span> • Recommended: <span className="font-semibold text-slate-800">{RECOMMENDED_PHOTO_WIDTH}×{RECOMMENDED_PHOTO_HEIGHT} px</span> (5:6)
               </p>
-              <p className="text-[10px] text-slate-400">Supported Formats: JPG, PNG, WebP</p>
+              <p className="text-[10px] text-slate-400">Supported Formats: JPG, PNG, WebP • Integrated Headshot Cropper</p>
             </div>
           )}
 
           {/* Action Row */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition active:scale-95">
+            <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition">
               <Camera size={13} />
               <span>{previewUrl ? 'Change Photo' : 'Choose Photo'}</span>
               <input
@@ -276,25 +282,26 @@ export function PhotoUpload({
             </label>
 
             {previewUrl && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsCropOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 shadow-2xs transition active:scale-95 cursor-pointer"
-                >
-                  <Crop size={13} className="text-amber-700" />
-                  <span>Crop</span>
-                </button>
+              <button
+                type="button"
+                onClick={handleOpenCropExisting}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                title="Crop and position student face"
+              >
+                <Crop size={13} className="text-amber-700" />
+                <span>Crop Photo</span>
+              </button>
+            )}
 
-                <button
-                  type="button"
-                  onClick={handleRemove}
-                  className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 transition active:scale-95 cursor-pointer"
-                >
-                  <X size={13} />
-                  <span>Remove</span>
-                </button>
-              </>
+            {previewUrl && (
+              <button
+                type="button"
+                onClick={handleRemove}
+                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 transition"
+              >
+                <X size={13} />
+                <span>Remove</span>
+              </button>
             )}
           </div>
         </div>
@@ -308,18 +315,19 @@ export function PhotoUpload({
         </div>
       )}
 
-      {/* Crop Modal */}
-      {previewUrl && (
-        <ImageCropModal
-          isOpen={isCropOpen}
-          imageSrc={previewUrl}
-          fileName={rawFileName}
-          cropShape={shape === 'circle' ? 'circle' : 'passport'}
-          title="Crop & Align Photo"
-          onClose={() => setIsCropOpen(false)}
-          onCropComplete={handleCropComplete}
-        />
-      )}
+      {/* Student Photo Crop & Alignment Modal */}
+      <ImageCropModal
+        isOpen={showCropModal}
+        imageSrc={cropSrc}
+        fileName={cropFileName}
+        cropShape={shape}
+        title="Crop & Align Student Photo"
+        onClose={() => {
+          setShowCropModal(false);
+          setCropSrc(null);
+        }}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 }

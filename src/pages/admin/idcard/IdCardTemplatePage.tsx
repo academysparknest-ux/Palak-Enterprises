@@ -19,6 +19,7 @@ import {
   Upload,
   Image as ImageIcon,
   Building2,
+  RefreshCw,
 } from 'lucide-react';
 import {
   getIdCardTemplates,
@@ -75,6 +76,47 @@ export default function IdCardTemplatePage() {
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadLogoError, setUploadLogoError] = useState<string | null>(null);
+
+  // School / Institution Details (Configured once by admin and synced across ID card templates)
+  const [showSchoolDetails, setShowSchoolDetails] = useState(true);
+  const [schoolSubtitle, setSchoolSubtitle] = useState('Affiliated to CBSE, New Delhi');
+  const [schoolAddress, setSchoolAddress] = useState('Society Area, Clement Town, Dehradun (UTTARAKHAND)');
+  const [schoolWebsite, setSchoolWebsite] = useState('www.geu.ac.in || Tollfree: 1800 270 1280');
+  const [schoolTerms, setSchoolTerms] = useState(
+    'In case of theft or loss it is mandatory for the Student to inform the Administration Office. If found abandoned, may please be returned to Graphic Era (Deemed to be) University, Dehradun.'
+  );
+  const [syncedDetailsSuccess, setSyncedDetailsSuccess] = useState(false);
+
+  const handleSyncSchoolDetails = () => {
+    // 1. Update front fields
+    const updatedFront = layout.fields.map((f) => {
+      if (f.key === 'school_name') return { ...f, customText: project.name };
+      if (f.key === 'school_subtitle') return { ...f, customText: schoolSubtitle };
+      return f;
+    });
+
+    // 2. Update back fields
+    let updatedBack = layout.back ? { ...layout.back } : undefined;
+    if (updatedBack) {
+      updatedBack.fields = updatedBack.fields.map((f) => {
+        if (f.key === 'terms') return { ...f, customText: schoolTerms };
+        if (f.key === 'website') return { ...f, customText: schoolWebsite };
+        if (f.key === 'address' && f.customText && (f.customText.toLowerCase().includes('dehradun') || f.customText.toLowerCase().includes('society') || f.customText.toLowerCase().includes('area'))) {
+          return { ...f, customText: schoolAddress };
+        }
+        return f;
+      });
+    }
+
+    setLayout((prev) => ({
+      ...prev,
+      fields: updatedFront,
+      back: updatedBack,
+    }));
+
+    setSyncedDetailsSuccess(true);
+    setTimeout(() => setSyncedDetailsSuccess(false), 3500);
+  };
 
   // Derive dynamic template field schema in real-time
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(layout), [layout]);
@@ -939,6 +981,123 @@ export default function IdCardTemplatePage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── School / Institution Details & Card Back Defaults Panel (Admin Configuration) ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-700 shadow-2xs">
+              <Building2 size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  School / Institution Details & Card Back Defaults
+                </h3>
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-800">
+                  Configured Once by Admin
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Set institution info, campus return address, website/helpline, and lost card return terms once. Applied automatically across templates.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSyncSchoolDetails}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition cursor-pointer"
+            >
+              <RefreshCw size={13} /> Sync to ID Card Elements
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSchoolDetails((prev) => !prev)}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+            >
+              {showSchoolDetails ? 'Hide Details' : 'Edit Details'}
+            </button>
+          </div>
+        </div>
+
+        {syncedDetailsSuccess && (
+          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800 flex items-center gap-2">
+            <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+            <span>Successfully updated school name, subtitle, terms, website, and address in card layout!</span>
+          </div>
+        )}
+
+        {showSchoolDetails && (
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                School / Institution Name (Front Side Header)
+              </label>
+              <input
+                type="text"
+                value={project.name}
+                disabled
+                className="w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs text-slate-600 font-semibold cursor-not-allowed"
+                title="Project school name"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                School Subtitle / Affiliation / Tagline (Front Side)
+              </label>
+              <input
+                type="text"
+                value={schoolSubtitle}
+                onChange={(e) => setSchoolSubtitle(e.target.value)}
+                placeholder="e.g. Affiliated to CBSE, New Delhi"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block font-bold text-slate-700 mb-1">
+                Lost Card Notice & Return Policy (Card Back Side Terms)
+              </label>
+              <textarea
+                rows={2}
+                value={schoolTerms}
+                onChange={(e) => setSchoolTerms(e.target.value)}
+                placeholder="e.g. In case of theft or loss it is mandatory for the Student to inform the Administration Office. If found abandoned, may please be returned to..."
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                School / Campus Address (Card Back Return Address)
+              </label>
+              <input
+                type="text"
+                value={schoolAddress}
+                onChange={(e) => setSchoolAddress(e.target.value)}
+                placeholder="e.g. Society Area, Clement Town, Dehradun (UTTARAKHAND)"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">
+                Website & Tollfree Helpline (Card Back Footer)
+              </label>
+              <input
+                type="text"
+                value={schoolWebsite}
+                onChange={(e) => setSchoolWebsite(e.target.value)}
+                placeholder="e.g. www.geu.ac.in || Tollfree: 1800 270 1280"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Template Dynamic Fields Requirement Summary Panel ──────── */}

@@ -28,11 +28,16 @@ export interface IdCardPerson {
   father_name: string | null;
   mother_name: string | null;
   phone: string | null;
+  emergency_number?: string | null;
   address: string | null;
   photo_url: string | null;
+  custom_fields?: Record<string, any> | null;
   created_at: string;
   updated_at: string;
+  [key: string]: any;
 }
+
+export type TemplateFieldSource = 'static' | 'dynamic' | 'system';
 
 export type TemplateFieldKey =
   | 'school_logo'
@@ -60,12 +65,18 @@ export type TemplateFieldKey =
   | 'qr_code'
   | 'terms'
   | 'website'
-  | 'custom_text';
+  | 'custom_text'
+  | (string & {});
 
 export interface TemplateField {
   id?: string; // unique identifier for the field instance
   key: TemplateFieldKey;
   label?: string;
+  source?: TemplateFieldSource; // 'static' | 'dynamic' | 'system'
+  dataType?: 'text' | 'photo' | 'date' | 'select' | 'number';
+  value?: string; // static content value (e.g. "ABC Public School")
+  isIdentity?: boolean; // true for student_id
+  customKey?: string; // stable internal key for custom fields
   x: number; // mm from left (xMm)
   y: number; // mm from top (yMm)
   width: number; // mm (widthMm)
@@ -81,7 +92,7 @@ export interface TemplateField {
   visible: boolean;
   required?: boolean;
   locked?: boolean;
-  customText?: string; // used for custom_text, designation, emergency_no, valid_till, terms, website
+  customText?: string; // used for static content/placeholders
   labelPrefix?: string; // e.g. "BLOOD GROUP:", "FATHER'S NAME:"
   borderRadius?: number; // percentage, 50 = circle
   borderColor?: string;
@@ -115,12 +126,17 @@ export type TemplateFieldCategory = 'student_input' | 'student_asset' | 'auto_ge
 export interface TemplateFieldSchemaItem {
   key: string;
   label: string;
-  type: 'text' | 'photo' | 'date' | 'select';
+  type: 'text' | 'photo' | 'date' | 'select' | 'number';
   required: boolean;
   category: TemplateFieldCategory;
-  modelKey: keyof IdCardPerson | 'student_photo';
+  source?: TemplateFieldSource;
+  modelKey: keyof IdCardPerson | 'student_photo' | string;
   description?: string;
   side?: 'front' | 'back' | 'both';
+  options?: string[];
+  placeholder?: string;
+  isCustom?: boolean;
+  value?: string;
 }
 
 export interface TemplateFieldSchema {
@@ -150,10 +166,14 @@ export interface TemplateLayout {
   headerGradientColors?: [string, string] | null; // [primary, accent]
   footerGradientColors?: [string, string] | null; // [primary, accent]
   presetId?: string; // identifier for the base preset
+  orientation?: 'portrait' | 'landscape';
+  widthMm?: number;
+  heightMm?: number;
   isDoubleSided?: boolean;
   templateType?: 'single' | 'double';
   back?: TemplateSideLayout; // Back side layout
   fieldSchema?: TemplateFieldSchemaItem[]; // Extracted dynamic field schema
+  [key: string]: any;
 }
 
 export interface IdCardTemplate {

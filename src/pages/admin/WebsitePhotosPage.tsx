@@ -8,9 +8,8 @@ import { logAdminAudit } from '../../lib/supabase/database';
 import { cn } from '../../lib/utils';
 import { 
   Search, Image as ImageIcon, Trash2, Edit, UploadCloud, 
-  RefreshCw, ExternalLink, Crop 
+  RefreshCw, ExternalLink 
 } from 'lucide-react';
-import { ImageCropModal } from '../../components/ImageCropModal';
 
 interface ImageItem {
   id: string; // product id or content section id
@@ -33,10 +32,9 @@ export const WebsitePhotosPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
 
-  // Replacement / Deletion / Cropping state
+  // Replacement / Deletion state
   const [targetImageForReplace, setTargetImageForReplace] = useState<ImageItem | null>(null);
   const [imageToDelete, setImageToDelete] = useState<ImageItem | null>(null);
-  const [imageToCrop, setImageToCrop] = useState<ImageItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchImages = React.useCallback(async () => {
@@ -312,61 +310,6 @@ export const WebsitePhotosPage: React.FC = () => {
     }
   };
 
-  // Crop & Update Image Reference
-  const handleCropApply = async (croppedFile: File) => {
-    if (!imageToCrop || !supabase) return;
-    setUploading(true);
-    try {
-      const target = imageToCrop;
-      const oldUrl = target.url;
-      const newUrl = await uploadFileToStorage(croppedFile);
-      if (!newUrl) throw new Error('Could not upload cropped image to storage');
-
-      if (target.type === 'product_image') {
-        await supabase
-          .from('products')
-          .update({ image_url: newUrl, updated_at: new Date().toISOString() })
-          .eq('id', target.id);
-      } else if (target.type === 'product_gallery' && target.index !== undefined) {
-        const { data: prod } = await supabase.from('products').select('gallery_urls').eq('id', target.id).single();
-        const currentUrls = [...(prod?.gallery_urls || [])];
-        currentUrls[target.index] = newUrl;
-        await supabase
-          .from('products')
-          .update({ gallery_urls: currentUrls, updated_at: new Date().toISOString() })
-          .eq('id', target.id);
-      } else if (target.type === 'content') {
-        const { data: contentRow } = await supabase.from('website_content').select('content').eq('id', target.id).single();
-        const updatedContent = { ...(contentRow?.content || {}), [target.dbField || 'image']: newUrl };
-        await supabase
-          .from('website_content')
-          .update({ content: updatedContent, updated_at: new Date().toISOString() })
-          .eq('id', target.id);
-      }
-
-      await logAdminAudit({
-        actorId: user?.id,
-        actorName: user?.name,
-        actorRole: user?.role,
-        actionType: 'crop_image',
-        entityType: 'photo',
-        entityId: target.id,
-        details: { source: target.sourceName, oldUrl, newUrl },
-        previousValue: oldUrl,
-        newValue: newUrl,
-      });
-
-      addToast({ title: 'Image cropped and updated successfully', type: 'success' });
-      await fetchImages();
-    } catch (err: any) {
-      console.error('Crop save error:', err);
-      addToast({ title: 'Failed to update cropped image', message: err?.message, type: 'error' });
-    } finally {
-      setUploading(false);
-      setImageToCrop(null);
-    }
-  };
-
   // Safe Removal of Image Reference
   const handleConfirmDelete = async () => {
     if (!imageToDelete || !supabase) return;
@@ -549,13 +492,6 @@ export const WebsitePhotosPage: React.FC = () => {
                   />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
                     <button 
-                      onClick={() => setImageToCrop(img)}
-                      className="p-1.5 bg-amber-500 text-slate-950 rounded-lg hover:bg-amber-400 shadow-xs cursor-pointer" 
-                      title="Crop Image"
-                    >
-                      <Crop className="w-3 h-3" />
-                    </button>
-                    <button 
                       onClick={() => triggerReplace(img)}
                       className="p-1.5 bg-white text-slate-800 rounded-lg hover:text-[#123B70] hover:bg-slate-100 shadow-xs cursor-pointer" 
                       title="Replace Image"
@@ -619,19 +555,6 @@ export const WebsitePhotosPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setImageToDelete(null)}
       />
-
-      {/* Image Crop Modal for Website Photos */}
-      {imageToCrop && (
-        <ImageCropModal
-          isOpen={Boolean(imageToCrop)}
-          imageSrc={imageToCrop.url}
-          fileName={`${imageToCrop.sourceName.toLowerCase().replace(/[^a-z0-9]/g, '-')}.jpg`}
-          cropShape={imageToCrop.type === 'content' ? '16:9' : '4:3'}
-          title={`Crop Image: ${imageToCrop.sourceName}`}
-          onClose={() => setImageToCrop(null)}
-          onCropComplete={handleCropApply}
-        />
-      )}
     </div>
   );
 };

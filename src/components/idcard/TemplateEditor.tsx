@@ -741,7 +741,7 @@ export function TemplateEditor({
   }
 
   // ── Element Actions (Add, Duplicate, Lock, Delete) ─────────
-  function addField(key: TemplateFieldKey = 'custom_text') {
+  function addField(key: TemplateFieldKey = 'custom_text', options?: Partial<TemplateField>) {
     const isLogo = key === 'school_logo';
     const isImg = IMAGE_FIELDS.includes(key);
     const isMultiLine = key === 'address' || key === 'terms';
@@ -770,10 +770,33 @@ export function TemplateEditor({
       ? 10.0
       : 4.5;
 
+    // Determine default source
+    const defaultSource: TemplateField['source'] =
+      isBarcode || key === 'qr_code'
+        ? 'system'
+        : [
+            'student_name',
+            'student_id',
+            'student_photo',
+            'class',
+            'section',
+            'roll_number',
+            'date_of_birth',
+            'blood_group',
+            'father_name',
+            'mother_name',
+            'phone',
+            'emergency_no',
+            'address',
+          ].includes(key)
+        ? 'dynamic'
+        : 'static';
+
     const newField: TemplateField = {
       id: `field-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       key,
-      label: FIELD_LABELS[key] || key,
+      label: options?.label || FIELD_LABELS[key] || key,
+      source: options?.source || defaultSource,
       x: 5.0,
       y: Math.min(heightMm - 10, Math.max(5.0, activeFields.length * 4 + 5)),
       width: defaultW,
@@ -791,7 +814,9 @@ export function TemplateEditor({
       locked: false,
       overflowStrategy: 'wrap',
       customText:
-        key === 'school_logo'
+        options?.customText !== undefined
+          ? options.customText
+          : key === 'school_logo'
           ? effectiveSchoolLogo || undefined
           : key === 'school_name'
           ? (schoolName || 'SPARKNEST ACADEMY')
@@ -806,6 +831,7 @@ export function TemplateEditor({
           : key === 'valid_till'
           ? '31-03-2027'
           : undefined,
+      ...options,
     };
 
     const newFields = [...activeFields, newField];
@@ -2333,9 +2359,34 @@ export function TemplateEditor({
           {selectedField ? (
             <div className="rounded-xl border border-blue-200 bg-white p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
-                  {FIELD_LABELS[selectedField.key] || selectedField.key}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                    {FIELD_LABELS[selectedField.key] || selectedField.label || selectedField.key}
+                  </span>
+
+                  {/* Field Source Classification Badge */}
+                  {(() => {
+                    const isSystem = selectedField.key === 'qr_code' || selectedField.key === 'barcode' || selectedField.source === 'system';
+                    const isDynamic = selectedField.source === 'dynamic' || (!selectedField.source && (
+                      ['student_name', 'student_id', 'student_photo', 'class', 'section', 'roll_number', 'date_of_birth', 'blood_group', 'father_name', 'mother_name', 'phone', 'emergency_no', 'address'].includes(selectedField.key)
+                    ));
+
+                    return (
+                      <span
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider ${
+                          isSystem
+                            ? 'bg-slate-100 text-slate-700 border border-slate-300'
+                            : isDynamic
+                            ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                            : 'bg-amber-100 text-amber-800 border border-amber-300'
+                        }`}
+                      >
+                        {isSystem ? 'System (Auto)' : isDynamic ? 'Dynamic (Student)' : 'Static (Template)'}
+                      </span>
+                    );
+                  })()}
+                </div>
+
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -2367,6 +2418,35 @@ export function TemplateEditor({
                   </button>
                 </div>
               </div>
+
+              {/* Classification & Requirement Settings */}
+              {selectedField.key !== 'qr_code' && selectedField.key !== 'barcode' && selectedField.key !== 'school_logo' && (
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 p-2 border border-slate-200/80">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-bold text-slate-700">Data Source:</label>
+                    <select
+                      value={selectedField.source || (['student_name', 'student_id', 'student_photo', 'class', 'section', 'roll_number', 'date_of_birth', 'blood_group', 'father_name', 'mother_name', 'phone', 'emergency_no', 'address'].includes(selectedField.key) ? 'dynamic' : 'static')}
+                      onChange={(e) => updateSelectedField({ source: e.target.value as any })}
+                      className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-800"
+                    >
+                      <option value="dynamic">Dynamic (From Student / Excel)</option>
+                      <option value="static">Static (Template / Fixed Value)</option>
+                    </select>
+                  </div>
+
+                  {(selectedField.source === 'dynamic' || ['student_name', 'student_id', 'student_photo', 'class', 'section', 'roll_number', 'date_of_birth', 'blood_group', 'father_name', 'mother_name', 'phone', 'emergency_no', 'address'].includes(selectedField.key)) && (
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedField.required ?? (selectedField.key === 'student_name' || selectedField.key === 'student_id')}
+                        onChange={(e) => updateSelectedField({ required: e.target.checked })}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Required</span>
+                    </label>
+                  )}
+                </div>
+              )}
 
               {/* Exact Physical Coordinates (X, Y, W, H in mm) */}
               <div>
@@ -2872,7 +2952,6 @@ export function TemplateEditor({
                     {/* Other Custom / Static Text Fields */}
                     {(selectedField.key === 'custom_text' ||
                       selectedField.key === 'designation' ||
-                      selectedField.key === 'emergency_no' ||
                       selectedField.key === 'valid_till' ||
                       selectedField.key === 'terms' ||
                       selectedField.key === 'website' ||
@@ -2895,17 +2974,16 @@ export function TemplateEditor({
                       selectedField.key !== 'school_subtitle' &&
                       selectedField.key !== 'custom_text' &&
                       selectedField.key !== 'designation' &&
-                      selectedField.key !== 'emergency_no' &&
                       selectedField.key !== 'valid_till' &&
                       selectedField.key !== 'terms' &&
                       selectedField.key !== 'website' && (
                         <label className="block text-xs text-slate-600">
-                          <span>Label Prefix (e.g. "BLOOD GROUP:" or "ID:")</span>
+                          <span>Label Prefix (e.g. "EMERGENCY NO:" or "ID:")</span>
                           <input
                             type="text"
                             value={selectedField.labelPrefix ?? ''}
                             onChange={(e) => updateSelectedField({ labelPrefix: e.target.value })}
-                            placeholder='e.g. "ID:" or "ROLL:"'
+                            placeholder='e.g. "EMERGENCY NO:" or "ID:"'
                             className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
                           />
                         </label>
@@ -3276,10 +3354,30 @@ export function TemplateEditor({
                   </button>
                   <button
                     type="button"
-                    onClick={() => addField('custom_text')}
+                    onClick={() => {
+                      const label = window.prompt('Enter Custom Dynamic Field Label (e.g. Transport Route, House, Blood Group, Course):', 'Transport Route');
+                      if (!label || !label.trim()) return;
+                      const slugKey = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+                      addField(slugKey as any, {
+                        label: label.trim(),
+                        customKey: slugKey,
+                        source: 'dynamic',
+                        dataType: 'text',
+                        required: false,
+                        labelPrefix: `${label.trim()}: `,
+                      });
+                    }}
+                    className="flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.8 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 border border-indigo-200 cursor-pointer"
+                    title="Add a custom dynamic field (e.g. House, Route) that will appear in Add Student and Excel import"
+                  >
+                    + Custom Dynamic Field
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addField('custom_text', { source: 'static', customText: 'Static Notice' })}
                     className="flex items-center gap-1 rounded bg-blue-50 px-2 py-0.8 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 border border-blue-200"
                   >
-                    + Custom Text
+                    + Custom Static Text
                   </button>
                 </div>
               </div>

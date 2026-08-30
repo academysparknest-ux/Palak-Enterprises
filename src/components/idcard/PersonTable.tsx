@@ -88,11 +88,16 @@ export function PersonTable({
                       <Phone size={10} /> {person.phone}
                     </p>
                   )}
+                  {person.emergency_number && (
+                    <p className="font-mono text-[10px] text-amber-700 font-medium flex items-center gap-1" title="Emergency Contact">
+                      <span className="font-bold text-[9px] bg-amber-100 px-1 py-0.2 rounded text-amber-800">EMG</span> {person.emergency_number}
+                    </p>
+                  )}
                   {person.address ? (
                     <p className="text-[11px] text-slate-500 truncate" title={person.address}>
                       {person.address}
                     </p>
-                  ) : !person.phone ? (
+                  ) : !person.phone && !person.emergency_number ? (
                     <span className="text-slate-300">-</span>
                   ) : null}
                 </td>

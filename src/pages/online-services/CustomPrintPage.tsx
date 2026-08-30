@@ -4,10 +4,7 @@ import {
   Printer,
   Upload,
   CheckCircle2,
-  Crop,
-  X,
 } from "lucide-react";
-import { ImageCropModal } from "../../components/ImageCropModal";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
@@ -54,7 +51,6 @@ export const CustomPrintPage: React.FC = () => {
     previewUrl?: string;
   } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [showCropModal, setShowCropModal] = useState<boolean>(false);
 
   // Customer Details
   const [customerName, setCustomerName] = useState<string>(user?.name || "");
@@ -391,30 +387,13 @@ export const CustomPrintPage: React.FC = () => {
                 </label>
                 {uploadedFile ? (
                   <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {uploadedFile.previewUrl ? (
-                        <img src={uploadedFile.previewUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover border border-emerald-300 shrink-0" />
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      )}
-                      <span className="text-xs font-bold text-emerald-900 truncate">{uploadedFile.name}</span>
+                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 truncate">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">{uploadedFile.name}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 ml-2">
-                      {uploadedFile.previewUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setShowCropModal(true)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-2xs transition active:scale-95 cursor-pointer"
-                          title={currentLang === "hi" ? "इमेज क्रॉप करें" : "Crop image"}
-                        >
-                          <Crop className="h-3 w-3 text-emerald-700" />
-                          <span>{currentLang === "hi" ? "क्रॉप" : "Crop"}</span>
-                        </button>
-                      )}
-                      <button type="button" onClick={() => setUploadedFile(null)} className="text-xs text-rose-600 hover:underline cursor-pointer p-1">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <button type="button" onClick={() => setUploadedFile(null)} className="text-xs text-rose-600 hover:underline">
+                      Remove
+                    </button>
                   </div>
                 ) : (
                   <label className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-4 text-center hover:border-[#123B70] cursor-pointer bg-slate-50">
@@ -513,27 +492,6 @@ export const CustomPrintPage: React.FC = () => {
           totalAmount={0}
           customerName={customerName}
           customerPhone={customerPhone}
-        />
-      )}
-
-      {/* Image Crop Modal (Only for images) */}
-      {uploadedFile && uploadedFile.previewUrl && (
-        <ImageCropModal
-          isOpen={showCropModal}
-          imageSrc={uploadedFile.previewUrl}
-          fileName={uploadedFile.name}
-          cropShape="free"
-          title={currentLang === "hi" ? "इमेज क्रॉप एवं अलाइन करें" : "Crop & Position Reference Image"}
-          onClose={() => setShowCropModal(false)}
-          onCropComplete={(croppedFile, previewUrl) => {
-            setUploadedFile({
-              file: croppedFile,
-              name: croppedFile.name,
-              size: croppedFile.size,
-              previewUrl,
-            });
-            setShowCropModal(false);
-          }}
         />
       )}
     </div>

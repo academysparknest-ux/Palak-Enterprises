@@ -14,9 +14,18 @@ export function fieldValue(
   academicYear: string,
   schoolName: string
 ): string {
+  // If explicitly declared static, return template static value without checking student data
+  if (field.source === 'static') {
+    if (field.key === 'school_name') {
+      return field.value || field.customText || schoolName;
+    }
+    return field.value ?? field.customText ?? '';
+  }
+
+  // Explicit or standard dynamic field resolution
   switch (field.key) {
     case 'student_name':
-      return person.name || '';
+      return person.name || (person as any).student_name || '';
     case 'student_id':
       return sanitizeStudentId(person.student_id);
     case 'class':
@@ -40,27 +49,33 @@ export function fieldValue(
     case 'address':
       return person.address ?? '';
     case 'academic_year':
-      return academicYear;
+      return field.value || field.customText || academicYear;
     case 'batch':
-      return academicYear;
+      return field.value || field.customText || academicYear;
     case 'school_name':
-      return field.customText || schoolName;
+      return field.value || field.customText || schoolName;
     case 'school_subtitle':
-      return field.customText || 'Motihari, Bihar';
+      return field.value || field.customText || 'Motihari, Bihar';
     case 'designation':
-      return field.customText || 'Student';
+      return (person as any).designation ?? (person.custom_fields?.designation ?? (field.value || field.customText || 'Student'));
     case 'emergency_no':
-      return field.customText || '';
+      return person.emergency_number ?? (person as any).emergency_no ?? (person.custom_fields?.emergency_no ?? (field.value || field.customText || ''));
     case 'valid_till':
-      return field.customText || '';
+      return field.value || field.customText || '';
     case 'terms':
-      return field.customText || '';
+      return field.value || field.customText || '';
     case 'website':
-      return field.customText || '';
+      return field.value || field.customText || '';
     case 'custom_text':
-      return field.customText ?? '';
-    default:
-      return field.customText ?? '';
+      return field.value ?? field.customText ?? '';
+    default: {
+      // Check if student has custom field value (either top-level or in custom_fields)
+      const customVal = (person as any)[field.key] ?? (person.custom_fields?.[field.key] ?? undefined);
+      if (customVal !== undefined && customVal !== null && String(customVal).trim() !== '') {
+        return String(customVal);
+      }
+      return field.value ?? field.customText ?? '';
+    }
   }
 }
 

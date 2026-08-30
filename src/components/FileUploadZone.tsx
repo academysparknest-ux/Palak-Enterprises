@@ -1,8 +1,7 @@
 import React, { useState, useRef } from "react";
-import { UploadCloud, File, X, CheckCircle2, AlertCircle, Crop } from "lucide-react";
+import { UploadCloud, File, X, CheckCircle2, AlertCircle } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { cn } from "../lib/utils";
-import { ImageCropModal, type CropShapeOption } from "./ImageCropModal";
 
 interface FileUploadZoneProps {
   onFileSelect: (fileData: { name: string; size: number; url: string } | null) => void;
@@ -11,8 +10,6 @@ interface FileUploadZoneProps {
   helperText?: string;
   accept?: string;
   maxSizeMB?: number;
-  enableCrop?: boolean;
-  cropShape?: CropShapeOption;
 }
 
 export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
@@ -22,8 +19,6 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   helperText,
   accept = ".pdf,.jpg,.jpeg,.png,.webp,.docx,.cdr,.ai,.psd",
   maxSizeMB = 25,
-  enableCrop = true,
-  cropShape = "free",
 }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
@@ -31,16 +26,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [isCropOpen, setIsCropOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Check whether the uploaded file is strictly an image
-  const isImageFile = Boolean(
-    selectedFile &&
-      (selectedFile.url?.startsWith("data:image/") ||
-        selectedFile.url?.startsWith("blob:") ||
-        /\.(jpe?g|png|webp|gif|bmp|svg|avif)$/i.test(selectedFile.name || ""))
-  );
 
   const handleProcessFile = (file: File) => {
     setError(null);
@@ -84,7 +70,12 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
       setError(currentLang === "hi" ? "फ़ाइल पढ़ने में त्रुटि हुई" : "Failed to read file");
     };
 
-    reader.readAsDataURL(file);
+    if (file.type.startsWith("image/")) {
+      reader.readAsDataURL(file);
+    } else {
+      // For PDF/doc, we can store dataURL or file name
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -111,26 +102,6 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
     setError(null);
   };
 
-  const handleCropComplete = (croppedFile: File, previewUrl: string) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : previewUrl;
-      onFileSelect({
-        name: croppedFile.name,
-        size: croppedFile.size,
-        url: dataUrl,
-      });
-    };
-    reader.onerror = () => {
-      onFileSelect({
-        name: croppedFile.name,
-        size: croppedFile.size,
-        url: previewUrl,
-      });
-    };
-    reader.readAsDataURL(croppedFile);
-  };
-
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + " B";
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
@@ -150,17 +121,15 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 transition-all duration-300"
           style={{ animation: "scaleIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
         >
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            {isImageFile && selectedFile.url ? (
+          <div className="flex items-center gap-3 min-w-0">
+            {selectedFile.url && selectedFile.url.startsWith("data:image/") ? (
               <img
                 src={selectedFile.url}
                 alt="Preview"
-                className="h-11 w-11 rounded-lg object-cover border border-emerald-300/80 shrink-0 shadow-2xs cursor-pointer hover:opacity-90 transition"
-                onClick={() => enableCrop && setIsCropOpen(true)}
-                title={enableCrop ? (currentLang === "hi" ? "फोटो क्रॉप करें" : "Click to crop image") : undefined}
+                className="h-10 w-10 rounded-lg object-cover border border-emerald-200 shrink-0 shadow-2xs"
               />
             ) : (
-              <div className="h-11 w-11 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
+              <div className="h-10 w-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
                 <File className="h-5 w-5" />
               </div>
             )}
@@ -175,29 +144,14 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 ml-2">
-            {/* Crop Button - Exclusively visible for Image files */}
-            {isImageFile && enableCrop && (
-              <button
-                type="button"
-                onClick={() => setIsCropOpen(true)}
-                className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 hover:text-emerald-950 active:scale-95 shadow-2xs transition cursor-pointer"
-                title={currentLang === "hi" ? "इमेज क्रॉप करें" : "Crop image"}
-              >
-                <Crop className="h-3.5 w-3.5 text-emerald-700" />
-                <span>{currentLang === "hi" ? "क्रॉप" : "Crop"}</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleRemove}
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-emerald-100 hover:text-rose-600 active:scale-95 transition-colors cursor-pointer"
-              title="Remove file"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleRemove}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-emerald-100 hover:text-rose-600 active-press transition-colors ml-2 cursor-pointer"
+            title="Remove file"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       ) : (
         <div
@@ -258,19 +212,6 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           <span>{error}</span>
         </p>
-      )}
-
-      {/* Interactive Crop Modal for Image Files */}
-      {isImageFile && selectedFile && (
-        <ImageCropModal
-          isOpen={isCropOpen}
-          imageSrc={selectedFile.url}
-          fileName={selectedFile.name}
-          cropShape={cropShape}
-          title={currentLang === "hi" ? "फोटो क्रॉप एवं एडजस्ट करें" : "Crop & Position Image"}
-          onClose={() => setIsCropOpen(false)}
-          onCropComplete={handleCropComplete}
-        />
       )}
     </div>
   );

@@ -8,9 +8,7 @@ import {
   AlertCircle,
   Calculator,
   X,
-  Crop,
 } from "lucide-react";
-import { ImageCropModal } from "../../components/ImageCropModal";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
@@ -57,7 +55,6 @@ export const VisitingCardsPage: React.FC = () => {
     previewUrl?: string;
   } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [showCropModal, setShowCropModal] = useState<boolean>(false);
 
   // Customer Details
   const [customerName, setCustomerName] = useState<string>(user?.name || "");
@@ -475,26 +472,13 @@ export const VisitingCardsPage: React.FC = () => {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 ml-2">
-                        {uploadedFile.previewUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setShowCropModal(true)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 shadow-2xs transition active:scale-95 cursor-pointer"
-                            title={currentLang === "hi" ? "इमेज क्रॉप करें" : "Crop image"}
-                          >
-                            <Crop className="h-3.5 w-3.5 text-emerald-700" />
-                            <span>{currentLang === "hi" ? "क्रॉप" : "Crop"}</span>
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setUploadedFile(null)}
-                          className="rounded-lg p-2 text-slate-400 hover:bg-emerald-100 hover:text-rose-600 transition-colors cursor-pointer"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setUploadedFile(null)}
+                        className="rounded-lg p-2 text-slate-400 hover:bg-emerald-100 hover:text-rose-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
                   ) : (
                     <label className="group flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-6 text-center hover:border-[#123B70] hover:bg-blue-50/30 transition-all cursor-pointer">
@@ -945,27 +929,6 @@ export const VisitingCardsPage: React.FC = () => {
           customerPhone={customerPhone}
           paymentMethod={successData.paymentMethod}
           paymentStatus={successData.paymentStatus}
-        />
-      )}
-
-      {/* Image Crop Modal (Only for images) */}
-      {uploadedFile && uploadedFile.previewUrl && (
-        <ImageCropModal
-          isOpen={showCropModal}
-          imageSrc={uploadedFile.previewUrl}
-          fileName={uploadedFile.name}
-          cropShape="16:9"
-          title={currentLang === "hi" ? "विजिटिंग कार्ड डिज़ाइन क्रॉप करें" : "Crop Visiting Card Artwork"}
-          onClose={() => setShowCropModal(false)}
-          onCropComplete={(croppedFile, previewUrl) => {
-            setUploadedFile({
-              file: croppedFile,
-              name: croppedFile.name,
-              size: croppedFile.size,
-              previewUrl,
-            });
-            setShowCropModal(false);
-          }}
         />
       )}
     </div>
