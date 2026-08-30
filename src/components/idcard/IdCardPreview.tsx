@@ -132,6 +132,13 @@ function SingleCardFace({
   const bgImage = sideLayout.backgroundUrl !== undefined ? sideLayout.backgroundUrl : (backgroundUrl ?? null);
   const bgFit = sideLayout.backgroundFit || 'fill';
   const bgSize = bgFit === 'fill' ? '100% 100%' : bgFit === 'fit' ? 'contain' : 'cover';
+  const bgOpacity = (sideLayout.backgroundOpacity ?? 100) / 100;
+  const bgScale = (sideLayout.backgroundScale ?? 100) / 100;
+  const bgOffsetX = sideLayout.backgroundOffsetX ?? 0;
+  const bgOffsetY = sideLayout.backgroundOffsetY ?? 0;
+  const bgBlur = sideLayout.backgroundBlur ?? 0;
+  const bgBrightness = (sideLayout.backgroundBrightness ?? 100) / 100;
+  const bgContrast = (sideLayout.backgroundContrast ?? 100) / 100;
 
   return (
     <div
@@ -140,12 +147,25 @@ function SingleCardFace({
         width: widthMm * scale,
         height: heightMm * scale,
         backgroundColor: sideLayout.backgroundColor || '#FFFFFF',
-        backgroundImage: bgImage ? `url(${bgImage})` : undefined,
-        backgroundSize: bgSize,
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
       }}
     >
+      {/* Background Image Layer with Adjustments */}
+      {bgImage && (
+        <div
+          className="absolute inset-0 pointer-events-none overflow-hidden z-0"
+          style={{
+            backgroundImage: `url(${bgImage})`,
+            backgroundSize: bgSize,
+            backgroundPosition: `${50 + bgOffsetX}% ${50 + bgOffsetY}%`,
+            backgroundRepeat: 'no-repeat',
+            opacity: bgOpacity,
+            transform: `scale(${bgScale})`,
+            transformOrigin: 'center center',
+            filter: `blur(${bgBlur}px) brightness(${bgBrightness}) contrast(${bgContrast})`,
+          }}
+        />
+      )}
+
       {/* Header SVG decoration (only if no background image is active) */}
       {sideLayout.headerSvg && !bgImage && (
         <div

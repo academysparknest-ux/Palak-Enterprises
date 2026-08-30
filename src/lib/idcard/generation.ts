@@ -173,14 +173,41 @@ async function renderSideToCanvas(
   ctx.fillStyle = sideLayout.backgroundColor || '#ffffff';
   ctx.fillRect(0, 0, widthPx, heightPx);
 
-  // Background Image (Front or Back)
+  // Background Image (Front or Back) with Adjustments
   const bgImgSrc = sideLayout.backgroundUrl !== undefined ? sideLayout.backgroundUrl : (backgroundUrl ?? null);
   if (bgImgSrc) {
     try {
       const bg = await loadImage(bgImgSrc);
       const bgFit = sideLayout.backgroundFit || 'fill';
       const fitMode = bgFit === 'fit' ? 'contain' : bgFit === 'crop' ? 'cover' : 'fill';
+      const opacity = Math.max(0, Math.min(1, (sideLayout.backgroundOpacity ?? 100) / 100));
+      const scale = (sideLayout.backgroundScale ?? 100) / 100;
+      const offsetX = ((sideLayout.backgroundOffsetX ?? 0) / 100) * widthPx;
+      const offsetY = ((sideLayout.backgroundOffsetY ?? 0) / 100) * heightPx;
+      const blurPx = sideLayout.backgroundBlur ?? 0;
+      const brightness = (sideLayout.backgroundBrightness ?? 100) / 100;
+      const contrast = (sideLayout.backgroundContrast ?? 100) / 100;
+
+      ctx.save();
+      ctx.globalAlpha = opacity;
+
+      // Apply filter if any
+      const filters: string[] = [];
+      if (blurPx > 0) filters.push(`blur(${blurPx}px)`);
+      if (brightness !== 1) filters.push(`brightness(${brightness})`);
+      if (contrast !== 1) filters.push(`contrast(${contrast})`);
+      if (filters.length > 0 && typeof ctx.filter === 'string') {
+        ctx.filter = filters.join(' ');
+      }
+
+      if (scale !== 1 || offsetX !== 0 || offsetY !== 0) {
+        ctx.translate(widthPx / 2 + offsetX, heightPx / 2 + offsetY);
+        ctx.scale(scale, scale);
+        ctx.translate(-widthPx / 2, -heightPx / 2);
+      }
+
       drawImageFitted(ctx, bg, 0, 0, widthPx, heightPx, fitMode);
+      ctx.restore();
     } catch {
       // Ignore background image load failure gracefully
     }

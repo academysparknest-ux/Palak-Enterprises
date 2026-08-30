@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, useParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
-import { getIdCardProject, updateIdCardProject } from '../../../lib/idcard/database';
+import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { Loader2, Trash2 } from 'lucide-react';
+import { getIdCardProject, updateIdCardProject, deleteIdCardProject } from '../../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors';
 import type { IdCardProject, ProjectStatus } from '../../../lib/idcard/types';
 
@@ -19,7 +19,9 @@ const STATUS_OPTIONS: ProjectStatus[] = ['DRAFT', 'ACTIVE', 'COMPLETED', 'ARCHIV
 
 export default function IdCardProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const [state, setState] = useState<PageState>({ kind: 'loading' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -46,6 +48,24 @@ export default function IdCardProjectPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!projectId || state.kind !== 'ready') return;
+    const ok = window.confirm(
+      `Are you sure you want to permanently delete "${state.project.name}"?\n\nThis will remove all students, uploaded photos, and templates. This action cannot be undone.`
+    );
+    if (!ok) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteIdCardProject(projectId);
+      navigate('/admin/id-cards', { replace: true });
+    } catch (err) {
+      setIsDeleting(false);
+      const appError = classifySupabaseError(err);
+      alert(`Failed to delete project: ${errorCodeToUserMessage(appError.code, appError.message)}`);
+    }
+  }
+
   if (state.kind === 'loading') {
     return (
       <div className="flex h-64 items-center justify-center text-slate-400">
@@ -69,22 +89,34 @@ export default function IdCardProjectPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
           <p className="mt-0.5 text-sm text-slate-500">{project.academic_year}</p>
         </div>
-        <select
-          value={project.status}
-          onChange={(e) => handleStatusChange(e.target.value as ProjectStatus)}
-          className="rounded-md border border-slate-200 px-2.5 py-1.5 text-sm"
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={project.status}
+            onChange={(e) => handleStatusChange(e.target.value as ProjectStatus)}
+            className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-xs focus:border-slate-400 focus:outline-none"
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 shadow-xs hover:bg-red-50 hover:border-red-300 disabled:opacity-50 transition cursor-pointer"
+            title="Delete Project"
+          >
+            {isDeleting ? <Loader2 size={15} className="animate-spin text-red-600" /> : <Trash2 size={15} />}
+            <span>Delete</span>
+          </button>
+        </div>
       </div>
 
       <nav className="mt-6 flex gap-1 border-b border-slate-200">

@@ -1,41 +1,79 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Loader2 } from 'lucide-react';
-import { getIdCardProjects, createIdCardProject } from '../../../lib/idcard/database';
+import { Link } from 'react-router-dom';
+import { Plus, Search, Loader2, AlertCircle, LogIn } from 'lucide-react';
+import { getIdCardProjects, createIdCardProject, deleteIdCardProject } from '../../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors';
 import { projectSchema } from '../../../lib/idcard/validation';
-import type { IdCardProject } from '../../../lib/idcard/types';
+import type { IdCardProject, AppErrorCode } from '../../../lib/idcard/types';
 import { ProjectCard } from '../../../components/idcard/ProjectCard';
+import { useAuth } from '../../../context/AuthContext';
 
 type PageState =
   | { kind: 'loading' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; code: AppErrorCode }
   | { kind: 'ready'; projects: IdCardProject[] };
 
 export default function IdCardProjectsPage() {
+  const { loading: authLoading, isAuthenticated, refreshSession } = useAuth();
   const [state, setState] = useState<PageState>({ kind: 'loading' });
   const [search, setSearch] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const load = useCallback(async (searchTerm?: string) => {
     setState({ kind: 'loading' });
     try {
+      if (import.meta.env.DEV) {
+        console.debug('[IDCardProjects] Fetching projects...', { search: searchTerm });
+      }
       const projects = await getIdCardProjects(searchTerm ? { search: searchTerm } : undefined);
       setState({ kind: 'ready', projects });
     } catch (err) {
       const appError = classifySupabaseError(err);
-      setState({ kind: 'error', message: errorCodeToUserMessage(appError.code) });
+      if (import.meta.env.DEV) {
+        console.warn('[IDCardProjects] Project load error:', appError);
+      }
+      setState({
+        kind: 'error',
+        message: errorCodeToUserMessage(appError.code),
+        code: appError.code,
+      });
     }
   }, []);
 
+  // Single unified debounced effect: waits for auth loading before firing
   useEffect(() => {
-    load();
-  }, [load]);
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      setState({
+        kind: 'error',
+        message: 'Your session has expired. Please sign in again.',
+        code: 'AUTH_REQUIRED',
+      });
+      return;
+    }
 
-  useEffect(() => {
-    const timeout = setTimeout(() => load(search || undefined), 300);
+    const timeout = setTimeout(() => {
+      load(search || undefined);
+    }, search ? 300 : 0);
+
     return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
+
+  const handleDeleteProject = async (project: IdCardProject) => {
+    const ok = window.confirm(
+      `Are you sure you want to delete "${project.name}" (${project.academic_year})?\n\nThis will permanently delete this project, all associated student records, uploaded photos, and templates.`
+    );
+    if (!ok) return;
+
+    try {
+      await deleteIdCardProject(project.id);
+      await load(search || undefined);
+    } catch (err) {
+      const appError = classifySupabaseError(err);
+      alert(`Failed to delete project: ${errorCodeToUserMessage(appError.code)}`);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -84,7 +122,7 @@ export default function IdCardProjectsPage() {
         {state.kind === 'ready' && state.projects.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {state.projects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard key={project.id} project={project} onDelete={handleDeleteProject} />
             ))}
           </div>
         )}

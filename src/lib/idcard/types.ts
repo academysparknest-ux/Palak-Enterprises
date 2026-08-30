@@ -96,6 +96,14 @@ export interface TemplateSideLayout {
   backgroundColor: string;
   backgroundUrl?: string | null;
   backgroundFit?: 'fill' | 'fit' | 'crop';
+  backgroundOpacity?: number; // 0 to 100 (%)
+  backgroundPosition?: string; // 'center' | 'top' | 'bottom' | 'left' | 'right'
+  backgroundScale?: number; // 50 to 200 (%)
+  backgroundOffsetX?: number; // -50 to 50 (%)
+  backgroundOffsetY?: number; // -50 to 50 (%)
+  backgroundBlur?: number; // 0 to 20 (px)
+  backgroundBrightness?: number; // 50 to 150 (%)
+  backgroundContrast?: number; // 50 to 150 (%)
   headerSvg?: string | null;
   footerSvg?: string | null;
   headerGradientColors?: [string, string] | null;
@@ -128,6 +136,14 @@ export interface TemplateLayout {
   backgroundColor: string;
   backgroundUrl?: string | null; // Front background image
   backgroundFit?: 'fill' | 'fit' | 'crop';
+  backgroundOpacity?: number; // 0 to 100 (%)
+  backgroundPosition?: string; // 'center' | 'top' | 'bottom' | 'left' | 'right'
+  backgroundScale?: number; // 50 to 200 (%)
+  backgroundOffsetX?: number; // -50 to 50 (%)
+  backgroundOffsetY?: number; // -50 to 50 (%)
+  backgroundBlur?: number; // 0 to 20 (px)
+  backgroundBrightness?: number; // 50 to 150 (%)
+  backgroundContrast?: number; // 50 to 150 (%)
   schoolLogoUrl?: string | null; // School / Organization logo URL
   headerSvg?: string | null; // SVG markup for header decoration
   footerSvg?: string | null; // SVG markup for footer decoration

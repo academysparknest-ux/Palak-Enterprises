@@ -22,6 +22,10 @@ import {
   LayoutTemplate,
   Building2,
   Image as ImageIcon,
+  Sliders,
+  RotateCcw,
+  Sparkles,
+  Move,
 } from 'lucide-react';
 import {
   FIELD_LABELS,
@@ -104,6 +108,7 @@ export function TemplateEditor({
     savedTemplates.length > 0 ? 'saved' : 'presets'
   );
   const [aspectWarning, setAspectWarning] = useState<string | null>(null);
+  const [showBgFilters, setShowBgFilters] = useState<boolean>(false);
 
   // History for Undo/Redo
   const [history, setHistory] = useState<HistoryEntry[]>([
@@ -175,10 +180,61 @@ export function TemplateEditor({
     currentSide === 'front'
       ? layout.backgroundFit || 'fill'
       : layout.back?.backgroundFit || 'fill';
+  const activeBgOpacity =
+    currentSide === 'front'
+      ? (layout.backgroundOpacity ?? 100)
+      : (layout.back?.backgroundOpacity ?? 100);
+  const activeBgScale =
+    currentSide === 'front'
+      ? (layout.backgroundScale ?? 100)
+      : (layout.back?.backgroundScale ?? 100);
+  const activeBgOffsetX =
+    currentSide === 'front'
+      ? (layout.backgroundOffsetX ?? 0)
+      : (layout.back?.backgroundOffsetX ?? 0);
+  const activeBgOffsetY =
+    currentSide === 'front'
+      ? (layout.backgroundOffsetY ?? 0)
+      : (layout.back?.backgroundOffsetY ?? 0);
+  const activeBgBlur =
+    currentSide === 'front'
+      ? (layout.backgroundBlur ?? 0)
+      : (layout.back?.backgroundBlur ?? 0);
+  const activeBgBrightness =
+    currentSide === 'front'
+      ? (layout.backgroundBrightness ?? 100)
+      : (layout.back?.backgroundBrightness ?? 100);
+  const activeBgContrast =
+    currentSide === 'front'
+      ? (layout.backgroundContrast ?? 100)
+      : (layout.back?.backgroundContrast ?? 100);
   const activeHeaderSvg =
     currentSide === 'front' ? layout.headerSvg : layout.back?.headerSvg || null;
   const activeFooterSvg =
     currentSide === 'front' ? layout.footerSvg : layout.back?.footerSvg || null;
+
+  // Function to update background adjustments for active side
+  function updateActiveBackground(updates: Partial<TemplateSideLayout>) {
+    if (currentSide === 'front') {
+      const nextLayout: TemplateLayout = {
+        ...layout,
+        ...updates,
+      };
+      onChange(nextLayout);
+      pushHistory(nextLayout);
+    } else {
+      const currentBack = layout.back || { backgroundColor: '#FFFFFF', fields: [] };
+      const nextLayout: TemplateLayout = {
+        ...layout,
+        back: {
+          ...currentBack,
+          ...updates,
+        },
+      };
+      onChange(nextLayout);
+      pushHistory(nextLayout);
+    }
+  }
 
   // Selected Field object
   const selectedField = activeFields.find((f) => f.id === selectedFieldId) || null;
@@ -1053,22 +1109,37 @@ export function TemplateEditor({
           <div
             ref={canvasRef}
             onMouseDown={handleCanvasMouseDown}
-            className="relative select-none rounded-md bg-white shadow-xl transition-all"
+            className="relative select-none rounded-md bg-white shadow-xl transition-all overflow-hidden"
             style={{
               width: widthMm * pxPerMm,
               height: heightMm * pxPerMm,
               backgroundColor: activeBgColor,
-              backgroundImage: activeBgImage ? `url(${activeBgImage})` : undefined,
-              backgroundSize:
-                activeBgFit === 'fill' ? '100% 100%' : activeBgFit === 'fit' ? 'contain' : 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
             }}
           >
+            {/* Background Image Layer with full Adjustments */}
+            {activeBgImage && (
+              <div
+                className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+                style={{
+                  backgroundImage: `url(${activeBgImage})`,
+                  backgroundSize:
+                    activeBgFit === 'fill' ? '100% 100%' : activeBgFit === 'fit' ? 'contain' : 'cover',
+                  backgroundPosition: `${50 + activeBgOffsetX}% ${50 + activeBgOffsetY}%`,
+                  backgroundRepeat: 'no-repeat',
+                  opacity: activeBgOpacity / 100,
+                  transform: `scale(${activeBgScale / 100})`,
+                  transformOrigin: 'center center',
+                  filter: `blur(${activeBgBlur}px) brightness(${activeBgBrightness / 100}) contrast(${activeBgContrast / 100})`,
+                }}
+              />
+            )}
+
             {/* Locked Background Indicator */}
             {activeBgImage && (
-              <div className="pointer-events-none absolute bottom-1 right-1 z-0 rounded bg-black/40 px-1.5 py-0.5 text-[9px] font-medium text-white/80 backdrop-blur-xs">
-                Background Locked
+              <div className="pointer-events-none absolute bottom-1 right-1 z-0 rounded bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-white/90 backdrop-blur-xs shadow-2xs flex items-center gap-1">
+                <span>BG: {activeBgFit}</span>
+                {activeBgOpacity < 100 && <span>· {activeBgOpacity}%</span>}
+                {activeBgScale !== 100 && <span>· {activeBgScale}% zoom</span>}
               </div>
             )}
 
@@ -1385,34 +1456,294 @@ export function TemplateEditor({
               </label>
             </div>
 
-            {/* Upload Design Background Image */}
-            <div className="border-t border-slate-100 pt-3 space-y-2">
-              <p className="text-xs font-semibold text-slate-700">
-                {currentSide === 'front' ? 'Front Design Image' : 'Back Design Image'}
-              </p>
-
-              {activeBgImage ? (
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <img
-                      src={activeBgImage}
-                      alt="Background preview"
-                      className="h-10 w-14 rounded object-cover border border-slate-300"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-slate-800 truncate">
-                        {currentSide === 'front' ? 'Front Background' : 'Back Background'}
-                      </p>
-                      <p className="text-[10px] text-emerald-600 font-medium">Locked & Active</p>
-                    </div>
-                  </div>
+            {/* Upload & Adjust Design Background Image */}
+            <div className="border-t border-slate-100 pt-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Sliders size={13} className="text-indigo-600" />
+                  {currentSide === 'front' ? 'Front Background Image' : 'Back Background Image'}
+                </p>
+                {activeBgImage && (
                   <button
                     type="button"
-                    onClick={() => removeBackground(currentSide)}
-                    className="text-xs text-rose-600 hover:underline font-semibold"
+                    onClick={() => {
+                      updateActiveBackground({
+                        backgroundFit: 'fill',
+                        backgroundOpacity: 100,
+                        backgroundScale: 100,
+                        backgroundOffsetX: 0,
+                        backgroundOffsetY: 0,
+                        backgroundBlur: 0,
+                        backgroundBrightness: 100,
+                        backgroundContrast: 100,
+                      });
+                    }}
+                    title="Reset all background adjustments"
+                    className="text-[10px] text-slate-500 hover:text-indigo-600 flex items-center gap-1 cursor-pointer font-medium"
                   >
-                    Remove
+                    <RotateCcw size={10} /> Reset
                   </button>
+                )}
+              </div>
+
+              {activeBgImage ? (
+                <div className="space-y-3 rounded-lg border border-indigo-100 bg-indigo-50/40 p-2.5">
+                  {/* Thumbnail & Actions */}
+                  <div className="flex items-center justify-between gap-2 rounded-md bg-white p-2 border border-slate-200 shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <img
+                        src={activeBgImage}
+                        alt="Background preview"
+                        className="h-10 w-14 rounded object-cover border border-slate-300 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-slate-800 truncate">
+                          {currentSide === 'front' ? 'Front Side BG' : 'Back Side BG'}
+                        </p>
+                        <p className="text-[10px] text-emerald-600 font-medium">Active Background</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <label className="text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded cursor-pointer transition border border-indigo-200/60">
+                        Change
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleBackgroundUpload(file, currentSide);
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeBackground(currentSide)}
+                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded cursor-pointer transition border border-rose-200/60"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 1. Sizing / Fit Mode */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Fitting Mode
+                    </label>
+                    <div className="grid grid-cols-3 gap-1 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => updateActiveBackground({ backgroundFit: 'fill' })}
+                        className={`rounded px-1.5 py-1 text-center font-semibold transition cursor-pointer ${
+                          activeBgFit === 'fill'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Stretch (Fill)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateActiveBackground({ backgroundFit: 'crop' })}
+                        className={`rounded px-1.5 py-1 text-center font-semibold transition cursor-pointer ${
+                          activeBgFit === 'crop'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Cover (Crop)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateActiveBackground({ backgroundFit: 'fit' })}
+                        className={`rounded px-1.5 py-1 text-center font-semibold transition cursor-pointer ${
+                          activeBgFit === 'fit'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        Contain (Fit)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Opacity / Watermark Control */}
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-700 mb-1">
+                      <span className="font-bold">Opacity / Watermark</span>
+                      <span className="font-mono font-bold text-indigo-700">{activeBgOpacity}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="100"
+                      step="1"
+                      value={activeBgOpacity}
+                      onChange={(e) => updateActiveBackground({ backgroundOpacity: Number(e.target.value) })}
+                      className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                    <div className="flex items-center gap-1 mt-1">
+                      {[100, 75, 50, 20].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => updateActiveBackground({ backgroundOpacity: val })}
+                          className={`text-[10px] px-1.5 py-0.5 rounded cursor-pointer transition ${
+                            activeBgOpacity === val
+                              ? 'bg-indigo-600 text-white font-bold'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {val === 100 ? '100% Solid' : val === 20 ? '20% Watermark' : `${val}%`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Zoom & Scale */}
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-700 mb-1">
+                      <span className="font-bold">Zoom & Scale</span>
+                      <span className="font-mono font-bold text-indigo-700">{activeBgScale}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="50"
+                      max="200"
+                      step="1"
+                      value={activeBgScale}
+                      onChange={(e) => updateActiveBackground({ backgroundScale: Number(e.target.value) })}
+                      className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* 4. Position Offset X & Y */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-700">
+                      <span className="font-bold flex items-center gap-1">
+                        <Move size={11} className="text-indigo-600" /> Position Alignment
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => updateActiveBackground({ backgroundOffsetX: 0, backgroundOffsetY: 0 })}
+                          className="text-[9.5px] px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 font-medium cursor-pointer"
+                        >
+                          Center
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateActiveBackground({ backgroundOffsetX: 0, backgroundOffsetY: -25 })}
+                          className="text-[9.5px] px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 font-medium cursor-pointer"
+                        >
+                          Top
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateActiveBackground({ backgroundOffsetX: 0, backgroundOffsetY: 25 })}
+                          className="text-[9.5px] px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 font-medium cursor-pointer"
+                        >
+                          Bottom
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block text-[10px] text-slate-600">
+                        <span>Horiz Offset ({activeBgOffsetX > 0 ? `+${activeBgOffsetX}` : activeBgOffsetX}%)</span>
+                        <input
+                          type="range"
+                          min="-50"
+                          max="50"
+                          step="1"
+                          value={activeBgOffsetX}
+                          onChange={(e) => updateActiveBackground({ backgroundOffsetX: Number(e.target.value) })}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mt-1"
+                        />
+                      </label>
+                      <label className="block text-[10px] text-slate-600">
+                        <span>Vert Offset ({activeBgOffsetY > 0 ? `+${activeBgOffsetY}` : activeBgOffsetY}%)</span>
+                        <input
+                          type="range"
+                          min="-50"
+                          max="50"
+                          step="1"
+                          value={activeBgOffsetY}
+                          onChange={(e) => updateActiveBackground({ backgroundOffsetY: Number(e.target.value) })}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mt-1"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 5. Advanced Image Filters (Blur, Brightness, Contrast) */}
+                  <div className="border-t border-indigo-100 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowBgFilters(!showBgFilters)}
+                      className="flex items-center justify-between w-full text-[11px] font-semibold text-indigo-800 hover:text-indigo-950 cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1">
+                        <Sparkles size={11} /> Filters & Effects (Blur, Brightness)
+                      </span>
+                      <span className="text-[10px]">{showBgFilters ? '▲ Hide' : '▼ Adjust'}</span>
+                    </button>
+
+                    {showBgFilters && (
+                      <div className="mt-2 space-y-2 rounded-md bg-white p-2 border border-slate-200">
+                        {/* Blur */}
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-600 mb-0.5">
+                            <span>Blur Effect</span>
+                            <span className="font-mono">{activeBgBlur}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            step="0.5"
+                            value={activeBgBlur}
+                            onChange={(e) => updateActiveBackground({ backgroundBlur: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                          />
+                        </div>
+
+                        {/* Brightness */}
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-600 mb-0.5">
+                            <span>Brightness</span>
+                            <span className="font-mono">{activeBgBrightness}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="50"
+                            max="150"
+                            step="1"
+                            value={activeBgBrightness}
+                            onChange={(e) => updateActiveBackground({ backgroundBrightness: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                          />
+                        </div>
+
+                        {/* Contrast */}
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-600 mb-0.5">
+                            <span>Contrast</span>
+                            <span className="font-mono">{activeBgContrast}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="50"
+                            max="150"
+                            step="1"
+                            value={activeBgContrast}
+                            onChange={(e) => updateActiveBackground({ backgroundContrast: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/50 p-3 hover:bg-slate-100 transition">
@@ -1420,7 +1751,7 @@ export function TemplateEditor({
                   <span className="text-xs font-semibold text-slate-700">
                     Upload {currentSide === 'front' ? 'Front' : 'Back'} Design (PNG/JPG)
                   </span>
-                  <span className="text-[10px] text-slate-400">Becomes immutable locked background</span>
+                  <span className="text-[10px] text-slate-400">Becomes customizable background image</span>
                   <input
                     type="file"
                     accept="image/*"

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Loader2, AlertCircle, LogIn } from 'lucide-react';
-import { getIdCardProjects, createIdCardProject } from '../../../lib/idcard/database';
+import { getIdCardProjects, createIdCardProject, deleteIdCardProject } from '../../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors';
 import { projectSchema } from '../../../lib/idcard/validation';
 import type { IdCardProject, AppErrorCode } from '../../../lib/idcard/types';
@@ -69,6 +69,21 @@ export default function IdCardProjectsPage() {
       await load(search || undefined);
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  const handleDeleteProject = async (project: IdCardProject) => {
+    const ok = window.confirm(
+      `Are you sure you want to delete "${project.name}" (${project.academic_year})?\n\nThis will permanently delete this project, all associated student records, uploaded photos, and templates.`
+    );
+    if (!ok) return;
+
+    try {
+      await deleteIdCardProject(project.id);
+      await load(search || undefined);
+    } catch (err) {
+      const appError = classifySupabaseError(err);
+      alert(`Failed to delete project: ${errorCodeToUserMessage(appError.code, appError.message)}`);
     }
   };
 
@@ -148,7 +163,7 @@ export default function IdCardProjectsPage() {
         {state.kind === 'ready' && state.projects.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {state.projects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard key={project.id} project={project} onDelete={handleDeleteProject} />
             ))}
           </div>
         )}
