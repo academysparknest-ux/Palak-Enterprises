@@ -40,6 +40,8 @@ import {
   ArrowUpDown,
   Columns,
   Rows,
+  Star,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   FIELD_LABELS,
@@ -48,8 +50,6 @@ import {
   getCustomDefaultTemplate,
   saveCustomDefaultTemplate,
   clearCustomDefaultTemplate,
-  getDefaultTemplateLayout,
-  getDefaultCardDimensions,
   type TemplatePreset,
   type CustomDefaultTemplate,
 } from '../../lib/idcard/templatePresets';
