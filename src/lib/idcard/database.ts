@@ -197,12 +197,44 @@ export async function getIdCardPerson(id: string): Promise<IdCardPerson> {
   );
 }
 
+// ============================================================
+// SCHEMA RESILIENCE: Auto-detect & adapt to remote DB columns
+// ============================================================
+
+const unsupportedPersonColumns = new Set<string>();
+
+function isSchemaColumnError(err: any): { isSchemaError: boolean; missingColumn?: string } {
+  if (!err) return { isSchemaError: false };
+  const msg = String(err.message || err.error || err || '');
+  const code = String(err.code || '');
+
+  if (
+    code === 'PGRST204' ||
+    /Could not find the '([^']+)' column of 'idcard_persons' in the schema cache/i.test(msg) ||
+    /column "([^"]+)" of relation "idcard_persons" does not exist/i.test(msg) ||
+    /in the schema cache/i.test(msg)
+  ) {
+    const match = msg.match(/Could not find the '([^']+)' column/i) || msg.match(/column "([^"]+)"/i);
+    const col = match ? match[1] : undefined;
+    return { isSchemaError: true, missingColumn: col };
+  }
+  return { isSchemaError: false };
+}
+
+function cleanPersonPayload<T extends Record<string, any>>(payload: T): T {
+  const result: Record<string, any> = { ...payload };
+  for (const col of unsupportedPersonColumns) {
+    delete result[col];
+  }
+  return result as T;
+}
+
 export async function createIdCardPerson(
   input: Omit<IdCardPerson, 'id' | 'created_at' | 'updated_at'>
 ): Promise<IdCardPerson> {
   return executeWithAuthRetry(
     async (client) => {
-      const sanitized: Record<string, any> = {
+      let sanitized: Record<string, any> = {
         project_id: input.project_id,
         student_id: input.student_id,
         name: input.name,
@@ -222,7 +254,23 @@ export async function createIdCardPerson(
       if (input.custom_fields && Object.keys(input.custom_fields).length > 0) {
         sanitized.custom_fields = input.custom_fields;
       }
-      const { data, error } = await client.from('idcard_persons').insert(sanitized).select().single();
+      sanitized = cleanPersonPayload(sanitized);
+
+      let { data, error } = await client.from('idcard_persons').insert(sanitized).select().single();
+
+      // If database reports column not in schema cache, strip column and retry automatically
+      if (error) {
+        const check = isSchemaColumnError(error);
+        if (check.isSchemaError && check.missingColumn) {
+          console.warn(`[IDCard Schema] Column '${check.missingColumn}' not in idcard_persons table; auto-adapting and retrying.`);
+          unsupportedPersonColumns.add(check.missingColumn);
+          delete sanitized[check.missingColumn];
+          const retryRes = await client.from('idcard_persons').insert(sanitized).select().single();
+          data = retryRes.data;
+          error = retryRes.error;
+        }
+      }
+
       if (error) throw classifySupabaseError(error);
       const person = data as IdCardPerson;
       auditStudentCreated(person.project_id, person.student_id, person.name);
@@ -237,7 +285,7 @@ export async function createIdCardPersonsBulk(
 ): Promise<{ inserted: number }> {
   return executeWithAuthRetry(
     async (client) => {
-      const sanitized = inputs.map((input) => {
+      let sanitized = inputs.map((input) => {
         const row: Record<string, any> = {
           project_id: input.project_id,
           student_id: input.student_id,
@@ -254,13 +302,32 @@ export async function createIdCardPersonsBulk(
           address: input.address ?? null,
           photo_url: input.photo_url ?? null,
         };
-        // Include custom fields if present (fixes H5: custom fields were silently dropped)
         if (input.custom_fields && Object.keys(input.custom_fields).length > 0) {
           row.custom_fields = input.custom_fields;
         }
-        return row;
+        return cleanPersonPayload(row);
       });
-      const { error, count } = await client.from('idcard_persons').insert(sanitized, { count: 'exact' });
+
+      let { error, count } = await client.from('idcard_persons').insert(sanitized, { count: 'exact' });
+
+      // If database reports column not in schema cache, strip column and retry automatically
+      if (error) {
+        const check = isSchemaColumnError(error);
+        if (check.isSchemaError && check.missingColumn) {
+          console.warn(`[IDCard Schema] Column '${check.missingColumn}' not in idcard_persons table; auto-adapting bulk payload.`);
+          unsupportedPersonColumns.add(check.missingColumn);
+          const colToStrip = check.missingColumn;
+          sanitized = sanitized.map((r) => {
+            const copy = { ...r };
+            delete copy[colToStrip];
+            return copy;
+          });
+          const retryRes = await client.from('idcard_persons').insert(sanitized, { count: 'exact' });
+          error = retryRes.error;
+          count = retryRes.count;
+        }
+      }
+
       if (error) throw classifySupabaseError(error);
       const inserted = count ?? inputs.length;
       // Audit log for bulk import
@@ -296,15 +363,29 @@ export async function updateIdCardPerson(
         'custom_fields',
         'status',
       ];
-      const sanitized: Record<string, any> = {};
+      let sanitized: Record<string, any> = {};
       const changedFields: string[] = [];
       for (const col of allowedCols) {
-        if ((patch as any)[col] !== undefined) {
+        if ((patch as any)[col] !== undefined && !unsupportedPersonColumns.has(col)) {
           sanitized[col] = (patch as any)[col];
           changedFields.push(col);
         }
       }
-      const { data, error } = await client.from('idcard_persons').update(sanitized).eq('id', id).select().single();
+      let { data, error } = await client.from('idcard_persons').update(sanitized).eq('id', id).select().single();
+
+      // If database reports column not in schema cache, strip column and retry automatically
+      if (error) {
+        const check = isSchemaColumnError(error);
+        if (check.isSchemaError && check.missingColumn) {
+          console.warn(`[IDCard Schema] Column '${check.missingColumn}' not in idcard_persons table; auto-adapting update payload.`);
+          unsupportedPersonColumns.add(check.missingColumn);
+          delete sanitized[check.missingColumn];
+          const retryRes = await client.from('idcard_persons').update(sanitized).eq('id', id).select().single();
+          data = retryRes.data;
+          error = retryRes.error;
+        }
+      }
+
       if (error) throw classifySupabaseError(error);
       const person = data as IdCardPerson;
       auditStudentUpdated(person.project_id, person.student_id, person.name, changedFields);
