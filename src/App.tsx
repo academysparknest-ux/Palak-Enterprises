@@ -128,6 +128,8 @@ export function AppContent() {
   const [modalService, setModalService] = useState<ServiceItem | null>(null);
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const isVerifyRoute = location.pathname.startsWith('/verify');
+  const hideChrome = isAdminRoute || isVerifyRoute;
 
   // Catalog synchronization from Supabase: Gated strictly behind auth initialization
   useEffect(() => {
@@ -196,13 +198,13 @@ export function AppContent() {
   return (
     <div className={cn(
       "min-h-screen flex flex-col bg-[#FAF8F5] font-sans selection:bg-[#123B70] selection:text-white",
-      !isAdminRoute && "pb-16 md:pb-0"
+      !hideChrome && "pb-16 md:pb-0"
     )}>
       <StructuredData />
       <ScrollToTop />
 
-      {/* Global Header Navigation — Hidden on Admin Control Center Routes */}
-      {!isAdminRoute && <Header onOpenRequestModal={() => handleOpenRequestModal()} />}
+      {/* Global Header Navigation — Hidden on Admin Control Center & Verification Routes */}
+      {!hideChrome && <Header onOpenRequestModal={() => handleOpenRequestModal()} />}
 
       {/* Dynamic Page Routes with ErrorBoundary and Suspense */}
       <main className="flex-grow">
@@ -419,8 +421,8 @@ export function AppContent() {
         </ErrorBoundary>
       </main>
 
-      {/* Customer Footer, Floating Actions & Bottom Nav — Hidden on Admin Routes */}
-      {!isAdminRoute && (
+      {/* Customer Footer, Floating Actions & Bottom Nav — Hidden on Admin & Verification Routes */}
+      {!hideChrome && (
         <>
           <Footer />
           <FloatingActions />
