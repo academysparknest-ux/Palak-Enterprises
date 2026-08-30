@@ -4,8 +4,6 @@ import {
   parseSpreadsheetFile,
   generateSampleCsv,
   generateSampleExcelBlob,
-  generateFullRosterSampleCsv,
-  generateFullRosterSampleExcelBlob,
 } from '../../lib/idcard/csvImport';
 import { createIdCardPersonsBulk } from '../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../lib/idcard/errors';
@@ -35,26 +33,15 @@ export function CsvImportModal({
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(template?.layout), [template]);
-  const frontFields = fieldSchema.items.filter((f) => f.side === 'front' || f.side === 'both');
-  const backFields = fieldSchema.items.filter((f) => f.side === 'back' || f.side === 'both');
+  const frontFields = fieldSchema.studentInputFields.filter((f) => f.side === 'front' || f.side === 'both');
+  const backFields = fieldSchema.studentInputFields.filter((f) => f.side === 'back' || f.side === 'both');
 
   function handleDownloadTemplateExcel() {
     const blob = generateSampleExcelBlob(template);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${(template?.name || 'template').toLowerCase().replace(/\s+/g, '_')}_fields.xlsx`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setShowDownloadMenu(false);
-  }
-
-  function handleDownloadFullExcel() {
-    const blob = generateFullRosterSampleExcelBlob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'full_student_roster_template.xlsx';
+    link.download = `${(template?.name || 'student_id_template').toLowerCase().replace(/\s+/g, '_')}.xlsx`;
     link.click();
     URL.revokeObjectURL(url);
     setShowDownloadMenu(false);
@@ -66,19 +53,7 @@ export function CsvImportModal({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${(template?.name || 'students').toLowerCase().replace(/\s+/g, '_')}_sample.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setShowDownloadMenu(false);
-  }
-
-  function handleDownloadFullCsv() {
-    const csvContent = generateFullRosterSampleCsv();
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'full_student_roster_template.csv';
+    link.download = `${(template?.name || 'student_id_template').toLowerCase().replace(/\s+/g, '_')}.csv`;
     link.click();
     URL.revokeObjectURL(url);
     setShowDownloadMenu(false);
@@ -167,7 +142,7 @@ export function CsvImportModal({
             </div>
           </div>
 
-          {/* Download Dropdown */}
+          {/* Download Dropdown (2 Options Only: Excel & CSV) */}
           <div className="relative">
             <button
               type="button"
@@ -180,39 +155,27 @@ export function CsvImportModal({
             </button>
 
             {showDownloadMenu && (
-              <div className="absolute right-0 mt-1 w-64 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl z-20 text-xs">
-                <button
-                  type="button"
-                  onClick={handleDownloadFullExcel}
-                  className="w-full text-left rounded-lg p-2 hover:bg-emerald-50 text-slate-800 hover:text-emerald-900 font-semibold cursor-pointer"
-                >
-                  <p className="text-xs font-bold text-emerald-800">Full Standard Excel (.xlsx)</p>
-                  <p className="text-[10px] text-slate-500 font-normal">All student fields (Front + Back details)</p>
-                </button>
-
+              <div className="absolute right-0 mt-1 w-60 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl z-20 text-xs animate-in fade-in zoom-in-95 duration-150">
                 <button
                   type="button"
                   onClick={handleDownloadTemplateExcel}
-                  className="w-full text-left rounded-lg p-2 hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer border-t border-slate-100 mt-1"
+                  className="w-full text-left rounded-lg p-2.5 hover:bg-emerald-50 text-slate-800 hover:text-emerald-900 font-semibold cursor-pointer transition"
                 >
-                  <p className="text-xs font-bold text-slate-800">Template-Specific Excel (.xlsx)</p>
-                  <p className="text-[10px] text-slate-500 font-normal">Only columns in active template</p>
+                  <p className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                    <FileSpreadsheet size={14} className="text-emerald-600" /> Excel Template (.xlsx)
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-normal pl-5">Template fields for student import</p>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleDownloadSampleCsv}
-                  className="w-full text-left rounded-lg p-2 hover:bg-slate-50 text-slate-700 cursor-pointer border-t border-slate-100 mt-1"
+                  className="w-full text-left rounded-lg p-2.5 hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer border-t border-slate-100 mt-1 transition"
                 >
-                  <p className="text-xs font-medium">Template-Specific CSV (.csv)</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadFullCsv}
-                  className="w-full text-left rounded-lg p-2 hover:bg-slate-50 text-slate-700 cursor-pointer border-t border-slate-100 mt-1"
-                >
-                  <p className="text-xs font-medium">Standard CSV Template (.csv)</p>
+                  <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Download size={14} className="text-slate-600" /> CSV Template (.csv)
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-normal pl-5">CSV format for student import</p>
                 </button>
               </div>
             )}
@@ -222,31 +185,35 @@ export function CsvImportModal({
         {/* Step 1: Upload */}
         {step === 'upload' && (
           <div className="mt-4 space-y-4">
-            {/* Front & Back Details Breakdown */}
+            {/* Front & Back Dynamic Details Breakdown */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">
               <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3">
                 <p className="font-bold text-blue-950 mb-1 flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-blue-600" />
-                  Front Side Fields ({frontFields.length})
+                  Front Side Dynamic Fields ({frontFields.length})
                 </p>
                 <p className="text-slate-700 text-[11px] leading-relaxed">
-                  {frontFields.map((f) => f.label).join(', ') || 'Student ID, Student Name, Photo'}
+                  {frontFields.length > 0
+                    ? frontFields.map((f) => f.label).join(', ')
+                    : 'None (Static graphics & photo only)'}
                 </p>
               </div>
 
               <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3">
                 <p className="font-bold text-purple-950 mb-1 flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-purple-600" />
-                  Back Side Fields ({backFields.length})
+                  Back Side Dynamic Fields ({backFields.length})
                 </p>
                 <p className="text-slate-700 text-[11px] leading-relaxed">
-                  {backFields.map((f) => f.label).join(', ') || 'Address, Phone, Father Name, DOB, Blood Group'}
+                  {backFields.length > 0
+                    ? backFields.map((f) => f.label).join(', ')
+                    : 'None (Static terms & barcode only)'}
                 </p>
               </div>
             </div>
 
             <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-              💡 <strong>Smart Column Recognition:</strong> Uploading Excel (.xlsx) or CSV containing full student records automatically maps Father's Name, Mother's Name, DOB, Blood Group, Phone, and Address into their respective fields. Extra columns are safely preserved and ignored without errors.
+              💡 <strong>Smart Column Recognition:</strong> Uploading Excel (.xlsx) or CSV automatically maps dynamic fields like Student ID, Name, Class, DOB, Blood Group, Father's Name, Phone, and Address. Static template designs (logos, terms, background) are applied automatically.
             </p>
 
             {parsing ? (
