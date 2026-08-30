@@ -220,6 +220,25 @@ export function TemplateEditor({
     currentSide === 'front'
       ? layout.backgroundUrl || null
       : layout.back?.backgroundUrl || null;
+
+  // Keyboard shortcut helper: Alt + Enter for new lines in text editing
+  const handleAltEnterKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    updateFn: (newVal: string) => void
+  ) => {
+    if (e.altKey && e.key === 'Enter') {
+      e.preventDefault();
+      const target = e.currentTarget;
+      const start = target.selectionStart ?? target.value.length;
+      const end = target.selectionEnd ?? target.value.length;
+      const val = target.value;
+      const nextVal = val.slice(0, start) + '\n' + val.slice(end);
+      updateFn(nextVal);
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + 1;
+      }, 0);
+    }
+  };
   const activeBgFit =
     currentSide === 'front'
       ? layout.backgroundFit || 'fill'
@@ -2897,19 +2916,27 @@ export function TemplateEditor({
                   <div className="space-y-2 pt-1 border-t border-slate-100">
                     {/* School Name Editable Text */}
                     {selectedField.key === 'school_name' && (
-                      <div className="space-y-1.5 rounded-lg bg-amber-50/60 p-2 border border-amber-200">
+                      <div className="space-y-1.5 rounded-lg bg-amber-50/60 p-2.5 border border-amber-200">
                         <label className="block text-xs font-bold text-amber-950">
-                          <span>School / Institution Name (Editable Text)</span>
-                          <input
-                            type="text"
+                          <div className="flex items-center justify-between mb-1">
+                            <span>School / Institution Name (Editable Text)</span>
+                            <span className="text-[9.5px] font-mono font-medium text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded border border-amber-200">
+                              Alt + Enter ↵ for new line
+                            </span>
+                          </div>
+                          <textarea
+                            rows={2}
                             value={
                               selectedField.customText !== undefined
                                 ? selectedField.customText
                                 : schoolName || 'SPARKNEST ACADEMY'
                             }
                             onChange={(e) => updateSelectedField({ customText: e.target.value })}
+                            onKeyDown={(e) =>
+                              handleAltEnterKeyDown(e, (val) => updateSelectedField({ customText: val }))
+                            }
                             placeholder={schoolName || 'e.g. SPARKNEST ACADEMY'}
-                            className="mt-1 w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
+                            className="mt-0.5 w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-amber-500 focus:outline-none resize-y min-h-[48px]"
                           />
                         </label>
                         {schoolName &&
@@ -2928,19 +2955,27 @@ export function TemplateEditor({
 
                     {/* School Subtitle / Title Editable Text */}
                     {selectedField.key === 'school_subtitle' && (
-                      <div className="space-y-1.5 rounded-lg bg-amber-50/60 p-2 border border-amber-200">
+                      <div className="space-y-1.5 rounded-lg bg-amber-50/60 p-2.5 border border-amber-200">
                         <label className="block text-xs font-bold text-amber-950">
-                          <span>School Title / Subtitle (Editable Text)</span>
-                          <input
-                            type="text"
+                          <div className="flex items-center justify-between mb-1">
+                            <span>School Title / Subtitle (Editable Text)</span>
+                            <span className="text-[9.5px] font-mono font-medium text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded border border-amber-200">
+                              Alt + Enter ↵ for new line
+                            </span>
+                          </div>
+                          <textarea
+                            rows={2}
                             value={
                               selectedField.customText !== undefined
                                 ? selectedField.customText
                                 : 'Affiliated to CBSE, New Delhi'
                             }
                             onChange={(e) => updateSelectedField({ customText: e.target.value })}
+                            onKeyDown={(e) =>
+                              handleAltEnterKeyDown(e, (val) => updateSelectedField({ customText: val }))
+                            }
                             placeholder="e.g. Affiliated to CBSE, New Delhi / Motihari, Bihar"
-                            className="mt-1 w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-amber-500 focus:outline-none"
+                            className="mt-0.5 w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-amber-500 focus:outline-none resize-y min-h-[48px]"
                           />
                         </label>
                         <p className="text-[10px] text-amber-700">
@@ -2956,15 +2991,24 @@ export function TemplateEditor({
                       selectedField.key === 'terms' ||
                       selectedField.key === 'website' ||
                       selectedField.key === 'academic_year' ||
-                      selectedField.key === 'batch') && (
+                      selectedField.key === 'batch' ||
+                      selectedField.source === 'static') && (
                       <label className="block text-xs text-slate-600">
-                        <span className="font-medium">Static / Custom Text Content</span>
-                        <input
-                          type="text"
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-slate-700">Static / Custom Text Content</span>
+                          <span className="text-[9.5px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            Alt + Enter ↵ for new line
+                          </span>
+                        </div>
+                        <textarea
+                          rows={3}
                           value={selectedField.customText ?? ''}
                           onChange={(e) => updateSelectedField({ customText: e.target.value })}
-                          placeholder="Enter text..."
-                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-800"
+                          onKeyDown={(e) =>
+                            handleAltEnterKeyDown(e, (val) => updateSelectedField({ customText: val }))
+                          }
+                          placeholder="Enter text (Alt + Enter for new line)..."
+                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-800 focus:border-blue-400 focus:outline-none resize-y min-h-[58px]"
                         />
                       </label>
                     )}
@@ -2978,13 +3022,23 @@ export function TemplateEditor({
                       selectedField.key !== 'terms' &&
                       selectedField.key !== 'website' && (
                         <label className="block text-xs text-slate-600">
-                          <span>Label Prefix (e.g. "EMERGENCY NO:" or "ID:")</span>
-                          <input
-                            type="text"
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-slate-700">
+                              Label Prefix (e.g. "EMERGENCY NO:" or "ID:")
+                            </span>
+                            <span className="text-[9.5px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              Alt + Enter ↵ for new line
+                            </span>
+                          </div>
+                          <textarea
+                            rows={2}
                             value={selectedField.labelPrefix ?? ''}
                             onChange={(e) => updateSelectedField({ labelPrefix: e.target.value })}
-                            placeholder='e.g. "EMERGENCY NO:" or "ID:"'
-                            className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                            onKeyDown={(e) =>
+                              handleAltEnterKeyDown(e, (val) => updateSelectedField({ labelPrefix: val }))
+                            }
+                            placeholder='e.g. "EMERGENCY NO:" or "ID:" (Alt + Enter for new line)'
+                            className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1.5 text-xs text-slate-800 focus:border-blue-400 focus:outline-none resize-y min-h-[44px]"
                           />
                         </label>
                       )}

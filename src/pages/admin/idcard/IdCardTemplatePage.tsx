@@ -87,6 +87,25 @@ export default function IdCardTemplatePage() {
   );
   const [syncedDetailsSuccess, setSyncedDetailsSuccess] = useState(false);
 
+  // Keyboard shortcut helper: Alt + Enter for new lines
+  const handleAltEnterKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    updateFn: (newVal: string) => void
+  ) => {
+    if (e.altKey && e.key === 'Enter') {
+      e.preventDefault();
+      const target = e.currentTarget;
+      const start = target.selectionStart ?? target.value.length;
+      const end = target.selectionEnd ?? target.value.length;
+      const val = target.value;
+      const nextVal = val.slice(0, start) + '\n' + val.slice(end);
+      updateFn(nextVal);
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + 1;
+      }, 0);
+    }
+  };
+
   const handleSyncSchoolDetails = () => {
     // 1. Update front fields
     const updatedFront = layout.fields.map((f) => {
@@ -1046,54 +1065,78 @@ export default function IdCardTemplatePage() {
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                School Subtitle / Affiliation / Tagline (Front Side)
-              </label>
-              <input
-                type="text"
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">
+                  School Subtitle / Affiliation / Tagline (Front Side)
+                </label>
+                <span className="text-[9.5px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                  Alt + Enter ↵
+                </span>
+              </div>
+              <textarea
+                rows={2}
                 value={schoolSubtitle}
                 onChange={(e) => setSchoolSubtitle(e.target.value)}
+                onKeyDown={(e) => handleAltEnterKeyDown(e, (val) => setSchoolSubtitle(val))}
                 placeholder="e.g. Affiliated to CBSE, New Delhi"
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none resize-y min-h-[44px]"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block font-bold text-slate-700 mb-1">
-                Lost Card Notice & Return Policy (Card Back Side Terms)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">
+                  Lost Card Notice & Return Policy (Card Back Side Terms)
+                </label>
+                <span className="text-[9.5px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                  Alt + Enter ↵
+                </span>
+              </div>
               <textarea
                 rows={2}
                 value={schoolTerms}
                 onChange={(e) => setSchoolTerms(e.target.value)}
+                onKeyDown={(e) => handleAltEnterKeyDown(e, (val) => setSchoolTerms(val))}
                 placeholder="e.g. In case of theft or loss it is mandatory for the Student to inform the Administration Office. If found abandoned, may please be returned to..."
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none resize-y min-h-[50px]"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                School / Campus Address (Card Back Return Address)
-              </label>
-              <input
-                type="text"
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">
+                  School / Campus Address (Card Back Return Address)
+                </label>
+                <span className="text-[9.5px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                  Alt + Enter ↵
+                </span>
+              </div>
+              <textarea
+                rows={2}
                 value={schoolAddress}
                 onChange={(e) => setSchoolAddress(e.target.value)}
+                onKeyDown={(e) => handleAltEnterKeyDown(e, (val) => setSchoolAddress(val))}
                 placeholder="e.g. Society Area, Clement Town, Dehradun (UTTARAKHAND)"
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none resize-y min-h-[44px]"
               />
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Website & Tollfree Helpline (Card Back Footer)
-              </label>
-              <input
-                type="text"
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">
+                  Website & Tollfree Helpline (Card Back Footer)
+                </label>
+                <span className="text-[9.5px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                  Alt + Enter ↵
+                </span>
+              </div>
+              <textarea
+                rows={2}
                 value={schoolWebsite}
                 onChange={(e) => setSchoolWebsite(e.target.value)}
+                onKeyDown={(e) => handleAltEnterKeyDown(e, (val) => setSchoolWebsite(val))}
                 placeholder="e.g. www.geu.ac.in || Tollfree: 1800 270 1280"
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none resize-y min-h-[44px]"
               />
             </div>
           </div>
