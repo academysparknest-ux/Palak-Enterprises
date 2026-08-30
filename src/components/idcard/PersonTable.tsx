@@ -1,15 +1,18 @@
-import { Pencil, Trash2, Phone, Check } from 'lucide-react';
-import type { IdCardPerson } from '../../lib/idcard/types';
+import { Pencil, Trash2, Phone, Check, AlertCircle } from 'lucide-react';
+import type { IdCardPerson, TemplateFieldSchema } from '../../lib/idcard/types';
 import { sanitizeStudentId } from '../../lib/idcard/validation';
+import { validatePersonForTemplate } from '../../lib/idcard/templateFieldSchema';
 
 export function PersonTable({
   persons,
+  schema,
   onEdit,
   onDelete,
   selected,
   onToggleSelect,
 }: {
   persons: IdCardPerson[];
+  schema?: TemplateFieldSchema | null;
   onEdit: (person: IdCardPerson) => void;
   onDelete: (person: IdCardPerson) => void;
   selected: Set<string>;
@@ -35,12 +38,13 @@ export function PersonTable({
         <tbody className="divide-y divide-slate-100">
           {persons.map((person) => {
             const hasPhoto = Boolean(person.photo_url);
+            const validation = schema ? validatePersonForTemplate(person, schema) : { valid: true, missingFields: [] };
             const classRoll = [person.class, person.section ? `Sec ${person.section}` : null, person.roll_number ? `Roll: ${person.roll_number}` : null]
               .filter(Boolean)
               .join(' · ');
 
             return (
-              <tr key={person.id} className="hover:bg-slate-50/80 transition">
+              <tr key={person.id} className={`hover:bg-slate-50/80 transition ${!validation.valid ? 'bg-amber-50/20' : ''}`}>
                 <td className="px-3 py-2.5">
                   <input
                     type="checkbox"
@@ -52,7 +56,17 @@ export function PersonTable({
 
                 {/* Name & ID */}
                 <td className="px-3 py-2.5">
-                  <p className="font-semibold text-slate-900">{person.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold text-slate-900">{person.name}</p>
+                    {!validation.valid && (
+                      <span
+                        title={`Missing required fields: ${validation.missingFields.join(', ')}`}
+                        className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                      >
+                        <AlertCircle size={9} className="text-amber-700" /> Missing {validation.missingFields.length}
+                      </span>
+                    )}
+                  </div>
                   <p className="font-mono text-[11px] text-slate-500">{sanitizeStudentId(person.student_id)}</p>
                 </td>
 

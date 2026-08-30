@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useOutletContext } from 'react-router-dom';
-import { Plus, Upload, Loader2, ChevronLeft, ChevronRight, Search, Images, LayoutTemplate, AlertCircle } from 'lucide-react';
+import { Plus, Upload, Loader2, ChevronLeft, ChevronRight, Search, Images, LayoutTemplate, AlertCircle, Pencil } from 'lucide-react';
 import {
   getIdCardPersons,
   getIdCardTemplates,
@@ -37,6 +37,30 @@ export default function IdCardPersonsPage() {
   const [editingPerson, setEditingPerson] = useState<IdCardPerson | 'new' | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [showBulkPhotos, setShowBulkPhotos] = useState(false);
+  const [filterIncompleteOnly, setFilterIncompleteOnly] = useState(false);
+  const [showMissingModal, setShowMissingModal] = useState(false);
+
+  const activeTemplate = state.kind === 'ready' ? state.template : null;
+  const fieldSchema = useMemo(() => extractTemplateFieldSchema(activeTemplate?.layout), [activeTemplate]);
+
+  const requiredFields = [...fieldSchema.studentInputFields, ...fieldSchema.assetFields].filter((f) => f.required);
+  const studentsWithMissingData = useMemo(() => {
+    if (state.kind !== 'ready') return [];
+    return state.result.data
+      .map((p) => ({ person: p, validation: validatePersonForTemplate(p, fieldSchema) }))
+      .filter((item) => !item.validation.valid);
+  }, [state, fieldSchema]);
+
+  const missingPhotosCount = useMemo(() => {
+    if (state.kind !== 'ready') return 0;
+    return state.result.data.filter((p) => !p.photo_url || !p.photo_url.trim()).length;
+  }, [state]);
+
+  const displayedPersons = useMemo(() => {
+    if (state.kind !== 'ready') return [];
+    if (!filterIncompleteOnly) return state.result.data;
+    return state.result.data.filter((p) => !validatePersonForTemplate(p, fieldSchema).valid);
+  }, [state, filterIncompleteOnly, fieldSchema]);
 
   const { project } = useOutletContext<{ project?: IdCardProject }>() || {};
 
@@ -109,9 +133,6 @@ export default function IdCardPersonsPage() {
     );
   }
 
-  const activeTemplate = state.template;
-  const fieldSchema = extractTemplateFieldSchema(activeTemplate?.layout);
-
   // Workflow enforcement: If no template is configured, prompt to create template first
   if (!activeTemplate) {
     return (
@@ -132,11 +153,6 @@ export default function IdCardPersonsPage() {
       </div>
     );
   }
-
-  const requiredFields = [...fieldSchema.studentInputFields, ...fieldSchema.assetFields].filter((f) => f.required);
-  const studentsWithMissingData = state.result.data.filter(
-    (p) => !validatePersonForTemplate(p, fieldSchema).valid
-  );
 
   return (
     <div className="space-y-4">
@@ -170,24 +186,67 @@ export default function IdCardPersonsPage() {
         </Link>
       </div>
 
-      {/* Missing Required Data Alert */}
+      {/* Missing Required Data Alert with Action Buttons */}
       {studentsWithMissingData.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900 flex items-start gap-2.5">
-          <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-amber-950">
-              {studentsWithMissingData.length} student(s) on this page are missing required template information.
-            </p>
-            <p className="text-slate-600 text-[11px]">
-              The active template requires fields that are not filled in for these student records. Please edit or re-import.
-            </p>
+        <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-950 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-950 text-sm">
+                  {studentsWithMissingData.length} student(s) on this page are missing required template information.
+                </p>
+                <p className="text-slate-600 text-[11px] mt-0.5">
+                  The active template requires fields that are not filled in for these student records.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowMissingModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 shadow-2xs cursor-pointer transition"
+              >
+                <AlertCircle size={13} /> View Missing Details ({studentsWithMissingData.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterIncompleteOnly(!filterIncompleteOnly)}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-2xs cursor-pointer transition ${
+                  filterIncompleteOnly
+                    ? 'border-amber-600 bg-amber-200 text-amber-950 font-bold'
+                    : 'border-amber-300 bg-white text-amber-900 hover:bg-amber-100/60'
+                }`}
+              >
+                {filterIncompleteOnly ? 'Show All Students' : 'Filter Incomplete Only'}
+              </button>
+
+              {missingPhotosCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowBulkPhotos(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-900 hover:bg-indigo-100 shadow-2xs cursor-pointer transition"
+                >
+                  <Images size={13} /> Upload Photos ({missingPhotosCount})
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Top Action Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <h1 className="text-xl font-semibold text-slate-900">Students</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-slate-900">Students</h1>
+          {filterIncompleteOnly && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-300">
+              Showing Incomplete Only ({displayedPersons.length})
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           {fieldSchema.assetFields.some((f) => f.key === 'student_photo') && (
             <button
@@ -223,16 +282,19 @@ export default function IdCardPersonsPage() {
       </div>
 
       <div>
-        {state.result.data.length === 0 && (
+        {displayedPersons.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-200 p-10 text-center text-slate-400">
-            No students yet. Add one or import an Excel / CSV spreadsheet.
+            {filterIncompleteOnly
+              ? 'All students on this page have complete information!'
+              : 'No students yet. Add one or import an Excel / CSV spreadsheet.'}
           </div>
         )}
 
-        {state.result.data.length > 0 && (
+        {displayedPersons.length > 0 && (
           <>
             <PersonTable
-              persons={state.result.data}
+              persons={displayedPersons}
+              schema={fieldSchema}
               selected={selected}
               onToggleSelect={toggleSelect}
               onEdit={(p) => setEditingPerson(p)}
@@ -241,6 +303,7 @@ export default function IdCardPersonsPage() {
 
             <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
               <span>
+                {filterIncompleteOnly ? `${displayedPersons.length} incomplete of ` : ''}
                 {state.result.total} student{state.result.total === 1 ? '' : 's'} total
               </span>
               <div className="flex items-center gap-2">
@@ -266,6 +329,21 @@ export default function IdCardPersonsPage() {
           </>
         )}
       </div>
+
+      {showMissingModal && (
+        <MissingDetailsModal
+          students={studentsWithMissingData}
+          onClose={() => setShowMissingModal(false)}
+          onEditStudent={(person) => {
+            setShowMissingModal(false);
+            setEditingPerson(person);
+          }}
+          onOpenBulkPhotos={() => {
+            setShowMissingModal(false);
+            setShowBulkPhotos(true);
+          }}
+        />
+      )}
 
       {editingPerson && (
         <PersonEditModal
@@ -417,6 +495,148 @@ function PersonEditModal({
             onCancel={onClose}
             submitting={submitting}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MissingDetailsModal({
+  students,
+  onClose,
+  onEditStudent,
+  onOpenBulkPhotos,
+}: {
+  students: Array<{ person: IdCardPerson; validation: { valid: boolean; missingFields: string[] } }>;
+  onClose: () => void;
+  onEditStudent: (person: IdCardPerson) => void;
+  onOpenBulkPhotos: () => void;
+}) {
+  const [modalSearch, setModalSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!modalSearch.trim()) return students;
+    const q = modalSearch.toLowerCase();
+    return students.filter(
+      (s) =>
+        s.person.name.toLowerCase().includes(q) ||
+        s.person.student_id.toLowerCase().includes(q) ||
+        (s.person.roll_number && s.person.roll_number.toLowerCase().includes(q)) ||
+        s.validation.missingFields.some((f) => f.toLowerCase().includes(q))
+    );
+  }, [students, modalSearch]);
+
+  const missingPhotos = students.filter((s) => s.validation.missingFields.includes('Student Photo') || s.validation.missingFields.includes('Photo')).length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-2xs">
+      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 p-5 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-lg bg-amber-100 p-2 text-amber-800">
+              <AlertCircle size={20} />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Missing Template Information</h2>
+              <p className="text-xs text-slate-500">
+                {students.length} student record{students.length === 1 ? '' : 's'} on this page require additional details.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Quick Actions & Search */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={modalSearch}
+              onChange={(e) => setModalSearch(e.target.value)}
+              placeholder="Filter by student name, ID, or missing field..."
+              className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs focus:border-slate-400 focus:outline-none"
+            />
+          </div>
+
+          {missingPhotos > 0 && (
+            <button
+              onClick={onOpenBulkPhotos}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-900 hover:bg-indigo-100 transition cursor-pointer shadow-2xs"
+            >
+              <Images size={13} /> Bulk Upload Photos ({missingPhotos})
+            </button>
+          )}
+        </div>
+
+        {/* List of Incomplete Students */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-2.5">
+          {filtered.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400">
+              No students match your filter.
+            </div>
+          ) : (
+            filtered.map(({ person, validation }) => (
+              <div
+                key={person.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/30 p-3 hover:border-amber-300 transition"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-slate-900">{person.name}</span>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.2 font-mono text-[10px] text-slate-600">
+                      ID: {person.student_id}
+                    </span>
+                    {person.class && (
+                      <span className="text-[10px] text-slate-500">
+                        {person.class} {person.section ? `(${person.section})` : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] font-semibold text-amber-900">Missing:</span>
+                    {validation.missingFields.map((f, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-300"
+                      >
+                        {f === 'Student Photo' || f === 'Photo' ? '📷 ' : '⚠️ '}
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onEditStudent(person)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-2xs transition cursor-pointer"
+                >
+                  <Pencil size={12} /> Edit Student
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-5 py-3">
+          <p className="text-[11px] text-slate-500">
+            Click <strong>Edit Student</strong> or upload photos to complete student records for printing.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer transition shadow-2xs"
+          >
+            Done
+          </button>
         </div>
       </div>
     </div>
