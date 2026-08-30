@@ -95,6 +95,12 @@ export default function IdCardTemplatePage() {
 
   useUnsavedChanges(isDirty, 'You have unsaved ID card template modifications. Are you sure you want to leave?');
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__ID_CARD_TEMPLATE__ = { name, cardWidth, cardHeight, layout };
+    }
+  }, [name, cardWidth, cardHeight, layout]);
+
   // School / Institution Details (Configured once by admin and synced across ID card templates)
   const [showSchoolDetails, setShowSchoolDetails] = useState(true);
   const [schoolSubtitle, setSchoolSubtitle] = useState('Affiliated to CBSE, New Delhi');
