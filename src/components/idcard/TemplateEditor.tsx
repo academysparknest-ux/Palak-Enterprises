@@ -20,6 +20,8 @@ import {
   User as UserIcon,
   Bookmark,
   LayoutTemplate,
+  Building2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   FIELD_LABELS,
@@ -381,13 +383,33 @@ export function TemplateEditor({
 
   // ── Element Actions (Add, Duplicate, Lock, Delete) ─────────
   function addField(key: TemplateFieldKey = 'custom_text') {
+    const isLogo = key === 'school_logo';
     const isImg = IMAGE_FIELDS.includes(key);
     const isMultiLine = key === 'address' || key === 'terms';
     const isBarcode = key === 'barcode';
     const isPhoto = key === 'student_photo';
 
-    const defaultW = isBarcode ? Math.min(widthMm - 10, 35.0) : isPhoto ? 22.0 : isImg ? 16.0 : Math.min(widthMm - 10, 40.0);
-    const defaultH = isBarcode ? 7.0 : isPhoto ? 26.0 : isImg ? 16.0 : isMultiLine ? 10.0 : 4.5;
+    const defaultW = isBarcode
+      ? Math.min(widthMm - 10, 35.0)
+      : isPhoto
+      ? 22.0
+      : isLogo
+      ? 14.0
+      : isImg
+      ? 16.0
+      : Math.min(widthMm - 10, 40.0);
+
+    const defaultH = isBarcode
+      ? 7.0
+      : isPhoto
+      ? 26.0
+      : isLogo
+      ? 14.0
+      : isImg
+      ? 16.0
+      : isMultiLine
+      ? 10.0
+      : 4.5;
 
     const newField: TemplateField = {
       id: `field-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -397,16 +419,25 @@ export function TemplateEditor({
       y: Math.min(heightMm - 10, Math.max(5.0, activeFields.length * 4 + 5)),
       width: defaultW,
       height: defaultH,
-      fontSize: 8.0,
+      fontSize: key === 'school_name' ? 10.0 : key === 'school_subtitle' ? 6.5 : 8.0,
       fontFamily: "'Times New Roman', serif",
-      fontWeight: 'normal',
+      fontWeight: key === 'school_name' ? 'bold' : 'normal',
       color: '#1B2A4A',
-      textAlign: 'left',
+      textAlign: key === 'school_name' || key === 'school_subtitle' ? 'center' : 'left',
+      photoFit: isLogo ? 'contain' : isPhoto ? 'cover' : undefined,
+      photoShape: isLogo ? 'rounded' : isPhoto ? 'circle' : undefined,
+      borderRadius: isLogo ? 10 : undefined,
       visible: true,
       locked: false,
       overflowStrategy: 'wrap',
       customText:
-        key === 'custom_text'
+        key === 'school_logo'
+          ? layout.schoolLogoUrl || undefined
+          : key === 'school_name'
+          ? 'SPARKNEST ACADEMY'
+          : key === 'school_subtitle'
+          ? 'Affiliated to CBSE, New Delhi'
+          : key === 'custom_text'
           ? 'Custom Text'
           : key === 'terms'
           ? 'If found, please return to school office. Card is property of institution.'
@@ -1586,7 +1617,39 @@ export function TemplateEditor({
             </div>
 
             {/* Quick Add Elements Palette */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
+              <div>
+                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Building2 size={11} /> Institution & Branding
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => addField('school_logo')}
+                    className="flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-900 hover:bg-amber-100 border border-amber-300 shadow-2xs cursor-pointer"
+                    title="Add School / Institution Logo to card"
+                  >
+                    <ImageIcon size={12} className="text-amber-600" /> + School Logo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addField('school_name')}
+                    className="flex items-center gap-1 rounded-md bg-amber-50/70 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 border border-amber-200 cursor-pointer"
+                    title="Add School Name"
+                  >
+                    <Type size={11} /> + School Name
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addField('school_subtitle')}
+                    className="flex items-center gap-1 rounded-md bg-amber-50/70 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 border border-amber-200 cursor-pointer"
+                    title="Add School Subtitle or Branch"
+                  >
+                    + Subtitle
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
                   Student & Academic
