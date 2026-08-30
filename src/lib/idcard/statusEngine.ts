@@ -3,7 +3,6 @@ import type {
   IdCardTemplate,
   IdCardGeneration,
   TemplateFieldSchema,
-  IdCardStatus,
   StudentIdCardStatusInfo,
 } from './types';
 import { validatePersonForTemplate, extractTemplateFieldSchema } from './templateFieldSchema';

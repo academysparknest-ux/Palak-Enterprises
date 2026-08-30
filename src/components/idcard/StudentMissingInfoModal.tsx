@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, Pencil, AlertCircle, Sparkles } from 'lucide-react';
+import { CheckCircle2, XCircle, Pencil, AlertCircle } from 'lucide-react';
 import type { IdCardPerson, IdCardTemplate, TemplateFieldSchema } from '../../lib/idcard/types';
 import { validateStudentForIdCard } from '../../lib/idcard/statusEngine';
 import { sanitizeStudentId } from '../../lib/idcard/validation';

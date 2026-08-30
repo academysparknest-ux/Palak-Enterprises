@@ -7,13 +7,23 @@ export type StudentSortField =
   | 'class'
   | 'roll_number'
   | 'father_name'
+  | 'mother_name'
   | 'phone'
   | 'address'
   | 'date_of_birth'
   | 'blood_group'
   | 'photo'
   | 'status'
+  | 'information'
+  | 'generated'
+  | 'printed'
+  | 'print_count'
   | 'updated_at';
+
+export interface SortRule {
+  field: StudentSortField;
+  ascending: boolean;
+}
 
 export interface SortOptions {
   field: StudentSortField;
@@ -21,10 +31,19 @@ export interface SortOptions {
   statusMap?: Map<string, StudentIdCardStatusInfo>;
 }
 
+export type PrintOrderMode =
+  | 'table_order'
+  | 'custom'
+  | 'class_roll'
+  | 'student_id'
+  | 'name'
+  | 'print_status'
+  | 'default';
+
 /**
  * Extracts a numeric value from a student ID or string if possible.
  */
-function extractNumericPart(val?: string | null): { hasNumber: boolean; num: number; raw: string } {
+export function extractNumericPart(val?: string | null): { hasNumber: boolean; num: number; raw: string } {
   if (!val) return { hasNumber: false, num: 0, raw: '' };
   const raw = String(val).trim();
   const match = raw.match(/\d+/);
@@ -68,7 +87,7 @@ export function compareStudentId(a?: string | null, b?: string | null): number {
 /**
  * Maps preschool and kindergarten grades to relative negative rankings.
  */
-function getPreschoolRank(classStr: string): number | null {
+export function getPreschoolRank(classStr: string): number | null {
   const s = classStr.toLowerCase().replace(/[\s\-_]/g, '');
   if (s.includes('prenursery') || s.includes('playgroup') || s === 'pg') return -5;
   if (s.includes('nursery') || s === 'nur') return -4;
@@ -255,8 +274,130 @@ export function comparePhoto(a: IdCardPerson, b: IdCardPerson): number {
   return hasA ? -1 : 1;
 }
 
+export function compareInformation(
+  personA: IdCardPerson,
+  personB: IdCardPerson,
+  statusMap?: Map<string, StudentIdCardStatusInfo>
+): number {
+  const infoA = statusMap?.get(personA.id);
+  const infoB = statusMap?.get(personB.id);
+
+  const missingA = infoA?.missingFields.length || 0;
+  const missingB = infoB?.missingFields.length || 0;
+
+  return missingA - missingB;
+}
+
+export function compareGenerated(
+  personA: IdCardPerson,
+  personB: IdCardPerson,
+  statusMap?: Map<string, StudentIdCardStatusInfo>
+): number {
+  const genA = statusMap?.get(personA.id)?.lastGeneration ? 1 : 0;
+  const genB = statusMap?.get(personB.id)?.lastGeneration ? 1 : 0;
+
+  return genA - genB;
+}
+
+export function comparePrinted(
+  personA: IdCardPerson,
+  personB: IdCardPerson,
+  statusMap?: Map<string, StudentIdCardStatusInfo>
+): number {
+  const printedA = (statusMap?.get(personA.id)?.printCount || 0) > 0 ? 1 : 0;
+  const printedB = (statusMap?.get(personB.id)?.printCount || 0) > 0 ? 1 : 0;
+
+  return printedA - printedB;
+}
+
+export function comparePrintCount(
+  personA: IdCardPerson,
+  personB: IdCardPerson,
+  statusMap?: Map<string, StudentIdCardStatusInfo>
+): number {
+  const countA = statusMap?.get(personA.id)?.printCount || 0;
+  const countB = statusMap?.get(personB.id)?.printCount || 0;
+
+  return countA - countB;
+}
+
 /**
- * Master sort function that sorts complete student records.
+ * Single field comparison evaluator.
+ */
+function evaluateFieldComparison(
+  a: IdCardPerson,
+  b: IdCardPerson,
+  field: StudentSortField,
+  statusMap?: Map<string, StudentIdCardStatusInfo>
+): number {
+  switch (field) {
+    case 'student_id':
+      return compareStudentId(a.student_id, b.student_id);
+
+    case 'name':
+      return compareText(a.name, b.name);
+
+    case 'class':
+      return compareClass(a.class, a.section, b.class, b.section);
+
+    case 'roll_number':
+      return compareRollNumber(a.roll_number, b.roll_number);
+
+    case 'father_name': {
+      const parentA = a.father_name || a.mother_name || '';
+      const parentB = b.father_name || b.mother_name || '';
+      return compareText(parentA, parentB);
+    }
+
+    case 'mother_name':
+      return compareText(a.mother_name, b.mother_name);
+
+    case 'phone': {
+      const phoneA = a.phone || a.emergency_number || '';
+      const phoneB = b.phone || b.emergency_number || '';
+      return compareText(phoneA, phoneB);
+    }
+
+    case 'address':
+      return compareText(a.address, b.address);
+
+    case 'date_of_birth':
+      return compareDob(a.date_of_birth, b.date_of_birth);
+
+    case 'blood_group':
+      return compareBloodGroup(a.blood_group, b.blood_group);
+
+    case 'photo':
+      return comparePhoto(a, b);
+
+    case 'status':
+      return compareStatus(a, b, statusMap);
+
+    case 'information':
+      return compareInformation(a, b, statusMap);
+
+    case 'generated':
+      return compareGenerated(a, b, statusMap);
+
+    case 'printed':
+      return comparePrinted(a, b, statusMap);
+
+    case 'print_count':
+      return comparePrintCount(a, b, statusMap);
+
+    case 'updated_at': {
+      const timeA = a.updated_at ? Date.parse(a.updated_at) : 0;
+      const timeB = b.updated_at ? Date.parse(b.updated_at) : 0;
+      return timeA - timeB;
+    }
+
+    default:
+      return compareStudentId(a.student_id, b.student_id);
+  }
+}
+
+/**
+ * Master sort function that sorts complete student records by single column.
  * NEVER sorts individual column arrays — always preserves whole student objects.
  */
 export function sortStudentRecords(
@@ -264,84 +405,13 @@ export function sortStudentRecords(
   options: SortOptions
 ): IdCardPerson[] {
   const { field, ascending, statusMap } = options;
-
-  // Make a shallow copy of the array of student objects
   const sorted = [...records];
 
   sorted.sort((a, b) => {
-    let diff = 0;
+    let diff = evaluateFieldComparison(a, b, field, statusMap);
 
-    switch (field) {
-      case 'student_id':
-        diff = compareStudentId(a.student_id, b.student_id);
-        break;
-
-      case 'name':
-        diff = compareText(a.name, b.name);
-        if (diff === 0) diff = compareStudentId(a.student_id, b.student_id);
-        break;
-
-      case 'class':
-        diff = compareClass(a.class, a.section, b.class, b.section);
-        if (diff === 0) diff = compareRollNumber(a.roll_number, b.roll_number);
-        if (diff === 0) diff = compareStudentId(a.student_id, b.student_id);
-        break;
-
-      case 'roll_number':
-        diff = compareRollNumber(a.roll_number, b.roll_number);
-        if (diff === 0) diff = compareClass(a.class, a.section, b.class, b.section);
-        if (diff === 0) diff = compareStudentId(a.student_id, b.student_id);
-        break;
-
-      case 'father_name': {
-        const parentA = a.father_name || a.mother_name || '';
-        const parentB = b.father_name || b.mother_name || '';
-        diff = compareText(parentA, parentB);
-        if (diff === 0) diff = compareText(a.name, b.name);
-        break;
-      }
-
-      case 'phone': {
-        const phoneA = a.phone || a.emergency_number || '';
-        const phoneB = b.phone || b.emergency_number || '';
-        diff = compareText(phoneA, phoneB);
-        if (diff === 0) diff = compareText(a.name, b.name);
-        break;
-      }
-
-      case 'address':
-        diff = compareText(a.address, b.address);
-        if (diff === 0) diff = compareText(a.name, b.name);
-        break;
-
-      case 'date_of_birth':
-        diff = compareDob(a.date_of_birth, b.date_of_birth);
-        if (diff === 0) diff = compareText(a.name, b.name);
-        break;
-
-      case 'blood_group':
-        diff = compareBloodGroup(a.blood_group, b.blood_group);
-        if (diff === 0) diff = compareText(a.name, b.name);
-        break;
-
-      case 'photo':
-        diff = comparePhoto(a, b);
-        break;
-
-      case 'status':
-        diff = compareStatus(a, b, statusMap);
-        break;
-
-      case 'updated_at': {
-        const timeA = a.updated_at ? Date.parse(a.updated_at) : 0;
-        const timeB = b.updated_at ? Date.parse(b.updated_at) : 0;
-        diff = timeA - timeB;
-        break;
-      }
-
-      default:
-        diff = compareStudentId(a.student_id, b.student_id);
-        break;
+    if (diff === 0 && field !== 'student_id') {
+      diff = compareStudentId(a.student_id, b.student_id);
     }
 
     return ascending ? diff : -diff;
@@ -349,3 +419,98 @@ export function sortStudentRecords(
 
   return sorted;
 }
+
+/**
+ * Multi-level sorting function that cascades across multiple SortRules.
+ */
+export function sortStudentRecordsMulti(
+  records: IdCardPerson[],
+  rules: SortRule[],
+  statusMap?: Map<string, StudentIdCardStatusInfo>
+): IdCardPerson[] {
+  if (!rules || rules.length === 0) {
+    return sortStudentRecords(records, { field: 'student_id', ascending: true, statusMap });
+  }
+
+  const sorted = [...records];
+
+  sorted.sort((a, b) => {
+    for (const rule of rules) {
+      const diff = evaluateFieldComparison(a, b, rule.field, statusMap);
+      if (diff !== 0) {
+        return rule.ascending ? diff : -diff;
+      }
+    }
+    // Final tiebreaker by student ID
+    return compareStudentId(a.student_id, b.student_id);
+  });
+
+  return sorted;
+}
+
+export const sortStudentsMulti = sortStudentRecordsMulti;
+
+/**
+ * Applies predefined or custom print ordering mode.
+ */
+export function applyPrintOrdering(
+  records: IdCardPerson[],
+  mode: PrintOrderMode | 'print_status' | 'custom',
+  customRulesOrTableOrder?: SortRule[] | IdCardPerson[],
+  statusMap?: Map<string, StudentIdCardStatusInfo>
+): IdCardPerson[] {
+  switch (mode) {
+    case 'table_order':
+      if (Array.isArray(customRulesOrTableOrder) && customRulesOrTableOrder.length > 0) {
+        // If passed an array of persons representing current table view
+        if ('student_id' in customRulesOrTableOrder[0]) {
+          const tableList = customRulesOrTableOrder as IdCardPerson[];
+          const targetIds = new Set(records.map((r) => r.id));
+          const matched = tableList.filter((r) => targetIds.has(r.id));
+          const missing = records.filter((r) => !matched.some((m) => m.id === r.id));
+          return [...matched, ...missing];
+        }
+      }
+      return sortStudentRecords(records, { field: 'student_id', ascending: true, statusMap });
+
+    case 'class_roll':
+      return sortStudentRecordsMulti(
+        records,
+        [
+          { field: 'class', ascending: true },
+          { field: 'roll_number', ascending: true },
+          { field: 'student_id', ascending: true },
+        ],
+        statusMap
+      );
+
+    case 'student_id':
+      return sortStudentRecords(records, { field: 'student_id', ascending: true, statusMap });
+
+    case 'name':
+      return sortStudentRecords(records, { field: 'name', ascending: true, statusMap });
+
+    case 'print_status':
+      return sortStudentRecordsMulti(
+        records,
+        [
+          { field: 'status', ascending: true },
+          { field: 'class', ascending: true },
+          { field: 'roll_number', ascending: true },
+        ],
+        statusMap
+      );
+
+    case 'custom':
+      if (Array.isArray(customRulesOrTableOrder) && customRulesOrTableOrder.length > 0 && 'field' in customRulesOrTableOrder[0]) {
+        return sortStudentRecordsMulti(records, customRulesOrTableOrder as SortRule[], statusMap);
+      }
+      return sortStudentRecords(records, { field: 'student_id', ascending: true, statusMap });
+
+    default:
+      return sortStudentRecords(records, { field: 'student_id', ascending: true, statusMap });
+  }
+}
+
+export const getStudentsInPrintOrder = applyPrintOrdering;
+

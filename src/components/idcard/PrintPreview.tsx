@@ -126,7 +126,6 @@ export function PrintPreview({
       {/* Preview Area */}
       <div 
         className="flex-1 overflow-y-auto p-4 sm:p-8 flex flex-col items-center"
-        onScroll={handleScroll}
       >
         <div className="w-full max-w-5xl flex flex-col items-center space-y-12">
           {layout.pages.map((page: PageLayout, pageIndex: number) => (

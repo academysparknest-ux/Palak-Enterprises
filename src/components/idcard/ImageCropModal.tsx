@@ -237,6 +237,8 @@ export function ImageCropModal({
       console.error('Crop export error:', err);
       setError(err?.message || 'Error creating cropped image.');
     }
+  };
+
   useScrollLock(isOpen);
 
   useEffect(() => {

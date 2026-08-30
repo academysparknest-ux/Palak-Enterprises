@@ -3,7 +3,6 @@ import type { IdCardPerson, IdCardTemplate, IdCardGeneration, TemplateLayout } f
 import {
   validateStudentForIdCard,
   computeStudentIdCardStatus,
-  detectStudentDataOutdated,
   partitionStudentsByReadiness,
 } from './statusEngine';
 import {

@@ -4,8 +4,9 @@ import { useOutletContext } from 'react-router-dom'
 import {
   Loader2, Printer, Download, Eye, CheckCircle2, XCircle, Settings2,
   ChevronLeft, ChevronRight, X, Scissors, AlertTriangle, RotateCcw, History,
-  Sparkles,
+  Sparkles, Search, Columns, FileSpreadsheet, CheckSquare, ChevronDown,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { getIdCardPersons, getIdCardTemplates, getIdCardGenerations, markGenerationsAsPrinted } from '../../../lib/idcard/database'
 import {
   generateCardsForPersons,
@@ -14,7 +15,6 @@ import {
   renderCardToDataUrl,
   type GenerationProgress,
 } from '../../../lib/idcard/generation'
-import { validateBatchBeforeGeneration } from '../../../lib/idcard/templateValidation'
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors'
 import { sanitizeStudentId } from '../../../lib/idcard/validation'
 import { extractTemplateFieldSchema } from '../../../lib/idcard/templateFieldSchema'
@@ -22,15 +22,22 @@ import { computeStudentIdCardStatus, validateStudentForIdCard } from '../../../l
 import {
   recordPrintSuccess,
   recordPrintFailure,
-  getPrintStats,
 } from '../../../lib/idcard/printTracker'
+import {
+  sortStudentsMulti,
+  getStudentsInPrintOrder,
+  type StudentSortField,
+  type SortRule,
+  type PrintOrderMode,
+} from '../../../lib/idcard/studentSort'
 import { GenerationProgressBar } from '../../../components/idcard/GenerationProgress'
 import { IdCardStatusBadge } from '../../../components/idcard/IdCardStatusBadge'
+import { StatusSummaryDashboard } from '../../../components/idcard/StatusSummaryDashboard'
 import { BatchValidationConfirmModal } from '../../../components/idcard/BatchValidationConfirmModal'
 import { StudentMissingInfoModal } from '../../../components/idcard/StudentMissingInfoModal'
 import { StudentPrintHistoryModal } from '../../../components/idcard/StudentPrintHistoryModal'
 import { ReprintRequestModal } from '../../../components/idcard/ReprintRequestModal'
-import { Modal, ConfirmModal } from '../../../components/ui/Modal'
+import { Modal } from '../../../components/ui/Modal'
 import { useScrollLock } from '../../../hooks/useScrollLock'
 import {
   calculatePrintLayout,
@@ -54,8 +61,51 @@ import type {
   IdCardPerson,
   IdCardTemplate,
   IdCardGeneration,
+  IdCardStatus,
   StudentIdCardStatusInfo,
 } from '../../../lib/idcard/types'
+
+// ────────────────────────────────────────────────────────────────
+// Column Definitions for Spreadsheet View
+// ────────────────────────────────────────────────────────────────
+
+interface ColumnDef {
+  key: string;
+  label: string;
+  sortField?: StudentSortField;
+  canHide?: boolean;
+  minWidth?: string;
+}
+
+const DEFAULT_COLUMNS: ColumnDef[] = [
+  { key: 'primary', label: 'PRIMARY', canHide: false, minWidth: '44px' },
+  { key: 'student_id', label: 'Student ID', sortField: 'student_id', canHide: false, minWidth: '120px' },
+  { key: 'class', label: 'Class', sortField: 'class', canHide: true, minWidth: '90px' },
+  { key: 'roll', label: 'Roll', sortField: 'roll_number', canHide: true, minWidth: '70px' },
+  { key: 'name', label: 'Student Name', sortField: 'name', canHide: false, minWidth: '160px' },
+  { key: 'photo', label: 'Photo', sortField: 'photo', canHide: true, minWidth: '70px' },
+  { key: 'information', label: 'Information', sortField: 'information', canHide: true, minWidth: '130px' },
+  { key: 'status', label: 'ID Card Status', sortField: 'status', canHide: false, minWidth: '150px' },
+  { key: 'generated', label: 'Generated', sortField: 'generated', canHide: true, minWidth: '120px' },
+  { key: 'printed', label: 'Printed', sortField: 'printed', canHide: true, minWidth: '120px' },
+  { key: 'print_count', label: 'Count', sortField: 'print_count', canHide: true, minWidth: '80px' },
+  { key: 'actions', label: 'Actions', canHide: false, minWidth: '160px' },
+];
+
+const INITIAL_VISIBILITY: Record<string, boolean> = {
+  primary: true,
+  student_id: true,
+  class: true,
+  roll: true,
+  name: true,
+  photo: true,
+  information: true,
+  status: true,
+  generated: true,
+  printed: true,
+  print_count: true,
+  actions: true,
+};
 
 // ────────────────────────────────────────────────────────────────
 // Print confirmation dialog with Success & Failure branches
@@ -122,7 +172,7 @@ function PrintConfirmDialog({
 }
 
 // ────────────────────────────────────────────────────────────────
-// Print Preview (embedded modal)
+// Print Preview Modal
 // ────────────────────────────────────────────────────────────────
 
 function PrintPreviewModal({
@@ -158,7 +208,6 @@ function PrintPreviewModal({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  // Scale down physical paper to fit viewport (display only)
   const maxWidth = Math.min(typeof window !== 'undefined' ? window.innerWidth - 80 : 800, 850)
   const screenScale = maxWidth / layout.paperWidthMm
 
@@ -179,7 +228,6 @@ function PrintPreviewModal({
       className="fixed inset-0 z-50 flex flex-col bg-black/75 backdrop-blur-xs overflow-hidden touch-none"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-slate-900 px-4 py-3">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold text-white">Print Preview</h2>
@@ -199,7 +247,7 @@ function PrintPreviewModal({
             <button
               onClick={() => scrollToPage(Math.max(0, currentPage - 1))}
               disabled={currentPage <= 0}
-              className="rounded p-1 hover:bg-white/10 disabled:opacity-30"
+              className="rounded p-1 hover:bg-white/10 disabled:opacity-30 cursor-pointer"
             >
               <ChevronLeft size={16} />
             </button>
@@ -209,7 +257,7 @@ function PrintPreviewModal({
             <button
               onClick={() => scrollToPage(Math.min(totalPages - 1, currentPage + 1))}
               disabled={currentPage >= totalPages - 1}
-              className="rounded p-1 hover:bg-white/10 disabled:opacity-30"
+              className="rounded p-1 hover:bg-white/10 disabled:opacity-30 cursor-pointer"
             >
               <ChevronRight size={16} />
             </button>
@@ -219,26 +267,25 @@ function PrintPreviewModal({
 
           <button
             onClick={onDownloadPdf}
-            className="flex items-center gap-1.5 rounded-md bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+            className="flex items-center gap-1.5 rounded-md bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 cursor-pointer"
           >
             <Download size={14} /> Download PDF
           </button>
           <button
             onClick={onPrint}
-            className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 cursor-pointer"
           >
             <Printer size={14} /> Print Now
           </button>
           <button
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+            className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white cursor-pointer"
           >
             <X size={18} />
           </button>
         </div>
       </div>
 
-      {/* Pages Container */}
       <div className="flex-1 overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
         <div className="mx-auto space-y-8" style={{ width: `${maxWidth}px` }}>
           {layout.pages.map((page, pageIdx) => (
@@ -291,7 +338,6 @@ function PrintPreviewModal({
           ))}
         </div>
 
-        {/* Live Diagnostics Card at Bottom of Preview */}
         <div className="mx-auto mt-8 max-w-xl rounded-xl border border-slate-700 bg-slate-900/90 p-4 text-xs text-slate-300 shadow-xl">
           <p className="mb-2 font-bold uppercase tracking-wider text-blue-400">Live Physical Layout Diagnostic</p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
@@ -379,11 +425,10 @@ function SettingsPanel({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      {/* Header */}
+    <div className="rounded-xl border border-slate-200 bg-white shadow-2xs">
       <button
         onClick={onToggle}
-        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50/50"
+        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50/50 cursor-pointer"
       >
         <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
           <Settings2 size={16} />
@@ -391,7 +436,7 @@ function SettingsPanel({
         </span>
         <div className="flex items-center gap-3">
           {layout && (
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 hidden sm:inline">
               Paper: <strong className="text-slate-700">{config.paperSize.toUpperCase()}</strong> ({layout.orientation}) · Grid: <strong className="text-slate-700">{layout.columns}×{layout.rows}</strong> · Capacity: <strong className="text-blue-700 font-bold">{layout.cardsPerPage}</strong> cards/sheet · Total: <strong className="text-slate-700">{layout.totalSheets}</strong> sheet{layout.totalSheets !== 1 ? 's' : ''}
             </span>
           )}
@@ -401,7 +446,6 @@ function SettingsPanel({
 
       {expanded && (
         <div className="border-t border-slate-100 px-4 pb-4 pt-3">
-          {/* Validation error */}
           {!validation.valid && (
             <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               {validation.error}
@@ -409,9 +453,7 @@ function SettingsPanel({
           )}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Left column */}
             <div className="space-y-3">
-              {/* Paper size */}
               <label className="block">
                 <span className="text-[11px] font-medium text-slate-500">Paper Size</span>
                 <select
@@ -425,12 +467,11 @@ function SettingsPanel({
                 </select>
               </label>
 
-              {/* Paper Orientation */}
               <div>
                 <span className="text-[11px] font-medium text-slate-500">Paper Orientation</span>
                 <div className="mt-1 flex gap-3">
                   {(['auto', 'portrait', 'landscape'] as const).map((o) => (
-                    <label key={o} className="flex items-center gap-1 text-xs text-slate-700">
+                    <label key={o} className="flex items-center gap-1 text-xs text-slate-700 cursor-pointer">
                       <input
                         type="radio"
                         name="orientation"
@@ -445,7 +486,6 @@ function SettingsPanel({
                 </div>
               </div>
 
-              {/* Card Orientation / Rotation */}
               <div>
                 <span className="text-[11px] font-medium text-slate-500">Card Orientation</span>
                 <div className="mt-1 flex gap-3">
@@ -454,7 +494,7 @@ function SettingsPanel({
                     { value: 'portrait', label: 'Portrait (54 × 85.6)' },
                     { value: 'landscape', label: 'Landscape (85.6 × 54)' },
                   ] as const).map(({ value, label }) => (
-                    <label key={value} className="flex items-center gap-1 text-xs text-slate-700">
+                    <label key={value} className="flex items-center gap-1 text-xs text-slate-700 cursor-pointer">
                       <input
                         type="radio"
                         name="cardOrientation"
@@ -469,19 +509,16 @@ function SettingsPanel({
                 </div>
               </div>
 
-              {/* Card dimensions */}
               <div className="grid grid-cols-2 gap-2">
                 <NumberField label="Card Width" value={config.cardWidthMm} onChange={(v) => set('cardWidthMm', v)} min={1} step={0.1} />
                 <NumberField label="Card Height" value={config.cardHeightMm} onChange={(v) => set('cardHeightMm', v)} min={1} step={0.1} />
               </div>
 
-              {/* Gaps */}
               <div className="grid grid-cols-2 gap-2">
                 <NumberField label="Horizontal Gap" value={config.gapHorizontalMm} onChange={(v) => set('gapHorizontalMm', v)} />
                 <NumberField label="Vertical Gap" value={config.gapVerticalMm} onChange={(v) => set('gapVerticalMm', v)} />
               </div>
 
-              {/* Margins */}
               <div>
                 <span className="text-[11px] font-medium text-slate-500">Margins (mm)</span>
                 <div className="mt-1 grid grid-cols-4 gap-1.5">
@@ -492,7 +529,6 @@ function SettingsPanel({
                 </div>
               </div>
 
-              {/* Alignment */}
               <label className="block">
                 <span className="text-[11px] font-medium text-slate-500">Grid Alignment</span>
                 <select
@@ -507,9 +543,7 @@ function SettingsPanel({
               </label>
             </div>
 
-            {/* Right column */}
             <div className="space-y-3">
-              {/* Print Mode */}
               <div>
                 <span className="text-[11px] font-medium text-slate-500">Print Mode</span>
                 <div className="mt-1 space-y-1.5">
@@ -520,7 +554,7 @@ function SettingsPanel({
                   ] as const).map(({ value, label }) => {
                     const disabled = !isDoubleSided && value !== 'front-only'
                     return (
-                      <label key={value} className={`flex items-center gap-2 text-xs ${disabled ? 'opacity-40' : 'text-slate-700'}`}>
+                      <label key={value} className={`flex items-center gap-2 text-xs cursor-pointer ${disabled ? 'opacity-40 cursor-not-allowed' : 'text-slate-700'}`}>
                         <input
                           type="radio"
                           name="printMode"
@@ -537,7 +571,6 @@ function SettingsPanel({
                 </div>
               </div>
 
-              {/* Duplex Flip */}
               {config.printMode === 'duplex' && (
                 <div>
                   <span className="text-[11px] font-medium text-slate-500">Duplex Flip Edge</span>
@@ -546,7 +579,7 @@ function SettingsPanel({
                       { value: 'long-edge', label: 'Long Edge (Standard)' },
                       { value: 'short-edge', label: 'Short Edge (Top Bound)' },
                     ] as const).map(({ value, label }) => (
-                      <label key={value} className="flex items-center gap-1 text-xs text-slate-700">
+                      <label key={value} className="flex items-center gap-1 text-xs text-slate-700 cursor-pointer">
                         <input
                           type="radio"
                           name="duplexFlip"
@@ -562,9 +595,8 @@ function SettingsPanel({
                 </div>
               )}
 
-              {/* Checkboxes */}
               <div className="space-y-1.5 pt-1">
-                <label className="flex items-center gap-2 text-xs text-slate-700">
+                <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={config.showCutGuides}
@@ -575,7 +607,6 @@ function SettingsPanel({
                 </label>
               </div>
 
-              {/* Summary info */}
               {layout && (
                 <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
                   <div className="font-semibold text-slate-800">Physical Layout Summary</div>
@@ -595,7 +626,7 @@ function SettingsPanel({
 }
 
 // ────────────────────────────────────────────────────────────────
-// Main Page Component
+// Main Spreadsheet ID Card Production Control Center Page
 // ────────────────────────────────────────────────────────────────
 
 export default function IdCardGeneratePage() {
@@ -617,23 +648,56 @@ export default function IdCardGeneratePage() {
   const [cardImages, setCardImages] = useState<Map<string, string>>(new Map())
   const [loadingImages, setLoadingImages] = useState(false)
 
+  // ── Spreadsheet Controls State ─────────────────────────────
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'ALL' | IdCardStatus>('ALL')
+  const [classFilter, setClassFilter] = useState('ALL')
+  const [photoFilter, setPhotoFilter] = useState<'ALL' | 'has_photo' | 'missing_photo'>('ALL')
+  const [infoFilter, setInfoFilter] = useState<'ALL' | 'complete' | 'incomplete'>('ALL')
+  const [generatedFilter, setGeneratedFilter] = useState<'ALL' | 'generated' | 'not_generated'>('ALL')
+  const [printedFilter, setPrintedFilter] = useState<'ALL' | 'printed' | 'not_printed'>('ALL')
+
+  // Sorting: Primary & Secondary rule
+  const [primarySortField, setPrimarySortField] = useState<StudentSortField>('student_id')
+  const [primarySortAsc, setPrimarySortAsc] = useState(true)
+  const [secondarySortField, setSecondarySortField] = useState<StudentSortField | null>(null)
+  const [secondarySortAsc, setSecondarySortAsc] = useState(true)
+
+  // Print Order mode
+  const [printOrder, setPrintOrder] = useState<PrintOrderMode>('table_order')
+
+  // Column Visibility state
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(() => {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`palak_gen_col_vis_${project?.id || 'default'}`)
+        if (saved) return { ...INITIAL_VISIBILITY, ...JSON.parse(saved) }
+      } catch (e) {
+        console.warn('Failed to load column visibility:', e)
+      }
+    }
+    return { ...INITIAL_VISIBILITY }
+  })
+  const [showColumnMenu, setShowColumnMenu] = useState(false)
+  const [showSmartSelectMenu, setShowSmartSelectMenu] = useState(false)
+
   // Modals for batch validation, duplicate warnings, history, and reprints
   const [batchModalConfig, setBatchModalConfig] = useState<{
     isOpen: boolean;
     mode: 'generate' | 'print';
     readyPersons: IdCardPerson[];
     skippedPersons: Array<{ person: IdCardPerson; reason: string }>;
-  } | null>(null);
+  } | null>(null)
 
-  const [selectedPersonForMissing, setSelectedPersonForMissing] = useState<IdCardPerson | null>(null);
-  const [selectedPersonForHistory, setSelectedPersonForHistory] = useState<IdCardPerson | null>(null);
-  const [selectedPersonForReprint, setSelectedPersonForReprint] = useState<IdCardPerson | null>(null);
-  const [duplicateWarningPerson, setDuplicateWarningPerson] = useState<IdCardPerson | null>(null);
+  const [selectedPersonForMissing, setSelectedPersonForMissing] = useState<IdCardPerson | null>(null)
+  const [selectedPersonForHistory, setSelectedPersonForHistory] = useState<IdCardPerson | null>(null)
+  const [selectedPersonForReprint, setSelectedPersonForReprint] = useState<IdCardPerson | null>(null)
+  const [duplicateWarningPerson, setDuplicateWarningPerson] = useState<IdCardPerson | null>(null)
 
   const imageCacheRef = useRef(new CardImageCache())
   const isMountedRef = useRef(true)
 
-  // Print config — load from localStorage or defaults
+  // Print layout config
   const [printConfig, setPrintConfig] = useState<PrintConfig>(() => {
     const saved = loadPrintConfig(project.id)
     return saved ?? { ...DEFAULT_PRINT_CONFIG }
@@ -650,7 +714,7 @@ export default function IdCardGeneratePage() {
     }
   }, [template?.id, template?.card_width_mm, template?.card_height_mm])
 
-  // Persist config on change
+  // Persist print config & column visibility
   useEffect(() => {
     try {
       savePrintConfig(project.id, printConfig)
@@ -659,7 +723,16 @@ export default function IdCardGeneratePage() {
     }
   }, [printConfig, project.id])
 
-  // Double-sided detection from template
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`palak_gen_col_vis_${project.id}`, JSON.stringify(columnVisibility))
+      } catch (e) {
+        console.warn('Failed to save column visibility:', e)
+      }
+    }
+  }, [columnVisibility, project.id])
+
   const isDoubleSided = Boolean(template?.layout?.isDoubleSided && template?.layout?.back)
   const effectiveConfig = useMemo(() => {
     if (!isDoubleSided && printConfig.printMode !== 'front-only') {
@@ -675,7 +748,7 @@ export default function IdCardGeneratePage() {
     setState({ kind: 'loading' })
     try {
       const [personsResult, projectTemplates, gens] = await Promise.all([
-        getIdCardPersons(project.id, { pageSize: 500 }),
+        getIdCardPersons(project.id, { pageSize: 5000 }), // Load full project roster without page truncation
         getIdCardTemplates(project.id),
         getIdCardGenerations(project.id),
       ])
@@ -702,30 +775,12 @@ export default function IdCardGeneratePage() {
     imageCacheRef.current.clear()
   }, [template?.id, template?.updated_at])
 
-  // ── Selection ─────────────────────────────────────
-  function toggle(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function selectAll() {
-    setSelected(new Set(persons.map((p) => p.id)))
-  }
-
-  function deselectAll() {
-    setSelected(new Set())
-  }
-
-  // ── Helpers ───────────────────────────────────────
+  // ── Unique Helper ─────────────────────────────────
   function latestGenerationFor(personId: string): IdCardGeneration | undefined {
     return generations.find((g) => g.person_id === personId)
   }
 
-  // Status mapping for all students
+  // Authoritative Status mapping for all students
   const studentStatusMap = useMemo(() => {
     const map = new Map<string, StudentIdCardStatusInfo>()
     for (const person of persons) {
@@ -741,10 +796,264 @@ export default function IdCardGeneratePage() {
     return map
   }, [persons, generations, fieldSchema, template])
 
-  const selectedPersons = useMemo(() => persons.filter((p) => selected.has(p.id)), [persons, selected])
-  const actionTargets = selectedPersons.length > 0 ? selectedPersons : persons
+  // Real-time status counts for top dashboard
+  const statusCounts = useMemo(() => {
+    let notReady = 0
+    let readyToGenerate = 0
+    let readyToPrint = 0
+    let printed = 0
+    let printFailed = 0
+    let reprintRequired = 0
+    let outdated = 0
 
-  // Build card inputs for layout calculation
+    for (const person of persons) {
+      const info = studentStatusMap.get(person.id)
+      if (!info) continue
+      switch (info.status) {
+        case 'NOT_READY':
+          notReady++
+          break
+        case 'READY_TO_GENERATE':
+          readyToGenerate++
+          break
+        case 'READY_TO_PRINT':
+          readyToPrint++
+          break
+        case 'PRINTED':
+          printed++
+          break
+        case 'PRINT_FAILED':
+          printFailed++
+          break
+        case 'REPRINT_REQUIRED':
+          reprintRequired++
+          break
+        case 'OUTDATED':
+          outdated++
+          break
+      }
+    }
+
+    return {
+      total: persons.length,
+      notReady,
+      readyToGenerate,
+      readyToPrint,
+      printed,
+      printFailed,
+      reprintRequired,
+      outdated,
+    }
+  }, [persons, studentStatusMap])
+
+  // Distinct classes for filter dropdown
+  const distinctClasses = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of persons) {
+      if (p.class && p.class.trim()) set.add(p.class.trim())
+    }
+    return Array.from(set).sort()
+  }, [persons])
+
+  // ── Unified Search + Filter + Multi-Sort Pipeline ───────────
+  const filteredAndSortedPersons = useMemo(() => {
+    let list = [...persons]
+
+    // 1. Global Search
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter((p) => {
+        const idMatch = (p.student_id || '').toLowerCase().includes(q)
+        const nameMatch = (p.name || '').toLowerCase().includes(q)
+        const rollMatch = (p.roll_number || '').toLowerCase().includes(q)
+        const classMatch = (p.class || '').toLowerCase().includes(q)
+        const phoneMatch = (p.phone || '').toLowerCase().includes(q)
+        const emMatch = (p.emergency_number || '').toLowerCase().includes(q)
+        const parentMatch = (p.father_name || p.mother_name || '').toLowerCase().includes(q)
+        const addrMatch = (p.address || '').toLowerCase().includes(q)
+        return idMatch || nameMatch || rollMatch || classMatch || phoneMatch || emMatch || parentMatch || addrMatch
+      })
+    }
+
+    // 2. Status Filter
+    if (statusFilter !== 'ALL') {
+      list = list.filter((p) => {
+        const info = studentStatusMap.get(p.id)
+        return info?.status === statusFilter
+      })
+    }
+
+    // 3. Class Filter
+    if (classFilter !== 'ALL') {
+      list = list.filter((p) => (p.class || '').trim() === classFilter)
+    }
+
+    // 4. Photo Filter
+    if (photoFilter === 'has_photo') {
+      list = list.filter((p) => Boolean(p.photo_url && p.photo_url.trim()))
+    } else if (photoFilter === 'missing_photo') {
+      list = list.filter((p) => !p.photo_url || !p.photo_url.trim())
+    }
+
+    // 5. Information Filter
+    if (infoFilter === 'complete') {
+      list = list.filter((p) => studentStatusMap.get(p.id)?.ready === true)
+    } else if (infoFilter === 'incomplete') {
+      list = list.filter((p) => studentStatusMap.get(p.id)?.ready === false)
+    }
+
+    // 6. Generated Filter
+    if (generatedFilter === 'generated') {
+      list = list.filter((p) => {
+        const gen = latestGenerationFor(p.id)
+        return gen && gen.status === 'SUCCESS'
+      })
+    } else if (generatedFilter === 'not_generated') {
+      list = list.filter((p) => {
+        const gen = latestGenerationFor(p.id)
+        return !gen || gen.status !== 'SUCCESS'
+      })
+    }
+
+    // 7. Printed Filter
+    if (printedFilter === 'printed') {
+      list = list.filter((p) => (studentStatusMap.get(p.id)?.printCount || 0) > 0)
+    } else if (printedFilter === 'not_printed') {
+      list = list.filter((p) => (studentStatusMap.get(p.id)?.printCount || 0) === 0)
+    }
+
+    // 8. Multi-Column Sorting
+    const sortRules: SortRule[] = [
+      { field: primarySortField, ascending: primarySortAsc },
+    ]
+    if (secondarySortField && secondarySortField !== primarySortField) {
+      sortRules.push({ field: secondarySortField, ascending: secondarySortAsc })
+    }
+
+    return sortStudentsMulti(list, sortRules, studentStatusMap)
+  }, [
+    persons,
+    search,
+    statusFilter,
+    classFilter,
+    photoFilter,
+    infoFilter,
+    generatedFilter,
+    printedFilter,
+    primarySortField,
+    primarySortAsc,
+    secondarySortField,
+    secondarySortAsc,
+    studentStatusMap,
+    generations,
+  ])
+
+  // ── Selection State Calculations ───────────────────────────
+  const selectedPersons = useMemo(() => persons.filter((p) => selected.has(p.id)), [persons, selected])
+  const visibleSelectedCount = useMemo(
+    () => filteredAndSortedPersons.filter((p) => selected.has(p.id)).length,
+    [filteredAndSortedPersons, selected]
+  )
+  const hiddenSelectedCount = selected.size - visibleSelectedCount
+
+  // Target students for print/generate action
+  const actionTargets = useMemo(() => {
+    let base = selectedPersons.length > 0 ? selectedPersons : filteredAndSortedPersons
+    return getStudentsInPrintOrder(base, printOrder)
+  }, [selectedPersons, filteredAndSortedPersons, printOrder])
+
+  // Toggle single selection
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Header checkbox: Toggle all visible
+  function toggleSelectAllVisible() {
+    if (visibleSelectedCount === filteredAndSortedPersons.length && filteredAndSortedPersons.length > 0) {
+      // Deselect all visible
+      setSelected((prev) => {
+        const next = new Set(prev)
+        for (const p of filteredAndSortedPersons) next.delete(p.id)
+        return next
+      })
+    } else {
+      // Select all visible
+      setSelected((prev) => {
+        const next = new Set(prev)
+        for (const p of filteredAndSortedPersons) next.add(p.id)
+        return next
+      })
+    }
+  }
+
+  // Smart Selection handlers
+  function handleSmartSelect(type: string) {
+    setShowSmartSelectMenu(false)
+    if (type === 'clear') {
+      setSelected(new Set())
+      return
+    }
+    if (type === 'clear_hidden') {
+      const visibleIds = new Set(filteredAndSortedPersons.map((p) => p.id))
+      setSelected((prev) => {
+        const next = new Set<string>()
+        for (const id of prev) {
+          if (visibleIds.has(id)) next.add(id)
+        }
+        return next
+      })
+      return
+    }
+    if (type === 'all_project') {
+      if (persons.length > 100) {
+        const ok = confirm(`Select all ${persons.length} students in this project?`)
+        if (!ok) return
+      }
+      setSelected(new Set(persons.map((p) => p.id)))
+      return
+    }
+    if (type === 'all_filtered') {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        for (const p of filteredAndSortedPersons) next.add(p.id)
+        return next
+      })
+      return
+    }
+
+    // Status-based smart selections
+    const newSelected = new Set<string>(selected)
+    for (const p of filteredAndSortedPersons) {
+      const info = studentStatusMap.get(p.id)
+      if (type === 'ready_to_generate' && info?.status === 'READY_TO_GENERATE') newSelected.add(p.id)
+      else if (type === 'ready_to_print' && info?.status === 'READY_TO_PRINT') newSelected.add(p.id)
+      else if (type === 'printed' && info?.status === 'PRINTED') newSelected.add(p.id)
+      else if (type === 'print_failed' && info?.status === 'PRINT_FAILED') newSelected.add(p.id)
+      else if (type === 'reprint_required' && info?.status === 'REPRINT_REQUIRED') newSelected.add(p.id)
+      else if (type === 'not_ready' && info?.status === 'NOT_READY') newSelected.add(p.id)
+    }
+    setSelected(newSelected)
+  }
+
+  // ── Column Sorting Click Handler ───────────────────────────
+  function handleHeaderSort(field?: StudentSortField) {
+    if (!field) return
+
+    if (primarySortField === field) {
+      // Toggle Asc -> Desc -> Asc
+      setPrimarySortAsc(!primarySortAsc)
+    } else {
+      setPrimarySortField(field)
+      setPrimarySortAsc(true)
+    }
+  }
+
+  // ── Card Inputs & Print Layout Engine Calculation ──────────
   const cardInputs: CardInput[] = useMemo(() => {
     return actionTargets.map((p) => ({
       personId: p.id,
@@ -752,14 +1061,13 @@ export default function IdCardGeneratePage() {
     }))
   }, [actionTargets, isDoubleSided])
 
-  // Compute layout using single authoritative engine
   const validation = validatePrintConfig(effectiveConfig)
   const layout = useMemo(() => {
     if (!validation.valid) return null
     return calculatePrintLayout(effectiveConfig, cardInputs)
   }, [effectiveConfig, cardInputs, validation.valid])
 
-  // ── Prepare Card Images (Front + Back) ─────────────
+  // ── Render Card Images for Printing ────────────────────────
   useEffect(() => {
     let active = true
     if (!template || actionTargets.length === 0) {
@@ -773,7 +1081,6 @@ export default function IdCardGeneratePage() {
 
       for (const person of actionTargets) {
         try {
-          // 1. Render actual FRONT face
           const frontUrl = await renderCardToDataUrl(
             person,
             template!,
@@ -783,7 +1090,6 @@ export default function IdCardGeneratePage() {
           )
           map.set(`${person.id}:front`, frontUrl)
 
-          // 2. Render actual BACK face
           if (isDoubleSided || effectiveConfig.printMode !== 'front-only') {
             const backUrl = await renderCardToDataUrl(
               person,
@@ -812,29 +1118,29 @@ export default function IdCardGeneratePage() {
     }
   }, [actionTargets, template, isDoubleSided, effectiveConfig.printMode, project.name, project.academic_year])
 
-  // ── Print Calibration Test Sheet ───────────────────
+  // ── Calibration Test Sheet ─────────────────────────────────
   function handlePrintCalibration() {
     try {
-      const paperW = layout?.paperWidthMm || (effectiveConfig.paperSize === 'a3' ? 297 : effectiveConfig.paperSize === 'a5' ? 148 : 210);
-      const paperH = layout?.paperHeightMm || (effectiveConfig.paperSize === 'a3' ? 420 : effectiveConfig.paperSize === 'a5' ? 210 : 297);
+      const paperW = layout?.paperWidthMm || (effectiveConfig.paperSize === 'a3' ? 297 : effectiveConfig.paperSize === 'a5' ? 148 : 210)
+      const paperH = layout?.paperHeightMm || (effectiveConfig.paperSize === 'a3' ? 420 : effectiveConfig.paperSize === 'a5' ? 210 : 297)
       const pdfBlob = buildCalibrationTestPdf(
         paperW,
         paperH,
         template?.card_width_mm || 85.6,
         template?.card_height_mm || 54.0
-      );
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Calibration_Test_Sheet_${effectiveConfig.paperSize.toUpperCase()}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      )
+      const url = URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Calibration_Test_Sheet_${effectiveConfig.paperSize.toUpperCase()}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch {
-      alert('Failed to generate calibration test sheet.');
+      alert('Failed to generate calibration test sheet.')
     }
   }
 
-  // ── Safe Batch Generation Handler ─────────────────
+  // ── Safe Batch Generation ──────────────────────────────────
   function handleRequestGenerate(targets: IdCardPerson[]) {
     if (!template || targets.length === 0) return
 
@@ -890,7 +1196,7 @@ export default function IdCardGeneratePage() {
     }
   }, [])
 
-  // ── Safe Batch Print Handler ──────────────────────
+  // ── Safe Batch Print ───────────────────────────────────────
   function handleRequestPrint(targets: IdCardPerson[]) {
     if (!layout || !template || cardImages.size === 0) return
 
@@ -915,7 +1221,6 @@ export default function IdCardGeneratePage() {
       }
     }
 
-    // If single target was already printed, trigger duplicate warning modal
     if (targets.length === 1 && printable.length === 0 && skipped[0]?.reason.includes('Already printed')) {
       setDuplicateWarningPerson(targets[0])
       return
@@ -934,7 +1239,7 @@ export default function IdCardGeneratePage() {
     executePrint(printable)
   }
 
-  // ── Print (Browser) ───────────────────────────────
+  // ── Browser Print Execution ────────────────────────────────
   function executePrint(targetsToPrint: IdCardPerson[]) {
     if (!layout || !template || targetsToPrint.length === 0) return
 
@@ -1056,7 +1361,7 @@ export default function IdCardGeneratePage() {
     })
   }
 
-  // ── Print confirmation: Success & Failure Handling ──
+  // ── Print Confirmation Actions ─────────────────────────────
   async function confirmPrintedSuccess() {
     try {
       await markGenerationsAsPrinted(pendingPrintGenIds)
@@ -1092,7 +1397,7 @@ export default function IdCardGeneratePage() {
     setPendingPrintPersons([])
   }
 
-  // ── PDF download ──────────────────────────────────
+  // ── PDF Download ───────────────────────────────────────────
   async function handleDownloadPdf() {
     if (!layout || !template || cardImages.size === 0) return
 
@@ -1115,11 +1420,60 @@ export default function IdCardGeneratePage() {
     }
   }
 
-  // ── Render ────────────────────────────────────────
+  // ── Export Current Filtered & Sorted View to Excel ─────────
+  function handleExportCurrentView() {
+    if (filteredAndSortedPersons.length === 0) {
+      alert('No student records match the current view.')
+      return
+    }
+
+    const exportCols = DEFAULT_COLUMNS.filter((c) => c.key !== 'primary' && c.key !== 'actions' && columnVisibility[c.key])
+    const headers = exportCols.map((c) => c.label)
+
+    const rows = filteredAndSortedPersons.map((p) => {
+      const gen = latestGenerationFor(p.id)
+      const statusInfo = studentStatusMap.get(p.id)
+
+      return exportCols.map((col) => {
+        switch (col.key) {
+          case 'student_id':
+            return p.student_id || ''
+          case 'class':
+            return p.class ? `${p.class}${p.section ? ` - ${p.section}` : ''}` : ''
+          case 'roll':
+            return p.roll_number || ''
+          case 'name':
+            return p.name || ''
+          case 'photo':
+            return p.photo_url ? 'Yes' : 'No'
+          case 'information':
+            return statusInfo?.ready ? 'Complete' : `Missing: ${statusInfo?.missingFields.join(', ')}`
+          case 'status':
+            return statusInfo?.status.replace(/_/g, ' ') || ''
+          case 'generated':
+            return gen?.status === 'SUCCESS' ? `Generated (${new Date(gen.created_at).toLocaleDateString()})` : 'Not Generated'
+          case 'printed':
+            return (statusInfo?.printCount || 0) > 0 ? `Printed (${statusInfo?.lastPrintedAt ? new Date(statusInfo.lastPrintedAt).toLocaleDateString() : 'Yes'})` : 'Not Printed'
+          case 'print_count':
+            return statusInfo?.printCount || 0
+          default:
+            return ''
+        }
+      })
+    })
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'ID Card Production')
+    const filename = `${project.name.replace(/\s+/g, '_')}_ID_Cards_${new Date().toISOString().slice(0, 10)}.xlsx`
+    XLSX.writeFile(workbook, filename)
+  }
+
+  // ── Render ─────────────────────────────────────────────────
   if (state.kind === 'loading') {
     return (
-      <div className="flex h-40 items-center justify-center text-slate-400">
-        <Loader2 className="mr-2 animate-spin" size={18} /> Loading card studio...
+      <div className="flex h-48 items-center justify-center text-slate-400">
+        <Loader2 className="mr-2 animate-spin" size={18} /> Loading spreadsheet production control center...
       </div>
     )
   }
@@ -1127,101 +1481,127 @@ export default function IdCardGeneratePage() {
   if (state.kind === 'error') {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700">
-        Unable to load generation data: {state.message}
+        Unable to load ID card production data: {state.message}
       </div>
     )
   }
 
   if (!template) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 p-10 text-center text-slate-400">
-        Set up a template before generating cards.
+      <div className="rounded-xl border border-dashed border-slate-200 p-10 text-center text-slate-400">
+        Set up an ID-card template before generating cards.
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      {/* Action buttons */}
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => handleRequestGenerate(selectedPersons)}
-          disabled={generating || selectedPersons.length === 0}
-          className="rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-40 cursor-pointer shadow-2xs"
-        >
-          Generate Selected ({selectedPersons.length})
-        </button>
-        <button
-          onClick={() => handleRequestGenerate(persons)}
-          disabled={generating || persons.length === 0}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 cursor-pointer shadow-2xs"
-        >
-          <Sparkles size={14} /> Generate All Ready Cards ({persons.length})
-        </button>
+      {/* 1. Status Summary Dashboard */}
+      <StatusSummaryDashboard
+        counts={statusCounts}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+      />
 
-        <div className="mx-1 h-5 w-px bg-slate-200" />
+      {/* 2. Top Action Controls & Print Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleRequestGenerate(actionTargets)}
+            disabled={generating || actionTargets.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 cursor-pointer shadow-2xs"
+          >
+            <Sparkles size={14} /> Generate {selected.size > 0 ? `Selected (${selected.size})` : `All Ready (${statusCounts.readyToGenerate})`}
+          </button>
 
-        <button
-          onClick={() => setShowPreview(true)}
-          disabled={!validation.valid || loadingImages || cardImages.size === 0}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-40 cursor-pointer shadow-2xs"
-        >
-          <Eye size={14} /> {loadingImages ? 'Preparing...' : 'Preview'}
-        </button>
-        <button
-          onClick={() => handleRequestPrint(actionTargets)}
-          disabled={!validation.valid || loadingImages || cardImages.size === 0}
-          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 cursor-pointer shadow-2xs"
-        >
-          <Printer size={14} /> Print All Ready Cards
-        </button>
-        <button
-          onClick={handleDownloadPdf}
-          disabled={buildingPdf || !validation.valid || loadingImages || cardImages.size === 0}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-40 cursor-pointer shadow-2xs"
-        >
-          <Download size={14} /> {buildingPdf ? 'Building PDF...' : 'Download PDF'}
-        </button>
+          <button
+            onClick={() => setShowPreview(true)}
+            disabled={!validation.valid || loadingImages || cardImages.size === 0}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer shadow-2xs"
+          >
+            <Eye size={14} /> {loadingImages ? 'Preparing Cards...' : 'Print Preview'}
+          </button>
 
-        {templates.length > 1 && (
-          <div className="ml-auto flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
-            <label className="text-xs font-semibold text-slate-600">Template:</label>
+          <button
+            onClick={() => handleRequestPrint(actionTargets)}
+            disabled={!validation.valid || loadingImages || cardImages.size === 0}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-40 cursor-pointer shadow-2xs"
+          >
+            <Printer size={14} /> Print {selected.size > 0 ? `Selected (${selected.size})` : `All Ready (${statusCounts.readyToPrint})`}
+          </button>
+
+          <button
+            onClick={handleDownloadPdf}
+            disabled={buildingPdf || !validation.valid || loadingImages || cardImages.size === 0}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer shadow-2xs"
+          >
+            <Download size={14} /> {buildingPdf ? 'Building PDF...' : 'Download PDF'}
+          </button>
+
+          <button
+            onClick={handleExportCurrentView}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 cursor-pointer shadow-2xs"
+            title="Export currently filtered and sorted records to Excel spreadsheet"
+          >
+            <FileSpreadsheet size={14} /> Export Current View
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Print Order Selection */}
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
+            <span className="font-semibold text-slate-600">Print Order:</span>
             <select
-              value={template.id}
-              onChange={(e) => {
-                const found = templates.find((t) => t.id === e.target.value);
-                if (found) setTemplate(found);
-              }}
-              className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none"
+              value={printOrder}
+              onChange={(e) => setPrintOrder(e.target.value as PrintOrderMode)}
+              className="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer"
             >
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.card_width_mm}×{t.card_height_mm}mm) {t.id === project.template_id ? '★ Active' : ''}
-                </option>
-              ))}
+              <option value="table_order">Current Table Order</option>
+              <option value="student_id">Student ID (Ascending)</option>
+              <option value="class_roll">Class → Roll Number</option>
+              <option value="name">Student Name (A-Z)</option>
             </select>
           </div>
-        )}
 
-        <div className="mx-1 h-5 w-px bg-slate-200" />
+          {/* Template Switcher */}
+          {templates.length > 1 && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs">
+              <label className="font-semibold text-slate-600">Template:</label>
+              <select
+                value={template.id}
+                onChange={(e) => {
+                  const found = templates.find((t) => t.id === e.target.value)
+                  if (found) setTemplate(found)
+                }}
+                className="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer"
+              >
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.card_width_mm}×{t.card_height_mm}mm) {t.id === project.template_id ? '★ Active' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-        <button
-          onClick={handlePrintCalibration}
-          title="Print physical measurement test page with 10mm rulers and duplex alignment boxes"
-          className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 cursor-pointer shadow-2xs"
-        >
-          <Scissors size={14} /> Print Calibration Test
-        </button>
+          <button
+            onClick={handlePrintCalibration}
+            title="Print physical measurement test page with 10mm rulers and duplex alignment boxes"
+            className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 cursor-pointer shadow-2xs"
+          >
+            <Scissors size={13} /> Calibration Test
+          </button>
+        </div>
       </div>
 
       {/* Actual Size 100% Print Notice */}
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
         <span>
           💡 <strong>Printing Standard:</strong> Print Scale: <strong>100% (Actual Size)</strong> · Fit to Page: <strong>OFF</strong> to guarantee physical mm accuracy.
         </span>
       </div>
 
-      {/* Generation progress */}
+      {/* Generation Progress Bar */}
       {progress && (
         <div>
           <GenerationProgressBar progress={progress} />
@@ -1239,173 +1619,705 @@ export default function IdCardGeneratePage() {
         onToggle={() => setSettingsExpanded(!settingsExpanded)}
       />
 
-      {/* Selection controls */}
-      <div className="flex items-center gap-3">
-        <button onClick={selectAll} className="text-xs font-medium text-blue-600 hover:underline">
-          Select All ({persons.length})
-        </button>
-        <button onClick={deselectAll} className="text-xs font-medium text-slate-500 hover:underline">
-          Deselect All
-        </button>
-        {selected.size > 0 && (
-          <span className="text-xs text-slate-500 font-medium">({selected.size} of {persons.length} selected for Print / PDF)</span>
-        )}
+      {/* 3. Search, Multi-Filtering & Spreadsheet Controls Bar */}
+      <div className="space-y-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          {/* Global Search */}
+          <div className="relative flex-1 min-w-[240px]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search student name, ID, roll, phone, class, parent..."
+              className="w-full rounded-lg border border-slate-200 py-1.5 pl-9 pr-3 text-xs focus:border-slate-400 focus:outline-none"
+            />
+          </div>
+
+          {/* Quick Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">All Statuses ({persons.length})</option>
+              <option value="NOT_READY">Not Ready ({statusCounts.notReady})</option>
+              <option value="READY_TO_GENERATE">Ready to Generate ({statusCounts.readyToGenerate})</option>
+              <option value="READY_TO_PRINT">Ready to Print ({statusCounts.readyToPrint})</option>
+              <option value="PRINTED">Printed ({statusCounts.printed})</option>
+              <option value="PRINT_FAILED">Print Failed ({statusCounts.printFailed})</option>
+              <option value="REPRINT_REQUIRED">Reprint Required ({statusCounts.reprintRequired})</option>
+              <option value="OUTDATED">Outdated ({statusCounts.outdated})</option>
+            </select>
+
+            {/* Class Filter */}
+            {distinctClasses.length > 0 && (
+              <select
+                value={classFilter}
+                onChange={(e) => setClassFilter(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+              >
+                <option value="ALL">All Classes</option>
+                {distinctClasses.map((cls) => (
+                  <option key={cls} value={cls}>Class: {cls}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Photo Filter */}
+            <select
+              value={photoFilter}
+              onChange={(e) => setPhotoFilter(e.target.value as any)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">Photo: All</option>
+              <option value="has_photo">Has Photo</option>
+              <option value="missing_photo">Missing Photo</option>
+            </select>
+
+            {/* Information Filter */}
+            <select
+              value={infoFilter}
+              onChange={(e) => setInfoFilter(e.target.value as any)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">Info: All</option>
+              <option value="complete">✓ Complete Info</option>
+              <option value="incomplete">⚠ Incomplete Info</option>
+            </select>
+
+            {/* Generated Filter */}
+            <select
+              value={generatedFilter}
+              onChange={(e) => setGeneratedFilter(e.target.value as any)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">Generation: All</option>
+              <option value="generated">✓ Generated</option>
+              <option value="not_generated">Not Generated</option>
+            </select>
+
+            {/* Printed Filter */}
+            <select
+              value={printedFilter}
+              onChange={(e) => setPrintedFilter(e.target.value as any)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">Print: All</option>
+              <option value="printed">✓ Printed</option>
+              <option value="not_printed">Not Printed</option>
+            </select>
+
+            {/* Secondary Sort Selector */}
+            <div className="flex items-center gap-1 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
+              <span className="font-semibold text-slate-500">Then by:</span>
+              <select
+                value={secondarySortField || 'none'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSecondarySortField(val === 'none' ? null : (val as StudentSortField));
+                }}
+                className="bg-transparent font-medium text-slate-800 focus:outline-none cursor-pointer text-xs"
+              >
+                <option value="none">None</option>
+                <option value="class">Class</option>
+                <option value="roll_number">Roll</option>
+                <option value="name">Name</option>
+                <option value="student_id">Student ID</option>
+                <option value="status">Status</option>
+                <option value="print_count">Print Count</option>
+              </select>
+              {secondarySortField && (
+                <button
+                  type="button"
+                  onClick={() => setSecondarySortAsc(!secondarySortAsc)}
+                  className="font-bold text-slate-700 hover:text-slate-900 cursor-pointer ml-0.5"
+                  title="Toggle Secondary Sort Direction"
+                >
+                  {secondarySortAsc ? '↑' : '↓'}
+                </button>
+              )}
+            </div>
+
+            {/* Column Visibility Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowColumnMenu(!showColumnMenu)}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
+              >
+                <Columns size={13} /> ⚙ Columns
+              </button>
+
+              {showColumnMenu && (
+                <div className="absolute right-0 top-full mt-1.5 z-40 w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-xl space-y-1.5">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                    <span className="text-xs font-bold text-slate-800">Column Visibility</span>
+                    <button
+                      type="button"
+                      onClick={() => setColumnVisibility({ ...INITIAL_VISIBILITY })}
+                      className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-1 pt-1">
+                    {DEFAULT_COLUMNS.map((col) => (
+                      <label
+                        key={col.key}
+                        className={`flex items-center justify-between px-1.5 py-1 rounded text-xs cursor-pointer ${col.canHide === false ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50'}`}
+                      >
+                        <span className="text-slate-700 font-medium">{col.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={columnVisibility[col.key] ?? true}
+                          disabled={col.canHide === false}
+                          onChange={(e) => setColumnVisibility({ ...columnVisibility, [col.key]: e.target.checked })}
+                          className="rounded border-slate-300 text-slate-900"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Smart Selection Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowSmartSelectMenu(!showSmartSelectMenu)}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
+              >
+                <CheckSquare size={13} /> Select <ChevronDown size={12} />
+              </button>
+
+              {showSmartSelectMenu && (
+                <div className="absolute right-0 top-full mt-1.5 z-40 w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-xl space-y-1 text-xs">
+                  <button
+                    onClick={() => handleSmartSelect('all_filtered')}
+                    className="w-full text-left px-2 py-1.5 rounded font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Select All Matching Visible ({filteredAndSortedPersons.length})
+                  </button>
+                  <button
+                    onClick={() => handleSmartSelect('ready_to_generate')}
+                    className="w-full text-left px-2 py-1.5 rounded font-semibold text-blue-700 hover:bg-blue-50 cursor-pointer"
+                  >
+                    Select Ready to Generate
+                  </button>
+                  <button
+                    onClick={() => handleSmartSelect('ready_to_print')}
+                    className="w-full text-left px-2 py-1.5 rounded font-semibold text-emerald-700 hover:bg-emerald-50 cursor-pointer"
+                  >
+                    Select Ready to Print
+                  </button>
+                  <button
+                    onClick={() => handleSmartSelect('printed')}
+                    className="w-full text-left px-2 py-1.5 rounded font-semibold text-teal-700 hover:bg-teal-50 cursor-pointer"
+                  >
+                    Select Printed
+                  </button>
+                  <button
+                    onClick={() => handleSmartSelect('print_failed')}
+                    className="w-full text-left px-2 py-1.5 rounded font-semibold text-rose-700 hover:bg-rose-50 cursor-pointer"
+                  >
+                    Select Print Failed
+                  </button>
+                  <button
+                    onClick={() => handleSmartSelect('reprint_required')}
+                    className="w-full text-left px-2 py-1.5 rounded font-semibold text-purple-700 hover:bg-purple-50 cursor-pointer"
+                  >
+                    Select Reprint Required
+                  </button>
+                  <button
+                    onClick={() => handleSmartSelect('not_ready')}
+                    className="w-full text-left px-2 py-1.5 rounded font-semibold text-amber-700 hover:bg-amber-50 cursor-pointer"
+                  >
+                    Select Not Ready
+                  </button>
+                  <div className="h-px bg-slate-100 my-1" />
+                  <button
+                    onClick={() => handleSmartSelect('all_project')}
+                    className="w-full text-left px-2 py-1.5 rounded font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Select All in Project ({persons.length})
+                  </button>
+                  {hiddenSelectedCount > 0 && (
+                    <button
+                      onClick={() => handleSmartSelect('clear_hidden')}
+                      className="w-full text-left px-2 py-1.5 rounded font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      Clear Hidden Selections ({hiddenSelectedCount})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleSmartSelect('clear')}
+                    className="w-full text-left px-2 py-1.5 rounded font-bold text-red-600 hover:bg-red-50 cursor-pointer"
+                  >
+                    Clear All Selections
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Live View Count Status & Selection Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+          <div className="flex flex-wrap items-center gap-3 text-slate-600">
+            <span>Total Students: <strong className="text-slate-900">{persons.length}</strong></span>
+            <span>Showing: <strong className="text-slate-900">{filteredAndSortedPersons.length}</strong></span>
+            <span>
+              Selected: <strong className="text-blue-700 font-bold">{selected.size}</strong>
+              {hiddenSelectedCount > 0 && (
+                <span className="text-[11px] text-slate-400 ml-1">
+                  (Visible: {visibleSelectedCount}, Hidden: {hiddenSelectedCount})
+                </span>
+              )}
+            </span>
+            {selected.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="text-[11px] font-bold text-red-600 hover:underline cursor-pointer"
+              >
+                Clear Selection
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-slate-500 text-[11px]">
+            <span>Primary Sort: <strong className="text-slate-700">{primarySortField.replace(/_/g, ' ').toUpperCase()} {primarySortAsc ? '↑' : '↓'}</strong></span>
+          </div>
+        </div>
       </div>
 
-      {/* Students table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
-        <table className="w-full text-xs">
-          <thead className="bg-slate-50 text-left text-slate-600 border-b border-slate-200 font-semibold">
+      {/* 5. Continuous Scrollable Spreadsheet Table */}
+      <div className="relative overflow-x-auto overflow-y-auto max-h-[620px] rounded-xl border border-slate-200 bg-white shadow-2xs">
+        <table className="w-full min-w-[1250px] border-collapse text-left text-xs">
+          {/* Sticky Table Header */}
+          <thead className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 font-semibold text-slate-700 select-none">
             <tr>
-              <th className="w-9 px-3 py-2.5">
-                <input
-                  type="checkbox"
-                  checked={selected.size === persons.length && persons.length > 0}
-                  onChange={() => (selected.size === persons.length ? deselectAll() : selectAll())}
-                  className="rounded border-slate-300 text-slate-900 cursor-pointer"
-                />
-              </th>
-              <th className="px-3 py-2.5 font-semibold text-slate-800">Student & ID</th>
-              <th className="px-3 py-2.5 font-semibold text-slate-700">Readiness & Print Status</th>
-              <th className="px-3 py-2.5 font-semibold text-slate-700">Print Stats</th>
-              <th className="px-3 py-2.5 font-semibold text-slate-700 text-right">Actions</th>
+              {/* 1. PRIMARY CHECKBOX (Sticky Left 0) */}
+              {columnVisibility.primary && (
+                <th className="sticky left-0 top-0 z-30 bg-slate-100 w-11 px-3 py-2.5 text-center border-r border-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={visibleSelectedCount === filteredAndSortedPersons.length && filteredAndSortedPersons.length > 0}
+                    onChange={toggleSelectAllVisible}
+                    title="Select/Deselect all visible students"
+                    className="rounded border-slate-300 text-slate-900 cursor-pointer"
+                  />
+                </th>
+              )}
+
+              {/* 2. STUDENT ID (Sticky Left 44px) */}
+              {columnVisibility.student_id && (
+                <th
+                  onClick={() => handleHeaderSort('student_id')}
+                  className="sticky left-[44px] top-0 z-30 bg-slate-100 px-3 py-2.5 min-w-[120px] border-r border-slate-200 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Student ID</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'student_id' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 3. CLASS */}
+              {columnVisibility.class && (
+                <th
+                  onClick={() => handleHeaderSort('class')}
+                  className="px-3 py-2.5 min-w-[90px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Class</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'class' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 4. ROLL */}
+              {columnVisibility.roll && (
+                <th
+                  onClick={() => handleHeaderSort('roll_number')}
+                  className="px-3 py-2.5 min-w-[70px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Roll</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'roll_number' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 5. STUDENT NAME */}
+              {columnVisibility.name && (
+                <th
+                  onClick={() => handleHeaderSort('name')}
+                  className="px-3 py-2.5 min-w-[160px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Student Name</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'name' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 6. PHOTO */}
+              {columnVisibility.photo && (
+                <th
+                  onClick={() => handleHeaderSort('photo')}
+                  className="px-3 py-2.5 min-w-[70px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Photo</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'photo' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 7. INFORMATION */}
+              {columnVisibility.information && (
+                <th
+                  onClick={() => handleHeaderSort('information')}
+                  className="px-3 py-2.5 min-w-[130px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Information</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'information' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 8. ID CARD STATUS */}
+              {columnVisibility.status && (
+                <th
+                  onClick={() => handleHeaderSort('status')}
+                  className="px-3 py-2.5 min-w-[150px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>ID Card Status</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'status' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 9. GENERATED */}
+              {columnVisibility.generated && (
+                <th
+                  onClick={() => handleHeaderSort('generated')}
+                  className="px-3 py-2.5 min-w-[120px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Generated</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'generated' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 10. PRINTED */}
+              {columnVisibility.printed && (
+                <th
+                  onClick={() => handleHeaderSort('printed')}
+                  className="px-3 py-2.5 min-w-[120px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Printed</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'printed' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 11. PRINT COUNT */}
+              {columnVisibility.print_count && (
+                <th
+                  onClick={() => handleHeaderSort('print_count')}
+                  className="px-3 py-2.5 min-w-[80px] border-r border-slate-100 hover:bg-slate-200/80 cursor-pointer transition"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span>Count</span>
+                    <span className="text-slate-400 font-bold">
+                      {primarySortField === 'print_count' ? (primarySortAsc ? '↑' : '↓') : '↕'}
+                    </span>
+                  </div>
+                </th>
+              )}
+
+              {/* 12. ACTIONS */}
+              {columnVisibility.actions && (
+                <th className="px-3 py-2.5 min-w-[160px] text-right">
+                  <span>Actions</span>
+                </th>
+              )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
-            {persons.map((person) => {
-              const gen = latestGenerationFor(person.id)
-              const statusInfo = studentStatusMap.get(person.id) || computeStudentIdCardStatus({ person, schema: fieldSchema, template, latestGen: gen })
 
-              return (
-                <tr key={person.id} className="hover:bg-slate-50/80 transition">
-                  <td className="px-3 py-2.5">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(person.id)}
-                      onChange={() => toggle(person.id)}
-                      className="rounded border-slate-300 text-slate-900 cursor-pointer"
-                    />
-                  </td>
+          {/* Table Body */}
+          <tbody className="divide-y divide-slate-100 text-slate-800">
+            {filteredAndSortedPersons.length === 0 ? (
+              <tr>
+                <td colSpan={12} className="p-12 text-center text-slate-400">
+                  No students match the selected search and filters.
+                </td>
+              </tr>
+            ) : (
+              filteredAndSortedPersons.map((person) => {
+                const isSelected = selected.has(person.id)
+                const gen = latestGenerationFor(person.id)
+                const statusInfo = studentStatusMap.get(person.id) || computeStudentIdCardStatus({ person, schema: fieldSchema, template, latestGen: gen })
 
-                  {/* Student */}
-                  <td className="px-3 py-2.5 font-medium text-slate-900">
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-                        {person.photo_url ? (
-                          <img src={person.photo_url} alt={person.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-[9px] text-amber-600 font-bold">No Pic</span>
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">{person.name}</p>
-                        <p className="font-mono text-[10px] text-slate-500">{sanitizeStudentId(person.student_id)}</p>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Status Badge */}
-                  <td className="px-3 py-2.5">
-                    <IdCardStatusBadge
-                      statusInfo={statusInfo}
-                      onMissingClick={() => setSelectedPersonForMissing(person)}
-                      onHistoryClick={() => setSelectedPersonForHistory(person)}
-                      onReprintClick={() => setSelectedPersonForReprint(person)}
-                    />
-                  </td>
-
-                  {/* Print Stats */}
-                  <td className="px-3 py-2.5 text-slate-600">
-                    {statusInfo.printCount > 0 ? (
-                      <div className="text-[11px]">
-                        <span className="font-semibold text-slate-800">Print Count: {statusInfo.printCount}</span>
-                        {statusInfo.lastPrintedAt && (
-                          <p className="text-[10px] text-slate-400">
-                            Last: {new Date(statusInfo.lastPrintedAt).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 text-[11px]">Not Printed Yet</span>
+                return (
+                  <tr
+                    key={person.id}
+                    className={`transition-colors ${isSelected ? 'bg-blue-50/70 hover:bg-blue-50/90' : 'hover:bg-slate-50/90'}`}
+                  >
+                    {/* 1. PRIMARY CHECKBOX */}
+                    {columnVisibility.primary && (
+                      <td className={`sticky left-0 z-10 w-11 px-3 py-2 text-center border-r border-slate-100 ${isSelected ? 'bg-blue-50/90' : 'bg-white'}`}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(person.id)}
+                          className="rounded border-slate-300 text-slate-900 cursor-pointer"
+                        />
+                      </td>
                     )}
-                  </td>
 
-                  {/* Actions */}
-                  <td className="px-3 py-2.5 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {statusInfo.canGenerate && (
-                        <button
-                          type="button"
-                          onClick={() => executeGeneration([person])}
-                          title="Generate card"
-                          className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-200 cursor-pointer shadow-2xs"
-                        >
-                          <Sparkles size={11} /> {gen?.status === 'SUCCESS' ? 'Regen' : 'Generate'}
-                        </button>
-                      )}
+                    {/* 2. STUDENT ID */}
+                    {columnVisibility.student_id && (
+                      <td className={`sticky left-[44px] z-10 px-3 py-2 min-w-[120px] font-mono font-bold text-slate-900 border-r border-slate-100 ${isSelected ? 'bg-blue-50/90' : 'bg-white'}`}>
+                        {sanitizeStudentId(person.student_id)}
+                      </td>
+                    )}
 
-                      {statusInfo.status === 'READY_TO_PRINT' && (
-                        <button
-                          type="button"
-                          onClick={() => executePrint([person])}
-                          title="Print ID card"
-                          className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-2xs"
-                        >
-                          <Printer size={11} /> Print
-                        </button>
-                      )}
+                    {/* 3. CLASS */}
+                    {columnVisibility.class && (
+                      <td className="px-3 py-2 min-w-[90px] border-r border-slate-100 text-slate-700">
+                        {person.class ? `${person.class}${person.section ? ` - ${person.section}` : ''}` : '—'}
+                      </td>
+                    )}
 
-                      {statusInfo.status === 'PRINT_FAILED' && (
-                        <button
-                          type="button"
-                          onClick={() => executePrint([person])}
-                          title="Retry print"
-                          className="inline-flex items-center gap-1 rounded bg-rose-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-rose-700 cursor-pointer shadow-2xs"
-                        >
-                          <RotateCcw size={11} /> Retry Print
-                        </button>
-                      )}
+                    {/* 4. ROLL */}
+                    {columnVisibility.roll && (
+                      <td className="px-3 py-2 min-w-[70px] border-r border-slate-100 font-mono text-slate-700">
+                        {person.roll_number || '—'}
+                      </td>
+                    )}
 
-                      {statusInfo.status === 'PRINTED' && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPersonForReprint(person)}
-                          title="Request card reprint"
-                          className="inline-flex items-center gap-1 rounded bg-purple-100 px-2 py-1 text-[10px] font-bold text-purple-800 hover:bg-purple-200 cursor-pointer shadow-2xs"
-                        >
-                          <RotateCcw size={11} /> Reprint
-                        </button>
-                      )}
+                    {/* 5. STUDENT NAME */}
+                    {columnVisibility.name && (
+                      <td className="px-3 py-2 min-w-[160px] border-r border-slate-100 font-medium text-slate-900">
+                        {person.name}
+                      </td>
+                    )}
 
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPersonForHistory(person)}
-                        title="View history"
-                        className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
-                      >
-                        <History size={13} />
-                      </button>
+                    {/* 6. PHOTO */}
+                    {columnVisibility.photo && (
+                      <td className="px-3 py-2 min-w-[70px] border-r border-slate-100">
+                        <div className="h-7 w-7 rounded-md bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                          {person.photo_url ? (
+                            <img src={person.photo_url} alt={person.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-[9px] text-amber-600 font-bold">None</span>
+                          )}
+                        </div>
+                      </td>
+                    )}
 
-                      {gen?.status === 'SUCCESS' && gen.file_url && (
-                        <a
-                          href={gen.file_url}
-                          download={`${sanitizeStudentId(person.student_id)}.png`}
-                          className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
-                          title="Download high-res PNG"
-                        >
-                          <Download size={13} />
-                        </a>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
+                    {/* 7. INFORMATION */}
+                    {columnVisibility.information && (
+                      <td className="px-3 py-2 min-w-[130px] border-r border-slate-100">
+                        {statusInfo.ready ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                            <CheckCircle2 size={12} /> Complete
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPersonForMissing(person)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:underline cursor-pointer"
+                            title="Click to view missing fields"
+                          >
+                            <AlertTriangle size={12} /> {statusInfo.missingFields.length} Missing ↗
+                          </button>
+                        )}
+                      </td>
+                    )}
+
+                    {/* 8. ID CARD STATUS */}
+                    {columnVisibility.status && (
+                      <td className="px-3 py-2 min-w-[150px] border-r border-slate-100">
+                        <IdCardStatusBadge
+                          statusInfo={statusInfo}
+                          onMissingClick={() => setSelectedPersonForMissing(person)}
+                          onHistoryClick={() => setSelectedPersonForHistory(person)}
+                          onReprintClick={() => setSelectedPersonForReprint(person)}
+                        />
+                      </td>
+                    )}
+
+                    {/* 9. GENERATED */}
+                    {columnVisibility.generated && (
+                      <td className="px-3 py-2 min-w-[120px] border-r border-slate-100 text-[11px]">
+                        {gen?.status === 'SUCCESS' ? (
+                          <div>
+                            <span className="font-bold text-blue-700">✓ Generated</span>
+                            <p className="text-[10px] text-slate-400">{new Date(gen.created_at).toLocaleDateString()}</p>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">Not Generated</span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* 10. PRINTED */}
+                    {columnVisibility.printed && (
+                      <td className="px-3 py-2 min-w-[120px] border-r border-slate-100 text-[11px]">
+                        {statusInfo.printCount > 0 ? (
+                          <div>
+                            <span className="font-bold text-teal-700">✓ Printed</span>
+                            {statusInfo.lastPrintedAt && (
+                              <p className="text-[10px] text-slate-400">{new Date(statusInfo.lastPrintedAt).toLocaleDateString()}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">Not Printed</span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* 11. PRINT COUNT */}
+                    {columnVisibility.print_count && (
+                      <td className="px-3 py-2 min-w-[80px] border-r border-slate-100 font-mono font-bold text-slate-800">
+                        {statusInfo.printCount}
+                      </td>
+                    )}
+
+                    {/* 12. STATUS-AWARE ACTIONS */}
+                    {columnVisibility.actions && (
+                      <td className="px-3 py-2 min-w-[160px] text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {statusInfo.status === 'NOT_READY' && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPersonForMissing(person)}
+                              className="rounded bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 cursor-pointer shadow-2xs"
+                            >
+                              Fix Info
+                            </button>
+                          )}
+
+                          {statusInfo.status === 'READY_TO_GENERATE' && (
+                            <button
+                              type="button"
+                              onClick={() => executeGeneration([person])}
+                              className="inline-flex items-center gap-1 rounded bg-slate-900 px-2 py-1 text-[10px] font-bold text-white hover:bg-slate-800 cursor-pointer shadow-2xs"
+                            >
+                              <Sparkles size={11} /> Generate
+                            </button>
+                          )}
+
+                          {statusInfo.status === 'READY_TO_PRINT' && (
+                            <button
+                              type="button"
+                              onClick={() => executePrint([person])}
+                              className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-2xs"
+                            >
+                              <Printer size={11} /> Print
+                            </button>
+                          )}
+
+                          {statusInfo.status === 'PRINT_FAILED' && (
+                            <button
+                              type="button"
+                              onClick={() => executePrint([person])}
+                              className="inline-flex items-center gap-1 rounded bg-rose-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-rose-700 cursor-pointer shadow-2xs"
+                            >
+                              <RotateCcw size={11} /> Retry Print
+                            </button>
+                          )}
+
+                          {statusInfo.status === 'REPRINT_REQUIRED' && (
+                            <button
+                              type="button"
+                              onClick={() => executePrint([person])}
+                              className="inline-flex items-center gap-1 rounded bg-purple-700 px-2 py-1 text-[10px] font-bold text-white hover:bg-purple-800 cursor-pointer shadow-2xs"
+                            >
+                              <Printer size={11} /> Print Again
+                            </button>
+                          )}
+
+                          {statusInfo.status === 'PRINTED' && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPersonForReprint(person)}
+                              className="inline-flex items-center gap-1 rounded bg-purple-50 px-2 py-1 text-[10px] font-bold text-purple-800 hover:bg-purple-100 cursor-pointer shadow-2xs"
+                            >
+                              <RotateCcw size={11} /> Reprint
+                            </button>
+                          )}
+
+                          {statusInfo.status === 'OUTDATED' && (
+                            <button
+                              type="button"
+                              onClick={() => executeGeneration([person])}
+                              className="inline-flex items-center gap-1 rounded bg-orange-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-orange-700 cursor-pointer shadow-2xs"
+                            >
+                              <Sparkles size={11} /> Regenerate
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPersonForHistory(person)}
+                            title="View full audit trail"
+                            className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+                          >
+                            <History size={13} />
+                          </button>
+
+                          {gen?.status === 'SUCCESS' && gen.file_url && (
+                            <a
+                              href={gen.file_url}
+                              download={`${sanitizeStudentId(person.student_id)}.png`}
+                              className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+                              title="Download high-resolution card PNG"
+                            >
+                              <Download size={13} />
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Batch Validation Confirm Modal (For Pre-Generation and Pre-Printing) */}
+      {/* 6. Modals for Batch Validation, Duplicate Warnings, Missing Info, History, Reprint */}
       {batchModalConfig && (
         <BatchValidationConfirmModal
           isOpen={batchModalConfig.isOpen}
@@ -1425,7 +2337,6 @@ export default function IdCardGeneratePage() {
         />
       )}
 
-      {/* Duplicate Print Warning Modal */}
       {duplicateWarningPerson && (
         <Modal
           isOpen={true}
@@ -1472,7 +2383,6 @@ export default function IdCardGeneratePage() {
         </Modal>
       )}
 
-      {/* Modals for Missing Info, History, and Reprint */}
       {selectedPersonForMissing && (
         <StudentMissingInfoModal
           person={selectedPersonForMissing}
@@ -1511,7 +2421,6 @@ export default function IdCardGeneratePage() {
         />
       )}
 
-      {/* Print Preview Modal */}
       {showPreview && layout && (
         <PrintPreviewModal
           layout={layout}
@@ -1524,7 +2433,6 @@ export default function IdCardGeneratePage() {
         />
       )}
 
-      {/* Print Confirmation Dialog */}
       {showPrintConfirm && (
         <PrintConfirmDialog
           count={pendingPrintPersons.length}

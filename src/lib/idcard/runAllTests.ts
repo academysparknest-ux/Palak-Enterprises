@@ -28,7 +28,10 @@ const testFiles = [
   'src/lib/idcard/masterDataArchitecture.test.ts',
   'src/lib/idcard/idCardStatusEngine.test.ts',
   'src/lib/idcard/studentSort.test.ts',
+  'src/lib/idcard/productionTable.test.ts',
+  'src/lib/idcard/spreadsheetTableEngine.test.ts',
 ];
+
 
 console.log('╔═══════════════════════════════════════════════════════════════╗');
 console.log('║       PALAK PRINTING PRESS - COMPLETE TEST SUITE RUNNER       ║');

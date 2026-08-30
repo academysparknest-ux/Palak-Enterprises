@@ -4,18 +4,16 @@ import {
   Plus,
   Upload,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   Search,
   Images,
   LayoutTemplate,
-  AlertCircle,
-  Pencil,
-  ArrowUpDown,
-  Filter,
+  RotateCcw,
+  CheckSquare,
+  Square,
+  X,
 } from 'lucide-react';
 import {
-  getIdCardPersons,
+  getAllIdCardPersons,
   getIdCardTemplates,
   getIdCardGenerations,
   createIdCardPerson,
@@ -30,10 +28,10 @@ import type {
   IdCardProject,
   IdCardGeneration,
   IdCardStatus,
-  PaginatedResult,
 } from '../../../lib/idcard/types';
 import { extractTemplateFieldSchema } from '../../../lib/idcard/templateFieldSchema';
-import { computeStudentIdCardStatus, validateStudentForIdCard } from '../../../lib/idcard/statusEngine';
+import { computeStudentIdCardStatus } from '../../../lib/idcard/statusEngine';
+import { sortStudentRecords, type StudentSortField } from '../../../lib/idcard/studentSort';
 import { PersonTable } from '../../../components/idcard/PersonTable';
 import { PersonForm } from '../../../components/idcard/PersonForm';
 import { PhotoUpload } from '../../../components/idcard/PhotoUpload';
@@ -50,18 +48,15 @@ type PageState =
   | { kind: 'error'; message: string }
   | {
       kind: 'ready';
-      result: PaginatedResult<IdCardPerson>;
+      persons: IdCardPerson[];
       template: IdCardTemplate | null;
       generations: IdCardGeneration[];
     };
-
-const PAGE_SIZE = 25;
 
 export default function IdCardPersonsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [state, setState] = useState<PageState>({ kind: 'loading' });
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editingPerson, setEditingPerson] = useState<IdCardPerson | 'new' | null>(null);
   const [showImport, setShowImport] = useState(false);
@@ -77,14 +72,17 @@ export default function IdCardPersonsPage() {
   const [deletingPerson, setDeletingPerson] = useState<IdCardPerson | null>(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
 
-  // Sorting
-  const [sortField, setSortField] = useState<'name' | 'student_id' | 'class' | 'status' | 'updated_at'>('name');
-  const [sortAsc, setSortAsc] = useState(true);
+  // Sorting state - Default is Student ID ↑ (Ascending)
+  const [sortField, setSortField] = useState<StudentSortField>('student_id');
+  const [sortAsc, setSortAsc] = useState<boolean>(true);
 
   const activeTemplate = state.kind === 'ready' ? state.template : null;
   const generations = state.kind === 'ready' ? state.generations : [];
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(activeTemplate?.layout), [activeTemplate]);
-  const requiredFields = useMemo(() => [...fieldSchema.studentInputFields, ...fieldSchema.assetFields].filter((f) => f.required), [fieldSchema]);
+  const requiredFields = useMemo(
+    () => [...fieldSchema.studentInputFields, ...fieldSchema.assetFields].filter((f) => f.required),
+    [fieldSchema]
+  );
 
   const { project } = useOutletContext<{ project?: IdCardProject }>() || {};
 
@@ -92,8 +90,8 @@ export default function IdCardPersonsPage() {
     if (!projectId) return;
     setState({ kind: 'loading' });
     try {
-      const [personsResult, templates, gens] = await Promise.all([
-        getIdCardPersons(projectId, { search: search || undefined, page, pageSize: PAGE_SIZE }),
+      const [persons, templates, gens] = await Promise.all([
+        getAllIdCardPersons(projectId),
         getIdCardTemplates(projectId),
         getIdCardGenerations(projectId),
       ]);
@@ -105,7 +103,7 @@ export default function IdCardPersonsPage() {
 
       setState({
         kind: 'ready',
-        result: personsResult,
+        persons,
         template: activeTemplate,
         generations: gens,
       });
@@ -113,21 +111,17 @@ export default function IdCardPersonsPage() {
       const appError = classifySupabaseError(err);
       setState({ kind: 'error', message: errorCodeToUserMessage(appError.code) });
     }
-  }, [projectId, search, page, project?.template_id]);
+  }, [projectId, project?.template_id]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search]);
-
-  // Compute status info map for current records
+  // Compute status info map for all records in the project
   const studentStatusMap = useMemo(() => {
     if (state.kind !== 'ready') return new Map();
     const map = new Map<string, ReturnType<typeof computeStudentIdCardStatus>>();
-    for (const person of state.result.data) {
+    for (const person of state.persons) {
       const latestGen = generations.find((g) => g.person_id === person.id);
       const info = computeStudentIdCardStatus({
         person,
@@ -140,7 +134,7 @@ export default function IdCardPersonsPage() {
     return map;
   }, [state, generations, fieldSchema, activeTemplate]);
 
-  // Real-time Status Counts for Dashboard
+  // Real-time Status Counts for Dashboard across entire dataset
   const statusCounts = useMemo(() => {
     if (state.kind !== 'ready') {
       return {
@@ -163,7 +157,7 @@ export default function IdCardPersonsPage() {
     let reprintRequired = 0;
     let outdated = 0;
 
-    for (const person of state.result.data) {
+    for (const person of state.persons) {
       const info = studentStatusMap.get(person.id);
       if (!info) continue;
       switch (info.status) {
@@ -192,7 +186,7 @@ export default function IdCardPersonsPage() {
     }
 
     return {
-      total: state.result.total,
+      total: state.persons.length,
       notReady,
       readyToGenerate,
       readyToPrint,
@@ -203,12 +197,38 @@ export default function IdCardPersonsPage() {
     };
   }, [state, studentStatusMap]);
 
-  // Filtered & Sorted Displayed Students
+  // Search -> Filter -> Sort Data Pipeline
   const displayedPersons = useMemo(() => {
     if (state.kind !== 'ready') return [];
-    let list = [...state.result.data];
+    let list = state.persons;
 
-    // Filter by ID Card status
+    // 1. Search Query filtering (across name, student_id, roll_number, class, section, phone, parent, address)
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter((p) => {
+        const idMatch = p.student_id?.toLowerCase().includes(q);
+        const nameMatch = p.name?.toLowerCase().includes(q);
+        const rollMatch = p.roll_number?.toLowerCase().includes(q);
+        const classMatch = `${p.class || ''} ${p.section || ''}`.toLowerCase().includes(q);
+        const phoneMatch = `${p.phone || ''} ${p.emergency_number || ''}`.includes(q);
+        const parentMatch = `${p.father_name || ''} ${p.mother_name || ''}`.toLowerCase().includes(q);
+        const addressMatch = p.address?.toLowerCase().includes(q);
+        const bloodMatch = p.blood_group?.toLowerCase().includes(q);
+
+        return (
+          idMatch ||
+          nameMatch ||
+          rollMatch ||
+          classMatch ||
+          phoneMatch ||
+          parentMatch ||
+          addressMatch ||
+          bloodMatch
+        );
+      });
+    }
+
+    // 2. ID Card status filtering
     if (statusFilter !== 'ALL') {
       list = list.filter((p) => {
         const info = studentStatusMap.get(p.id);
@@ -216,35 +236,33 @@ export default function IdCardPersonsPage() {
       });
     }
 
-    // Sort list
-    list.sort((a, b) => {
-      let valA: any = '';
-      let valB: any = '';
-      if (sortField === 'name') {
-        valA = a.name.toLowerCase();
-        valB = b.name.toLowerCase();
-      } else if (sortField === 'student_id') {
-        valA = a.student_id;
-        valB = b.student_id;
-      } else if (sortField === 'class') {
-        valA = `${a.class || ''}-${a.section || ''}`;
-        valB = `${b.class || ''}-${b.section || ''}`;
-      } else if (sortField === 'status') {
-        valA = studentStatusMap.get(a.id)?.status || '';
-        valB = studentStatusMap.get(b.id)?.status || '';
-      } else if (sortField === 'updated_at') {
-        valA = a.updated_at || '';
-        valB = b.updated_at || '';
-      }
-
-      if (valA < valB) return sortAsc ? -1 : 1;
-      if (valA > valB) return sortAsc ? 1 : -1;
-      return 0;
+    // 3. Intelligent multi-type sorting on entire student objects
+    return sortStudentRecords(list, {
+      field: sortField,
+      ascending: sortAsc,
+      statusMap: studentStatusMap,
     });
+  }, [state, search, statusFilter, studentStatusMap, sortField, sortAsc]);
 
-    return list;
-  }, [state, statusFilter, studentStatusMap, sortField, sortAsc]);
+  // Handle column header clicks to toggle sort
+  function handleSort(field: StudentSortField) {
+    if (sortField === field) {
+      // Toggle Ascending <-> Descending
+      setSortAsc((prev) => !prev);
+    } else {
+      // Set new sort field with Ascending default
+      setSortField(field);
+      setSortAsc(true);
+    }
+  }
 
+  // Reset to default sort (Student ID ↑)
+  function handleResetSort() {
+    setSortField('student_id');
+    setSortAsc(true);
+  }
+
+  // Selection toggle
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -254,12 +272,28 @@ export default function IdCardPersonsPage() {
     });
   }
 
+  // Select all visible students in current filtered view
+  function selectAllVisible() {
+    setSelected(new Set(displayedPersons.map((p) => p.id)));
+  }
+
+  // Deselect all
+  function deselectAll() {
+    setSelected(new Set());
+  }
+
   async function handleConfirmDelete() {
     if (!deletingPerson) return;
     setDeletingLoading(true);
     try {
       await deleteIdCardPerson(deletingPerson.id);
       setDeletingPerson(null);
+      // Remove deleted person from selection if present
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(deletingPerson.id);
+        return next;
+      });
       load();
     } catch (err) {
       alert(errorCodeToUserMessage(classifySupabaseError(err).code));
@@ -272,8 +306,8 @@ export default function IdCardPersonsPage() {
 
   if (state.kind === 'loading') {
     return (
-      <div className="flex h-48 items-center justify-center text-slate-400">
-        <Loader2 className="mr-2 animate-spin" size={18} /> Loading students & ID card readiness...
+      <div className="flex h-64 items-center justify-center text-slate-400">
+        <Loader2 className="mr-2 animate-spin" size={20} /> Loading complete student database & readiness...
       </div>
     );
   }
@@ -310,8 +344,12 @@ export default function IdCardPersonsPage() {
     );
   }
 
+  const totalStudents = state.persons.length;
+  const isFilteredOrSearched = search.trim().length > 0 || statusFilter !== 'ALL';
+  const isDefaultSort = sortField === 'student_id' && sortAsc;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {/* 1. Top Status Summary Dashboard */}
       <StatusSummaryDashboard
         counts={statusCounts}
@@ -344,7 +382,7 @@ export default function IdCardPersonsPage() {
         <div className="flex items-center gap-2">
           <Link
             to="../generate"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-2xs cursor-pointer"
           >
             Go to Print Center ({statusCounts.readyToPrint} ready to print) →
           </Link>
@@ -357,132 +395,156 @@ export default function IdCardPersonsPage() {
         </div>
       </div>
 
-      {/* 3. Action Controls & Search */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-slate-900">Student Records</h1>
+      {/* 3. Action Controls & Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <h1 className="text-lg font-bold text-slate-900">Student Dataset</h1>
+
+          {/* Record Count Badge */}
+          <span className="rounded-md bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+            {isFilteredOrSearched
+              ? `Showing ${displayedPersons.length} of ${totalStudents} students`
+              : `Showing ${totalStudents} student${totalStudents === 1 ? '' : 's'}`}
+          </span>
+
           {statusFilter !== 'ALL' && (
             <button
               type="button"
               onClick={() => setStatusFilter('ALL')}
-              className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-200 cursor-pointer"
+              className="inline-flex items-center gap-1 rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 cursor-pointer transition"
             >
-              Filter: {statusFilter.replace(/_/g, ' ')} ✕
+              Filter: {statusFilter.replace(/_/g, ' ')} <X size={11} />
             </button>
           )}
         </div>
+
         <div className="flex flex-wrap gap-2">
           {fieldSchema.assetFields.some((f) => f.key === 'student_photo') && (
             <button
               onClick={() => setShowBulkPhotos(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 px-3.5 py-2 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 transition shadow-2xs cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 transition shadow-2xs cursor-pointer"
             >
               <Images size={14} /> Bulk Upload Photos
             </button>
           )}
           <button
             onClick={() => setShowImport(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-2xs"
           >
-            <Upload size={14} /> Import Excel / CSV
+            <Upload size={14} /> Import CSV / Excel
           </button>
           <button
             onClick={() => setEditingPerson('new')}
-            className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition shadow-2xs cursor-pointer"
+            className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition shadow-2xs cursor-pointer"
           >
             <Plus size={14} /> Add Student
           </button>
         </div>
       </div>
 
-      {/* 4. Search and Sorting Bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      {/* 4. Search, Selection Toolbar, and Sort Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 border border-slate-200 p-2.5 rounded-xl">
+        {/* Left: Search input */}
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, student ID, roll number..."
-            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-xs focus:border-slate-400 focus:outline-none"
+            placeholder="Search by name, ID, roll no, class, phone, address..."
+            className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-9 pr-8 text-xs focus:border-slate-400 focus:outline-none placeholder:text-slate-400 shadow-2xs"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-1.5 text-xs text-slate-600">
-          <ArrowUpDown size={14} className="text-slate-400" />
-          <span className="font-medium">Sort:</span>
-          <select
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value as any)}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-none"
-          >
-            <option value="name">Name</option>
-            <option value="student_id">Student ID</option>
-            <option value="class">Class</option>
-            <option value="status">ID Card Status</option>
-            <option value="updated_at">Last Updated</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => setSortAsc(!sortAsc)}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
-          >
-            {sortAsc ? 'ASC ↑' : 'DESC ↓'}
-          </button>
+        {/* Right: Selection status & Sort controls */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {/* Selection quick actions */}
+          {displayedPersons.length > 0 && (
+            <div className="flex items-center gap-1.5 border-r border-slate-200 pr-2 mr-1 text-slate-600">
+              <button
+                type="button"
+                onClick={selectAllVisible}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 hover:text-blue-600 cursor-pointer"
+              >
+                <CheckSquare size={13} /> Select All ({displayedPersons.length})
+              </button>
+              {selected.size > 0 && (
+                <>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={deselectAll}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-rose-600 cursor-pointer"
+                  >
+                    <Square size={13} /> Deselect All
+                  </button>
+                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 ml-0.5">
+                    {selected.size} selected
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Active Sort indicator pill */}
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-700 shadow-2xs">
+            <span className="text-[11px] text-slate-500 font-medium">Sorted by:</span>
+            <span className="text-[11px] font-bold text-slate-900 capitalize">
+              {sortField.replace(/_/g, ' ')} {sortAsc ? '↑ (ASC)' : '↓ (DESC)'}
+            </span>
+          </div>
+
+          {/* Reset Sort Button */}
+          {!isDefaultSort && (
+            <button
+              type="button"
+              onClick={handleResetSort}
+              title="Reset sorting to Student ID Ascending"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs transition"
+            >
+              <RotateCcw size={11} /> Reset Sort
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 5. Main Student Records Table */}
+      {/* 5. Main Continuous Scrollable Student Table */}
       <div>
-        {displayedPersons.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-200 p-10 text-center text-slate-400">
-            {statusFilter !== 'ALL'
+        {displayedPersons.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 p-12 text-center text-slate-400 bg-white">
+            {search.trim().length > 0
+              ? `No students matching "${search}".`
+              : statusFilter !== 'ALL'
               ? `No students found matching status "${statusFilter.replace(/_/g, ' ')}".`
               : 'No students yet. Add one or import an Excel / CSV spreadsheet.'}
           </div>
-        )}
-
-        {displayedPersons.length > 0 && (
-          <>
-            <PersonTable
-              persons={displayedPersons}
-              schema={fieldSchema}
-              template={activeTemplate}
-              generations={generations}
-              selected={selected}
-              onToggleSelect={toggleSelect}
-              onEdit={(p) => setEditingPerson(p)}
-              onDelete={(p) => setDeletingPerson(p)}
-              onViewMissing={(p) => setSelectedPersonForMissing(p)}
-              onViewHistory={(p) => setSelectedPersonForHistory(p)}
-              onRequestReprint={(p) => setSelectedPersonForReprint(p)}
-            />
-
-            <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
-              <span>
-                Showing {displayedPersons.length} of {state.result.total} student
-                {state.result.total === 1 ? '' : 's'}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                  className="rounded-md border border-slate-200 p-1.5 disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                <span>
-                  Page {page} of {Math.max(1, Math.ceil(state.result.total / PAGE_SIZE))}
-                </span>
-                <button
-                  disabled={page * PAGE_SIZE >= state.result.total}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="rounded-md border border-slate-200 p-1.5 disabled:opacity-40 cursor-pointer"
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            </div>
-          </>
+        ) : (
+          <PersonTable
+            persons={displayedPersons}
+            schema={fieldSchema}
+            template={activeTemplate}
+            generations={generations}
+            selected={selected}
+            onToggleSelect={toggleSelect}
+            onSelectAll={selectAllVisible}
+            onDeselectAll={deselectAll}
+            onEdit={(p) => setEditingPerson(p)}
+            onDelete={(p) => setDeletingPerson(p)}
+            onViewMissing={(p) => setSelectedPersonForMissing(p)}
+            onViewHistory={(p) => setSelectedPersonForHistory(p)}
+            onRequestReprint={(p) => setSelectedPersonForReprint(p)}
+            sortField={sortField}
+            sortAsc={sortAsc}
+            onSort={handleSort}
+          />
         )}
       </div>
 
@@ -614,13 +676,6 @@ function PersonEditModal({
     setError(null);
     try {
       let finalPhotoUrl = photoPath;
-      if (pendingPhotoFile && values.student_id) {
-        finalPhotoUrl = await uploadPersonPhoto(projectId, values.student_id, pendingPhotoFile);
-      }
-
-      if (isPhotoRequired && !finalPhotoUrl) {
-        throw new Error('Student photo is required for this ID card template.');
-      }
 
       const standardKeys = [
         'student_id',
@@ -662,15 +717,29 @@ function PersonEditModal({
       }
 
       if (person) {
+        if (pendingPhotoFile) {
+          finalPhotoUrl = await uploadPersonPhoto(person.id, pendingPhotoFile);
+        }
+        if (isPhotoRequired && !finalPhotoUrl) {
+          throw new Error('Student photo is required for this ID card template.');
+        }
         await updateIdCardPerson(person.id, {
           ...standardData,
+          photo_url: finalPhotoUrl || null,
           custom_fields: Object.keys(customFields).length > 0 ? customFields : person.custom_fields || null,
         });
       } else {
-        await createIdCardPerson({
+        if (isPhotoRequired && !pendingPhotoFile && !finalPhotoUrl) {
+          throw new Error('Student photo is required for this ID card template.');
+        }
+        const created = await createIdCardPerson({
           ...standardData,
           custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
         } as any);
+        if (pendingPhotoFile && created) {
+          finalPhotoUrl = await uploadPersonPhoto(created.id, pendingPhotoFile);
+          await updateIdCardPerson(created.id, { photo_url: finalPhotoUrl });
+        }
       }
       onSaved();
     } catch (err) {
@@ -733,17 +802,16 @@ function PersonEditModal({
             </h4>
             <div className="mt-2.5">
               <PhotoUpload
-                currentPhotoUrl={pendingPreviewUrl || photoPath}
-                onPhotoSelected={(file, previewUrl) => {
+                photoPath={photoPath}
+                initialPreviewUrl={pendingPreviewUrl || photoPath}
+                onFileSelect={(file: File | null, previewUrl: string | null) => {
                   setPendingPhotoFile(file);
                   setPendingPreviewUrl(previewUrl);
+                  if (!file && !previewUrl) {
+                    setPhotoPath(null);
+                  }
                 }}
-                onPhotoRemoved={() => {
-                  setPendingPhotoFile(null);
-                  setPendingPreviewUrl(null);
-                  setPhotoPath(null);
-                }}
-                disabled={submitting}
+                onChange={(path) => setPhotoPath(path)}
               />
             </div>
           </div>
@@ -756,14 +824,12 @@ function PersonEditModal({
         )}
 
         <PersonForm
-          id="person-edit-form"
           schema={fieldSchema}
-          initialValues={initialValues}
+          initial={initialValues}
           onSubmit={handleFormSubmit}
           submitting={submitting}
-          submitLabel={isEditing ? 'Save Changes' : 'Create Student'}
+          serverError={error}
           onCancel={onClose}
-          hideActions={true}
         />
       </div>
     </Modal>

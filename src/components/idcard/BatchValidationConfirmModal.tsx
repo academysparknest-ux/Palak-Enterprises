@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, XCircle, Sparkles, Printer } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Sparkles, Printer } from 'lucide-react';
 import type { IdCardPerson } from '../../lib/idcard/types';
 import { sanitizeStudentId } from '../../lib/idcard/validation';
 import { Modal } from '../ui/Modal';

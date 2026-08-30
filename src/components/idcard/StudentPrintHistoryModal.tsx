@@ -1,4 +1,4 @@
-import { Printer, RotateCcw, CheckCircle2, XCircle, Clock, Sparkles } from 'lucide-react';
+import { Printer, RotateCcw, XCircle, Sparkles } from 'lucide-react';
 import type { IdCardPerson, IdCardGeneration } from '../../lib/idcard/types';
 import { getPrintHistory } from '../../lib/idcard/printTracker';
 import { sanitizeStudentId } from '../../lib/idcard/validation';
