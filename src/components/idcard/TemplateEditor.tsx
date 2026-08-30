@@ -49,6 +49,7 @@ import {
   TEMPLATE_PRESETS,
   SAMPLE_TEMPLATE_1_LAYOUT,
   formatFieldDisplay,
+  renderFormattedRichText,
   getCustomDefaultTemplate,
   saveCustomDefaultTemplate,
   clearCustomDefaultTemplate,
@@ -2352,7 +2353,7 @@ export function TemplateEditor({
                           lineHeight: field.lineHeight || 1.2,
                         }}
                       >
-                        {displayText}
+                        {renderFormattedRichText(displayText, field.fontWeight)}
                       </div>
                     )}
 

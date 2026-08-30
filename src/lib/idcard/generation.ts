@@ -458,76 +458,108 @@ async function renderSideToCanvas(
     const basePt = field.fontSize ?? 10;
     let fontSizePx = basePt * (MM_TO_PX / 2.835); // pt to canvas px (1 pt = 1/72 in = 25.4/72 mm = 0.3528 mm)
     const fontStyle = field.fontStyle === 'italic' ? 'italic ' : '';
-    const fontWeight = field.fontWeight === 'bold' ? 'bold ' : field.fontWeight ? `${field.fontWeight} ` : '';
     const fontFamily = field.fontFamily || "'Times New Roman', serif";
 
     ctx.fillStyle = field.color ?? '#1B2A4A';
-    ctx.textAlign = field.textAlign === 'center' ? 'center' : field.textAlign === 'right' ? 'right' : 'left';
+    ctx.textAlign = 'left'; // We manage alignment per line when drawing rich words
     ctx.textBaseline = 'top';
 
-    const alignX = field.textAlign === 'center' ? x + w / 2 : field.textAlign === 'right' ? x + w : x;
     const lineHeightMultiplier = field.lineHeight || 1.25;
     let lineHeightPx = fontSizePx * lineHeightMultiplier;
+    const isBaseBold = field.fontWeight === 'bold' || Number(field.fontWeight) >= 700;
 
-    // Auto font scaling down if strategy is 'scale_down'
-    if (field.overflowStrategy === 'scale_down') {
-      ctx.font = `${fontStyle}${fontWeight}${Math.round(fontSizePx)}px ${fontFamily}`;
-      const paragraphs = fullText.split('\n');
-      let maxLineWidth = 0;
-      for (const p of paragraphs) {
-        const pWidth = ctx.measureText(p).width;
-        if (pWidth > maxLineWidth) maxLineWidth = pWidth;
-      }
-      while (maxLineWidth > w && fontSizePx > 5) {
-        fontSizePx -= 0.5;
-        lineHeightPx = fontSizePx * lineHeightMultiplier;
-        ctx.font = `${fontStyle}${fontWeight}${Math.round(fontSizePx)}px ${fontFamily}`;
-        maxLineWidth = 0;
-        for (const p of paragraphs) {
-          const pWidth = ctx.measureText(p).width;
-          if (pWidth > maxLineWidth) maxLineWidth = pWidth;
-        }
-      }
-    } else {
-      ctx.font = `${fontStyle}${fontWeight}${Math.round(fontSizePx)}px ${fontFamily}`;
-    }
+    const normalFont = `${fontStyle}${isBaseBold ? 'bold ' : ''}${Math.round(fontSizePx)}px ${fontFamily}`;
+    const boldFont = `${fontStyle}bold ${Math.round(fontSizePx)}px ${fontFamily}`;
+
+    ctx.font = normalFont;
+    const spaceWidth = ctx.measureText(' ').width;
 
     // Split by explicit newline \n first, then word-wrap within each paragraph
     const paragraphs = fullText.split('\n');
     let curY = y;
 
+    const targetPhrase = 'SparkNest Academy, Motihari, Bihar';
+
     for (let pIdx = 0; pIdx < paragraphs.length; pIdx++) {
-      const paragraph = paragraphs[pIdx];
-      const words = paragraph.split(' ');
-      let line = '';
+      let paragraph = paragraphs[pIdx];
+      if (!isBaseBold && !paragraph.includes('**') && paragraph.includes(targetPhrase)) {
+        paragraph = paragraph.replace(targetPhrase, `**${targetPhrase}**`);
+      }
 
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line ? `${line} ${words[i]}` : words[i];
-        const testWidth = ctx.measureText(testLine).width;
+      // Parse words and their bold status
+      interface RichWord {
+        word: string;
+        isBold: boolean;
+      }
 
-        if (testWidth > w && line.length > 0) {
-          // If out of height bounds, handle ellipsis
+      const richWords: RichWord[] = [];
+      if (paragraph.includes('**') && !isBaseBold) {
+        const segments = paragraph.split(/(\*\*[^*]+\*\*)/g);
+        for (const seg of segments) {
+          if (!seg) continue;
+          if (seg.startsWith('**') && seg.endsWith('**')) {
+            const inner = seg.slice(2, -2);
+            inner.split(' ').filter(Boolean).forEach((w) => richWords.push({ word: w, isBold: true }));
+          } else {
+            seg.split(' ').filter(Boolean).forEach((w) => richWords.push({ word: w, isBold: false }));
+          }
+        }
+      } else {
+        const cleanP = paragraph.replace(/\*\*/g, '');
+        cleanP.split(' ').filter(Boolean).forEach((w) => richWords.push({ word: w, isBold: isBaseBold }));
+      }
+
+      // Line wrapping
+      let currentLine: RichWord[] = [];
+      let currentLineWidth = 0;
+
+      const drawLine = (lineWords: RichWord[], lineW: number, lineY: number) => {
+        let drawX = x;
+        if (field.textAlign === 'center') {
+          drawX = x + Math.max(0, (w - lineW) / 2);
+        } else if (field.textAlign === 'right') {
+          drawX = x + Math.max(0, w - lineW);
+        }
+
+        for (let idx = 0; idx < lineWords.length; idx++) {
+          const item = lineWords[idx];
+          ctx.font = item.isBold ? boldFont : normalFont;
+          ctx.fillText(item.word, drawX, lineY);
+          drawX += ctx.measureText(item.word).width + spaceWidth;
+        }
+      };
+
+      for (let i = 0; i < richWords.length; i++) {
+        const item = richWords[i];
+        ctx.font = item.isBold ? boldFont : normalFont;
+        const wordWidth = ctx.measureText(item.word).width;
+        const testWidth = currentLine.length === 0 ? wordWidth : currentLineWidth + spaceWidth + wordWidth;
+
+        if (testWidth > w && currentLine.length > 0) {
           if (curY + lineHeightPx > y + h && field.overflowStrategy === 'ellipsis') {
-            ctx.fillText(`${line}...`, alignX, curY);
-            line = '';
+            drawLine(currentLine, currentLineWidth, curY);
+            currentLine = [];
             break;
           }
 
-          ctx.fillText(line, alignX, curY);
+          drawLine(currentLine, currentLineWidth, curY);
           curY += lineHeightPx;
 
           if (curY + fontSizePx > y + h + 2) {
-            line = '';
+            currentLine = [];
             break;
           }
-          line = words[i];
+
+          currentLine = [item];
+          currentLineWidth = wordWidth;
         } else {
-          line = testLine;
+          currentLine.push(item);
+          currentLineWidth = testWidth;
         }
       }
 
-      if (line && curY + fontSizePx <= y + h + 4) {
-        ctx.fillText(line, alignX, curY);
+      if (currentLine.length > 0 && curY + fontSizePx <= y + h + 4) {
+        drawLine(currentLine, currentLineWidth, curY);
         curY += lineHeightPx;
       }
     }

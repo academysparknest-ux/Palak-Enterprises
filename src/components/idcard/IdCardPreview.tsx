@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { getPhotoSignedUrl } from '../../lib/idcard/database';
 import type { IdCardPerson, IdCardTemplate, TemplateField, TemplateSideLayout } from '../../lib/idcard/types';
 import { sanitizeStudentId, getQrCodePayload } from '../../lib/idcard/validation';
-import { formatFieldDisplay } from '../../lib/idcard/templatePresets';
+import { formatFieldDisplay, renderFormattedRichText } from '../../lib/idcard/templatePresets';
 
 // ============================================================
 // BARCODE: Code128-style SVG rendering
@@ -461,7 +461,7 @@ function SingleCardFace({
               }}
               className="overflow-hidden whitespace-pre-line"
             >
-              {displayText}
+              {renderFormattedRichText(displayText, field.fontWeight)}
             </div>
           );
         })}

@@ -1,3 +1,4 @@
+import React from 'react';
 import type { TemplateLayout, TemplateSideLayout } from './types';
 
 // ============================================================
@@ -188,7 +189,7 @@ const SPARKNEST_DUAL_BACK: TemplateSideLayout = {
       color: SPARKNEST_NAVY,
       textAlign: 'center',
       visible: true,
-      customText: 'In case of theft or loss it is mandatory for the student to inform the Administration Office. If found abandoned, may please be returned to SparkNest Academy, Motihari, Bihar',
+      customText: 'In case of theft or loss it is mandatory for the Student to inform the Administration Office. If found abandoned, may please be returned to **SparkNest Academy, Motihari, Bihar**',
     },
     {
       key: 'school_subtitle',
@@ -814,7 +815,7 @@ export const SAMPLE_TEMPLATE_1_LAYOUT: TemplateLayout = {
         visible: true,
         locked: true,
         customText:
-          'In case of theft or loss it is mandatory for the Student to inform the Administration Office. If found abandoned, may please be returned to Graphic Era (Deemed to be) University, Dehradun.',
+          'In case of theft or loss it is mandatory for the Student to inform the Administration Office. If found abandoned, may please be returned to **Graphic Era (Deemed to be) University, Dehradun.**',
       },
       {
         id: 'st1-back-website',
@@ -1606,4 +1607,53 @@ export function formatFieldDisplay(labelPrefix?: string | null, value?: string |
     return `${labelPrefix}${val}`;
   }
   return `${labelPrefix} ${val}`;
+}
+
+/**
+ * Parses markdown-style bold (**text**) or targets "SparkNest Academy, Motihari, Bihar"
+ * to render only specified text in bold within a card field.
+ */
+export function renderFormattedRichText(text: string, baseFontWeight: string | number = 400): React.ReactNode {
+  if (!text) return text;
+  const isBaseBold = baseFontWeight === 'bold' || Number(baseFontWeight) >= 700;
+  if (isBaseBold) {
+    return text.replace(/\*\*/g, '');
+  }
+
+  // 1. If text explicitly has markdown bold **...**
+  if (text.includes('**')) {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return React.createElement(
+          'strong',
+          { key: i, className: 'font-bold', style: { fontWeight: 700 } },
+          part.slice(2, -2)
+        );
+      }
+      return part;
+    });
+  }
+
+  // 2. Automatic bolding for "SparkNest Academy, Motihari, Bihar"
+  const target = 'SparkNest Academy, Motihari, Bihar';
+  if (text.includes(target)) {
+    const parts = text.split(target);
+    const nodes: React.ReactNode[] = [];
+    parts.forEach((p, idx) => {
+      if (p) nodes.push(p);
+      if (idx < parts.length - 1) {
+        nodes.push(
+          React.createElement(
+            'strong',
+            { key: `target-${idx}`, className: 'font-bold', style: { fontWeight: 700 } },
+            target
+          )
+        );
+      }
+    });
+    return React.createElement(React.Fragment, null, ...nodes);
+  }
+
+  return text;
 }
