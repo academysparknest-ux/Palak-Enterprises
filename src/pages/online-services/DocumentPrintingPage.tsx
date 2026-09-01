@@ -73,6 +73,7 @@ import type {
 import {
   calculateDocumentPrintPriceComplete,
   buildOrderPrintSnapshot,
+  parsePageRange,
 } from "../../lib/pricing/printPricingEngine";
 import { UserPrintPreferencesStore } from "../../lib/storage/userPrintPreferencesStore";
 
@@ -286,6 +287,9 @@ export const DocumentPrintingPage: React.FC = () => {
     pages: number,
     prefs: UserSavedPrintPreferences = savedPrefs
   ): DocumentPrintConfig => {
+    // If only 1 page, double side cannot be selected. Force "single".
+    const initialSides = pages <= 1 ? "single" : (prefs.sides || "single");
+
     const rawConfig: Partial<DocumentPrintConfig> = {
       documentId: docId,
       fileName,
@@ -300,7 +304,7 @@ export const DocumentPrintingPage: React.FC = () => {
       paperType: prefs.paperType,
       gsm: prefs.gsm,
       orientation: prefs.orientation,
-      sides: prefs.sides,
+      sides: initialSides,
       pagesPerSheet: prefs.pagesPerSheet,
       scaling: prefs.scaling,
       binding: prefs.binding,
@@ -325,7 +329,7 @@ export const DocumentPrintingPage: React.FC = () => {
       paperType: prefs.paperType,
       gsm: prefs.gsm,
       orientation: prefs.orientation,
-      sides: prefs.sides,
+      sides: pages <= 1 ? "single" : initialSides,
       pagesPerSheet: prefs.pagesPerSheet,
       scaling: prefs.scaling,
       binding: prefs.binding,
@@ -414,7 +418,13 @@ export const DocumentPrintingPage: React.FC = () => {
                   ? analyzedMeta.pageCount
                   : null;
 
-              const updatedConfig = { ...d.config, totalPages: verifiedPages || 1 };
+              // Invariant: If verified pages is 1, force sides to "single"
+              const effectiveSides = verifiedPages && verifiedPages <= 1 ? "single" : d.config.sides;
+              const updatedConfig = {
+                ...d.config,
+                totalPages: verifiedPages || 1,
+                sides: effectiveSides,
+              };
               const calc = calculateDocumentPrintPriceComplete(updatedConfig, pricingConfig);
 
               return {
@@ -461,7 +471,20 @@ export const DocumentPrintingPage: React.FC = () => {
     setDocuments((prev) =>
       prev.map((d) => {
         if (d.id !== docId) return d;
-        const merged = { ...d.config, ...updates };
+        let merged = { ...d.config, ...updates };
+
+        // Invariant: If 1 page file or 1-page selection, sides must be "single"
+        const totalP = Math.max(1, Math.floor(Number(merged.totalPages) || (d.pages || 1)));
+        const rangeRes = parsePageRange(
+          merged.pageRangeType === "custom" ? merged.customPageRange : undefined,
+          totalP
+        );
+        const selectedCount = rangeRes.valid ? rangeRes.pages.length : totalP;
+
+        if (selectedCount <= 1 || (d.pages !== null && d.pages <= 1 && merged.pageRangeType === "all")) {
+          merged.sides = "single";
+        }
+
         const calc = calculateDocumentPrintPriceComplete(merged, pricingConfig);
         return {
           ...d,
@@ -485,6 +508,9 @@ export const DocumentPrintingPage: React.FC = () => {
   const applySettingsToAllDocuments = (sourceConfig: DocumentPrintConfig) => {
     setDocuments((prev) =>
       prev.map((d) => {
+        const docPages = d.pages || d.config.totalPages || 1;
+        const targetSides = docPages <= 1 ? "single" : sourceConfig.sides;
+
         const merged: Partial<DocumentPrintConfig> = {
           ...d.config,
           colorMode: sourceConfig.colorMode,
@@ -492,7 +518,7 @@ export const DocumentPrintingPage: React.FC = () => {
           paperType: sourceConfig.paperType,
           gsm: sourceConfig.gsm,
           orientation: sourceConfig.orientation,
-          sides: sourceConfig.sides,
+          sides: targetSides,
           pagesPerSheet: sourceConfig.pagesPerSheet,
           scaling: sourceConfig.scaling,
           binding: sourceConfig.binding,
@@ -1366,32 +1392,67 @@ export const DocumentPrintingPage: React.FC = () => {
                             <label className="block font-bold text-slate-700 mb-1.5">
                               {currentLang === "hi" ? "प्रिंट साइड्स" : "Sides"}
                             </label>
-                            <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
-                              <button
-                                type="button"
-                                onClick={() => updateDocumentConfig(doc.id, { sides: "single" })}
-                                className={cn(
-                                  "py-1.5 rounded-lg text-center font-bold transition-all cursor-pointer",
-                                  c.sides === "single"
-                                    ? "bg-white text-[#123B70] shadow-xs"
-                                    : "text-slate-600 hover:text-slate-900"
-                                )}
-                              >
-                                Single
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => updateDocumentConfig(doc.id, { sides: "double_long" })}
-                                className={cn(
-                                  "py-1.5 rounded-lg text-center font-bold transition-all cursor-pointer",
-                                  c.sides !== "single"
-                                    ? "bg-white text-[#123B70] shadow-xs"
-                                    : "text-slate-600 hover:text-slate-900"
-                                )}
-                              >
-                                Double
-                              </button>
-                            </div>
+                            {(() => {
+                              const isSinglePage =
+                                (doc.pages !== null && doc.pages <= 1) ||
+                                (c.selectedPageCount !== undefined && c.selectedPageCount <= 1) ||
+                                c.totalPages <= 1;
+
+                              return (
+                                <div>
+                                  <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+                                    <button
+                                      type="button"
+                                      onClick={() => updateDocumentConfig(doc.id, { sides: "single" })}
+                                      className={cn(
+                                        "py-1.5 rounded-lg text-center font-bold transition-all cursor-pointer",
+                                        c.sides === "single"
+                                          ? "bg-white text-[#123B70] shadow-xs"
+                                          : "text-slate-600 hover:text-slate-900"
+                                      )}
+                                    >
+                                      Single
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isSinglePage}
+                                      onClick={() => {
+                                        if (!isSinglePage) {
+                                          updateDocumentConfig(doc.id, { sides: "double_long" });
+                                        }
+                                      }}
+                                      title={
+                                        isSinglePage
+                                          ? currentLang === "hi"
+                                            ? "1 पेज की फ़ाइल के लिए केवल सिंगल साइड उपलब्ध है"
+                                            : "Only 1 page — Double side not applicable"
+                                          : undefined
+                                      }
+                                      className={cn(
+                                        "py-1.5 rounded-lg text-center font-bold transition-all",
+                                        isSinglePage
+                                          ? "opacity-40 cursor-not-allowed text-slate-400"
+                                          : "cursor-pointer",
+                                        !isSinglePage && c.sides !== "single"
+                                          ? "bg-white text-[#123B70] shadow-xs"
+                                          : !isSinglePage
+                                          ? "text-slate-600 hover:text-slate-900"
+                                          : ""
+                                      )}
+                                    >
+                                      Double
+                                    </button>
+                                  </div>
+                                  {isSinglePage && (
+                                    <p className="mt-1 text-[10px] text-amber-700 font-medium">
+                                      {currentLang === "hi"
+                                        ? "ℹ️ 1 पेज के दस्तावेज़ के लिए केवल सिंगल साइड उपलब्ध है"
+                                        : "ℹ️ 1-page document is printed Single Side only"}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           {/* 3. Paper Size */}

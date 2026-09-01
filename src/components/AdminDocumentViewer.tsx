@@ -362,33 +362,24 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
               <div className="pt-2 flex flex-wrap justify-center gap-2">
                 <button
                   type="button"
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>{isDownloading ? "Downloading..." : "Download File"}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleRetry}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer"
                 >
                   <span>Retry</span>
                 </button>
                 <button
                   type="button"
-                  onClick={handleOpenInTab}
-                  disabled={isOpeningTab}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold hover:bg-[#0c274c] cursor-pointer disabled:opacity-50"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span>{isOpeningTab ? "Opening..." : "Open in New Tab"}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  disabled={isDownloading}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>{isDownloading ? "Downloading..." : "Download"}</span>
-                </button>
-                <button
-                  type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer"
                 >
                   Close
                 </button>
@@ -585,29 +576,45 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
 
     return (
       <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200 text-xs shadow-2xs">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {category === "pdf" ? (
-            <span className="shrink-0 text-red-600 font-bold text-xs" title="PDF Document">📄</span>
-          ) : category === "image" ? (
-            <span className="shrink-0 text-blue-600 font-bold text-xs" title="Image File">🖼️</span>
-          ) : (
-            <span className="shrink-0 text-slate-600 font-bold text-xs" title="Document">📄</span>
-          )}
-          <span className="truncate font-semibold max-w-[130px] sm:max-w-[180px] text-slate-800 text-[11px]" title={name}>
-            {name}
-          </span>
-          {hasValidFile ? (
-            <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              ✓ Attached
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className={cn(
+            "p-1.5 rounded-md shrink-0 flex items-center justify-center",
+            category === "pdf" ? "bg-red-50 text-red-600" :
+            category === "image" ? "bg-blue-50 text-blue-600" :
+            category === "doc" ? "bg-amber-50 text-amber-600" :
+            "bg-slate-100 text-slate-600"
+          )}>
+            {category === "pdf" ? <FileText className="h-3.5 w-3.5" /> :
+             category === "image" ? <ImageIcon className="h-3.5 w-3.5" /> :
+             <FileCode className="h-3.5 w-3.5" />}
+          </div>
+
+          <div className="min-w-0 flex-1 flex items-center gap-1.5 overflow-hidden">
+            <span className="truncate font-semibold text-slate-800 text-[11px]" title={name}>
+              {name}
             </span>
-          ) : (
-            <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-              ⚠️ Missing URL
+            <span className={cn(
+              "px-1 py-0.2 rounded text-[8px] font-bold uppercase tracking-wider shrink-0 whitespace-nowrap",
+              category === "pdf" ? "bg-red-100 text-red-700" :
+              category === "image" ? "bg-blue-100 text-blue-700" :
+              category === "doc" ? "bg-amber-100 text-amber-700" :
+              "bg-slate-100 text-slate-600"
+            )}>
+              {category.toUpperCase()}
             </span>
-          )}
+            {hasValidFile ? (
+              <span className="shrink-0 whitespace-nowrap text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                ✓ Attached
+              </span>
+            ) : (
+              <span className="shrink-0 whitespace-nowrap text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                ⚠️ Missing URL
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {!hasValidFile ? (
             <span className="text-[10px] text-slate-400 italic">No stream</span>
           ) : category === "pdf" ? (
@@ -616,11 +623,11 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
                 type="button"
                 onClick={handleOpenInTab}
                 disabled={isOpening}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
-                title="Open PDF directly in new tab with full native reader & print controls"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                title="Open PDF directly in new tab"
               >
                 <ExternalLink className="h-3 w-3" />
-                <span>{isOpening ? "..." : "Open PDF"}</span>
+                <span>{isOpening ? "..." : "Open"}</span>
               </button>
               <button
                 type="button"
@@ -629,6 +636,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
                 title="Preview PDF inline"
               >
                 <Eye className="h-3 w-3" />
+                <span>Preview</span>
               </button>
               <button
                 type="button"
@@ -656,8 +664,8 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
               <button
                 type="button"
                 onClick={handleOpenPreviewModal}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition-colors cursor-pointer"
-                title="Preview image and prepare for printing"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition-colors cursor-pointer"
+                title="Preview image"
               >
                 <Eye className="h-3 w-3" />
                 <span>Preview</span>
@@ -667,7 +675,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
                 onClick={handleDirectDownload}
                 disabled={isDownloading}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
-                title="Download Image"
+                title="Download image"
               >
                 <Download className="h-3 w-3" />
                 <span>{isDownloading ? "..." : "Download"}</span>
@@ -677,7 +685,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
                 onClick={handleDirectPrint}
                 disabled={isPrinting}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
-                title="Print Image"
+                title="Print image"
               >
                 <Printer className="h-3 w-3" />
                 <span>{isPrinting ? "..." : "Print"}</span>
@@ -688,7 +696,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
               type="button"
               onClick={handleDirectDownload}
               disabled={isDownloading}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#123B70] hover:bg-[#0c274c] text-white text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#123B70] hover:bg-[#0c274c] text-white text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
               title="Download Document"
             >
               <Download className="h-3 w-3" />
@@ -701,56 +709,76 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
   }
 
   // Full / Card Mode
+  const hasValidFile = Boolean(url && url.trim().length > 0);
+
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all">
-      <div className="flex items-center gap-2.5 min-w-0">
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all">
+      <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
         <div className={cn(
-          "p-2 rounded-lg shrink-0",
-          category === "pdf" ? "bg-red-100 text-red-700" :
-          category === "image" ? "bg-blue-100 text-blue-700" :
-          "bg-slate-200 text-slate-700"
+          "p-2.5 rounded-xl shrink-0 flex items-center justify-center shadow-2xs",
+          category === "pdf" ? "bg-red-100 text-red-700 border border-red-200" :
+          category === "image" ? "bg-blue-100 text-blue-700 border border-blue-200" :
+          category === "doc" ? "bg-amber-100 text-amber-700 border border-amber-200" :
+          "bg-slate-200 text-slate-700 border border-slate-300"
         )}>
-          {category === "pdf" ? <FileText className="h-4 w-4" /> :
-           category === "image" ? <ImageIcon className="h-4 w-4" /> :
-           <FileCode className="h-4 w-4" />}
+          {category === "pdf" ? <FileText className="h-5 w-5" /> :
+           category === "image" ? <ImageIcon className="h-5 w-5" /> :
+           <FileCode className="h-5 w-5" />}
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-900 truncate" title={name}>
-              {name}
-            </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="text-xs sm:text-sm font-bold text-slate-900 truncate" title={name}>
+            {name}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
             <span className={cn(
-              "px-1.5 py-0.2 rounded text-[9px] font-bold uppercase",
-              category === "pdf" ? "bg-red-100 text-red-800" :
-              category === "image" ? "bg-blue-100 text-blue-800" :
-              "bg-slate-200 text-slate-800"
+              "px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 whitespace-nowrap",
+              category === "pdf" ? "bg-red-100 text-red-800 border border-red-200" :
+              category === "image" ? "bg-blue-100 text-blue-800 border border-blue-200" :
+              category === "doc" ? "bg-amber-100 text-amber-800 border border-amber-200" :
+              "bg-slate-200 text-slate-700 border border-slate-300"
             )}>
               {category.toUpperCase()}
             </span>
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              ✓ Original file preserved
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            {formattedSize && <span className="font-bold text-slate-700">{formattedSize}</span>}
-            {category === "pdf" ? (
-              <span className="text-emerald-700 font-medium">✓ Authoritative original document</span>
+
+            {formattedSize && (
+              <span className="text-[11px] font-semibold text-slate-500 shrink-0 whitespace-nowrap">
+                {formattedSize}
+              </span>
+            )}
+
+            {hasValidFile ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
+                ✓ Original preserved
+              </span>
             ) : (
-              <span>Customer Uploaded File</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0 whitespace-nowrap">
+                ⚠️ Missing URL
+              </span>
             )}
           </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
-        {/* PDF Workflow */}
-        {category === "pdf" && (
+      {/* Action Buttons: If not a previewable stream or if other file format, SHOW ONLY DOWNLOAD OPTION */}
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0 pt-1 md:pt-0">
+        {!hasValidFile ? (
+          <button
+            type="button"
+            disabled
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-400 text-xs font-semibold border border-slate-200 cursor-not-allowed"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Unavailable</span>
+          </button>
+        ) : category === "pdf" ? (
           <>
             <button
               type="button"
               onClick={handleOpenInTab}
               disabled={isOpening}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
               title="Open PDF directly in new browser tab"
             >
               <ExternalLink className="h-3.5 w-3.5" />
@@ -759,7 +787,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
             <button
               type="button"
               onClick={handleOpenPreviewModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 shadow-2xs transition-all cursor-pointer"
               title="Open inline preview modal"
             >
               <Eye className="h-3.5 w-3.5" />
@@ -786,19 +814,16 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
               <span>{isPrinting ? "Printing..." : "Print"}</span>
             </button>
           </>
-        )}
-
-        {/* Image Workflow */}
-        {category === "image" && (
+        ) : category === "image" ? (
           <>
             <button
               type="button"
               onClick={handleOpenPreviewModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
               title="Open image preview and print dialog"
             >
               <Eye className="h-3.5 w-3.5" />
-              <span>Preview & Print</span>
+              <span>Preview</span>
             </button>
             <button
               type="button"
@@ -821,15 +846,14 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
               <span>{isPrinting ? "..." : "Print"}</span>
             </button>
           </>
-        )}
-
-        {/* DOC / DOCX / Other Workflow */}
-        {category !== "pdf" && category !== "image" && (
+        ) : (
+          /* DOC / DOCX / Other / Fallback formats: SHOW ONLY DOWNLOAD OPTION */
           <button
             type="button"
             onClick={handleDirectDownload}
             disabled={isDownloading}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#123B70] hover:bg-[#0c274c] text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+            title="Download original file"
           >
             <Download className="h-3.5 w-3.5" />
             <span>{isDownloading ? "Downloading..." : "Download"}</span>

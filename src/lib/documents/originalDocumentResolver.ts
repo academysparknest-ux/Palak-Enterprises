@@ -330,33 +330,56 @@ export async function downloadOriginalDocument(
   fileName?: string,
   expectedMinSize?: number
 ): Promise<{ success: boolean; error?: string }> {
-  const safeName = fileName || `document-${Date.now()}.pdf`;
-  const result = await getVerifiedOriginalDocument(urlOrPath, {
-    forDownload: true,
-    fileName: safeName,
-    expectedMinSize,
-  });
+  const safeName = fileName || `document-${Date.now()}`;
 
-  if (!result.ok || !result.blobUrl) {
-    alert(result.error || "Original document is temporarily unavailable. Please retry.");
-    return { success: false, error: result.error };
+  try {
+    const result = await getVerifiedOriginalDocument(urlOrPath, {
+      forDownload: true,
+      fileName: safeName,
+      expectedMinSize,
+    });
+
+    if (result.ok && result.blobUrl) {
+      const link = document.createElement("a");
+      link.href = result.blobUrl;
+      link.download = safeName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Revoke object URL after timeout
+      setTimeout(() => {
+        if (result.blobUrl && result.blobUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(result.blobUrl);
+        }
+      }, 120000);
+
+      return { success: true };
+    }
+  } catch (err) {
+    console.warn("[downloadOriginalDocument] Blob verification download notice, falling back to direct stream:", err);
   }
 
-  const link = document.createElement("a");
-  link.href = result.blobUrl;
-  link.download = safeName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  // Revoke object URL after timeout
-  setTimeout(() => {
-    if (result.blobUrl && result.blobUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(result.blobUrl);
+  // Authoritative fallback: Resolve direct signed download URL
+  try {
+    const signedUrl = await getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, true, safeName) || urlOrPath;
+    if (signedUrl && (signedUrl.startsWith("http") || signedUrl.startsWith("blob:") || signedUrl.startsWith("data:"))) {
+      const link = document.createElement("a");
+      link.href = signedUrl;
+      link.download = safeName;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return { success: true };
     }
-  }, 120000);
+  } catch (err) {
+    console.error("[downloadOriginalDocument] Direct signed download fallback exception:", err);
+  }
 
-  return { success: true };
+  alert("Original document download could not be completed. Please check your network connection.");
+  return { success: false, error: "Original document is temporarily unavailable. Please retry." };
 }
 
 /**
@@ -367,19 +390,34 @@ export async function openOriginalDocumentInNewTab(
   fileName?: string,
   expectedMinSize?: number
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await getVerifiedOriginalDocument(urlOrPath, {
-    forDownload: false,
-    fileName,
-    expectedMinSize,
-  });
+  try {
+    const result = await getVerifiedOriginalDocument(urlOrPath, {
+      forDownload: false,
+      fileName,
+      expectedMinSize,
+    });
 
-  if (!result.ok || !result.blobUrl) {
-    alert(result.error || "Original document is temporarily unavailable. Please retry.");
-    return { success: false, error: result.error };
+    if (result.ok && result.blobUrl) {
+      window.open(result.blobUrl, "_blank");
+      return { success: true };
+    }
+  } catch (err) {
+    console.warn("[openOriginalDocumentInNewTab] Blob opening notice, falling back to direct stream:", err);
   }
 
-  window.open(result.blobUrl, "_blank");
-  return { success: true };
+  // Fallback: Open authoritative signed URL directly
+  try {
+    const signedUrl = await getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, false, fileName) || urlOrPath;
+    if (signedUrl && (signedUrl.startsWith("http") || signedUrl.startsWith("blob:") || signedUrl.startsWith("data:"))) {
+      window.open(signedUrl, "_blank");
+      return { success: true };
+    }
+  } catch (err) {
+    console.error("[openOriginalDocumentInNewTab] Direct signed URL open exception:", err);
+  }
+
+  alert("Original document is temporarily unavailable. Please retry.");
+  return { success: false, error: "Original document is temporarily unavailable. Please retry." };
 }
 
 /**

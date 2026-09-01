@@ -234,7 +234,6 @@ export function calculateDocumentPrintPriceComplete(
   const paperSize: PaperSize = config.paperSize || "a4";
   const paperType: PaperType = config.paperType || "normal";
   const gsm: PaperGSM = config.gsm || 75;
-  const sides: PrintSides = config.sides || "double_long";
   const pagesPerSheet: PagesPerSheet = config.pagesPerSheet || 1;
   const colorMode = config.colorMode || "bw";
 
@@ -245,6 +244,12 @@ export function calculateDocumentPrintPriceComplete(
   );
   const selectedPages = rangeRes.valid ? rangeRes.pages : Array.from({ length: totalPages }, (_, i) => i + 1);
   const selectedPageCount = selectedPages.length;
+
+  // Single page file / 1-page selection guard:
+  // If there is only 1 page to print (or totalPages <= 1), double-sided print cannot physically apply.
+  // Effective sides should always normalize to "single".
+  const requestedSides: PrintSides = config.sides || "double_long";
+  const sides: PrintSides = (selectedPageCount <= 1 || totalPages <= 1) ? "single" : requestedSides;
 
   // 2. Resolve Color vs B/W page tallies
   let bwPageCount = 0;
@@ -382,10 +387,11 @@ export function buildOrderPrintSnapshot(
         : doc.colorMode === "color"
         ? selectedPages
         : 0;
+    const docEffectiveSides = (selectedPages <= 1 || (doc.totalPages && doc.totalPages <= 1)) ? "single" : (doc.sides || "single");
     const physicalSheets =
       typeof doc.totalPhysicalSheets === "number" && !isNaN(doc.totalPhysicalSheets)
         ? doc.totalPhysicalSheets
-        : (doc.sides === "single" ? selectedPages : Math.ceil(selectedPages / 2)) * docCopies;
+        : (docEffectiveSides === "single" ? selectedPages : Math.ceil(selectedPages / 2)) * docCopies;
     const docTotalPrice =
       typeof doc.totalPrice === "number" && !isNaN(doc.totalPrice)
         ? doc.totalPrice

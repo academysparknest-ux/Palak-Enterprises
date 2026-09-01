@@ -294,6 +294,52 @@ export async function runDocumentPageCountAccuracyTests(): Promise<boolean> {
     assert(snapshot.grandTotal > 0, `Grand total must be positive, got ${snapshot.grandTotal}`);
   });
 
+  // 13. Single Page Document / 1-Page Selection Double-Side Prevention Invariant
+  await test("13. Ensures 1-page documents and 1-page selections strictly normalize sides to single and prevent double-sided calculations", async () => {
+    // 1-page file with sides "double_long" requested
+    const onePageCalc = calculateDocumentPrintPriceComplete({
+      totalPages: 1,
+      sides: "double_long",
+      colorMode: "bw",
+      copies: 1,
+    });
+    assert(onePageCalc.selectedPageCount === 1, "Selected pages must be 1");
+    assert(onePageCalc.totalPhysicalSheets === 1, "1 page must always equal 1 physical sheet");
+    // bwSingle is ₹2.00, bwDouble is ₹1.50. 1-page document must use bwSingle rate (₹2.00)
+    assert(onePageCalc.priceBreakdown.bwPrintCost === 2.0, `Expected ₹2.00 for 1 page single side print, got ${onePageCalc.priceBreakdown.bwPrintCost}`);
+
+    // Multi-page document with 1-page custom range (e.g. page 5 of 10-page doc)
+    const customSinglePageCalc = calculateDocumentPrintPriceComplete({
+      totalPages: 10,
+      pageRangeType: "custom",
+      customPageRange: "5",
+      sides: "double_long",
+      colorMode: "bw",
+      copies: 1,
+    });
+    assert(customSinglePageCalc.selectedPageCount === 1, "Custom single page selection must be 1 page");
+    assert(customSinglePageCalc.totalPhysicalSheets === 1, "Custom 1-page range must equal 1 physical sheet");
+    assert(customSinglePageCalc.priceBreakdown.bwPrintCost === 2.0, `Expected ₹2.00 single side rate, got ${customSinglePageCalc.priceBreakdown.bwPrintCost}`);
+
+    // Snapshot with 1-page file preserves 1 physical sheet
+    const snap = buildOrderPrintSnapshot([
+      {
+        documentId: "doc_single",
+        fileName: "form.pdf",
+        fileSize: 1024,
+        totalPages: 1,
+        selectedPageCount: 1,
+        bwPageCount: 1,
+        colorPageCount: 0,
+        sides: "double_long",
+        copies: 3,
+        totalPrice: 6.0,
+      } as any,
+    ]);
+    assert(snap.totalPrintedPages === 3, `Expected 3 total printed pages, got ${snap.totalPrintedPages}`);
+    assert(snap.totalPhysicalSheets === 3, `Expected 3 physical sheets (1 per copy), got ${snap.totalPhysicalSheets}`);
+  });
+
   console.log(`\n========================================================`);
   console.log(`🏁 TESTS COMPLETED: ${passed} / ${total} PASSED`);
   console.log(`========================================================\n`);
