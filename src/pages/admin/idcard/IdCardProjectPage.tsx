@@ -20,6 +20,7 @@ const STATUS_OPTIONS: ProjectStatus[] = ['DRAFT', 'ACTIVE', 'COMPLETED', 'ARCHIV
 export default function IdCardProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [state, setState] = useState<PageState>({ kind: 'loading' });
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -93,7 +94,6 @@ export default function IdCardProjectPage() {
   }
 
   const { project } = state;
-  const location = useLocation();
   const isTemplateRoute = location.pathname.endsWith('/template');
 
   return (

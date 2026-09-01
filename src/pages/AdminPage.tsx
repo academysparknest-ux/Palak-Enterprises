@@ -35,8 +35,10 @@ import {
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { diagnoseOrder, type OrderDiagnosticReport } from "../lib/orders/orderDiagnostic";
 import {
   PalakDataStore,
   normalizeOrder,
@@ -119,26 +121,41 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
 
   // Collect all attached files
   const attachedFiles: Array<{ name: string; url: string; mimeType?: string; size?: number }> = [];
-  if (item.uploadedFileName || item.uploadedFileUrl || opts.storagePath) {
-    attachedFiles.push({
-      name: item.uploadedFileName || `attachment-${itemIndex + 1}`,
-      url: item.uploadedFileUrl || opts.storagePath || "",
-      mimeType: opts.mimeType,
-      size: opts.fileSize || opts.size,
-    });
-  }
+
   if (Array.isArray(opts.files) && opts.files.length > 0) {
     opts.files.forEach((f: any, idx: number) => {
       const fUrl = f.url || f.storagePath || "";
       const fName = f.name || f.fileName || `file-${idx + 1}`;
-      if (!attachedFiles.some((ex) => ex.name === fName && ex.url === fUrl)) {
+      if (fUrl && !attachedFiles.some((ex) => ex.url === fUrl)) {
         attachedFiles.push({
           name: fName,
           url: fUrl,
-          mimeType: f.mimeType || f.type,
-          size: f.size,
+          mimeType: f.mimeType || f.type || "application/pdf",
+          size: f.size || f.fileSize,
         });
       }
+    });
+  } else if (Array.isArray(opts.printSnapshot?.documents) && opts.printSnapshot.documents.length > 0) {
+    opts.printSnapshot.documents.forEach((d: any, idx: number) => {
+      const dUrl = d.fileUrl || d.storagePath || "";
+      const dName = d.fileName || `document-${idx + 1}`;
+      if (dUrl && !attachedFiles.some((ex) => ex.url === dUrl)) {
+        attachedFiles.push({
+          name: dName,
+          url: dUrl,
+          mimeType: d.mimeType || "application/pdf",
+          size: d.fileSize,
+        });
+      }
+    });
+  }
+
+  if (attachedFiles.length === 0 && (item.uploadedFileName || item.uploadedFileUrl || opts.storagePath)) {
+    attachedFiles.push({
+      name: item.uploadedFileName || `attachment-${itemIndex + 1}`,
+      url: item.uploadedFileUrl || opts.storagePath || "",
+      mimeType: opts.mimeType || "application/pdf",
+      size: opts.fileSize || opts.size,
     });
   }
 
@@ -201,7 +218,15 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
     if (opts.lamination) specPills.push({ label: "Lamination", value: "Laminated" });
     specPills.push({ label: "Quantity", value: `${item.quantity} Pcs`, highlight: true });
   } else if (isDocumentPrinting) {
-    specPills.push({ label: "Paper", value: String(opts.paperSize || "A4").toUpperCase(), highlight: true });
+    const pageCount = opts.totalPages || opts.printSnapshot?.totalPrintedPages || opts.pageCount;
+    const physicalSheets = opts.totalPhysicalSheets || opts.printSnapshot?.totalPhysicalSheets;
+    if (pageCount) {
+      specPills.push({ label: "Pages", value: `${pageCount} Pages`, highlight: true });
+    }
+    if (physicalSheets) {
+      specPills.push({ label: "Sheets", value: `${physicalSheets} Sheets` });
+    }
+    specPills.push({ label: "Paper", value: String(opts.paperSize || "A4").toUpperCase() });
     specPills.push({ label: "Color", value: opts.colorMode === "bw" ? "B&W (Grayscale)" : "Full Color", highlight: opts.colorMode !== "bw" });
     specPills.push({ label: "Sides", value: opts.sides === "single" ? "Single Sided" : "Double Sided (Back-to-Back)" });
     specPills.push({ label: "Orientation", value: opts.orientation === "landscape" ? "Landscape" : "Portrait" });
@@ -491,6 +516,8 @@ export const AdminPage: React.FC = () => {
   const [savingNote, setSavingNote] = useState(false);
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [activeDiagnosticReport, setActiveDiagnosticReport] = useState<OrderDiagnosticReport | null>(null);
+  const [runningDiagnostic, setRunningDiagnostic] = useState(false);
 
   // Pricing Config
   const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
@@ -871,6 +898,7 @@ export const AdminPage: React.FC = () => {
   const handleOpenOrderModal = useCallback(async (order: StoredOrder) => {
     setSelectedOrderCode(order.orderCode);
     setStaffNoteInput(order.staffNotes || "");
+    setActiveDiagnosticReport(null);
     setLoadingTimeline(true);
     try {
       const history = await getOrderStatusHistory(order.orderCode);
@@ -888,6 +916,7 @@ export const AdminPage: React.FC = () => {
     setSelectedOrderCode(null);
     setStaffNoteInput("");
     setOrderHistoryTimeline([]);
+    setActiveDiagnosticReport(null);
 
     if (searchParams.has("selected") || searchParams.has("order") || searchParams.has("orderCode")) {
       const nextParams = new URLSearchParams(searchParams);
@@ -3733,6 +3762,73 @@ export const AdminPage: React.FC = () => {
                   </div>
                 );
               })()}
+
+              {/* Order Identity & Technical Integrity Card */}
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase text-indigo-900 tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
+                    Order Identity & Integrity
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setRunningDiagnostic(true);
+                      try {
+                        const rep = await diagnoseOrder(selectedOrderForModal.orderCode);
+                        setActiveDiagnosticReport(rep);
+                      } catch {}
+                      setRunningDiagnostic(false);
+                    }}
+                    disabled={runningDiagnostic}
+                    className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer disabled:opacity-50"
+                  >
+                    {runningDiagnostic ? "Auditing..." : activeDiagnosticReport ? "Re-Audit" : "🔍 Deep Audit"}
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">Database UUID:</span>
+                    <span className="font-mono text-[10px] text-slate-800 break-all select-all font-semibold">
+                      {selectedOrderForModal.id}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">Client Submission ID:</span>
+                    <span className="font-mono text-[10px] text-slate-800 break-all select-all">
+                      {selectedOrderForModal.clientSubmissionId || "N/A (Direct Order)"}
+                    </span>
+                  </div>
+                </div>
+
+                {activeDiagnosticReport && (
+                  <div className="pt-2 border-t border-indigo-100/80 space-y-1.5 text-[10px] font-mono">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">Database Consistency:</span>
+                      <span className={activeDiagnosticReport.isConsistent ? "text-emerald-700 font-bold" : "text-rose-700 font-bold"}>
+                        {activeDiagnosticReport.isConsistent ? "✓ Fully Verified" : "⚠️ Discrepancy Found"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">Child Entities:</span>
+                      <span className="text-slate-800 font-bold">
+                        Items: {activeDiagnosticReport.itemCount} | Files: {activeDiagnosticReport.fileCount} | Jobs: {activeDiagnosticReport.printJobCount}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600">Authoritative Pages & Sheets:</span>
+                      <span className="text-slate-800 font-bold">
+                        {activeDiagnosticReport.pageCount} Pages • {activeDiagnosticReport.physicalSheetCount} Sheets
+                      </span>
+                    </div>
+                    {activeDiagnosticReport.consistencyMessage && (
+                      <div className="p-1.5 rounded bg-white/80 text-slate-700 border border-indigo-100 text-[9px] leading-relaxed">
+                        {activeDiagnosticReport.consistencyMessage}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Print Specifications & Options */}
               <div className="space-y-2.5">

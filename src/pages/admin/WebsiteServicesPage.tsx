@@ -92,9 +92,10 @@ export const WebsiteServicesPage: React.FC = () => {
   const pendingTogglesRef = useRef<Map<string, { timer: ReturnType<typeof setTimeout>; baselineValue: boolean; latestValue: boolean }>>(new Map());
 
   useEffect(() => {
+    const pending = pendingTogglesRef.current;
     return () => {
-      pendingTogglesRef.current.forEach((entry) => clearTimeout(entry.timer));
-      pendingTogglesRef.current.clear();
+      pending.forEach((entry) => clearTimeout(entry.timer));
+      pending.clear();
     };
   }, []);
 

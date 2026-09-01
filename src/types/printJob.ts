@@ -48,7 +48,7 @@ export interface UserSavedPrintPreferences {
 export const DEFAULT_USER_PRINT_PREFERENCES: UserSavedPrintPreferences = {
   paperSize: "a4",
   colorMode: "bw",
-  sides: "double_long",
+  sides: "single",
   orientation: "auto",
   copies: 1,
   pagesPerSheet: 1,

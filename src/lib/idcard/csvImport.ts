@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 import { normalizeDate, normalizeBloodGroup, normalizePhone, sanitizeStudentId } from './validation';
 import type { CsvValidationRow, IdCardPerson, IdCardTemplate, TemplateFieldSchema, TemplateLayout } from './types';
 import { extractTemplateFieldSchema, resolveCanonicalStudentKey, CANONICAL_DISPLAY_LABELS } from './templateFieldSchema';
+import { normalizeHeader, normalizeStudentRecord } from './dataBindingRegistry';
 
 export interface ParseCsvResult {
   rows: CsvValidationRow[];
@@ -27,7 +28,7 @@ export interface ParseCsvResult {
 /**
  * Mapping of canonical fields to possible CSV/Excel header aliases (lowercase, spaces/underscores stripped)
  */
-const HEADER_ALIASES: Record<string, string[]> = {
+export const HEADER_ALIASES: Record<string, string[]> = {
   student_id: [
     'studentid',
     'student_id',
@@ -226,54 +227,13 @@ const HEADER_ALIASES: Record<string, string[]> = {
 };
 
 /**
- * Normalizes any header into its canonical field name
+ * Normalizes any header into its canonical field name using the unified 8-step pipeline
  */
 export function mapHeaderToCanonical(
   header: string,
   customFields: Array<{ key: string; label?: string; modelKey?: string }> | string[] = []
 ): string {
-  const clean = header.trim().toLowerCase().replace(/[\-_]/g, ' ').replace(/\s+/g, ' ');
-  const cleanNoSpace = clean.replace(/\s+/g, '');
-  const cleanSnake = header.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-
-  // 1. Check custom fields first (by key, label, modelKey, or slug)
-  for (const field of customFields) {
-    const key = typeof field === 'string' ? field : field.key;
-    const label = typeof field === 'string' ? '' : (field.label || '');
-    const modelKey = typeof field === 'string' ? '' : (field.modelKey || '');
-
-    const keyClean = key.toLowerCase().replace(/[\-_]/g, ' ').replace(/\s+/g, ' ');
-    const keyNoSpace = keyClean.replace(/\s+/g, '');
-    const keySnake = key.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-
-    const labelClean = label.toLowerCase().replace(/[\-_]/g, ' ').replace(/\s+/g, ' ');
-    const labelNoSpace = labelClean.replace(/\s+/g, '');
-    const labelSnake = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-
-    if (
-      clean === keyClean ||
-      cleanNoSpace === keyNoSpace ||
-      cleanSnake === keySnake ||
-      (label && (clean === labelClean || cleanNoSpace === labelNoSpace || cleanSnake === labelSnake)) ||
-      (modelKey && cleanSnake === modelKey.toLowerCase())
-    ) {
-      return key;
-    }
-  }
-
-  // 2. Standard known header aliases
-  for (const [canonical, aliases] of Object.entries(HEADER_ALIASES)) {
-    for (const alias of aliases) {
-      const aliasClean = alias.replace(/[\-_]/g, ' ').replace(/\s+/g, ' ');
-      const aliasNoSpace = alias.replace(/\s+/g, '');
-      if (clean === aliasClean || cleanNoSpace === aliasNoSpace) {
-        return canonical;
-      }
-    }
-  }
-
-  // Default to cleaned snake_case header
-  return cleanSnake;
+  return normalizeHeader(header, customFields);
 }
 
 export function parseAndValidateCsv(
@@ -376,19 +336,20 @@ export function parseAndValidateCsv(
       return '';
     };
 
-    const studentNameVal = getVal('student_name', 'name', 'full_name', 'student');
-    const studentIdVal = getVal('student_id', 'id', 'admission_no', 'reg_no', 'scholar_no');
-    const classVal = getVal('class', 'grade', 'standard', 'std', 'course') || null;
-    const sectionVal = getVal('section', 'sec', 'division', 'div') || null;
-    const rollNumberVal = getVal('roll_number', 'roll_no', 'roll', 'r_no', 'rno') || null;
-    const dobVal = getVal('date_of_birth', 'dob', 'birth_date', 'birthdate', 'bday') || null;
-    const bloodGroupVal = getVal('blood_group', 'blood', 'blood_grp', 'blood_type', 'bg') || null;
-    const fatherNameVal = getVal('father_name', 'father', 'fathers_name', 'guardian_name', 'parent_info') || null;
-    const motherNameVal = getVal('mother_name', 'mothers_name', 'mother') || null;
-    const phoneVal = getVal('phone', 'phone_number', 'phone_no', 'mobile', 'mobile_no', 'contact') || null;
-    const emergencyVal = getVal('emergency_number', 'emergency_no', 'emergency_phone', 'emergency_contact', 'emergency') || null;
-    const addressVal = getVal('address', 'location', 'city', 'residential_address') || null;
-    const photoUrlVal = getVal('photo_url', 'photo', 'image_url', 'picture', 'pic') || null;
+    const normalized = normalizeStudentRecord(cleanedRaw);
+    const studentNameVal = normalized.student_name;
+    const studentIdVal = normalized.student_id;
+    const classVal = normalized.class;
+    const sectionVal = normalized.section;
+    const rollNumberVal = normalized.roll_number;
+    const dobVal = normalized.date_of_birth;
+    const bloodGroupVal = normalized.blood_group;
+    const fatherNameVal = normalized.father_name;
+    const motherNameVal = normalized.mother_name;
+    const phoneVal = normalized.phone;
+    const emergencyVal = normalized.emergency_no;
+    const addressVal = normalized.address;
+    const photoUrlVal = normalized.photo_url;
 
     // Validate student ID
     if (!studentIdVal) {
@@ -425,7 +386,7 @@ export function parseAndValidateCsv(
     }
 
     // Extract custom dynamic fields & aliases
-    const customFieldsData: Record<string, any> = {};
+    const customFieldsData: Record<string, any> = { ...(normalized.custom_fields || {}) };
     if (motherNameVal) customFieldsData.mothers_name = motherNameVal;
     if (rollNumberVal) customFieldsData.roll_no = rollNumberVal;
     if (emergencyVal) customFieldsData.emergency_no = emergencyVal;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { sharedRefreshSession, executeWithAuthRetry, ensureTokenSettled } from "../lib/supabase/authSession";
@@ -17,13 +17,35 @@ export interface UserProfile {
   address?: string;
 }
 
-interface AuthContextType {
+export type AuthState =
+  | "AUTH_LOADING"
+  | "UNAUTHENTICATED"
+  | "PROFILE_LOADING"
+  | "ROLE_LOADING"
+  | "AUTHORIZED_CUSTOMER"
+  | "AUTHORIZED_STAFF"
+  | "AUTHORIZED_MANAGER"
+  | "AUTHORIZED_ADMIN"
+  | "AUTH_ERROR";
+
+export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "error";
+export type RoleStatus = "loading" | "ready" | "error";
+export type ProfileStatus = "loading" | "ready" | "error";
+
+export interface AuthContextType {
   user: UserProfile | null;
   session: Session | null;
   isAuthenticated: boolean;
   isStaff: boolean;
   isAdmin: boolean;
+  isManager: boolean;
   loading: boolean;
+  isReady: boolean;
+  authState: AuthState;
+  authStatus: AuthStatus;
+  roleStatus: RoleStatus;
+  profileStatus: ProfileStatus;
+  resolvedRole: "CUSTOMER" | "STAFF" | "MANAGER" | "ADMIN" | null;
   authError: string | null;
   loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUpWithEmail: (
@@ -49,8 +71,6 @@ const ADMIN_STAFF_EMAILS = [
   "palakenterprises@gmail.com",
   "palakprintingpress@gmail.com",
   "kumarpankaj@gmail.com",
-  "rishavraj05072002@gmail.com",
-  "rishavrajrj572@gmail.com",
 ];
 
 const checkIsAdminEmail = (email?: string): boolean => {
@@ -59,8 +79,8 @@ const checkIsAdminEmail = (email?: string): boolean => {
   return ADMIN_STAFF_EMAILS.includes(clean);
 };
 
-const bootStartTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
-const getElapsedBootMs = () => Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - bootStartTime);
+const bootStartTime = typeof performance !== "undefined" ? performance.now() : Date.now();
+const getElapsedBootMs = () => Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - bootStartTime);
 
 const logBoot = (event: string, details?: Record<string, any>) => {
   const ms = getElapsedBootMs();
@@ -73,156 +93,182 @@ const logBoot = (event: string, details?: Record<string, any>) => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!saved) return null;
-      const parsed = JSON.parse(saved);
-      // Only phone guest customer profiles (cust_...) are valid without an active Supabase session.
-      // Supabase accounts (staff/admin/customer) must be authoritatively validated by initAuth.
-      if (parsed.id && typeof parsed.id === "string" && parsed.id.startsWith("cust_")) {
-        return parsed;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
-
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isReady, setIsReady] = useState<boolean>(false);
+  const [authState, setAuthState] = useState<AuthState>("AUTH_LOADING");
+  const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
+  const [roleStatus, setRoleStatus] = useState<RoleStatus>("loading");
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus>("loading");
+  const [resolvedRole, setResolvedRole] = useState<"CUSTOMER" | "STAFF" | "MANAGER" | "ADMIN" | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const extractProfileFromUser = (sbUser: User, role: UserProfile["role"] = "CUSTOMER"): UserProfile => {
-    const meta = sbUser.user_metadata || {};
-    const fullName =
-      meta.full_name ||
-      meta.name ||
-      meta.user_name ||
-      sbUser.email?.split("@")[0] ||
-      "Palak Customer";
+  /**
+   * Authoritative single-pass profile and role resolution.
+   * Resolves both Supabase profiles and user_roles before committing state.
+   */
+  const resolveUserProfileAndRole = useCallback(
+    async (sbUser: User, isTokenRefresh: boolean = false): Promise<{ profile: UserProfile; role: "CUSTOMER" | "STAFF" | "MANAGER" | "ADMIN" }> => {
+      const cleanEmail = (sbUser.email || "").toLowerCase().trim();
+      const isAdminEmail = checkIsAdminEmail(cleanEmail);
 
-    const avatarUrl = meta.avatar_url || meta.picture || undefined;
-    const phone = meta.phone || sbUser.phone || "";
-    const cleanEmail = (sbUser.email || "").toLowerCase().trim();
+      if (!isSupabaseConfigured || !supabase) {
+        const meta = sbUser.user_metadata || {};
+        const fullName =
+          meta.full_name ||
+          meta.name ||
+          meta.user_name ||
+          sbUser.email?.split("@")[0] ||
+          "Palak User";
+        const assignedRole = isAdminEmail ? "ADMIN" : "CUSTOMER";
+        return {
+          profile: {
+            id: sbUser.id,
+            name: fullName,
+            phone: meta.phone || sbUser.phone || "",
+            email: sbUser.email,
+            avatarUrl: meta.avatar_url || meta.picture || undefined,
+            role: assignedRole,
+          },
+          role: assignedRole,
+        };
+      }
 
-    let assignedRole: UserProfile["role"] = role;
-    if (checkIsAdminEmail(cleanEmail) || meta.role === "ADMIN" || meta.role === "STAFF") {
-      assignedRole = "ADMIN";
-    }
+      // Settle any potential token clock skew before database requests
+      await ensureTokenSettled(supabase);
 
-    return {
-      id: sbUser.id,
-      name: fullName,
-      phone: phone,
-      email: sbUser.email,
-      avatarUrl: avatarUrl,
-      role: assignedRole,
-    };
-  };
+      // Single authoritative role sync RPC: Only on initial auth or login, never on background token refresh
+      if (!isTokenRefresh) {
+        logBoot("role sync:start");
+        const rpcStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const getRpcElapsed = () => Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - rpcStart);
 
-  const syncUserProfile = async (sbUser: User, isTokenRefresh: boolean = false) => {
-    if (!isSupabaseConfigured || !supabase) {
-      const fallbackProfile = extractProfileFromUser(sbUser);
-      setUser(fallbackProfile);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(fallbackProfile));
-      return;
-    }
+        try {
+          await executeWithAuthRetry(
+            async (client) => {
+              const { error } = await client.rpc("sync_current_user_role");
+              if (error) throw error;
+            },
+            2,
+            "sync_current_user_role"
+          );
+          logBoot("role sync:success", { opElapsedMs: getRpcElapsed() });
+        } catch (rpcErr: any) {
+          logBoot("role sync:error", {
+            message: rpcErr?.message,
+            code: rpcErr?.code,
+            opElapsedMs: getRpcElapsed(),
+          });
+          console.warn("[AUTH] Non-fatal role sync notice:", rpcErr?.message);
+        }
+      }
 
-    const cleanEmail = (sbUser.email || "").toLowerCase().trim();
-    const isAdminEmail = checkIsAdminEmail(cleanEmail);
+      // Parallel fetch for Profile and User Roles with unified auth retry
+      const [profileRes, roleRes] = await Promise.allSettled([
+        executeWithAuthRetry(
+          async (client) => {
+            const { data, error } = await client.from("profiles").select("*").eq("id", sbUser.id).maybeSingle();
+            if (error) throw error;
+            return data;
+          },
+          1,
+          "fetch_profile"
+        ),
+        executeWithAuthRetry(
+          async (client) => {
+            const { data, error } = await client.from("user_roles").select("role").eq("user_id", sbUser.id);
+            if (error) throw error;
+            return data;
+          },
+          1,
+          "fetch_user_roles"
+        ),
+      ]);
 
-    // Settle any potential token clock skew before database requests
-    await ensureTokenSettled(supabase);
+      const profileData = profileRes.status === "fulfilled" ? profileRes.value : null;
+      const roleData = roleRes.status === "fulfilled" ? roleRes.value : null;
 
-    // Single authoritative role sync RPC: Only on initial auth or login, never on background token refresh
-    if (!isTokenRefresh) {
-      logBoot("role sync:start");
-      const rpcStart = typeof performance !== "undefined" ? performance.now() : Date.now();
-      const getRpcElapsed = () => Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - rpcStart);
+      const meta = sbUser.user_metadata || {};
+      const metaRole = String(meta.role || "").toUpperCase();
+      const profileRole = String(profileData?.role || "").toUpperCase();
+
+      let authoritativeRole: "CUSTOMER" | "STAFF" | "MANAGER" | "ADMIN" = "CUSTOMER";
+
+      if (roleData && roleData.length > 0) {
+        const roles = roleData.map((r: any) => String(r.role).toUpperCase());
+        if (roles.includes("ADMIN")) authoritativeRole = "ADMIN";
+        else if (roles.includes("MANAGER")) authoritativeRole = "MANAGER";
+        else if (roles.includes("STAFF")) authoritativeRole = "STAFF";
+      } else if (
+        isAdminEmail ||
+        metaRole === "ADMIN" ||
+        profileRole === "ADMIN"
+      ) {
+        authoritativeRole = "ADMIN";
+      } else if (metaRole === "MANAGER" || profileRole === "MANAGER") {
+        authoritativeRole = "MANAGER";
+      } else if (metaRole === "STAFF" || profileRole === "STAFF") {
+        authoritativeRole = "STAFF";
+      }
+
+      const fullName =
+        profileData?.full_name ||
+        meta.full_name ||
+        meta.name ||
+        sbUser.email?.split("@")[0] ||
+        (authoritativeRole === "ADMIN" ? "Admin User" : "Palak Customer");
+
+      const resolvedProfile: UserProfile = {
+        id: sbUser.id,
+        name: fullName,
+        phone: profileData?.phone || meta.phone || sbUser.phone || "",
+        email: sbUser.email || profileData?.email,
+        avatarUrl: profileData?.avatar_url || meta.avatar_url || meta.picture,
+        role: authoritativeRole,
+        businessName: profileData?.business_name,
+        address: profileData?.address,
+      };
+
+      return {
+        profile: resolvedProfile,
+        role: authoritativeRole,
+      };
+    },
+    []
+  );
+
+  const syncUserProfile = useCallback(
+    async (sbUser: User, isTokenRefresh: boolean = false) => {
+      setRoleStatus("loading");
+      setProfileStatus("loading");
 
       try {
-        await executeWithAuthRetry(
-          async (client) => {
-            const { error } = await client.rpc("sync_current_user_role");
-            if (error) throw error;
-          },
-          2,
-          "sync_current_user_role"
-        );
-        logBoot("role sync:success", { opElapsedMs: getRpcElapsed() });
-      } catch (rpcErr: any) {
-        logBoot("role sync:error", {
-          message: rpcErr?.message,
-          code: rpcErr?.code,
-          opElapsedMs: getRpcElapsed(),
-        });
-        console.warn("[AUTH] Non-fatal role sync notice:", rpcErr?.message);
+        const { profile, role } = await resolveUserProfileAndRole(sbUser, isTokenRefresh);
+
+        let derivedAuthState: AuthState = "AUTHORIZED_CUSTOMER";
+        if (role === "ADMIN") derivedAuthState = "AUTHORIZED_ADMIN";
+        else if (role === "MANAGER") derivedAuthState = "AUTHORIZED_MANAGER";
+        else if (role === "STAFF") derivedAuthState = "AUTHORIZED_STAFF";
+
+        setUser(profile);
+        setResolvedRole(role);
+        setAuthState(derivedAuthState);
+        setAuthStatus("authenticated");
+        setRoleStatus("ready");
+        setProfileStatus("ready");
+        setAuthError(null);
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(profile));
+      } catch (err: any) {
+        console.error("[AUTH] Failed to sync user profile/role:", err);
+        setAuthError(err?.message || "Failed to resolve account permissions.");
+        setAuthState("AUTH_ERROR");
+        setAuthStatus("error");
+        setRoleStatus("error");
+        setProfileStatus("error");
       }
-    }
-
-    // Parallel fetch for Profile and User Roles with unified auth retry
-    const [profileRes, roleRes] = await Promise.allSettled([
-      executeWithAuthRetry(
-        async (client) => {
-          const { data, error } = await client.from("profiles").select("*").eq("id", sbUser.id).maybeSingle();
-          if (error) throw error;
-          return data;
-        },
-        1,
-        "fetch_profile"
-      ),
-      executeWithAuthRetry(
-        async (client) => {
-          const { data, error } = await client.from("user_roles").select("role").eq("user_id", sbUser.id);
-          if (error) throw error;
-          return data;
-        },
-        1,
-        "fetch_user_roles"
-      ),
-    ]);
-
-    const profile = profileRes.status === "fulfilled" ? profileRes.value : null;
-    const roleData = roleRes.status === "fulfilled" ? roleRes.value : null;
-
-    const meta = sbUser.user_metadata || {};
-    const metaRole = String(meta.role || "").toUpperCase();
-    const profileRole = String(profile?.role || "").toUpperCase();
-
-    let role: UserProfile["role"] = "CUSTOMER";
-
-    if (roleData && roleData.length > 0) {
-      const roles = roleData.map((r: any) => String(r.role).toUpperCase());
-      if (roles.includes("ADMIN")) role = "ADMIN";
-      else if (roles.includes("MANAGER")) role = "MANAGER";
-      else if (roles.includes("STAFF")) role = "STAFF";
-    } else if (
-      isAdminEmail ||
-      metaRole === "ADMIN" ||
-      metaRole === "MANAGER" ||
-      metaRole === "STAFF" ||
-      profileRole === "ADMIN" ||
-      profileRole === "MANAGER" ||
-      profileRole === "STAFF"
-    ) {
-      role = "ADMIN";
-    }
-
-    const updatedProfile: UserProfile = {
-      id: sbUser.id,
-      name: profile?.full_name || meta.full_name || meta.name || sbUser.email?.split("@")[0] || "Palak Customer",
-      phone: profile?.phone || meta.phone || sbUser.phone || "",
-      email: sbUser.email || profile?.email,
-      avatarUrl: profile?.avatar_url || meta.avatar_url || meta.picture,
-      role: role,
-      businessName: profile?.business_name,
-    };
-
-    setUser(updatedProfile);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedProfile));
-    setAuthError(null);
-  };
+    },
+    [resolveUserProfileAndRole]
+  );
 
   // Sync Supabase Auth session on mount and listen to state changes
   useEffect(() => {
@@ -231,8 +277,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (!isSupabaseConfigured || !client) {
       logBoot("start (unconfigured)");
-      logBoot("loading:false", { totalElapsedMs: getElapsedBootMs() });
+      // Check for guest phone customer fallback
+      try {
+        const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.id?.startsWith("cust_")) {
+            setUser(parsed);
+            setResolvedRole("CUSTOMER");
+            setAuthState("AUTHORIZED_CUSTOMER");
+            setAuthStatus("authenticated");
+            setRoleStatus("ready");
+            setProfileStatus("ready");
+            setIsReady(true);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {}
+
+      setAuthState("UNAUTHENTICATED");
+      setAuthStatus("unauthenticated");
+      setRoleStatus("ready");
+      setProfileStatus("ready");
+      setIsReady(true);
       setLoading(false);
+      logBoot("loading:false", { totalElapsedMs: getElapsedBootMs() });
       return;
     }
 
@@ -253,6 +323,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setAuthError(sessionError.message);
           setSession(null);
           setUser(null);
+          setResolvedRole(null);
+          setAuthState("AUTH_ERROR");
+          setAuthStatus("error");
+          setRoleStatus("error");
+          setProfileStatus("error");
+          setIsReady(true);
+          setLoading(false);
           return;
         }
 
@@ -283,23 +360,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (currentSession?.user) {
           setSession(currentSession);
-          // Settle any potential future JWT timestamp before calling role sync
-          await ensureTokenSettled(client);
-          await syncUserProfile(currentSession.user, false);
+          const { profile, role } = await resolveUserProfileAndRole(currentSession.user, false);
+          if (!isMounted) return;
+
+          let derivedAuthState: AuthState = "AUTHORIZED_CUSTOMER";
+          if (role === "ADMIN") derivedAuthState = "AUTHORIZED_ADMIN";
+          else if (role === "MANAGER") derivedAuthState = "AUTHORIZED_MANAGER";
+          else if (role === "STAFF") derivedAuthState = "AUTHORIZED_STAFF";
+
+          setUser(profile);
+          setResolvedRole(role);
+          setAuthState(derivedAuthState);
+          setAuthStatus("authenticated");
+          setRoleStatus("ready");
+          setProfileStatus("ready");
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(profile));
         } else {
-          // Explicit unauthenticated terminal state: clear any stale stored profile unless it's a guest
-          setSession(null);
+          // Check for guest phone customer fallback
+          let foundGuest = false;
           const saved = localStorage.getItem(AUTH_STORAGE_KEY);
           if (saved) {
             try {
               const parsed = JSON.parse(saved);
-              if (!parsed.id?.startsWith("cust_")) {
-                setUser(null);
+              if (parsed.id && typeof parsed.id === "string" && parsed.id.startsWith("cust_")) {
+                setUser(parsed);
+                setResolvedRole("CUSTOMER");
+                setAuthState("AUTHORIZED_CUSTOMER");
+                setAuthStatus("authenticated");
+                setRoleStatus("ready");
+                setProfileStatus("ready");
+                foundGuest = true;
+              } else {
                 localStorage.removeItem(AUTH_STORAGE_KEY);
               }
             } catch {
               localStorage.removeItem(AUTH_STORAGE_KEY);
             }
+          }
+
+          if (!foundGuest) {
+            setSession(null);
+            setUser(null);
+            setResolvedRole(null);
+            setAuthState("UNAUTHENTICATED");
+            setAuthStatus("unauthenticated");
+            setRoleStatus("ready");
+            setProfileStatus("ready");
           }
         }
       } catch (err: any) {
@@ -308,11 +414,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setAuthError(err?.message || "Authentication verification failed.");
           setSession(null);
           setUser(null);
+          setResolvedRole(null);
+          setAuthState("AUTH_ERROR");
+          setAuthStatus("error");
+          setRoleStatus("error");
+          setProfileStatus("error");
           localStorage.removeItem(AUTH_STORAGE_KEY);
         }
       } finally {
         if (isMounted) {
           setLoading(false);
+          setIsReady(true);
           logBoot("loading:false", { totalElapsedMs: getElapsedBootMs() });
         }
       }
@@ -323,6 +435,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isMounted && loading) {
         logBoot("loading:false (watchdog timeout)", { totalElapsedMs: getElapsedBootMs() });
         setLoading(false);
+        setIsReady(true);
       }
     }, 5000);
 
@@ -336,6 +449,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === "SIGNED_OUT" || !newSession) {
         setSession(null);
         setUser(null);
+        setResolvedRole(null);
+        setAuthState("UNAUTHENTICATED");
+        setAuthStatus("unauthenticated");
+        setRoleStatus("ready");
+        setProfileStatus("ready");
         setAuthError(null);
         localStorage.removeItem(AUTH_STORAGE_KEY);
         try {
@@ -343,25 +461,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           PalakInvoiceStore.resetMemoryCaches();
         } catch {}
       } else if (newSession?.user) {
+        setSession(newSession);
         if (event === "TOKEN_REFRESHED") {
           logBoot("token refresh:success", { userId: newSession.user.id, event });
-          setSession(newSession);
           try {
-            await ensureTokenSettled(client);
             await syncUserProfile(newSession.user, true);
           } catch (e: any) {
             console.debug("[AUTH] Token refresh profile sync warning:", e?.message);
           }
         } else if (event === "SIGNED_IN") {
-          setSession(newSession);
           try {
-            await ensureTokenSettled(client);
             await syncUserProfile(newSession.user, false);
           } catch (e: any) {
             setAuthError(e?.message || "Sign-in synchronization failed.");
           }
-        } else {
-          setSession(newSession);
         }
       }
     });
@@ -371,7 +484,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(watchdogTimer);
       authListener?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [resolveUserProfileAndRole, syncUserProfile, loading]);
 
   const loginWithEmail = async (
     email: string,
@@ -508,7 +621,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data?.url) {
-        // Supabase provides standard Google OAuth authorization URL
         window.location.href = data.url;
         return { success: true };
       }
@@ -579,6 +691,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     setSession(null);
     setUser(null);
+    setResolvedRole(null);
+    setAuthState("UNAUTHENTICATED");
+    setAuthStatus("unauthenticated");
+    setRoleStatus("ready");
+    setProfileStatus("ready");
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);
       PalakDataStore.resetMemoryCaches();
@@ -602,6 +719,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: "CUSTOMER",
     };
     setUser(guestProfile);
+    setResolvedRole("CUSTOMER");
+    setAuthState("AUTHORIZED_CUSTOMER");
+    setAuthStatus("authenticated");
+    setRoleStatus("ready");
+    setProfileStatus("ready");
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(guestProfile));
     return true;
   };
@@ -623,10 +745,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasActiveSession = Boolean(session?.user);
   const isGuestCustomer = Boolean(user && user.id && typeof user.id === "string" && user.id.startsWith("cust_"));
-  const isAuthenticated = hasActiveSession || isGuestCustomer;
-  const normalizedRole = (user?.role || "").toUpperCase();
-  const isStaff = hasActiveSession && (normalizedRole === "STAFF" || normalizedRole === "MANAGER" || normalizedRole === "ADMIN");
-  const isAdmin = hasActiveSession && (normalizedRole === "MANAGER" || normalizedRole === "ADMIN");
+  const isAuthenticated = isReady && (hasActiveSession || isGuestCustomer);
+  const normalizedRole = (resolvedRole || user?.role || "").toUpperCase();
+  const isStaff = isReady && hasActiveSession && (normalizedRole === "STAFF" || normalizedRole === "MANAGER" || normalizedRole === "ADMIN");
+  const isManager = isReady && hasActiveSession && (normalizedRole === "MANAGER" || normalizedRole === "ADMIN");
+  const isAdmin = isReady && hasActiveSession && (normalizedRole === "ADMIN");
 
   return (
     <AuthContext.Provider
@@ -636,7 +759,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated,
         isStaff,
         isAdmin,
+        isManager,
         loading,
+        isReady,
+        authState,
+        authStatus,
+        roleStatus,
+        profileStatus,
+        resolvedRole,
         authError,
         loginWithEmail,
         signUpWithEmail,

@@ -1447,6 +1447,7 @@ export function createBlankTemplateLayout(
     heightMm: cardHeightMm,
     isDoubleSided,
     templateType: isDoubleSided ? 'double' : 'single',
+    textCase: 'uppercase',
     fields: [
       {
         id: `field-photo-${Date.now()}`,
@@ -1598,15 +1599,37 @@ export function getDefaultCardDimensions(): { cardWidthMm: number; cardHeightMm:
 }
 
 /**
+ * Global template-level text case transformer.
+ * Default is 'uppercase'.
+ * 'normal' preserves original data/template capitalization.
+ * Pure presentation formatting only — never mutates source data.
+ */
+export function applyGlobalTextCase(text: string, textCase?: 'uppercase' | 'normal'): string {
+  if (!text) return text;
+  if (textCase === 'normal') {
+    return text;
+  }
+  return text.toUpperCase();
+}
+
+/**
  * Cleanly format field label prefix and value without double-spacing or trailing whitespace bugs
  */
-export function formatFieldDisplay(labelPrefix?: string | null, value?: string | null): string {
+export function formatFieldDisplay(
+  labelPrefix?: string | null,
+  value?: string | null,
+  textCase?: 'uppercase' | 'normal'
+): string {
   const val = value !== undefined && value !== null ? String(value) : '';
-  if (!labelPrefix || !labelPrefix.trim()) return val;
-  if (labelPrefix.endsWith(' ') || labelPrefix.endsWith('\n')) {
-    return `${labelPrefix}${val}`;
+  let result = val;
+  if (labelPrefix && labelPrefix.trim()) {
+    if (labelPrefix.endsWith(' ') || labelPrefix.endsWith('\n')) {
+      result = `${labelPrefix}${val}`;
+    } else {
+      result = `${labelPrefix} ${val}`;
+    }
   }
-  return `${labelPrefix} ${val}`;
+  return textCase ? applyGlobalTextCase(result, textCase) : result;
 }
 
 /**

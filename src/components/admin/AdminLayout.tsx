@@ -9,7 +9,7 @@ import { useRealtimeOrders } from "../../hooks/useRealtimeOrders";
 import { Lock, AlertCircle } from "lucide-react";
 
 export const AdminLayout: React.FC = () => {
-  const { user, isStaff, isAuthenticated, loading: authLoading, authError } = useAuth();
+  const { user, isStaff, isAuthenticated, loading: authLoading, isReady, authError } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [newOrdersCount, setNewOrdersCount] = useState(0);
@@ -151,7 +151,7 @@ export const AdminLayout: React.FC = () => {
   }
 
   // 2. Show loading while auth is initializing
-  if (authLoading) {
+  if (authLoading || !isReady) {
     return (
       <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">

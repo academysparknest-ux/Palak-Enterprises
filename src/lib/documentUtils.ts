@@ -1,4 +1,8 @@
-import { getSecureSignedUrl } from "./supabase/database";
+import {
+  getAuthoritativeDocumentSignedUrl,
+  openOriginalDocumentInNewTab,
+  downloadOriginalDocument,
+} from "./documents/originalDocumentResolver";
 
 export type FileCategory = "pdf" | "image" | "doc" | "other";
 
@@ -61,7 +65,7 @@ export function getFileCategory(
 }
 
 /**
- * Resolves a storage path or raw URL to a signed browser-accessible URL.
+ * Resolves a storage path or raw URL to an authoritative signed browser-accessible URL.
  * - For PDF preview: creates an inline signed URL (download: false).
  * - For non-PDF download: creates an attachment signed URL (download: fileName).
  */
@@ -77,41 +81,7 @@ export async function resolveDocumentUrl(
     return urlOrPath;
   }
 
-  // External full HTTP/HTTPS URLs
-  if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
-    // Detect Supabase Storage URLs (signed or public) and extract the path
-    // so we generate a fresh signed URL instead of returning an expired one
-    const supabaseStorageMatch = urlOrPath.match(
-      /\/storage\/v1\/object\/(?:sign|public)\/customer-documents\/(.+?)(?:\?|$)/
-    );
-    if (supabaseStorageMatch && supabaseStorageMatch[1]) {
-      const extractedPath = decodeURIComponent(supabaseStorageMatch[1]);
-      try {
-        const freshUrl = await getSecureSignedUrl(
-          extractedPath,
-          3600,
-          forDownload ? { download: fileName || true } : { download: false }
-        );
-        if (freshUrl) return freshUrl;
-      } catch (err) {
-        console.error("Failed to re-sign extracted Supabase storage path:", err);
-      }
-    }
-    return urlOrPath;
-  }
-
-  // Supabase Storage Path (e.g. "orders/PE-1234/123.pdf" or "customer-documents/...")
-  try {
-    const signedUrl = await getSecureSignedUrl(
-      urlOrPath,
-      3600, // 1 hour short-lived signed access for admin session
-      forDownload ? { download: fileName || true } : { download: false }
-    );
-    return signedUrl || urlOrPath;
-  } catch (err) {
-    console.error("Error resolving secure signed document URL:", err);
-    return urlOrPath;
-  }
+  return getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, forDownload, fileName);
 }
 
 /**
@@ -125,27 +95,7 @@ export async function downloadFile(
   if (!urlOrPath) return;
 
   const safeName = fileName || `document-${Date.now()}`;
-  const downloadUrl = await resolveDocumentUrl(urlOrPath, true, safeName);
-
-  if (!downloadUrl) return;
-
-  if (downloadUrl.startsWith("data:") || downloadUrl.startsWith("blob:")) {
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = safeName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } else {
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = safeName;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
+  await downloadOriginalDocument(urlOrPath, safeName);
 }
 
 /**
@@ -191,10 +141,15 @@ export async function openDocumentInNewTab(
 ): Promise<void> {
   if (!urlOrPath) return;
 
+  const category = getFileCategory(fileName, urlOrPath, mimeType);
+  if (category === "pdf") {
+    await openOriginalDocumentInNewTab(urlOrPath, fileName);
+    return;
+  }
+
   // 1. Data URLs: Convert to Blob URL so Chrome/Edge doesn't block top-level opening
   if (urlOrPath.startsWith("data:")) {
-    const category = getFileCategory(fileName, urlOrPath, mimeType);
-    const mime = mimeType || (category === "pdf" ? "application/pdf" : "image/png");
+    const mime = mimeType || "image/png";
     const blobUrl = dataUrlToBlobUrl(urlOrPath, mime);
     window.open(blobUrl, "_blank");
     return;
@@ -210,31 +165,11 @@ export async function openDocumentInNewTab(
   try {
     const resolvedUrl = await resolveDocumentUrl(urlOrPath, false, fileName);
     if (!resolvedUrl) {
-      window.open(urlOrPath, "_blank");
       return;
     }
-
-    // If it's a PDF, try fetching as blob to provide instant inline opening without content-disposition issues
-    const category = getFileCategory(fileName, urlOrPath, mimeType);
-    if (category === "pdf") {
-      try {
-        const resp = await fetch(resolvedUrl);
-        if (resp.ok) {
-          const blob = await resp.blob();
-          const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
-          const blobUrl = URL.createObjectURL(pdfBlob);
-          window.open(blobUrl, "_blank");
-          return;
-        }
-      } catch {
-        // Fall back to opening signed URL directly
-      }
-    }
-
     window.open(resolvedUrl, "_blank");
   } catch (err) {
     console.error("openDocumentInNewTab error:", err);
-    window.open(urlOrPath, "_blank");
   }
 }
 

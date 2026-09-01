@@ -9,6 +9,27 @@ import type {
   TemplateFieldSource,
   TemplateLayout,
 } from './types';
+import {
+  CANONICAL_FIELD_REGISTRY,
+  normalizeHeader,
+  normalizeStudentRecord,
+  resolveCanonicalFieldKey,
+  resolveTemplateFieldValue,
+  validateBatchDataBindings,
+  type CanonicalFieldKey,
+  type CanonicalStudent,
+} from './dataBindingRegistry';
+
+export {
+  CANONICAL_FIELD_REGISTRY,
+  normalizeHeader,
+  normalizeStudentRecord,
+  resolveCanonicalFieldKey,
+  resolveTemplateFieldValue,
+  validateBatchDataBindings,
+  type CanonicalFieldKey,
+  type CanonicalStudent,
+};
 
 /**
  * Authoritative Field Registry mapping TemplateFieldKey to:
@@ -567,21 +588,7 @@ export function extractTemplateFieldSchema(
  * Resolves any field key, slug, or label into its standard canonical student key
  */
 export function resolveCanonicalStudentKey(key: string, label?: string): string {
-  const norm = (key || label || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  if (norm.includes('student_id') || norm.includes('admission') || norm.includes('scholar') || norm === 'id' || norm === 'id_no' || norm === 'roll_id' || norm === 'card_no') return 'student_id';
-  if (norm.includes('student_name') || norm.includes('full_name') || norm === 'name' || norm === 'student' || norm === 'studentname') return 'student_name';
-  if (norm.includes('class') || norm.includes('grade') || norm.includes('standard') || norm === 'std' || norm.includes('course')) return 'class';
-  if (norm.includes('section') || norm === 'sec' || norm.includes('division') || norm === 'div') return 'section';
-  if (norm.includes('roll') || norm === 'r_no' || norm === 'rno') return 'roll_number';
-  if (norm.includes('birth') || norm.includes('dob') || norm.includes('bday') || norm === 'd_o_b') return 'date_of_birth';
-  if (norm.includes('blood')) return 'blood_group';
-  if (norm.includes('batch') || norm.includes('academic_year') || norm.includes('session')) return 'batch';
-  if (norm.includes('father') || norm.includes('guardian') || norm.includes('parent')) return 'father_name';
-  if (norm.includes('mother')) return 'mother_name';
-  if (norm.includes('emergency')) return 'emergency_no';
-  if (norm.includes('phone') || norm.includes('mobile') || norm.includes('contact') || norm.includes('tel')) return 'phone';
-  if (norm.includes('address') || norm.includes('location') || norm.includes('city') || norm.includes('residence')) return 'address';
-  return norm;
+  return resolveCanonicalFieldKey(key, label);
 }
 
 export const CANONICAL_DISPLAY_LABELS: Record<string, string> = {

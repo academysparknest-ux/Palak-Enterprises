@@ -13,6 +13,10 @@ import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { cn } from "../../lib/utils";
+import {
+  validateQuickServiceFileSize,
+  QUICK_SERVICE_MAX_FILE_SIZE_MB,
+} from "../../config/quickServiceConfig";
 
 const CUSTOM_PRODUCT_TYPES = [
   "Pamphlet / Handbill",
@@ -78,8 +82,13 @@ export const CustomPrintPage: React.FC = () => {
     if (!e.target.files || e.target.files.length === 0) return;
 
     const file = e.target.files[0];
-    if (file.size > 50 * 1024 * 1024) {
-      setFileError("File must be under 50MB.");
+    const validation = validateQuickServiceFileSize(file);
+    if (!validation.isValid) {
+      setFileError(
+        (currentLang === "hi"
+          ? validation.errorHi || validation.error
+          : validation.error) || `File must be under ${QUICK_SERVICE_MAX_FILE_SIZE_MB} MB.`
+      );
       return;
     }
 
@@ -398,7 +407,11 @@ export const CustomPrintPage: React.FC = () => {
                 ) : (
                   <label className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-4 text-center hover:border-[#123B70] cursor-pointer bg-slate-50">
                     <Upload className="h-4 w-4 text-slate-500" />
-                    <span className="text-xs font-bold text-slate-700">Attach Sample Design, Rough Draft or PDF</span>
+                    <span className="text-xs font-bold text-slate-700">
+                      {currentLang === "hi"
+                        ? `सैंपल डिज़ाइन, रफ़ ड्राफ्ट या PDF जोड़ें (अधिकतम ${QUICK_SERVICE_MAX_FILE_SIZE_MB} MB)`
+                        : `Attach Sample Design, Rough Draft or PDF (Max ${QUICK_SERVICE_MAX_FILE_SIZE_MB} MB)`}
+                    </span>
                     <input type="file" onChange={handleFileChange} className="hidden" />
                   </label>
                 )}

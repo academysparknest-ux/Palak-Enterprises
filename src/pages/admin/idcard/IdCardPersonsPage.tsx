@@ -19,7 +19,7 @@ import {
   createIdCardPerson,
   updateIdCardPerson,
   deleteIdCardPerson,
-  uploadPersonPhoto,
+  savePersonPhotoWithCropState,
 } from '../../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../../lib/idcard/errors';
 import type {
@@ -28,6 +28,7 @@ import type {
   IdCardProject,
   IdCardGeneration,
   IdCardStatus,
+  PhotoCropState,
 } from '../../../lib/idcard/types';
 import { extractTemplateFieldSchema } from '../../../lib/idcard/templateFieldSchema';
 import { computeStudentIdCardStatus } from '../../../lib/idcard/statusEngine';
@@ -53,6 +54,8 @@ type PageState =
       generations: IdCardGeneration[];
     };
 
+const EMPTY_GENERATIONS: IdCardGeneration[] = [];
+
 export default function IdCardPersonsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [state, setState] = useState<PageState>({ kind: 'loading' });
@@ -77,7 +80,7 @@ export default function IdCardPersonsPage() {
   const [sortAsc, setSortAsc] = useState<boolean>(true);
 
   const activeTemplate = state.kind === 'ready' ? state.template : null;
-  const generations = state.kind === 'ready' ? state.generations : [];
+  const generations = state.kind === 'ready' ? state.generations : EMPTY_GENERATIONS;
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(activeTemplate?.layout), [activeTemplate]);
   const requiredFields = useMemo(
     () => [...fieldSchema.studentInputFields, ...fieldSchema.assetFields].filter((f) => f.required),
@@ -662,7 +665,14 @@ function PersonEditModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(person?.photo_url ?? null);
+  const [originalPhotoPath, setOriginalPhotoPath] = useState<string | null>(
+    person?.original_photo_url || person?.custom_fields?.original_photo_url || null
+  );
+  const [cropState, setCropState] = useState<PhotoCropState | null>(
+    person?.photo_crop_state || person?.custom_fields?.photo_crop_state || null
+  );
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [pendingOriginalFile, setPendingOriginalFile] = useState<File | null>(null);
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
 
   const fieldSchema = useMemo(() => extractTemplateFieldSchema(template?.layout), [template]);
@@ -676,6 +686,7 @@ function PersonEditModal({
     setError(null);
     try {
       let finalPhotoUrl = photoPath;
+      let finalOriginalPhotoUrl = originalPhotoPath;
 
       const standardKeys = [
         'student_id',
@@ -707,6 +718,8 @@ function PersonEditModal({
         emergency_number: values.emergency_number?.trim() || null,
         address: values.address?.trim() || null,
         photo_url: finalPhotoUrl || null,
+        original_photo_url: finalOriginalPhotoUrl || null,
+        photo_crop_state: cropState || null,
       };
 
       const customFields: Record<string, any> = {};
@@ -718,7 +731,14 @@ function PersonEditModal({
 
       if (person) {
         if (pendingPhotoFile) {
-          finalPhotoUrl = await uploadPersonPhoto(person.id, pendingPhotoFile);
+          const saveRes = await savePersonPhotoWithCropState(person.id, {
+            originalFile: pendingOriginalFile,
+            optimizedFile: pendingPhotoFile,
+            cropState: cropState || { shape: 'circle', x: 0, y: 0, scale: 1, rotation: 0 },
+            existingOriginalPath: originalPhotoPath,
+          });
+          finalPhotoUrl = saveRes.photoUrl;
+          finalOriginalPhotoUrl = saveRes.originalPhotoUrl;
         }
         if (isPhotoRequired && !finalPhotoUrl) {
           throw new Error('Student photo is required for this ID card template.');
@@ -726,6 +746,8 @@ function PersonEditModal({
         await updateIdCardPerson(person.id, {
           ...standardData,
           photo_url: finalPhotoUrl || null,
+          original_photo_url: finalOriginalPhotoUrl || null,
+          photo_crop_state: cropState || null,
           custom_fields: Object.keys(customFields).length > 0 ? customFields : person.custom_fields || null,
         });
       } else {
@@ -737,8 +759,12 @@ function PersonEditModal({
           custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
         } as any);
         if (pendingPhotoFile && created) {
-          finalPhotoUrl = await uploadPersonPhoto(created.id, pendingPhotoFile);
-          await updateIdCardPerson(created.id, { photo_url: finalPhotoUrl });
+          await savePersonPhotoWithCropState(created.id, {
+            originalFile: pendingOriginalFile,
+            optimizedFile: pendingPhotoFile,
+            cropState: cropState || { shape: 'circle', x: 0, y: 0, scale: 1, rotation: 0 },
+            existingOriginalPath: originalPhotoPath,
+          });
         }
       }
       onSaved();
@@ -803,15 +829,26 @@ function PersonEditModal({
             <div className="mt-2.5">
               <PhotoUpload
                 photoPath={photoPath}
+                originalPhotoPath={originalPhotoPath}
+                initialCropState={cropState}
                 initialPreviewUrl={pendingPreviewUrl || photoPath}
-                onFileSelect={(file: File | null, previewUrl: string | null) => {
+                onFileSelect={(file: File | null, previewUrl: string | null, newCropState?: PhotoCropState | null, originalFile?: File | null) => {
                   setPendingPhotoFile(file);
                   setPendingPreviewUrl(previewUrl);
+                  if (newCropState) setCropState(newCropState);
+                  if (originalFile) setPendingOriginalFile(originalFile);
                   if (!file && !previewUrl) {
                     setPhotoPath(null);
+                    setOriginalPhotoPath(null);
+                    setCropState(null);
+                    setPendingOriginalFile(null);
                   }
                 }}
-                onChange={(path) => setPhotoPath(path)}
+                onChange={(path, origPath, newCropState) => {
+                  setPhotoPath(path);
+                  if (origPath !== undefined) setOriginalPhotoPath(origPath);
+                  if (newCropState !== undefined) setCropState(newCropState);
+                }}
               />
             </div>
           </div>

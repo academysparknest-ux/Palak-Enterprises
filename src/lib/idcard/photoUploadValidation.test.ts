@@ -36,29 +36,29 @@ function section(name: string) {
 }
 
 // ────────────────────────────────────────────────────────────────
-// Test 1: File Size Boundary Checks (50 KB - 500 KB)
+// Test 1: File Size Boundary Checks (5 KB - 15 MB)
 // ────────────────────────────────────────────────────────────────
 section('Test 1: File Size Boundary Checks');
 {
   const testCases = [
-    { sizeKb: 49, expectedValid: false, label: '49 KB -> FAIL (too small)' },
-    { sizeKb: 50, expectedValid: true, label: '50 KB -> PASS (exact minimum)' },
+    { sizeKb: 4, expectedValid: false, label: '4 KB -> FAIL (too small)' },
+    { sizeKb: 5, expectedValid: true, label: '5 KB -> PASS (exact minimum)' },
+    { sizeKb: 39, expectedValid: true, label: '39 KB -> PASS (cropped ID photo)' },
     { sizeKb: 150, expectedValid: true, label: '150 KB -> PASS (mid range)' },
-    { sizeKb: 300, expectedValid: true, label: '300 KB -> PASS (mid range)' },
-    { sizeKb: 500, expectedValid: true, label: '500 KB -> PASS (exact maximum)' },
-    { sizeKb: 501, expectedValid: false, label: '501 KB -> FAIL (too large)' },
-    { sizeKb: 1024, expectedValid: false, label: '1 MB -> FAIL (too large)' },
+    { sizeKb: 2.7 * 1024, expectedValid: true, label: '2.7 MB -> PASS (high-res camera upload)' },
+    { sizeKb: 15 * 1024, expectedValid: true, label: '15 MB -> PASS (exact maximum)' },
+    { sizeKb: 16 * 1024, expectedValid: false, label: '16 MB -> FAIL (too large)' },
   ];
 
   for (const tc of testCases) {
-    const bytes = tc.sizeKb * 1024;
+    const bytes = Math.round(tc.sizeKb * 1024);
     const res = validatePhotoFile({ name: 'photo.jpg', size: bytes, type: 'image/jpeg' });
     assert(res.valid === tc.expectedValid, tc.label);
 
-    if (!tc.expectedValid && tc.sizeKb < 50) {
-      assert(res.error?.includes('50 KB') === true, `  -> Correct error message: "${res.error}"`);
-    } else if (!tc.expectedValid && tc.sizeKb > 500) {
-      assert(res.error?.includes('500 KB') === true, `  -> Correct error message: "${res.error}"`);
+    if (!tc.expectedValid && tc.sizeKb < 5) {
+      assert(res.error?.includes('5 KB') === true, `  -> Correct error message: "${res.error}"`);
+    } else if (!tc.expectedValid && tc.sizeKb > 15 * 1024) {
+      assert(res.error?.includes('15 MB') === true, `  -> Correct error message: "${res.error}"`);
     }
   }
 }
@@ -90,16 +90,17 @@ section('Test 2: File Format & Extension Checks');
 }
 
 // ────────────────────────────────────────────────────────────────
-// Test 3: Dimension Checks (Min 300×360 px, Recommended 600×720 px)
+// Test 3: Dimension Checks (Min 250×250 px, Recommended 600×600+ px)
 // ────────────────────────────────────────────────────────────────
 section('Test 3: Dimension Checks');
 {
   const dimCases = [
-    { w: 300, h: 360, expectedValid: true, isRec: false, label: '300×360 px -> PASS (minimum threshold)' },
-    { w: 600, h: 720, expectedValid: true, isRec: true, label: '600×720 px -> PASS (recommended resolution)' },
+    { w: 250, h: 250, expectedValid: true, isRec: false, label: '250×250 px -> PASS (minimum threshold)' },
+    { w: 600, h: 600, expectedValid: true, isRec: true, label: '600×600 px -> PASS (recommended cropped resolution)' },
+    { w: 600, h: 720, expectedValid: true, isRec: true, label: '600×720 px -> PASS (recommended portrait resolution)' },
     { w: 800, h: 960, expectedValid: true, isRec: true, label: '800×960 px -> PASS (high resolution)' },
     { w: 100, h: 100, expectedValid: false, isRec: false, label: '100×100 px -> FAIL (resolution too low)' },
-    { w: 299, h: 359, expectedValid: false, isRec: false, label: '299×359 px -> FAIL (below minimum width and height)' },
+    { w: 249, h: 249, expectedValid: false, isRec: false, label: '249×249 px -> FAIL (below minimum width and height)' },
     { w: 300, h: 200, expectedValid: false, isRec: false, label: '300×200 px -> FAIL (below minimum height)' },
     { w: 200, h: 400, expectedValid: false, isRec: false, label: '200×400 px -> FAIL (below minimum width)' },
   ];
@@ -110,7 +111,7 @@ section('Test 3: Dimension Checks');
     if (dc.expectedValid) {
       assert(res.isRecommended === dc.isRec, `  -> isRecommended flag is ${dc.isRec}`);
     } else {
-      assert(res.error?.includes('300×360') === true, `  -> Low resolution error message: "${res.error}"`);
+      assert(res.error?.includes('250×250') === true, `  -> Low resolution error message: "${res.error}"`);
     }
   }
 }
@@ -190,8 +191,8 @@ section('Test 5: Mixed Batch Validation & Failed File Isolation');
     { name: '0001.jpg', size: 120 * 1024, type: 'image/jpeg' }, // Valid
     { name: '0002.png', size: 250 * 1024, type: 'image/png' }, // Valid
     { name: '0003.gif', size: 100 * 1024, type: 'image/gif' }, // Invalid format
-    { name: '0004.jpg', size: 20 * 1024, type: 'image/jpeg' }, // Invalid size (too small)
-    { name: '0005.jpg', size: 800 * 1024, type: 'image/jpeg' }, // Invalid size (too large)
+    { name: '0004.jpg', size: 2 * 1024, type: 'image/jpeg' }, // Invalid size (too small < 5KB)
+    { name: '0005.jpg', size: 20 * 1024 * 1024, type: 'image/jpeg' }, // Invalid size (too large > 15MB)
     { name: '0006.webp', size: 90 * 1024, type: 'image/webp' }, // Valid
   ];
 

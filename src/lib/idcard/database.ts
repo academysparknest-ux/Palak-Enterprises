@@ -13,6 +13,7 @@ import type {
   IdCardGeneration,
   ProjectStatus,
   PaginatedResult,
+  PhotoCropState,
 } from './types';
 
 // ============================================================
@@ -234,6 +235,14 @@ export async function createIdCardPerson(
 ): Promise<IdCardPerson> {
   return executeWithAuthRetry(
     async (client) => {
+      const customFields = input.custom_fields ? { ...input.custom_fields } : {};
+      if (input.original_photo_url !== undefined) {
+        customFields.original_photo_url = input.original_photo_url;
+      }
+      if (input.photo_crop_state !== undefined) {
+        customFields.photo_crop_state = input.photo_crop_state;
+      }
+
       let sanitized: Record<string, any> = {
         project_id: input.project_id,
         student_id: input.student_id,
@@ -249,10 +258,11 @@ export async function createIdCardPerson(
         emergency_number: input.emergency_number ?? null,
         address: input.address ?? null,
         photo_url: input.photo_url ?? null,
+        original_photo_url: input.original_photo_url ?? null,
+        photo_crop_state: input.photo_crop_state ?? null,
       };
-      // Include custom fields if present
-      if (input.custom_fields && Object.keys(input.custom_fields).length > 0) {
-        sanitized.custom_fields = input.custom_fields;
+      if (Object.keys(customFields).length > 0) {
+        sanitized.custom_fields = customFields;
       }
       sanitized = cleanPersonPayload(sanitized);
 
@@ -273,6 +283,10 @@ export async function createIdCardPerson(
 
       if (error) throw classifySupabaseError(error);
       const person = data as IdCardPerson;
+      if (person.custom_fields) {
+        person.original_photo_url = person.original_photo_url || person.custom_fields.original_photo_url || null;
+        person.photo_crop_state = person.photo_crop_state || person.custom_fields.photo_crop_state || null;
+      }
       auditStudentCreated(person.project_id, person.student_id, person.name);
       return person;
     },
@@ -286,6 +300,14 @@ export async function createIdCardPersonsBulk(
   return executeWithAuthRetry(
     async (client) => {
       let sanitized = inputs.map((input) => {
+        const customFields = input.custom_fields ? { ...input.custom_fields } : {};
+        if (input.original_photo_url !== undefined) {
+          customFields.original_photo_url = input.original_photo_url;
+        }
+        if (input.photo_crop_state !== undefined) {
+          customFields.photo_crop_state = input.photo_crop_state;
+        }
+
         const row: Record<string, any> = {
           project_id: input.project_id,
           student_id: input.student_id,
@@ -301,9 +323,11 @@ export async function createIdCardPersonsBulk(
           emergency_number: input.emergency_number ?? null,
           address: input.address ?? null,
           photo_url: input.photo_url ?? null,
+          original_photo_url: input.original_photo_url ?? null,
+          photo_crop_state: input.photo_crop_state ?? null,
         };
-        if (input.custom_fields && Object.keys(input.custom_fields).length > 0) {
-          row.custom_fields = input.custom_fields;
+        if (Object.keys(customFields).length > 0) {
+          row.custom_fields = customFields;
         }
         return cleanPersonPayload(row);
       });
@@ -360,17 +384,40 @@ export async function updateIdCardPerson(
         'emergency_number',
         'address',
         'photo_url',
+        'original_photo_url',
+        'photo_crop_state',
         'custom_fields',
         'status',
       ];
       let sanitized: Record<string, any> = {};
       const changedFields: string[] = [];
+
+      // If updating crop state or original photo, also ensure custom_fields mirror is up to date
+      let mergedCustom = patch.custom_fields ? { ...patch.custom_fields } : undefined;
+      if (patch.original_photo_url !== undefined || patch.photo_crop_state !== undefined) {
+        if (!mergedCustom) {
+          const { data: cur } = await client.from('idcard_persons').select('custom_fields').eq('id', id).maybeSingle();
+          mergedCustom = { ...(cur?.custom_fields || {}) };
+        }
+        if (patch.original_photo_url !== undefined) {
+          mergedCustom.original_photo_url = patch.original_photo_url;
+        }
+        if (patch.photo_crop_state !== undefined) {
+          mergedCustom.photo_crop_state = patch.photo_crop_state;
+        }
+        sanitized.custom_fields = mergedCustom;
+      }
+
       for (const col of allowedCols) {
         if ((patch as any)[col] !== undefined && !unsupportedPersonColumns.has(col)) {
           sanitized[col] = (patch as any)[col];
           changedFields.push(col);
         }
       }
+      if (mergedCustom && !unsupportedPersonColumns.has('custom_fields')) {
+        sanitized.custom_fields = mergedCustom;
+      }
+
       let { data, error } = await client.from('idcard_persons').update(sanitized).eq('id', id).select().single();
 
       // If database reports column not in schema cache, strip column and retry automatically
@@ -388,6 +435,10 @@ export async function updateIdCardPerson(
 
       if (error) throw classifySupabaseError(error);
       const person = data as IdCardPerson;
+      if (person.custom_fields) {
+        person.original_photo_url = person.original_photo_url || person.custom_fields.original_photo_url || null;
+        person.photo_crop_state = person.photo_crop_state || person.custom_fields.photo_crop_state || null;
+      }
       auditStudentUpdated(person.project_id, person.student_id, person.name, changedFields);
       return person;
     },
@@ -411,32 +462,202 @@ export async function deleteIdCardPerson(id: string): Promise<void> {
 }
 
 // ============================================================
-// PHOTOS
+// PHOTOS (NON-DESTRUCTIVE STORAGE & OPTIMIZATION)
 // ============================================================
 
 export const PHOTO_BUCKET = 'idcard-photos';
-export const MIN_PHOTO_BYTES = 50 * 1024; // 50 KB
-export const MAX_PHOTO_BYTES = 500 * 1024; // 500 KB
+export const MIN_PHOTO_BYTES = 5 * 1024; // 5 KB
+export const MAX_PHOTO_BYTES = 250 * 1024; // 250 KB (Storage limit for optimized photos)
+export const MAX_ORIGINAL_PHOTO_BYTES = 15 * 1024 * 1024; // 15 MB (Storage limit for authoritative raw photos)
 export const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
-export async function uploadPersonPhoto(personId: string, file: File): Promise<string> {
-  const mime = (file.type || '').toLowerCase();
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+/**
+ * Uploads an authoritative raw original student photo to storage.
+ */
+export async function uploadOriginalPersonPhoto(personId: string, file: File | Blob): Promise<string> {
+  const fileObj = file instanceof File ? file : new File([file], 'original.jpg', { type: file.type || 'image/jpeg' });
+  const mime = (fileObj.type || '').toLowerCase();
+  const ext = (fileObj.name.split('.').pop() || 'jpg').toLowerCase();
   const isAllowedMime = mime ? ALLOWED_PHOTO_TYPES.includes(mime) : true;
   const isAllowedExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
 
   if (!isAllowedMime || !isAllowedExt) {
     throw classifySupabaseError({ message: 'Unsupported image format. Please upload JPG, PNG, or WebP.' });
   }
-  if (file.size < MIN_PHOTO_BYTES) {
-    throw classifySupabaseError({ message: 'Photo is too small. Minimum file size is 50 KB.' });
+  if (fileObj.size < MIN_PHOTO_BYTES) {
+    throw classifySupabaseError({ message: 'Photo is too small. Minimum file size is 5 KB.' });
   }
-  if (file.size > MAX_PHOTO_BYTES) {
-    throw classifySupabaseError({ message: 'Photo is too large. Maximum file size is 500 KB.' });
+  if (fileObj.size > MAX_ORIGINAL_PHOTO_BYTES) {
+    throw classifySupabaseError({ message: 'Original photo exceeds maximum limit (Max 15 MB).' });
+  }
+
+  const cleanFileName = fileObj.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${personId}/orig_${Date.now()}_${cleanFileName}`;
+
+  return executeWithAuthRetry(
+    async (client) => {
+      let { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
+        upsert: true,
+        contentType: file.type || 'image/jpeg',
+      });
+
+      if (uploadError && /bucket not found|bucket_not_found/i.test(uploadError.message || '')) {
+        try {
+          await client.storage.createBucket(PHOTO_BUCKET, { public: true });
+          const retry = await client.storage.from(PHOTO_BUCKET).upload(path, file, {
+            upsert: true,
+            contentType: file.type || 'image/jpeg',
+          });
+          uploadError = retry.error;
+        } catch {}
+      }
+
+      if (uploadError) throw classifySupabaseError(uploadError);
+      return path;
+    },
+    { operationName: 'uploadOriginalPersonPhoto' }
+  );
+}
+
+/**
+ * Saves both derived optimized photo and non-destructive crop state for a student.
+ */
+export async function savePersonPhotoWithCropState(
+  personId: string,
+  input: {
+    originalFile?: File | Blob | null;
+    optimizedFile: File | Blob;
+    cropState: PhotoCropState;
+    existingOriginalPath?: string | null;
+  }
+): Promise<{ photoUrl: string; originalPhotoUrl: string | null; cropState: PhotoCropState }> {
+  // 1. Upload original photo if a new original file is provided
+  let originalPath = input.existingOriginalPath || null;
+  let newlyUploadedOriginalPath: string | null = null;
+
+  if (input.originalFile) {
+    originalPath = await uploadOriginalPersonPhoto(personId, input.originalFile);
+    newlyUploadedOriginalPath = originalPath;
+  }
+
+  // 2. Upload derived optimized photo
+  const optFileObj = input.optimizedFile instanceof File
+    ? input.optimizedFile
+    : new File([input.optimizedFile], 'photo.jpg', { type: input.optimizedFile.type || 'image/jpeg' });
+
+  if (optFileObj.size > MAX_PHOTO_BYTES) {
+    throw classifySupabaseError({ message: 'Photo exceeds maximum storage limit (Max 250 KB). Image must be client-optimized before upload.' });
+  }
+
+  const cleanFileName = optFileObj.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const optimizedPath = `${personId}/${Date.now()}_${cleanFileName}`;
+
+  return executeWithAuthRetry(
+    async (client) => {
+      let { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(optimizedPath, input.optimizedFile, {
+        upsert: true,
+        contentType: input.optimizedFile.type || 'image/jpeg',
+      });
+
+      if (uploadError && /bucket not found|bucket_not_found/i.test(uploadError.message || '')) {
+        try {
+          await client.storage.createBucket(PHOTO_BUCKET, { public: true });
+          const retry = await client.storage.from(PHOTO_BUCKET).upload(optimizedPath, input.optimizedFile, {
+            upsert: true,
+            contentType: input.optimizedFile.type || 'image/jpeg',
+          });
+          uploadError = retry.error;
+        } catch {}
+      }
+
+      if (uploadError) {
+        if (newlyUploadedOriginalPath) {
+          try {
+            await client.storage.from(PHOTO_BUCKET).remove([newlyUploadedOriginalPath]);
+          } catch {}
+        }
+        throw classifySupabaseError(uploadError);
+      }
+
+      const { data: existingPerson } = await client
+        .from('idcard_persons')
+        .select('project_id, student_id, name, custom_fields')
+        .eq('id', personId)
+        .maybeSingle();
+
+      const mergedCustom = {
+        ...(existingPerson?.custom_fields || {}),
+        original_photo_url: originalPath,
+        photo_crop_state: input.cropState,
+      };
+
+      const updatePayload: Record<string, any> = {
+        photo_url: optimizedPath,
+        original_photo_url: originalPath,
+        photo_crop_state: input.cropState,
+        custom_fields: mergedCustom,
+      };
+
+      let { error: updateError } = await client
+        .from('idcard_persons')
+        .update(cleanPersonPayload(updatePayload))
+        .eq('id', personId);
+
+      if (updateError) {
+        const check = isSchemaColumnError(updateError);
+        if (check.isSchemaError && check.missingColumn) {
+          unsupportedPersonColumns.add(check.missingColumn);
+          delete updatePayload[check.missingColumn];
+          const retry = await client
+            .from('idcard_persons')
+            .update(cleanPersonPayload(updatePayload))
+            .eq('id', personId);
+          updateError = retry.error;
+        }
+      }
+
+      if (updateError) {
+        const toClean = [optimizedPath];
+        if (newlyUploadedOriginalPath) toClean.push(newlyUploadedOriginalPath);
+        try {
+          await client.storage.from(PHOTO_BUCKET).remove(toClean);
+        } catch {}
+        throw classifySupabaseError(updateError);
+      }
+
+      if (existingPerson) {
+        auditPhotoChanged(existingPerson.project_id, existingPerson.student_id, existingPerson.name);
+      }
+
+      return {
+        photoUrl: optimizedPath,
+        originalPhotoUrl: originalPath,
+        cropState: input.cropState,
+      };
+    },
+    { operationName: 'savePersonPhotoWithCropState' }
+  );
+}
+
+export async function uploadPersonPhoto(personId: string, file: File | Blob): Promise<string> {
+  const fileObj = file instanceof File ? file : new File([file], 'photo.jpg', { type: file.type || 'image/jpeg' });
+  const mime = (fileObj.type || '').toLowerCase();
+  const ext = (fileObj.name.split('.').pop() || 'jpg').toLowerCase();
+  const isAllowedMime = mime ? ALLOWED_PHOTO_TYPES.includes(mime) : true;
+  const isAllowedExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+
+  if (!isAllowedMime || !isAllowedExt) {
+    throw classifySupabaseError({ message: 'Unsupported image format. Please upload JPG, PNG, or WebP.' });
+  }
+  if (fileObj.size < MIN_PHOTO_BYTES) {
+    throw classifySupabaseError({ message: 'Photo is too small. Minimum file size is 5 KB.' });
+  }
+  if (fileObj.size > MAX_PHOTO_BYTES) {
+    throw classifySupabaseError({ message: 'Photo exceeds maximum storage limit (Max 250 KB). Image must be client-optimized before upload.' });
   }
 
   // Clean filename and make unique path: student-photos/{personId}/{timestamp}_{filename}
-  const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const cleanFileName = fileObj.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${personId}/${Date.now()}_${cleanFileName}`;
 
   return executeWithAuthRetry(

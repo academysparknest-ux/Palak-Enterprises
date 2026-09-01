@@ -15,6 +15,18 @@ export interface IdCardProject {
   updated_at: string;
 }
 
+export interface PhotoCropState {
+  shape: 'circle' | 'rect';
+  x: number; // pan offset X in viewport / relative coordinates
+  y: number; // pan offset Y in viewport / relative coordinates
+  scale: number; // zoom factor (e.g. 1 = 100%, 1.2 = 120%)
+  rotation: number; // rotation in degrees (0, 90, 180, 270)
+  naturalWidth?: number;
+  naturalHeight?: number;
+  viewportWidth?: number;
+  viewportHeight?: number;
+}
+
 export interface IdCardPerson {
   id: string;
   project_id: string;
@@ -31,6 +43,8 @@ export interface IdCardPerson {
   emergency_number?: string | null;
   address: string | null;
   photo_url: string | null;
+  original_photo_url?: string | null;
+  photo_crop_state?: PhotoCropState | null;
   custom_fields?: Record<string, any> | null;
   created_at: string;
   updated_at: string;
@@ -100,6 +114,10 @@ export interface TemplateField {
   photoShape?: 'rectangle' | 'rounded' | 'circle';
   photoFit?: 'cover' | 'contain' | 'fill';
   overflowStrategy?: 'wrap' | 'scale_down' | 'ellipsis' | 'warning';
+  binding?: {
+    type: 'student_field' | 'custom_field' | 'static' | 'system';
+    fieldId: string;
+  };
 }
 
 export interface TemplateSideLayout {
@@ -172,6 +190,7 @@ export interface TemplateLayout {
   heightMm?: number;
   isDoubleSided?: boolean;
   templateType?: 'single' | 'double';
+  textCase?: 'uppercase' | 'normal';
   back?: TemplateSideLayout; // Back side layout
   fieldSchema?: TemplateFieldSchemaItem[]; // Extracted dynamic field schema
   [key: string]: any;
@@ -296,3 +315,5 @@ export interface PaginatedResult<T> {
   page: number;
   pageSize: number;
 }
+
+export type { CanonicalStudent, CanonicalFieldKey, CanonicalFieldDefinition } from './dataBindingRegistry';

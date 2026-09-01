@@ -197,38 +197,6 @@ export default function IdCardPreviewPage() {
         </div>
       )}
 
-      {/* Development Diagnostic Panel */}
-      {import.meta.env.DEV && (
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 text-[11px] text-indigo-900 font-mono space-y-1">
-          <div className="font-bold uppercase tracking-wider text-indigo-950 flex items-center justify-between">
-            <span>🔍 Runtime Template Diagnostics</span>
-            <span className="text-[10px] text-indigo-600 font-normal">DEV ONLY</span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1">
-            <div>
-              <span className="text-indigo-600 block">Preview Template ID:</span>
-              <span className="font-semibold text-slate-800">{template.id}</span>
-            </div>
-            <div>
-              <span className="text-indigo-600 block">Project Template ID:</span>
-              <span className="font-semibold text-slate-800">{project.template_id || '(none)'}</span>
-            </div>
-            <div>
-              <span className="text-indigo-600 block">URL param templateId:</span>
-              <span className="font-semibold text-slate-800">{queryTemplateId || '(none)'}</span>
-            </div>
-            <div>
-              <span className="text-indigo-600 block">Updated At:</span>
-              <span className="font-semibold text-slate-800">{template.updated_at || template.created_at}</span>
-            </div>
-          </div>
-          <div className="pt-1 text-[10px] text-slate-600 flex flex-wrap gap-4 border-t border-indigo-100 mt-1">
-            <span>Front BG: {template.layout.backgroundUrl ? `${template.layout.backgroundUrl.slice(0, 30)}...` : 'None (Color)'}</span>
-            <span>Back BG: {template.layout.back?.backgroundUrl ? `${template.layout.back.backgroundUrl.slice(0, 30)}...` : 'None (Color)'}</span>
-          </div>
-        </div>
-      )}
-
       <div>
         <IdCardPreview
           key={`${template.id}-${template.updated_at || ''}-${selectedPerson.id}`}

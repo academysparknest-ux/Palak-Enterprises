@@ -1,83 +1,130 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Camera, Loader2, X, AlertCircle, CheckCircle2, AlertTriangle, Crop } from 'lucide-react';
-import { uploadPersonPhoto, deletePersonPhoto, getPhotoSignedUrl } from '../../lib/idcard/database';
+import { Camera, Loader2, X, AlertCircle, CheckCircle2, Crop } from 'lucide-react';
+import {
+  savePersonPhotoWithCropState,
+  deletePersonPhoto,
+  getPhotoSignedUrl,
+} from '../../lib/idcard/database';
 import { classifySupabaseError, errorCodeToUserMessage } from '../../lib/idcard/errors';
 import { ImageCropModal } from './ImageCropModal';
 import {
   validatePhoto,
-  MIN_PHOTO_BYTES,
-  MAX_PHOTO_BYTES,
-  MIN_PHOTO_WIDTH,
-  MIN_PHOTO_HEIGHT,
-  RECOMMENDED_PHOTO_WIDTH,
-  RECOMMENDED_PHOTO_HEIGHT,
   formatBytes,
   type PhotoValidationResult,
 } from '../../lib/idcard/photoValidation';
+import type { PhotoCropState } from '../../lib/idcard/types';
 
 export interface PhotoUploadProps {
   personId?: string | null;
   photoPath?: string | null;
+  originalPhotoPath?: string | null;
   initialPreviewUrl?: string | null;
-  onChange?: (path: string | null) => void;
-  onFileSelect?: (file: File | null, previewUrl: string | null) => void;
+  initialCropState?: PhotoCropState | null;
+  onChange?: (path: string | null, originalPath?: string | null, cropState?: PhotoCropState | null) => void;
+  onFileSelect?: (
+    file: File | null,
+    previewUrl: string | null,
+    cropState?: PhotoCropState | null,
+    originalFile?: File | null
+  ) => void;
   shape?: 'circle' | 'rect';
 }
 
 export function PhotoUpload({
   personId,
   photoPath,
+  originalPhotoPath,
   initialPreviewUrl,
+  initialCropState,
   onChange,
   onFileSelect,
   shape = 'circle',
 }: PhotoUploadProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialPreviewUrl ?? null);
+  const [originalSourceUrl, setOriginalSourceUrl] = useState<string | null>(null);
+  const [cropState, setCropState] = useState<PhotoCropState | null>(initialCropState ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationInfo, setValidationInfo] = useState<PhotoValidationResult | null>(null);
+
+  // Authoritative Original Source file reference (kept in memory for current session)
+  const originalFileRef = useRef<File | null>(null);
+  const rawObjectUrlRef = useRef<string | null>(null);
 
   // Crop Modal state
   const [showCropModal, setShowCropModal] = useState<boolean>(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [cropFileName, setCropFileName] = useState<string>('student-photo.jpg');
+  const [originalFileSize, setOriginalFileSize] = useState<number | undefined>(undefined);
   const tempCropUrlRef = useRef<string | null>(null);
 
-  // Sync with photoPath from server if present
+  // Sync with photoPath and originalPhotoPath from server if present
   useEffect(() => {
     let cancelled = false;
-    if (!photoPath) {
+    if (!photoPath && !originalPhotoPath) {
       if (!initialPreviewUrl) {
         setPreviewUrl(null);
+        setOriginalSourceUrl(null);
         setValidationInfo(null);
       }
       return;
     }
-    getPhotoSignedUrl(photoPath)
-      .then((url) => {
-        if (!cancelled) setPreviewUrl(url);
-      })
-      .catch(() => {
-        if (!cancelled) setError('Could not load existing photo');
-      });
+
+    const effectiveOriginalPath = originalPhotoPath || photoPath;
+
+    // Load optimized derived photo for preview
+    if (photoPath) {
+      getPhotoSignedUrl(photoPath)
+        .then((url) => {
+          if (!cancelled) setPreviewUrl(url);
+        })
+        .catch(() => {
+          if (!cancelled) setError('Could not load existing photo');
+        });
+    }
+
+    // Load original photo source for future non-destructive re-crops
+    if (effectiveOriginalPath) {
+      getPhotoSignedUrl(effectiveOriginalPath)
+        .then((url) => {
+          if (!cancelled) setOriginalSourceUrl(url);
+        })
+        .catch(() => {
+          // If original path fails, fallback to photoPath
+          if (photoPath && !cancelled) setOriginalSourceUrl(photoPath);
+        });
+    }
+
     return () => {
       cancelled = true;
     };
-  }, [photoPath, initialPreviewUrl]);
+  }, [photoPath, originalPhotoPath, initialPreviewUrl]);
+
+  // Sync initialCropState if updated from parent
+  useEffect(() => {
+    if (initialCropState) {
+      setCropState(initialCropState);
+    }
+  }, [initialCropState]);
 
   // Clean up object URLs when component unmounts
   useEffect(() => {
+    const tempCrop = tempCropUrlRef.current;
+    const rawObj = rawObjectUrlRef.current;
     return () => {
       if (previewUrl && previewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(previewUrl);
       }
-      if (tempCropUrlRef.current && tempCropUrlRef.current.startsWith('blob:')) {
-        URL.revokeObjectURL(tempCropUrlRef.current);
+      if (tempCrop && tempCrop.startsWith('blob:')) {
+        URL.revokeObjectURL(tempCrop);
+      }
+      if (rawObj && rawObj.startsWith('blob:')) {
+        URL.revokeObjectURL(rawObj);
       }
     };
   }, [previewUrl]);
 
-  // Handle image file selection -> opens ImageCropModal to crop & align student photo
+  // Handle new raw image file selection -> sets as authoritative original and opens ImageCropModal
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     const file = e.target.files?.[0];
@@ -95,25 +142,50 @@ export function PhotoUpload({
       return;
     }
 
-    if (tempCropUrlRef.current && tempCropUrlRef.current.startsWith('blob:')) {
-      URL.revokeObjectURL(tempCropUrlRef.current);
+    // Store raw original File
+    originalFileRef.current = file;
+
+    if (rawObjectUrlRef.current && rawObjectUrlRef.current.startsWith('blob:')) {
+      URL.revokeObjectURL(rawObjectUrlRef.current);
     }
 
     const objectUrl = URL.createObjectURL(file);
-    tempCropUrlRef.current = objectUrl;
+    rawObjectUrlRef.current = objectUrl;
+    setOriginalSourceUrl(objectUrl);
+
     setCropSrc(objectUrl);
     setCropFileName(file.name);
+    setOriginalFileSize(file.size);
     setShowCropModal(true);
     e.target.value = '';
   };
 
-  // Called when user completes cropping in ImageCropModal
-  const handleCropComplete = async (croppedFile: File, newPreviewUrl: string) => {
+  // Called when user completes cropping & client-side optimization in ImageCropModal
+  const handleCropComplete = async (
+    croppedFile: File,
+    newPreviewUrl: string,
+    optResult?: any,
+    newCropState?: PhotoCropState
+  ) => {
     setError(null);
+
+    const savedState = newCropState || cropState;
+    if (savedState) {
+      setCropState(savedState);
+    }
 
     // Validate cropped photo
     const result = await validatePhoto(croppedFile);
+    if (optResult?.originalSizeBytes) {
+      (result as any).originalSizeBytes = optResult.originalSizeBytes;
+      (result as any).formattedOriginalSize = optResult.formattedOriginalSize;
+    }
     setValidationInfo(result);
+
+    if (!result.valid) {
+      setError(result.error || 'Invalid photo file.');
+      return;
+    }
 
     // Clean previous preview blob if local
     if (previewUrl && previewUrl.startsWith('blob:') && previewUrl !== newPreviewUrl) {
@@ -121,14 +193,19 @@ export function PhotoUpload({
     }
 
     setPreviewUrl(newPreviewUrl);
-    onFileSelect?.(croppedFile, newPreviewUrl);
+    onFileSelect?.(croppedFile, newPreviewUrl, savedState, originalFileRef.current);
 
-    // If person already exists in DB, upload immediately to Supabase Storage
+    // If person already exists in DB, persist both original + derived photo + crop state
     if (personId) {
       setBusy(true);
       try {
-        const path = await uploadPersonPhoto(personId, croppedFile);
-        onChange?.(path);
+        const res = await savePersonPhotoWithCropState(personId, {
+          originalFile: originalFileRef.current,
+          optimizedFile: croppedFile,
+          cropState: savedState || { shape, x: 0, y: 0, scale: 1, rotation: 0 },
+          existingOriginalPath: originalPhotoPath,
+        });
+        onChange?.(res.photoUrl, res.originalPhotoUrl, res.cropState);
       } catch (err: any) {
         const appErr = classifySupabaseError(err);
         setError(appErr.message || errorCodeToUserMessage(appErr.code));
@@ -138,12 +215,16 @@ export function PhotoUpload({
     }
   };
 
-  // Open crop modal for current existing/selected photo
+  // Open crop modal for current photo using the AUTHORITATIVE ORIGINAL source
   const handleOpenCropExisting = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!previewUrl) return;
-    setCropSrc(previewUrl);
-    setCropFileName('student-photo.jpg');
+    // Prioritize in-memory raw object url, or loaded original source url, or fallback to previewUrl
+    const sourceToUse = rawObjectUrlRef.current || originalSourceUrl || previewUrl;
+    if (!sourceToUse) return;
+
+    setCropSrc(sourceToUse);
+    setCropFileName(originalFileRef.current?.name || 'student-photo.jpg');
+    setOriginalFileSize(originalFileRef.current?.size);
     setShowCropModal(true);
   };
 
@@ -152,17 +233,29 @@ export function PhotoUpload({
     e.stopPropagation();
     setError(null);
     setValidationInfo(null);
+    originalFileRef.current = null;
+    if (rawObjectUrlRef.current && rawObjectUrlRef.current.startsWith('blob:')) {
+      URL.revokeObjectURL(rawObjectUrlRef.current);
+      rawObjectUrlRef.current = null;
+    }
     if (previewUrl && previewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(previewUrl);
     }
     setPreviewUrl(null);
-    onFileSelect?.(null, null);
+    setOriginalSourceUrl(null);
+    setCropState(null);
+    onFileSelect?.(null, null, null, null);
 
-    if (personId && photoPath) {
+    if (personId && (photoPath || originalPhotoPath)) {
       setBusy(true);
       try {
-        await deletePersonPhoto(personId, photoPath);
-        onChange?.(null);
+        if (photoPath) await deletePersonPhoto(personId, photoPath);
+        if (originalPhotoPath && originalPhotoPath !== photoPath) {
+          try {
+            await deletePersonPhoto(personId, originalPhotoPath);
+          } catch {}
+        }
+        onChange?.(null, null, null);
       } catch (err: any) {
         const appErr = classifySupabaseError(err);
         setError(appErr.message || errorCodeToUserMessage(appErr.code));
@@ -186,7 +279,7 @@ export function PhotoUpload({
           {busy ? (
             <div className="flex flex-col items-center justify-center gap-1 text-indigo-600">
               <Loader2 className="animate-spin" size={24} />
-              <span className="text-[10px] font-semibold">Uploading...</span>
+              <span className="text-[10px] font-semibold">Processing photo...</span>
             </div>
           ) : previewUrl ? (
             <div className="group relative h-full w-full">
@@ -201,16 +294,18 @@ export function PhotoUpload({
                 <button
                   type="button"
                   onClick={handleOpenCropExisting}
+                  disabled={busy}
                   title="Crop & Align Photo"
-                  className="rounded-full bg-amber-500 p-2 text-slate-950 hover:bg-amber-400 shadow-xs transition"
+                  className="rounded-full bg-amber-500 p-2 text-slate-950 hover:bg-amber-400 shadow-xs transition disabled:opacity-50"
                 >
                   <Crop size={15} />
                 </button>
                 <button
                   type="button"
                   onClick={handleRemove}
+                  disabled={busy}
                   title="Remove Photo"
-                  className="rounded-full bg-rose-600 p-2 text-white hover:bg-rose-500 shadow-xs transition"
+                  className="rounded-full bg-rose-600 p-2 text-white hover:bg-rose-500 shadow-xs transition disabled:opacity-50"
                 >
                   <X size={15} />
                 </button>
@@ -225,6 +320,7 @@ export function PhotoUpload({
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleFileChange}
+                disabled={busy}
                 className="hidden"
               />
             </label>
@@ -236,9 +332,15 @@ export function PhotoUpload({
           {validationInfo ? (
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                  <CheckCircle2 size={12} className="text-emerald-600" /> Valid Photo
-                </span>
+                {validationInfo.valid ? (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                    <CheckCircle2 size={12} className="text-emerald-600" /> Photo ready
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 border border-rose-200 px-2 py-0.5 text-[11px] font-bold text-rose-800">
+                    <AlertCircle size={12} className="text-rose-600" /> Invalid Photo
+                  </span>
+                )}
                 {validationInfo.dimensionsText && (
                   <span className="rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-800">
                     {validationInfo.dimensionsText}
@@ -249,22 +351,25 @@ export function PhotoUpload({
                     {validationInfo.formattedSize}
                   </span>
                 )}
+                <span className="rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-800">
+                  JPG
+                </span>
               </div>
-              {!validationInfo.isRecommended && (
-                <p className="text-[10px] text-amber-700 flex items-center gap-1">
-                  <AlertTriangle size={11} className="shrink-0" /> Recommended resolution: {RECOMMENDED_PHOTO_WIDTH}×{RECOMMENDED_PHOTO_HEIGHT} px
+              {(validationInfo as any).originalSizeBytes && (validationInfo as any).originalSizeBytes > (validationInfo.sizeBytes || 0) && (
+                <p className="text-[10px] text-emerald-700 font-medium">
+                  Original: {(validationInfo as any).formattedOriginalSize || formatBytes((validationInfo as any).originalSizeBytes)} → Optimized: {validationInfo.formattedSize}
                 </p>
               )}
             </div>
           ) : (
             <div className="text-[11px] text-slate-500 space-y-0.5 leading-tight">
               <p className="font-medium text-slate-700">
-                Size: <span className="font-semibold text-slate-900">{formatBytes(MIN_PHOTO_BYTES)} – {formatBytes(MAX_PHOTO_BYTES)}</span>
+                File size: <span className="font-semibold text-slate-900">50 KB – 250 KB</span>
               </p>
               <p className="text-[10px] text-slate-500">
-                Minimum: <span className="font-semibold text-slate-800">{MIN_PHOTO_WIDTH}×{MIN_PHOTO_HEIGHT} px</span> • Recommended: <span className="font-semibold text-slate-800">{RECOMMENDED_PHOTO_WIDTH}×{RECOMMENDED_PHOTO_HEIGHT} px</span> (5:6)
+                Recommended: <span className="font-semibold text-slate-800">600 × 600 px or higher</span>
               </p>
-              <p className="text-[10px] text-slate-400">Supported Formats: JPG, PNG, WebP • Integrated Headshot Cropper</p>
+              <p className="text-[10px] text-slate-400">Formats: JPG, PNG • Integrated portrait/headshot cropper</p>
             </div>
           )}
 
@@ -319,8 +424,10 @@ export function PhotoUpload({
       <ImageCropModal
         isOpen={showCropModal}
         imageSrc={cropSrc}
+        initialCropState={cropState}
         fileName={cropFileName}
         cropShape={shape}
+        originalSizeBytes={originalFileSize}
         title="Crop & Align Student Photo"
         onClose={() => {
           setShowCropModal(false);

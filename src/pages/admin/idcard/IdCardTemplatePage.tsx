@@ -109,15 +109,90 @@ export default function IdCardTemplatePage() {
     }
   }, [name, cardWidth, cardHeight, layout]);
 
+// Helper to extract school and institution details from layout and project
+function extractSchoolDetailsFromLayout(tgtLayout: TemplateLayout, tgtProject: IdCardProject) {
+  const frontSchoolName =
+    tgtLayout.fields.find((f) => f.key === 'school_name')?.customText ||
+    tgtLayout.fields.find((f) => f.key === 'school_name')?.value ||
+    tgtProject.name ||
+    '';
+
+  const frontSubtitle =
+    tgtLayout.fields.find((f) => f.key === 'school_subtitle')?.customText ||
+    tgtLayout.fields.find((f) => f.key === 'school_subtitle')?.value ||
+    '';
+
+  const backSubtitle =
+    tgtLayout.back?.fields.find((f) => f.key === 'school_subtitle')?.customText ||
+    tgtLayout.back?.fields.find((f) => f.key === 'school_subtitle')?.value ||
+    '';
+
+  const backTerms =
+    tgtLayout.back?.fields.find((f) => f.key === 'terms')?.customText ||
+    tgtLayout.back?.fields.find((f) => f.key === 'terms')?.value ||
+    tgtLayout.fields.find((f) => f.key === 'terms')?.customText ||
+    tgtLayout.fields.find((f) => f.key === 'terms')?.value ||
+    '';
+
+  const backWebsiteField =
+    tgtLayout.back?.fields.find((f) => f.key === 'website')?.customText ||
+    tgtLayout.back?.fields.find((f) => f.key === 'website')?.value ||
+    tgtLayout.fields.find((f) => f.key === 'website')?.customText ||
+    tgtLayout.fields.find((f) => f.key === 'website')?.value ||
+    '';
+
+  // Find static address on back (excluding dynamic student address)
+  const backAddressField = tgtLayout.back?.fields.find(
+    (f) => f.key === 'address' && f.customText && !f.labelPrefix?.toLowerCase().includes('student')
+  )?.customText;
+
+  let address = backAddressField || backSubtitle || '';
+  let website = backWebsiteField;
+
+  if (backWebsiteField && backWebsiteField.includes('\n') && !backAddressField) {
+    const lines = backWebsiteField.split('\n');
+    const websiteLine =
+      lines.find(
+        (l) =>
+          l.toLowerCase().includes('www') ||
+          l.toLowerCase().includes('http') ||
+          l.toLowerCase().includes('.in') ||
+          l.toLowerCase().includes('.com') ||
+          l.toLowerCase().includes('tollfree') ||
+          l.toLowerCase().includes('toll free')
+      ) || lines[lines.length - 1];
+    const addressLines = lines.filter((l) => l !== websiteLine);
+    address = addressLines.join('\n').trim();
+    website = websiteLine.trim();
+  }
+
+  return {
+    schoolName: frontSchoolName,
+    schoolSubtitle: frontSubtitle || (tgtProject.name ? '' : 'Affiliated to CBSE, New Delhi'),
+    schoolTerms: backTerms,
+    schoolAddress: address,
+    schoolWebsite: website,
+  };
+}
+
   // School / Institution Details (Configured once by admin and synced across ID card templates)
   const [showSchoolDetails, setShowSchoolDetails] = useState(true);
-  const [schoolSubtitle, setSchoolSubtitle] = useState('Affiliated to CBSE, New Delhi');
-  const [schoolAddress, setSchoolAddress] = useState('Society Area, Clement Town, Dehradun (UTTARAKHAND)');
-  const [schoolWebsite, setSchoolWebsite] = useState('www.geu.ac.in || Tollfree: 1800 270 1280');
-  const [schoolTerms, setSchoolTerms] = useState(
-    'In case of theft or loss it is mandatory for the Student to inform the Administration Office. If found abandoned, may please be returned to Graphic Era (Deemed to be) University, Dehradun.'
-  );
+  const [schoolName, setSchoolName] = useState(project.name || '');
+  const [schoolSubtitle, setSchoolSubtitle] = useState('');
+  const [schoolAddress, setSchoolAddress] = useState('');
+  const [schoolWebsite, setSchoolWebsite] = useState('');
+  const [schoolTerms, setSchoolTerms] = useState('');
   const [syncedDetailsSuccess, setSyncedDetailsSuccess] = useState(false);
+
+  // Synchronize school details helper
+  const syncSchoolDetailsState = useCallback((tgtLayout: TemplateLayout, tgtProject: IdCardProject) => {
+    const extracted = extractSchoolDetailsFromLayout(tgtLayout, tgtProject);
+    setSchoolName(extracted.schoolName || tgtProject.name || '');
+    setSchoolSubtitle(extracted.schoolSubtitle);
+    setSchoolTerms(extracted.schoolTerms);
+    setSchoolAddress(extracted.schoolAddress);
+    setSchoolWebsite(extracted.schoolWebsite);
+  }, []);
 
   // Keyboard shortcut helper: Alt + Enter for new lines
   const handleAltEnterKeyDown = (
@@ -138,10 +213,12 @@ export default function IdCardTemplatePage() {
     }
   };
 
-  const handleSyncSchoolDetails = () => {
+  const handleSyncSchoolDetails = async () => {
+    const trimmedSchoolName = schoolName.trim() || project.name;
+
     // 1. Update front fields
     const updatedFront = layout.fields.map((f) => {
-      if (f.key === 'school_name') return { ...f, customText: project.name };
+      if (f.key === 'school_name') return { ...f, customText: trimmedSchoolName };
       if (f.key === 'school_subtitle') return { ...f, customText: schoolSubtitle };
       return f;
     });
@@ -149,21 +226,43 @@ export default function IdCardTemplatePage() {
     // 2. Update back fields
     let updatedBack = layout.back ? { ...layout.back } : undefined;
     if (updatedBack) {
+      const hasSeparateBackAddress = updatedBack.fields.some((f) => f.key === 'address' && f.customText);
+      const hasBackSubtitle = updatedBack.fields.some((f) => f.key === 'school_subtitle');
+
       updatedBack.fields = updatedBack.fields.map((f) => {
+        if (f.key === 'school_name') return { ...f, customText: trimmedSchoolName };
         if (f.key === 'terms') return { ...f, customText: schoolTerms };
-        if (f.key === 'website') return { ...f, customText: schoolWebsite };
-        if (f.key === 'address' && f.customText && (f.customText.toLowerCase().includes('dehradun') || f.customText.toLowerCase().includes('society') || f.customText.toLowerCase().includes('area'))) {
+        if (f.key === 'school_subtitle') return { ...f, customText: schoolAddress || schoolSubtitle };
+        if (f.key === 'website') {
+          if (schoolAddress && !hasSeparateBackAddress && !hasBackSubtitle) {
+            return { ...f, customText: `${schoolAddress}\n${schoolWebsite}`.trim() };
+          }
+          return { ...f, customText: schoolWebsite };
+        }
+        if (f.key === 'address' && f.customText && !f.labelPrefix?.toLowerCase().includes('student')) {
           return { ...f, customText: schoolAddress };
         }
         return f;
       });
     }
 
-    setLayout((prev) => ({
-      ...prev,
+    const updatedLayout: TemplateLayout = {
+      ...layout,
       fields: updatedFront,
       back: updatedBack,
-    }));
+    };
+
+    setLayout(updatedLayout);
+
+    // If school name changed, update the project in DB
+    if (trimmedSchoolName && trimmedSchoolName !== project.name) {
+      try {
+        await updateIdCardProject(project.id, { name: trimmedSchoolName });
+        await reloadProject();
+      } catch (err) {
+        console.warn('Could not update project name in DB:', err);
+      }
+    }
 
     setSyncedDetailsSuccess(true);
     setTimeout(() => setSyncedDetailsSuccess(false), 3500);
@@ -448,6 +547,7 @@ export default function IdCardTemplatePage() {
         setLayout(sanitizedLayout);
         setCardWidth(existing.card_width_mm);
         setCardHeight(existing.card_height_mm);
+        syncSchoolDetailsState(sanitizedLayout, project);
         lastSavedSnapshotRef.current = JSON.stringify({
           name: existing.name,
           layout: sanitizedLayout,
@@ -473,6 +573,7 @@ export default function IdCardTemplatePage() {
         setLayout(initialLayout);
         setCardWidth(defaultDimensions.cardWidthMm);
         setCardHeight(defaultDimensions.cardHeightMm);
+        syncSchoolDetailsState(initialLayout, project);
         lastSavedSnapshotRef.current = JSON.stringify({
           name: initialName,
           layout: initialLayout,
@@ -485,7 +586,7 @@ export default function IdCardTemplatePage() {
       const appErr = classifySupabaseError(err);
       setState({ kind: 'error', message: errorCodeToUserMessage(appErr.code, appErr.message) });
     }
-  }, [project.id, project.name, project.logo_url, project.template_id, queryTemplateId]);
+  }, [project, queryTemplateId, syncSchoolDetailsState]);
 
   const hasInitializedRef = useRef(false);
   const prevQueryTemplateIdRef = useRef<string | null>(null);
@@ -504,6 +605,7 @@ export default function IdCardTemplatePage() {
     setLayout(target.layout);
     setCardWidth(target.card_width_mm);
     setCardHeight(target.card_height_mm);
+    syncSchoolDetailsState(target.layout, project);
     setSearchParams({ templateId: target.id });
     setSaveSuccess(null);
   }
@@ -519,6 +621,7 @@ export default function IdCardTemplatePage() {
     setLayout(result.layout);
     setCardWidth(result.cardWidthMm);
     setCardHeight(result.cardHeightMm);
+    syncSchoolDetailsState(result.layout, project);
     lastSavedSnapshotRef.current = '';
     setSearchParams({});
     setSaveSuccess(
@@ -534,6 +637,7 @@ export default function IdCardTemplatePage() {
     setLayout(structuredClone(LANDSCAPE_STUDENT_LAYOUT));
     setCardWidth(85.6);
     setCardHeight(54.0);
+    syncSchoolDetailsState(LANDSCAPE_STUDENT_LAYOUT, project);
     lastSavedSnapshotRef.current = '';
     setSearchParams({});
     setSaveSuccess('Imported Landscape Reference Design (85.6 × 54.0 mm). Ready to customize and save!');
@@ -704,7 +808,10 @@ export default function IdCardTemplatePage() {
       setSearchParams({ templateId: savedTemplate.id });
 
       // Always ensure the project points to this active saved template ID
-      await updateIdCardProject(project.id, { template_id: savedTemplate.id });
+      await updateIdCardProject(project.id, {
+        template_id: savedTemplate.id,
+        ...(schoolName.trim() && schoolName.trim() !== project.name ? { name: schoolName.trim() } : {}),
+      });
 
       // Clear any cached canvas renders to prevent stale preview/print images
       clearCardDataUrlCache();
@@ -1155,15 +1262,21 @@ export default function IdCardTemplatePage() {
         {showSchoolDetails && (
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                School / Institution Name (Front Side Header)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-bold text-slate-700">
+                  School / Institution Name (Front Side Header)
+                </label>
+                <span className="text-[10px] text-indigo-600 font-semibold">
+                  Editable · Syncs with Project
+                </span>
+              </div>
               <input
                 type="text"
-                value={project.name}
-                disabled
-                className="w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs text-slate-600 font-semibold cursor-not-allowed"
-                title="Project school name"
+                value={schoolName}
+                onChange={(e) => setSchoolName(e.target.value)}
+                placeholder="e.g. Graphic Era University or Sparknest Academy"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 font-semibold focus:border-indigo-500 focus:outline-none"
+                title="School / Institution Name"
               />
             </div>
 
@@ -1315,13 +1428,13 @@ export default function IdCardTemplatePage() {
                 {fieldSchema.staticFields.slice(0, 4).map((f) => (
                   <span
                     key={f.key}
-                    className="inline-flex items-center rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] text-slate-700"
+                    className="inline-flex items-center gap-1 rounded bg-slate-200/80 px-2 py-0.5 text-[11px] font-medium text-slate-700"
                   >
                     {f.label}
                   </span>
                 ))}
                 {fieldSchema.staticFields.length > 4 && (
-                  <span className="text-[10px] text-slate-500 self-center">
+                  <span className="text-[11px] text-slate-500 font-medium self-center">
                     +{fieldSchema.staticFields.length - 4} more
                   </span>
                 )}
@@ -1331,19 +1444,34 @@ export default function IdCardTemplatePage() {
         </div>
       </div>
 
-      {/* Schema Change Notice / Impact Banner */}
+      {/* Schema Change Notice Banner if template was modified */}
       {schemaChangeNotice && (
-        <div className="rounded-lg border border-indigo-200 bg-indigo-50/80 p-3 text-xs text-indigo-900 space-y-1">
-          {schemaChangeNotice.addedLabels.length > 0 && (
-            <div className="flex items-start gap-2">
-              <Info size={15} className="text-indigo-600 mt-0.5 shrink-0" />
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5 text-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-indigo-900 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-indigo-600" />
+              Template Field Schema Updated
+            </span>
+            <button
+              type="button"
+              onClick={() => setSchemaChangeNotice(null)}
+              className="text-indigo-400 hover:text-indigo-700 text-xs font-semibold cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+
+          {schemaChangeNotice.addedCount > 0 && (
+            <div className="flex items-start gap-2 text-indigo-950">
+              <Info size={14} className="text-indigo-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-indigo-950">
-                  Template adds required field(s): {schemaChangeNotice.addedLabels.join(', ')}
+                <p>
+                  <strong>{schemaChangeNotice.addedCount} new required field(s)</strong> added to template:{' '}
+                  <span className="font-semibold">{schemaChangeNotice.addedLabels.join(', ')}</span>.
                 </p>
                 {schemaChangeNotice.affectedStudentsCount > 0 ? (
-                  <p className="text-slate-600 text-[11px]">
-                    {schemaChangeNotice.affectedStudentsCount} existing student(s) are missing this information. You can edit them in the Students tab.
+                  <p className="text-amber-800 font-medium mt-0.5">
+                    ⚠️ {schemaChangeNotice.affectedStudentsCount} existing student(s) may need these fields completed in the Students tab.
                   </p>
                 ) : (
                   <p className="text-slate-600 text-[11px]">
@@ -1390,7 +1518,7 @@ export default function IdCardTemplatePage() {
           savedTemplates={templates}
           onSelectSavedTemplate={handleSelectTemplate}
           schoolLogoUrl={currentSchoolLogo}
-          schoolName={project.name}
+          schoolName={schoolName || project.name}
           persons={projectPersons}
         />
       </div>

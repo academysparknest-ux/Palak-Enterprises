@@ -13,10 +13,10 @@ export const AdminRouteGuard: React.FC<AdminRouteGuardProps> = ({
   requiredRole = 'MANAGER',
   children,
 }) => {
-  const { user, session, isAuthenticated, isStaff, isAdmin, loading, authError } = useAuth();
+  const { user, session, isAuthenticated, isStaff, isAdmin, loading, isReady, authError } = useAuth();
 
   // 1. Loading state
-  if (loading) {
+  if (loading || !isReady) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#123B70]" />

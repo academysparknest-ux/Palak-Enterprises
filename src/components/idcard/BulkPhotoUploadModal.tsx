@@ -11,19 +11,25 @@ import {
   RotateCw,
   Crop,
 } from 'lucide-react';
-import { getAllIdCardPersons, uploadPersonPhoto } from '../../lib/idcard/database';
+import {
+  getAllIdCardPersons,
+  savePersonPhotoWithCropState,
+} from '../../lib/idcard/database';
 import { matchPhotoToPerson, type MatchType } from '../../lib/idcard/photoMatcher';
 import {
   validatePhoto,
   formatBytes,
 } from '../../lib/idcard/photoValidation';
+import { optimizeImageFile } from '../../lib/idcard/photoOptimizer';
 import { ImageCropModal } from './ImageCropModal';
-import type { IdCardPerson } from '../../lib/idcard/types';
+import type { IdCardPerson, PhotoCropState } from '../../lib/idcard/types';
 import { Modal } from '../ui/Modal';
 
 export interface BulkPhotoItem {
   id: string; // unique identifier
   file: File;
+  originalFile?: File;
+  cropState?: PhotoCropState;
   previewUrl: string;
   name: string;
   size: number;
@@ -129,6 +135,8 @@ export function BulkPhotoUploadModal({
         newItems.push({
           id: `${file.name}-${file.size}-${Date.now()}-${i}`,
           file,
+          originalFile: file,
+          cropState: { shape: 'circle', x: 0, y: 0, scale: 1, rotation: 0 },
           previewUrl,
           name: file.name,
           size: file.size,
@@ -176,7 +184,12 @@ export function BulkPhotoUploadModal({
     });
   }
 
-  async function handleCropComplete(croppedFile: File, newPreviewUrl: string) {
+  async function handleCropComplete(
+    croppedFile: File,
+    newPreviewUrl: string,
+    _optResult?: any,
+    newCropState?: PhotoCropState
+  ) {
     if (!cropItem) return;
     activeUrlsRef.current.add(newPreviewUrl);
 
@@ -188,6 +201,7 @@ export function BulkPhotoUploadModal({
           return {
             ...p,
             file: croppedFile,
+            cropState: newCropState || p.cropState,
             previewUrl: newPreviewUrl,
             size: croppedFile.size,
             dimensions:
@@ -235,8 +249,18 @@ export function BulkPhotoUploadModal({
           );
 
           try {
-            // Direct upload of original unchanged File object
-            await uploadPersonPhoto(item.person.id, item.file);
+            // Guarantee client-side optimization before upload
+            let uploadFile = item.file;
+            if (uploadFile.size > 250 * 1024) {
+              const opt = await optimizeImageFile(uploadFile);
+              uploadFile = opt.file;
+            }
+
+            await savePersonPhotoWithCropState(item.person.id, {
+              originalFile: item.originalFile || null,
+              optimizedFile: uploadFile,
+              cropState: item.cropState || { shape: 'circle', x: 0, y: 0, scale: 1, rotation: 0 },
+            });
             successful++;
             setPhotos((prev) =>
               prev.map((p) =>
@@ -694,6 +718,7 @@ export function BulkPhotoUploadModal({
       <ImageCropModal
         isOpen={Boolean(cropItem)}
         imageSrc={cropItem?.previewUrl || null}
+        initialCropState={cropItem?.cropState}
         fileName={cropItem?.file.name || 'student-photo.jpg'}
         cropShape="circle"
         title={`Crop Photo for ${cropItem?.person?.name || cropItem?.baseName || 'Student'}`}

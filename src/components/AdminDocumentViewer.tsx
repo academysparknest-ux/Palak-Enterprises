@@ -17,10 +17,13 @@ import {
   getFileCategory,
   resolveDocumentUrl,
   printDocumentFile,
-  downloadFile,
-  openDocumentInNewTab,
   type FileCategory,
 } from "../lib/documentUtils";
+import {
+  getVerifiedOriginalDocument,
+  openOriginalDocumentInNewTab,
+  downloadOriginalDocument,
+} from "../lib/documents/originalDocumentResolver";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { cn } from "../lib/utils";
 
@@ -47,6 +50,9 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [isOpeningTab, setIsOpeningTab] = useState<boolean>(false);
+  const [retryCount, setRetryCount] = useState<number>(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useScrollLock(isOpen && Boolean(doc));
@@ -77,7 +83,7 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
     if (!doc.url) {
       setResolvedUrl("");
       setLoading(false);
-      setError("No digital file URL was found for this document attachment.");
+      setError("Original document is temporarily unavailable. Please retry.");
       return;
     }
 
@@ -92,43 +98,27 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
       return;
     }
 
-    const fileCategory = getFileCategory(doc.name, doc.url, doc.mimeType);
-
     let objectUrlToRevoke = "";
 
-    // For PDFs: fetch as blob to avoid X-Frame-Options / Content-Disposition issues with signed URLs
-    if (fileCategory === "pdf") {
-      resolveDocumentUrl(doc.url, false, doc.name)
-        .then((signedUrl) => {
-          if (!isMounted || !signedUrl) {
-            if (isMounted) setError("Unable to resolve PDF URL.");
-            return;
+    // Use Authoritative Document Resolver
+    if (category === "pdf") {
+      getVerifiedOriginalDocument(doc.url, {
+        fileName: doc.name,
+        expectedMinSize: doc.size,
+      })
+        .then((result) => {
+          if (!isMounted) return;
+          if (result.ok && result.blobUrl) {
+            objectUrlToRevoke = result.blobUrl;
+            setResolvedUrl(result.blobUrl);
+            setError(null);
+          } else {
+            setError(result.error || "The stored document failed integrity verification.");
           }
-          return fetch(signedUrl).then((resp) => {
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            return resp.blob();
-          });
-        })
-        .then((blob) => {
-          if (!isMounted || !blob) return;
-          // Guarantee application/pdf MIME type for browser PDF viewer
-          const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
-          const blobUrl = URL.createObjectURL(pdfBlob);
-          objectUrlToRevoke = blobUrl;
-          setResolvedUrl(blobUrl);
         })
         .catch((err) => {
           if (!isMounted) return;
-          console.warn("PDF blob fetch note, falling back to direct URL:", err);
-          resolveDocumentUrl(doc.url, false, doc.name).then((fallbackUrl) => {
-            if (isMounted) {
-              if (fallbackUrl) {
-                setResolvedUrl(fallbackUrl);
-              } else {
-                setError("Unable to preview this PDF inline. Please use the Download or New Tab button.");
-              }
-            }
-          });
+          setError(err?.message || "Original document is temporarily unavailable. Please retry.");
         })
         .finally(() => {
           if (isMounted) setLoading(false);
@@ -176,12 +166,12 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
         URL.revokeObjectURL(objectUrlToRevoke);
       }
     };
-  }, [isOpen, doc, onClose]);
+  }, [isOpen, doc, onClose, retryCount, category]);
 
   if (!isOpen || !doc) return null;
 
   const handlePrint = async () => {
-    if (!doc || !resolvedUrl) return;
+    if (!doc) return;
     setIsPrinting(true);
     try {
       if (category === "pdf" && iframeRef.current?.contentWindow) {
@@ -189,14 +179,16 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
           iframeRef.current.contentWindow.focus();
           iframeRef.current.contentWindow.print();
         } catch {
-          await printDocumentFile(resolvedUrl, doc.name, doc.mimeType);
+          await printDocumentFile(resolvedUrl || doc.url, doc.name, doc.mimeType);
         }
       } else {
-        await printDocumentFile(resolvedUrl, doc.name, doc.mimeType);
+        await printDocumentFile(resolvedUrl || doc.url, doc.name, doc.mimeType);
       }
     } catch (err) {
       console.error("Print error:", err);
-      window.open(resolvedUrl, "_blank");
+      if (resolvedUrl) {
+        window.open(resolvedUrl, "_blank");
+      }
     } finally {
       setIsPrinting(false);
     }
@@ -204,11 +196,30 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
 
   const handleDownload = async () => {
     if (!doc) return;
+    setIsDownloading(true);
     try {
-      await downloadFile(doc.url, doc.name, doc.mimeType);
+      await downloadOriginalDocument(doc.url, doc.name, doc.size);
     } catch (err) {
       console.error("Download error:", err);
+    } finally {
+      setIsDownloading(false);
     }
+  };
+
+  const handleOpenInTab = async () => {
+    if (!doc) return;
+    setIsOpeningTab(true);
+    try {
+      await openOriginalDocumentInNewTab(doc.url, doc.name, doc.size);
+    } catch (err) {
+      console.error("Open in new tab error:", err);
+    } finally {
+      setIsOpeningTab(false);
+    }
+  };
+
+  const handleRetry = () => {
+    setRetryCount((prev) => prev + 1);
   };
 
   if (!isOpen || !doc || typeof document === "undefined") return null;
@@ -295,12 +306,13 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
             {doc.url && (
               <button
                 type="button"
-                onClick={() => openDocumentInNewTab(resolvedUrl || doc.url, doc.name, doc.mimeType)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                onClick={handleOpenInTab}
+                disabled={isOpeningTab}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-all cursor-pointer disabled:opacity-50"
                 title="Open in new browser tab with full native viewer"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">New Tab</span>
+                <span className="hidden sm:inline">{isOpeningTab ? "Opening..." : "New Tab"}</span>
               </button>
             )}
 
@@ -322,7 +334,7 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
             <span>
               {category === "pdf"
-                ? "Secure Customer PDF • Download, preview, or print directly."
+                ? "Secure Customer PDF • Byte-preserved original document."
                 : "Secure Document Stream • Authorized Staff Session"}
             </span>
           </div>
@@ -338,33 +350,47 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
           {loading ? (
             <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
               <Loader2 className="h-8 w-8 animate-spin text-[#123B70]" />
-              <p className="text-xs font-semibold text-slate-600">Loading secure preview...</p>
+              <p className="text-xs font-semibold text-slate-600">Verifying authentic original document...</p>
             </div>
           ) : error ? (
             <div className="max-w-md rounded-2xl bg-white p-6 shadow-sm border border-red-200 text-center space-y-3">
               <div className="inline-flex p-3 rounded-full bg-red-50 text-red-600">
                 <AlertTriangle className="h-6 w-6" />
               </div>
-              <h4 className="text-sm font-bold text-slate-900">Preview Unavailable</h4>
+              <h4 className="text-sm font-bold text-slate-900">Document Could Not Be Verified</h4>
               <p className="text-xs text-slate-600 leading-relaxed">{error}</p>
               <div className="pt-2 flex flex-wrap justify-center gap-2">
-                {resolvedUrl && (
-                  <a
-                    href={resolvedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold hover:bg-[#0c274c]"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    <span>Open in New Tab</span>
-                  </a>
-                )}
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  <span>Retry</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenInTab}
+                  disabled={isOpeningTab}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#123B70] text-white text-xs font-bold hover:bg-[#0c274c] cursor-pointer disabled:opacity-50"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>{isOpeningTab ? "Opening..." : "Open in New Tab"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>{isDownloading ? "Downloading..." : "Download"}</span>
+                </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 cursor-pointer"
                 >
-                  Close Window
+                  Close
                 </button>
               </div>
             </div>
@@ -498,7 +524,10 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
     e?.stopPropagation();
     setIsOpening(true);
     try {
-      await openDocumentInNewTab(url, name, mimeType);
+      const res = await openOriginalDocumentInNewTab(url, name, fileSize);
+      if (!res.success && onOpenPreview) {
+        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
+      }
     } catch (err) {
       console.error("Open in new tab error:", err);
       if (onOpenPreview) {
@@ -537,7 +566,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
     e.stopPropagation();
     setIsDownloading(true);
     try {
-      await downloadFile(url, name, mimeType);
+      await downloadOriginalDocument(url, name, fileSize);
     } catch (err) {
       console.error("Download error:", err);
     } finally {
@@ -698,11 +727,14 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
             )}>
               {category.toUpperCase()}
             </span>
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              ✓ Original file preserved
+            </span>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            {formattedSize && <span>{formattedSize}</span>}
+            {formattedSize && <span className="font-bold text-slate-700">{formattedSize}</span>}
             {category === "pdf" ? (
-              <span className="text-red-600 font-medium">PDF Document • Open, Download or Print</span>
+              <span className="text-emerald-700 font-medium">✓ Authoritative original document</span>
             ) : (
               <span>Customer Uploaded File</span>
             )}

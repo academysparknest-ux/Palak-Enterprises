@@ -14,7 +14,7 @@ const hosts = [
 ];
 
 async function run() {
-  const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20260817_security_and_expansion.sql'), 'utf-8');
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20260831_quick_service_order_performance.sql'), 'utf-8');
 
   for (const host of hosts) {
     console.log(`Attempting connection to ${host}...`);
@@ -31,7 +31,7 @@ async function run() {
     try {
       await client.connect();
       console.log(`Connected successfully to PostgreSQL on ${host}!`);
-      console.log('Executing migration 20260817_security_and_expansion.sql...');
+      console.log('Executing migration 20260831_quick_service_order_performance.sql...');
       await client.query(sql);
       console.log('MIGRATION EXECUTED SUCCESSFULLY!');
       await client.end();

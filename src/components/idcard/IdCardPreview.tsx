@@ -3,7 +3,8 @@ import QRCode from 'qrcode';
 import { getPhotoSignedUrl } from '../../lib/idcard/database';
 import type { IdCardPerson, IdCardTemplate, TemplateField, TemplateSideLayout } from '../../lib/idcard/types';
 import { sanitizeStudentId, getQrCodePayload } from '../../lib/idcard/validation';
-import { formatFieldDisplay, renderFormattedRichText } from '../../lib/idcard/templatePresets';
+import { formatFieldDisplay, applyGlobalTextCase, renderFormattedRichText } from '../../lib/idcard/templatePresets';
+import { resolveTemplateFieldValue } from '../../lib/idcard/dataBindingRegistry';
 
 // ============================================================
 // BARCODE: Code128-style SVG rendering
@@ -66,6 +67,7 @@ function SingleCardFace({
   academicYear,
   backgroundUrl,
   schoolLogoUrl,
+  textCase = 'uppercase',
 }: {
   sideLayout: TemplateSideLayout;
   widthMm: number;
@@ -78,150 +80,10 @@ function SingleCardFace({
   academicYear: string;
   backgroundUrl?: string | null;
   schoolLogoUrl?: string | null;
+  textCase?: 'uppercase' | 'normal';
 }) {
   function valueFor(field: TemplateField): string {
-    if (field.source === 'static') {
-      if (field.key === 'school_name') {
-        return field.value || field.customText || schoolName;
-      }
-      return field.value ?? field.customText ?? '';
-    }
-
-    switch (field.key) {
-      case 'school_name':
-        return field.value || field.customText || schoolName;
-      case 'school_subtitle':
-        return field.value || field.customText || 'Motihari, Bihar';
-      case 'student_name':
-        return person.name || (person as any).student_name || (person as any).fullName || person.custom_fields?.student_name || person.custom_fields?.name || '';
-      case 'student_id':
-        return sanitizeStudentId(person.student_id || (person as any).id_no || (person as any).admission_no || (person as any).scholar_no || person.custom_fields?.student_id || person.custom_fields?.admission_no);
-      case 'class':
-        return person.class ?? (person as any).grade ?? (person as any).standard ?? person.custom_fields?.class ?? person.custom_fields?.grade ?? '';
-      case 'section':
-        return person.section ?? (person as any).sec ?? person.custom_fields?.section ?? person.custom_fields?.sec ?? '';
-      case 'roll_number':
-      case 'roll_no':
-      case 'roll':
-      case 'rollno':
-      case 'r_no':
-      case 'rno':
-      case 'roll_num': {
-        const val =
-          person.roll_number ??
-          (person as any).roll_no ??
-          (person as any).roll ??
-          (person as any).rollno ??
-          (person as any).r_no ??
-          (person as any).rno ??
-          person.custom_fields?.roll_number ??
-          person.custom_fields?.roll_no ??
-          person.custom_fields?.roll ??
-          person.custom_fields?.rollno ??
-          person.custom_fields?.r_no ??
-          person.custom_fields?.rno ??
-          person.custom_fields?.['Roll No'] ??
-          person.custom_fields?.['Roll Number'] ??
-          person.custom_fields?.['Roll No.'] ??
-          person.custom_fields?.['Roll'] ??
-          (field.value ?? field.customText ?? '');
-        return String(val);
-      }
-      case 'date_of_birth':
-      case 'dob':
-        return person.date_of_birth ?? (person as any).dob ?? person.custom_fields?.date_of_birth ?? person.custom_fields?.dob ?? '';
-      case 'blood_group':
-      case 'blood':
-        return person.blood_group ?? (person as any).blood ?? person.custom_fields?.blood_group ?? person.custom_fields?.blood ?? '';
-      case 'parent_info':
-        return [person.father_name, person.mother_name].filter(Boolean).join(' / ');
-      case 'father_name':
-        return person.father_name ?? (person as any).father ?? person.custom_fields?.father_name ?? person.custom_fields?.father ?? '';
-      case 'mother_name':
-        return person.mother_name ?? (person as any).mother ?? (person as any).mothers_name ?? person.custom_fields?.mother_name ?? person.custom_fields?.mothers_name ?? '';
-      case 'phone':
-        return person.phone ?? (person as any).mobile ?? (person as any).contact ?? person.custom_fields?.phone ?? person.custom_fields?.mobile ?? '';
-      case 'address':
-        return person.address ?? (person as any).addr ?? person.custom_fields?.address ?? '';
-      case 'academic_year':
-        return field.value || field.customText || academicYear;
-      case 'batch':
-        return field.value || field.customText || academicYear;
-      case 'designation':
-        return (person as any).designation ?? (person.custom_fields?.designation ?? (field.value || field.customText || 'Student'));
-      case 'emergency_no':
-        return person.emergency_number ?? (person as any).emergency_no ?? (person.custom_fields?.emergency_no ?? (person.custom_fields?.emergency_number ?? (field.value || field.customText || '')));
-      case 'valid_till':
-        return field.value || field.customText || '';
-      case 'terms':
-        return field.value || field.customText || '';
-      case 'website':
-        return field.value || field.customText || '';
-      case 'custom_text': {
-        const normalizedPrefix = (field.labelPrefix || '').toLowerCase().replace(/[\s_.:-]/g, '');
-        if (normalizedPrefix.includes('roll')) {
-          const rollVal =
-            person.roll_number ??
-            (person as any).roll_no ??
-            (person as any).roll ??
-            (person as any).rollno ??
-            person.custom_fields?.roll_number ??
-            person.custom_fields?.roll_no ??
-            person.custom_fields?.roll ??
-            person.custom_fields?.['Roll No'] ??
-            person.custom_fields?.['Roll Number'] ??
-            person.custom_fields?.['Roll No.'];
-          if (rollVal !== undefined && rollVal !== null && String(rollVal).trim() !== '') {
-            return String(rollVal);
-          }
-        }
-        return field.value ?? field.customText ?? '';
-      }
-      default: {
-        const normalizedKey = (field.key || '').toLowerCase().replace(/[\s_.-]/g, '');
-        const normalizedPrefix = (field.labelPrefix || '').toLowerCase().replace(/[\s_.:-]/g, '');
-        const normalizedLabel = ((field as any).label || (field as any).name || '').toLowerCase().replace(/[\s_.:-]/g, '');
-
-        if (
-          normalizedKey.includes('roll') ||
-          normalizedPrefix.includes('roll') ||
-          normalizedLabel.includes('roll') ||
-          normalizedKey === 'rno' ||
-          normalizedKey === 'r_no'
-        ) {
-          const rollVal =
-            person.roll_number ??
-            (person as any).roll_no ??
-            (person as any).roll ??
-            (person as any).rollno ??
-            (person as any).r_no ??
-            (person as any).rno ??
-            person.custom_fields?.roll_number ??
-            person.custom_fields?.roll_no ??
-            person.custom_fields?.roll ??
-            person.custom_fields?.rollno ??
-            person.custom_fields?.r_no ??
-            person.custom_fields?.rno ??
-            person.custom_fields?.['Roll No'] ??
-            person.custom_fields?.['Roll Number'] ??
-            person.custom_fields?.['Roll No.'] ??
-            person.custom_fields?.['Roll'];
-          if (rollVal !== undefined && rollVal !== null && String(rollVal).trim() !== '') {
-            return String(rollVal);
-          }
-        }
-
-        const customVal =
-          (person as any)[field.key] ??
-          person.custom_fields?.[field.key] ??
-          (person as any)[normalizedKey] ??
-          person.custom_fields?.[normalizedKey];
-        if (customVal !== undefined && customVal !== null && String(customVal).trim() !== '') {
-          return String(customVal);
-        }
-        return field.value ?? field.customText ?? '';
-      }
-    }
+    return resolveTemplateFieldValue(field, person, { schoolName, academicYear });
   }
 
   const bgImage = sideLayout.backgroundUrl !== undefined ? sideLayout.backgroundUrl : (backgroundUrl ?? null);
@@ -421,11 +283,14 @@ function SingleCardFace({
 
           // Text fields
           const rawValue = valueFor(field);
-          const displayText = formatFieldDisplay(field.labelPrefix, rawValue);
+          const effectiveTextCase = textCase || 'uppercase';
+          const displayText = applyGlobalTextCase(formatFieldDisplay(field.labelPrefix, rawValue), effectiveTextCase);
 
           // Special highlight for VALID TILL date in red
           if (field.key === 'valid_till' && field.labelPrefix) {
-            const prefixStr = field.labelPrefix.endsWith(' ') || field.labelPrefix.endsWith('\n') ? field.labelPrefix : `${field.labelPrefix} `;
+            const rawPrefix = field.labelPrefix.endsWith(' ') || field.labelPrefix.endsWith('\n') ? field.labelPrefix : `${field.labelPrefix} `;
+            const prefixStr = applyGlobalTextCase(rawPrefix, effectiveTextCase);
+            const valueStr = applyGlobalTextCase(rawValue, effectiveTextCase);
             return (
               <div
                 key={idx}
@@ -441,7 +306,7 @@ function SingleCardFace({
                 className="overflow-hidden whitespace-pre-line"
               >
                 <span style={{ color: '#1B2A4A' }}>{prefixStr}</span>
-                <span style={{ color: field.color || '#E74C3C' }}>{rawValue}</span>
+                <span style={{ color: field.color || '#E74C3C' }}>{valueStr}</span>
               </div>
             );
           }
@@ -586,6 +451,7 @@ export function IdCardPreview({
               academicYear={academicYear}
               backgroundUrl={frontBackground}
               schoolLogoUrl={template.layout?.schoolLogoUrl || template.logo_url}
+              textCase={template.layout?.textCase || 'uppercase'}
             />
           </div>
         )}
@@ -606,6 +472,7 @@ export function IdCardPreview({
               academicYear={academicYear}
               backgroundUrl={backSideLayout.backgroundUrl ?? null}
               schoolLogoUrl={template.layout?.schoolLogoUrl || template.logo_url}
+              textCase={template.layout?.textCase || 'uppercase'}
             />
           </div>
         )}

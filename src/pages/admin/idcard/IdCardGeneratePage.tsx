@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useOutletContext } from 'react-router-dom'
 import {
@@ -750,7 +750,7 @@ export default function IdCardGeneratePage() {
         cardHeightMm: template.card_height_mm,
       }))
     }
-  }, [template?.id, template?.card_width_mm, template?.card_height_mm])
+  }, [template])
 
   // Persist print config & column visibility
   useEffect(() => {
@@ -807,7 +807,8 @@ export default function IdCardGeneratePage() {
 
   useEffect(() => {
     load()
-    return () => imageCacheRef.current.clear()
+    const cache = imageCacheRef.current
+    return () => cache.clear()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, project.template_id])
 
@@ -816,9 +817,12 @@ export default function IdCardGeneratePage() {
   }, [template?.id, template?.updated_at])
 
   // ── Unique Helper ─────────────────────────────────
-  function latestGenerationFor(personId: string): IdCardGeneration | undefined {
-    return generations.find((g) => g.person_id === personId)
-  }
+  const latestGenerationFor = useCallback(
+    (personId: string): IdCardGeneration | undefined => {
+      return generations.find((g) => g.person_id === personId)
+    },
+    [generations]
+  )
 
   // Authoritative Status mapping for all students
   const studentStatusMap = useMemo(() => {
@@ -834,7 +838,7 @@ export default function IdCardGeneratePage() {
       map.set(person.id, info)
     }
     return map
-  }, [persons, generations, fieldSchema, template])
+  }, [persons, latestGenerationFor, fieldSchema, template])
 
   // Real-time status counts for top dashboard
   const statusCounts = useMemo(() => {
@@ -985,7 +989,7 @@ export default function IdCardGeneratePage() {
     secondarySortField,
     secondarySortAsc,
     studentStatusMap,
-    generations,
+    latestGenerationFor,
   ])
 
   // ── Selection State Calculations ───────────────────────────
@@ -1220,13 +1224,19 @@ export default function IdCardGeneratePage() {
     try {
       await generateCardsForPersons(targets, template, project.id, project.name, project.academic_year, setProgress)
     } finally {
-      if (!isMountedRef.current) return
-      setGenerating(false)
-      setBatchModalConfig(null)
-      imageCacheRef.current.clear()
-      const gens = await getIdCardGenerations(project.id)
-      if (!isMountedRef.current) return
-      setGenerations(gens)
+      if (isMountedRef.current) {
+        setGenerating(false)
+        setBatchModalConfig(null)
+        imageCacheRef.current.clear()
+        try {
+          const gens = await getIdCardGenerations(project.id)
+          if (isMountedRef.current) {
+            setGenerations(gens)
+          }
+        } catch {
+          // Background fetch error ignored if component unmounted
+        }
+      }
     }
   }
 

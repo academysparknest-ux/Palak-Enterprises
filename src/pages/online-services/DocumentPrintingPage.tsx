@@ -25,14 +25,40 @@ import {
 import {
   getPrintPricingConfig,
   submitPrintOrder,
-  uploadOrderFile,
 } from "../../lib/supabase/database";
 import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
+import { LiveOrderProcessingModal } from "../../components/orders/LiveOrderProcessingModal";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { cn } from "../../lib/utils";
+import {
+  STATE_METADATA_MAP,
+} from "../../lib/orders/orderSubmissionStateMachine";
+import type {
+  OrderSubmissionState,
+  FileProgressInfo,
+  UploadProgressSummary,
+  StateTimelineEntry,
+} from "../../lib/orders/orderSubmissionStateMachine";
+import {
+  uploadOrderDocumentsWithProgress,
+} from "../../lib/orders/orderUploadEngine";
+import {
+  validateQuickServiceFiles,
+  getQuickServiceUploadLimitText,
+} from "../../config/quickServiceConfig";
+import {
+  createOrderPerformanceTracer,
+} from "../../lib/orders/orderPerformanceTrace";
+import {
+  generateUniqueSubmissionId,
+  checkExistingSubmission,
+  saveActiveSubmissionSession,
+  getActiveSubmissionSession,
+  clearActiveSubmissionSession,
+} from "../../lib/orders/submissionRecovery";
 import type {
   DocumentPrintConfig,
   OrderPrintSnapshot,
@@ -49,6 +75,12 @@ import {
   buildOrderPrintSnapshot,
 } from "../../lib/pricing/printPricingEngine";
 import { UserPrintPreferencesStore } from "../../lib/storage/userPrintPreferencesStore";
+
+import {
+  createPendingDocumentMetadata,
+  globalDocumentAnalysisQueue,
+  type CanonicalDocumentMetadata,
+} from "../../lib/documents/documentPageCountEngine";
 
 const DOCUMENT_TYPES = [
   { id: "notes", labelEn: "Notes", labelHi: "नोट्स (Notes)", icon: "📚" },
@@ -70,77 +102,14 @@ export interface UploadedConfiguredDocument {
   file: File;
   name: string;
   size: number;
-  pages: number;
+  pages: number | null;
+  metadata: CanonicalDocumentMetadata;
   previewUrl?: string;
-  isCounting?: boolean;
   isExpanded?: boolean;
   config: DocumentPrintConfig;
 }
 
-/**
- * Robust Client-Side Document Page Counter
- */
-async function countDocumentPages(file: File): Promise<number> {
-  const extension = "." + (file.name.split(".").pop() || "").toLowerCase();
-
-  if (file.type.startsWith("image/") || [".jpg", ".jpeg", ".png", ".webp"].includes(extension)) {
-    return 1;
-  }
-
-  if (extension === ".pdf" || file.type === "application/pdf") {
-    try {
-      const buffer = await file.arrayBuffer();
-      const text = new TextDecoder("latin1").decode(buffer);
-
-      const countMatches = [...text.matchAll(/\/Type\s*\/Pages[\s\S]*?\/Count\s+(\d+)/gi)];
-      if (countMatches.length > 0) {
-        let maxCount = 0;
-        for (const m of countMatches) {
-          const c = parseInt(m[1], 10);
-          if (!isNaN(c) && c > maxCount) maxCount = c;
-        }
-        if (maxCount > 0) return maxCount;
-      }
-
-      const altCountMatches = [...text.matchAll(/\/Count\s+(\d+)[\s\S]*?\/Type\s*\/Pages/gi)];
-      if (altCountMatches.length > 0) {
-        let maxCount = 0;
-        for (const m of altCountMatches) {
-          const c = parseInt(m[1], 10);
-          if (!isNaN(c) && c > maxCount) maxCount = c;
-        }
-        if (maxCount > 0) return maxCount;
-      }
-
-      const pageMatches = text.match(/\/Type\s*\/Page\b(?!\s*s)/gi);
-      if (pageMatches && pageMatches.length > 0) {
-        return pageMatches.length;
-      }
-    } catch (err) {
-      console.warn("Client-side PDF page counter warning:", err);
-    }
-  }
-
-  return 1;
-}
-
 const DOCPRINT_SUBMISSION_KEY = "palak_docprint_submission_id_v1";
-
-function getOrInitDocPrintSubmissionId(): string {
-  if (typeof window === "undefined") {
-    return `PE-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  }
-  try {
-    let existing = sessionStorage.getItem(DOCPRINT_SUBMISSION_KEY);
-    if (!existing || !existing.startsWith("PE-DOC-")) {
-      existing = `PE-DOC-${Date.now()}-${crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10)}`;
-      sessionStorage.setItem(DOCPRINT_SUBMISSION_KEY, existing);
-    }
-    return existing;
-  } catch {
-    return `PE-DOC-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  }
-}
 
 function clearDocPrintSubmissionId(): void {
   if (typeof window === "undefined") return;
@@ -231,9 +200,18 @@ export const DocumentPrintingPage: React.FC = () => {
 
   const [paymentMethod, setPaymentMethod] = useState<"pay_at_shop" | "pay_online">(resolvePaymentMethod);
 
-  // Submission & Success Modal State
-  const [submitting, setSubmitting] = useState<boolean>(false);
+  // Submission State Machine & Live Processing State
+  const [submissionState, setSubmissionState] = useState<OrderSubmissionState>("IDLE");
+  const [activeSubmissionId, setActiveSubmissionId] = useState<string>(() => generateUniqueSubmissionId());
+  const [timeline, setTimeline] = useState<StateTimelineEntry[]>([]);
+  const [filesProgress, setFilesProgress] = useState<FileProgressInfo[]>([]);
+  const [uploadSummary, setUploadSummary] = useState<UploadProgressSummary | undefined>(undefined);
+  const [confirmedOrderCode, setConfirmedOrderCode] = useState<string | undefined>(undefined);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isSubmittingLockRef = useRef<boolean>(false);
+
   const [successData, setSuccessData] = useState<{
     isOpen: boolean;
     orderCode: string;
@@ -244,6 +222,51 @@ export const DocumentPrintingPage: React.FC = () => {
     paymentMethod: string;
     paymentStatus: string;
   } | null>(null);
+
+  const transitionTo = (newState: OrderSubmissionState, detail?: string) => {
+    setSubmissionState(newState);
+    const meta = STATE_METADATA_MAP[newState];
+    setTimeline((prev) => [
+      ...prev,
+      {
+        state: newState,
+        titleEn: meta?.titleEn || newState,
+        titleHi: meta?.titleHi || newState,
+        timestamp: new Date(),
+        detail,
+      },
+    ]);
+  };
+
+  // Recovery hook for in-flight sessions on page load
+  useEffect(() => {
+    const activeSession = getActiveSubmissionSession();
+    if (activeSession && activeSession.submissionId) {
+      checkExistingSubmission(activeSession.submissionId)
+        .then((existing) => {
+          if (existing.found && existing.orderCode) {
+            setConfirmedOrderCode(existing.orderCode);
+            setSuccessData({
+              isOpen: true,
+              orderCode: existing.orderCode,
+              totalAmount: existing.totalAmount || activeSession.totalAmount || 0,
+              docType: activeSession.specifications?.["Document Type"] || "Document Printing",
+              specifications: activeSession.specifications || {},
+              finishingSelected: [],
+              paymentMethod:
+                activeSession.paymentMethod === "pay_online" || activeSession.paymentMethod === "upi_online"
+                  ? "Online Payment (UPI/Card)"
+                  : "Pay on Pickup",
+              paymentStatus: existing.paymentStatus === "confirmed" ? "Paid & Confirmed" : "Pending (Pay at Store)",
+            });
+            clearActiveSubmissionSession();
+          } else if (activeSession.state === "UPLOADING" || activeSession.state === "SUBMITTING") {
+            clearActiveSubmissionSession();
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   // Fetch pricing on load
   useEffect(() => {
@@ -320,36 +343,49 @@ export const DocumentPrintingPage: React.FC = () => {
     };
   };
 
-  // Handle Multi-File Upload
+  // Handle Multi-File Upload with Authoritative Document Analysis & Strict 45 MB Protection
   const handleFilesChosen = async (files: FileList | File[]) => {
     setFileError(null);
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    // 1. Immediate File Size & Format Validation (Before any expensive ArrayBuffer / PDF parsing)
+    const validation = validateQuickServiceFiles(fileArray);
+
+    if (!validation.allValid) {
+      setFileError(
+        currentLang === "hi"
+          ? validation.errorSummaryHi || validation.errorSummary || "फ़ाइल का आकार 45MB से अधिक है।"
+          : validation.errorSummary || "File exceeds maximum allowed size of 45 MB."
+      );
+    }
+
+    if (validation.validFiles.length === 0) {
+      return;
+    }
+
     const newItems: UploadedConfiguredDocument[] = [];
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.size > 100 * 1024 * 1024) {
-        setFileError(
-          currentLang === "hi"
-            ? `फ़ाइल "${file.name}" 100MB से बड़ी है।`
-            : `File "${file.name}" exceeds maximum allowed size of 100MB.`
-        );
-        continue;
-      }
+    for (let i = 0; i < validation.validFiles.length; i++) {
+      const file = validation.validFiles[i] as File;
 
       let previewUrl: string | undefined = undefined;
-      if (file.type.startsWith("image/")) {
+      if (file.type && file.type.startsWith("image/")) {
         previewUrl = URL.createObjectURL(file);
       }
 
-      const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${i}`;
+      const pendingMeta = createPendingDocumentMetadata(docId, file.name, file.size, file.type);
+      pendingMeta.pageCountStatus = "analyzing";
+
       const docItem: UploadedConfiguredDocument = {
         id: docId,
         file,
         name: file.name,
         size: file.size,
-        pages: 1,
+        pages: null,
+        metadata: pendingMeta,
         previewUrl,
-        isCounting: true,
         isExpanded: false,
         config: createInitialConfig(docId, file.name, file.size, 1),
       };
@@ -361,39 +397,62 @@ export const DocumentPrintingPage: React.FC = () => {
 
     setDocuments((prev) => [...prev, ...newItems]);
 
-    // Count pages in background
+    // Enqueue authoritative format-specific page analysis with controlled concurrency
     for (const item of newItems) {
-      try {
-        const detected = await countDocumentPages(item.file);
-        const safePages = Math.max(1, detected);
-        setDocuments((prev) =>
-          prev.map((d) => {
-            if (d.id !== item.id) return d;
-            const updatedConfig = { ...d.config, totalPages: safePages };
-            const calc = calculateDocumentPrintPriceComplete(updatedConfig, pricingConfig);
-            return {
-              ...d,
-              pages: safePages,
-              isCounting: false,
-              config: {
-                ...updatedConfig,
-                selectedPageCount: calc.selectedPageCount,
-                bwPageCount: calc.bwPageCount,
-                colorPageCount: calc.colorPageCount,
-                physicalSheetsPerCopy: calc.physicalSheetsPerCopy,
-                totalPhysicalSheets: calc.totalPhysicalSheets,
-                itemPrice: calc.itemPrice,
-                totalPrice: calc.totalPrice,
-                priceBreakdown: calc.priceBreakdown,
-              },
-            };
-          })
-        );
-      } catch {
-        setDocuments((prev) =>
-          prev.map((d) => (d.id === item.id ? { ...d, isCounting: false } : d))
-        );
-      }
+      globalDocumentAnalysisQueue
+        .enqueue(item.file, item.id, item.metadata.analysisToken)
+        .then((analyzedMeta) => {
+          setDocuments((prev) =>
+            prev.map((d) => {
+              // Strict race condition & stale token guard
+              if (d.id !== item.id || d.metadata.analysisToken !== analyzedMeta.analysisToken) {
+                return d;
+              }
+
+              const verifiedPages =
+                analyzedMeta.pageCountVerified && analyzedMeta.pageCount && analyzedMeta.pageCount > 0
+                  ? analyzedMeta.pageCount
+                  : null;
+
+              const updatedConfig = { ...d.config, totalPages: verifiedPages || 1 };
+              const calc = calculateDocumentPrintPriceComplete(updatedConfig, pricingConfig);
+
+              return {
+                ...d,
+                pages: verifiedPages,
+                metadata: analyzedMeta,
+                config: {
+                  ...updatedConfig,
+                  selectedPageCount: calc.selectedPageCount,
+                  bwPageCount: calc.bwPageCount,
+                  colorPageCount: calc.colorPageCount,
+                  physicalSheetsPerCopy: calc.physicalSheetsPerCopy,
+                  totalPhysicalSheets: calc.totalPhysicalSheets,
+                  itemPrice: verifiedPages ? calc.itemPrice : 0,
+                  totalPrice: verifiedPages ? calc.totalPrice : 0,
+                  priceBreakdown: calc.priceBreakdown,
+                },
+              };
+            })
+          );
+        })
+        .catch((err) => {
+          setDocuments((prev) =>
+            prev.map((d) => {
+              if (d.id !== item.id) return d;
+              return {
+                ...d,
+                pages: null,
+                metadata: {
+                  ...d.metadata,
+                  pageCountStatus: "failed",
+                  pageCountVerified: false,
+                  pageCountError: err?.message || "Failed to analyze document pages.",
+                },
+              };
+            })
+          );
+        });
     }
   };
 
@@ -502,7 +561,16 @@ export const DocumentPrintingPage: React.FC = () => {
     setFileError(null);
   };
 
-  // Recalculate Order Snapshot Live
+  const hasUnverifiedDocs =
+    documents.length === 0 ||
+    documents.some((d) => !d.metadata?.pageCountVerified || d.pages === null || d.pages <= 0);
+
+  const hasAnalyzingDocs = documents.some((d) => d.metadata?.pageCountStatus === "analyzing");
+  const hasFailedDocs = documents.some(
+    (d) => d.metadata?.pageCountStatus === "failed" || d.metadata?.pageCountStatus === "unsupported"
+  );
+
+  // Recalculate Order Snapshot Live (Using authoritative verified page counts)
   const orderSnapshot: OrderPrintSnapshot = buildOrderPrintSnapshot(
     documents.map((d) => d.config),
     0,
@@ -516,10 +584,46 @@ export const DocumentPrintingPage: React.FC = () => {
     return currentLang === "hi" ? found.labelHi : found.labelEn;
   };
 
+  // Cancellation handler
+  const handleCancelSubmission = () => {
+    if (abortControllerRef.current) {
+      try {
+        abortControllerRef.current.abort();
+      } catch {}
+    }
+    transitionTo("CANCEL_REQUESTED", "User requested submission cancellation");
+    setTimeout(() => {
+      transitionTo("CANCELLED", "Submission safely cancelled by user");
+      isSubmittingLockRef.current = false;
+      clearActiveSubmissionSession();
+      clearDocPrintSubmissionId();
+      setActiveSubmissionId(generateUniqueSubmissionId());
+    }, 350);
+  };
+
+  // Retry handler
+  const handleRetrySubmission = () => {
+    setSubmitError(null);
+    setSubmissionState("IDLE");
+    setTimeline([]);
+    setFilesProgress([]);
+    setUploadSummary(undefined);
+    isSubmittingLockRef.current = false;
+    setActiveSubmissionId(generateUniqueSubmissionId());
+  };
+
   // Form Submission
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+
+    // Prevent duplicate submission from rapid clicks, double clicks, or Enter key repeats
+    if (
+      isSubmittingLockRef.current ||
+      (submissionState !== "IDLE" && submissionState !== "FAILED" && submissionState !== "CANCELLED")
+    ) {
+      return;
+    }
 
     if (isStopped) {
       setSubmitError(
@@ -536,6 +640,24 @@ export const DocumentPrintingPage: React.FC = () => {
           ? "कृपया प्रिंट करने के लिए कम से कम एक दस्तावेज फ़ाइल अपलोड करें।"
           : "Please upload at least one document file before submitting."
       );
+      return;
+    }
+
+    // Strict Page-Count Verification Invariant
+    if (hasUnverifiedDocs) {
+      if (hasAnalyzingDocs) {
+        setSubmitError(
+          currentLang === "hi"
+            ? "कृपया सभी दस्तावेजों के पेज काउंट का विश्लेषण पूरा होने तक प्रतीक्षा करें।"
+            : "Please wait while document page counts are being analyzed."
+        );
+      } else {
+        setSubmitError(
+          currentLang === "hi"
+            ? "एक या अधिक दस्तावेजों के पेज काउंट को सत्यापित नहीं किया जा सका। कृपया सही दस्तावेज अपलोड करें।"
+            : "One or more documents could not be verified. Please check or re-upload your files."
+        );
+      }
       return;
     }
 
@@ -565,38 +687,138 @@ export const DocumentPrintingPage: React.FC = () => {
       return;
     }
 
-    setSubmitting(true);
-    const activeSubmissionId = getOrInitDocPrintSubmissionId();
+    // Acquire execution lock
+    isSubmittingLockRef.current = true;
+    let subId = activeSubmissionId;
+    if (!subId || confirmedOrderCode) {
+      subId = generateUniqueSubmissionId();
+      setActiveSubmissionId(subId);
+    }
+    const requestId = `REQ-${Date.now().toString().slice(-9)}`;
+    console.debug(`[DocumentPrinting] Starting submission [${requestId}] with subId: ${subId}`);
+    setTimeline([]);
+    setConfirmedOrderCode(undefined);
+
+    const tracer = createOrderPerformanceTracer(subId, "document-printing");
+    const totalBytes = documents.reduce((sum, d) => sum + (d.size || 0), 0);
+    tracer.setMetadata({ documentCount: documents.length, totalBytes });
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     try {
-      // 1. Upload files with submission deduplication
-      const uploadPromises = documents.map(async (doc) => {
-        try {
-          const res = await uploadOrderFile(doc.file, activeSubmissionId, activeSubmissionId);
-          return {
-            name: doc.name,
-            size: doc.size,
-            pages: doc.pages,
-            url: res?.url || "",
-            storagePath: res?.storagePath || "",
-            mimeType: doc.file.type || "application/pdf",
-          };
-        } catch (err) {
-          console.warn("Upload file notice:", err);
-          return {
-            name: doc.name,
-            size: doc.size,
-            pages: doc.pages,
-            url: "",
-            storagePath: "",
-            mimeType: doc.file.type || "application/pdf",
-          };
+      // 1. SUBMITTING
+      tracer.startStep("submission_init", "SUBMITTING");
+      transitionTo("SUBMITTING", "Initializing submission session");
+      tracer.endStep("submission_init", true);
+      if (abortController.signal.aborted) return;
+
+      // 2. VALIDATING
+      tracer.startStep("validation", "VALIDATING");
+      transitionTo("VALIDATING", "Validating print configurations and availability");
+
+      // Verify zero documents exceed the 45 MB boundary
+      const docValidation = validateQuickServiceFiles(documents.map((d) => ({ name: d.name, size: d.size })));
+      if (!docValidation.allValid) {
+        tracer.endStep("validation", false, docValidation.errorSummary);
+        throw new Error(docValidation.errorSummary || "One or more documents exceed the 45 MB limit.");
+      }
+
+      // Verify no document is still analyzing or failed analysis
+      for (const doc of documents) {
+        if (doc.metadata?.pageCountStatus === "analyzing") {
+          tracer.endStep("validation", false, "Document is still analyzing pages.");
+          throw new Error(`Document "${doc.name}" is still analyzing page count. Please wait a moment.`);
         }
-      });
+        if (doc.metadata?.pageCountStatus === "failed" || doc.metadata?.pageCountStatus === "unsupported") {
+          tracer.endStep("validation", false, doc.metadata?.pageCountError || "Document analysis failed.");
+          throw new Error(doc.metadata?.pageCountError || `Document "${doc.name}" cannot be processed.`);
+        }
+      }
 
-      const uploadedResults = await Promise.all(uploadPromises);
+      tracer.endStep("validation", true);
+      if (abortController.signal.aborted) return;
 
-      // Attach storage paths & URLs to snapshot documents
+      // 3. UPLOADING
+      tracer.startStep("document_upload", "UPLOADING", { totalBytes, documentCount: documents.length });
+      transitionTo("UPLOADING", "Uploading document files");
+      const initialProgressList: FileProgressInfo[] = documents.map((doc, idx) => ({
+        index: idx,
+        name: doc.name,
+        size: doc.size,
+        loaded: 0,
+        percent: 0,
+        status: "waiting",
+      }));
+      setFilesProgress(initialProgressList);
+
+      const uploadedResults = await uploadOrderDocumentsWithProgress(
+        documents.map((d) => ({
+          file: d.file,
+          name: d.name,
+          size: d.size,
+          pages: d.pages,
+          mimeType: d.file.type || "application/pdf",
+        })),
+        subId,
+        subId,
+        {
+          onFileStart: (idx, name, size) => {
+            setFilesProgress((prev) =>
+              prev.map((f, i) =>
+                i === idx ? { ...f, status: "uploading", name, size } : f
+              )
+            );
+          },
+          onFileProgress: (idx, loaded, total, percent) => {
+            setFilesProgress((prev) =>
+              prev.map((f, i) =>
+                i === idx ? { ...f, loaded, size: total, percent } : f
+              )
+            );
+          },
+          onFileComplete: (idx, res) => {
+            setFilesProgress((prev) =>
+              prev.map((f, i) =>
+                i === idx
+                  ? {
+                      ...f,
+                      loaded: f.size,
+                      percent: 100,
+                      status: "completed",
+                      storageUrl: res.url,
+                      storagePath: res.storagePath,
+                    }
+                  : f
+              )
+            );
+          },
+          onFileError: (idx, err) => {
+            setFilesProgress((prev) =>
+              prev.map((f, i) =>
+                i === idx ? { ...f, status: "failed", error: err } : f
+              )
+            );
+          },
+          onOverallProgress: (loadedBytes, totalBytes, percent, completedFiles) => {
+            setUploadSummary({
+              loadedBytes,
+              totalBytes,
+              percent,
+              completedFiles,
+              totalFiles: documents.length,
+            });
+          },
+        },
+        abortController.signal
+      );
+
+      tracer.endStep("document_upload", true);
+      if (abortController.signal.aborted) return;
+
+      // 4. PROCESSING
+      tracer.startStep("document_processing", "PROCESSING");
+      transitionTo("PROCESSING", "Verifying snapshot & compiling specifications");
       const snapshotDocsWithUrls: DocumentPrintConfig[] = documents.map((doc, idx) => ({
         ...doc.config,
         fileUrl: uploadedResults[idx]?.url || "",
@@ -621,13 +843,37 @@ export const DocumentPrintingPage: React.FC = () => {
         "Physical Sheets": `${finalSnapshot.totalPhysicalSheets} sheets`,
       };
 
-      const processOrderCreation = async (razorpayPaymentId?: string) => {
+      // Save active session for crash/refresh resilience
+      saveActiveSubmissionSession({
+        submissionId: subId,
+        state: "PROCESSING",
+        paymentMethod: paymentMethod === "pay_online" ? "pay_online" : "pay_at_store",
+        customerName: customerName.trim(),
+        customerPhone: cleanPhone,
+        customerEmail: customerEmail.trim() || undefined,
+        totalAmount: finalSnapshot.grandTotal,
+        totalPrintedPages: finalSnapshot.totalPrintedPages,
+        totalPhysicalSheets: finalSnapshot.totalPhysicalSheets,
+        totalDocuments: documents.length,
+        specifications,
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      tracer.endStep("document_processing", true);
+      if (abortController.signal.aborted) return;
+
+      // 5. ORDER CREATION
+      transitionTo("ORDER_CREATING", "Submitting authoritative order transaction");
+
+      const createOrderRecord = async (razorpayPaymentId?: string) => {
+        tracer.startStep("order_transaction", "ORDER_CREATING");
         const orderNotesWithPayment = razorpayPaymentId
           ? `${instructions.trim() ? instructions.trim() + " " : ""}[Razorpay ID: ${razorpayPaymentId}]`
           : instructions.trim() || undefined;
 
         const res = await submitPrintOrder({
-          clientSubmissionId: activeSubmissionId,
+          clientSubmissionId: subId,
           serviceId: "document-printing",
           serviceName: "Document Printing",
           documentType: getDocTypeLabel(),
@@ -653,34 +899,40 @@ export const DocumentPrintingPage: React.FC = () => {
           },
           optionsLabels: specifications,
           printSnapshot: finalSnapshot,
-          file: primaryFile,
-          files: uploadedResults,
+          file: {
+            ...primaryFile,
+            pageCount: documents[0]?.pages || 1,
+          },
+          files: uploadedResults.map((res, idx) => ({
+            ...res,
+            pageCount: documents[idx]?.pages || 1,
+            pageCountVerified: documents[idx]?.metadata?.pageCountVerified || false,
+            pageCountSource: documents[idx]?.metadata?.pageCountSource || null,
+          })),
         });
 
         if (!res.success) {
+          tracer.endStep("order_transaction", false, res.error);
           throw new Error(res.error || "Order submission failed on server.");
         }
 
-        clearDocPrintSubmissionId();
-
-        setSuccessData({
-          isOpen: true,
-          orderCode: res.orderCode,
-          totalAmount: finalSnapshot.grandTotal,
-          docType: getDocTypeLabel(),
-          specifications,
-          finishingSelected: [],
-          paymentMethod: paymentMethod === "pay_online" ? "Online Payment (UPI/Card)" : "Pay on Pickup",
-          paymentStatus: razorpayPaymentId ? "Paid & Confirmed" : "Pending (Pay at Store)",
-        });
-
-        setSubmitting(false);
+        tracer.endStep("order_transaction", true, undefined, { orderCode: res.orderCode });
+        tracer.setMetadata({ orderCode: res.orderCode });
+        setConfirmedOrderCode(res.orderCode);
+        return res.orderCode;
       };
 
       if (paymentMethod === "pay_online") {
+        // Create order in pending state first
+        const confirmedCode = await createOrderRecord();
+
+        // 6. ONLINE PAYMENT GATEWAY
+        transitionTo("PAYMENT_PENDING", "Opening secure payment gateway");
+
         await initiateRazorpayPayment({
           amount: finalSnapshot.grandTotal,
           name: "Palak Enterprises",
+          orderCode: confirmedCode,
           description: `Document Print Order (${finalSnapshot.totalPrintedPages} pages)`,
           prefill: {
             name: customerName.trim(),
@@ -688,28 +940,103 @@ export const DocumentPrintingPage: React.FC = () => {
             contact: cleanPhone,
           },
           onSuccess: async (paymentId) => {
-            await processOrderCreation(paymentId);
+            transitionTo("PAYMENT_PROCESSING", "Verifying payment confirmation");
+            await createOrderRecord(paymentId);
+            transitionTo("COMPLETED", "Order confirmed & payment verified");
+            tracer.summarize();
+            clearActiveSubmissionSession();
+            clearDocPrintSubmissionId();
+            setActiveSubmissionId(generateUniqueSubmissionId());
+
+            setSuccessData({
+              isOpen: true,
+              orderCode: confirmedCode,
+              totalAmount: finalSnapshot.grandTotal,
+              docType: getDocTypeLabel(),
+              specifications,
+              finishingSelected: [],
+              paymentMethod: "Online Payment (UPI/Card)",
+              paymentStatus: "Paid & Confirmed",
+            });
+            isSubmittingLockRef.current = false;
           },
           onDismiss: () => {
-            setSubmitting(false);
+            // Payment dismissed -> order is already created in pending state
+            transitionTo("COMPLETED", "Order confirmed (Payment pending at counter)");
+            tracer.summarize();
+            clearActiveSubmissionSession();
+            clearDocPrintSubmissionId();
+            setActiveSubmissionId(generateUniqueSubmissionId());
+
+            setSuccessData({
+              isOpen: true,
+              orderCode: confirmedCode,
+              totalAmount: finalSnapshot.grandTotal,
+              docType: getDocTypeLabel(),
+              specifications,
+              finishingSelected: [],
+              paymentMethod: "Pay on Pickup",
+              paymentStatus: "Pending (Pay at Store)",
+            });
+            isSubmittingLockRef.current = false;
           },
           onError: (err) => {
             setSubmitError(
               err?.description ||
                 (currentLang === "hi"
-                  ? "ऑनलाइन भुगतान रद्द हुआ। आप पुनः प्रयास कर सकते हैं या 'दस्तावेज भेजें (दुकान पर भुगतान)' चुन सकते हैं।"
-                  : "Online payment was cancelled. You can retry or choose 'Send Document (Pay on Pickup)'.")
+                  ? "ऑनलाइन भुगतान में त्रुटि हुई। आप दुकान पर भुगतान कर सकते हैं।"
+                  : "Online payment was not completed. You can pay at the counter.")
             );
-            setSubmitting(false);
+            transitionTo("COMPLETED", "Order confirmed (Pay at pickup)");
+            tracer.summarize();
+            clearActiveSubmissionSession();
+            clearDocPrintSubmissionId();
+            setActiveSubmissionId(generateUniqueSubmissionId());
+
+            setSuccessData({
+              isOpen: true,
+              orderCode: confirmedCode,
+              totalAmount: finalSnapshot.grandTotal,
+              docType: getDocTypeLabel(),
+              specifications,
+              finishingSelected: [],
+              paymentMethod: "Pay on Pickup",
+              paymentStatus: "Pending (Pay at Store)",
+            });
+            isSubmittingLockRef.current = false;
           },
         });
       } else {
-        await processOrderCreation();
+        // Pay on Pickup Flow
+        const confirmedCode = await createOrderRecord();
+        transitionTo("COMPLETED", "Order confirmed in normal print queue");
+        tracer.summarize();
+        clearActiveSubmissionSession();
+        clearDocPrintSubmissionId();
+        setActiveSubmissionId(generateUniqueSubmissionId());
+
+        setSuccessData({
+          isOpen: true,
+          orderCode: confirmedCode,
+          totalAmount: finalSnapshot.grandTotal,
+          docType: getDocTypeLabel(),
+          specifications,
+          finishingSelected: [],
+          paymentMethod: "Pay on Pickup",
+          paymentStatus: "Pending (Pay at Store)",
+        });
+        isSubmittingLockRef.current = false;
       }
     } catch (err: any) {
-      console.error("Order submission exception:", err);
-      setSubmitError(err.message || "An unexpected error occurred.");
-      setSubmitting(false);
+      tracer.summarize();
+      if (err?.name === "AbortError" || abortController.signal.aborted) {
+        transitionTo("CANCELLED", "Submission cancelled");
+      } else {
+        console.error("Order submission exception:", err);
+        setSubmitError(err.message || "An unexpected error occurred.");
+        transitionTo("FAILED", err.message || "Order submission failed");
+      }
+      isSubmittingLockRef.current = false;
     }
   };
 
@@ -874,7 +1201,7 @@ export const DocumentPrintingPage: React.FC = () => {
                     : "Drag & drop files here or click to browse"}
                 </p>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  PDF, Word (DOC/DOCX), JPG, PNG • Max 100MB per file
+                  {getQuickServiceUploadLimitText(currentLang)}
                 </p>
               </div>
 
@@ -953,16 +1280,27 @@ export const DocumentPrintingPage: React.FC = () => {
                               <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
                                 {doc.name}
                               </p>
-                              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                              <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-slate-500">
                                 <span>{(doc.size / (1024 * 1024)).toFixed(2)} MB</span>
                                 <span>•</span>
-                                {doc.isCounting ? (
-                                  <span className="text-amber-600 font-semibold animate-pulse">
-                                    Counting pages...
+                                {doc.metadata?.pageCountStatus === "analyzing" ? (
+                                  <span className="text-amber-600 font-semibold animate-pulse flex items-center gap-1">
+                                    <span>⏳ Detecting page count...</span>
+                                  </span>
+                                ) : doc.metadata?.pageCountStatus === "verified" && doc.pages !== null ? (
+                                  <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                    <Check className="h-3 w-3 inline text-emerald-600 stroke-[3]" />
+                                    <span>{doc.pages} pages detected • Page count verified</span>
+                                  </span>
+                                ) : doc.metadata?.pageCountStatus === "failed" || doc.metadata?.pageCountStatus === "unsupported" ? (
+                                  <span className="text-rose-600 font-bold flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3 inline text-rose-500" />
+                                    <span>{doc.metadata?.pageCountError || "Page count unavailable"}</span>
                                   </span>
                                 ) : (
-                                  <span className="text-emerald-700 font-bold">
-                                    {doc.pages} total pages in file
+                                  <span className="text-amber-700 font-bold flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3 inline text-amber-500" />
+                                    <span>{doc.metadata?.pageCountError || "Page count needs review"}</span>
                                   </span>
                                 )}
                               </div>
@@ -972,17 +1310,25 @@ export const DocumentPrintingPage: React.FC = () => {
                           {/* Top Actions: Price & Remove */}
                           <div className="flex items-center justify-between sm:justify-end gap-3">
                             <div className="text-right">
-                              <span className="text-xs font-black text-[#123B70] block">
-                                ₹{c.totalPrice.toFixed(2)}
-                              </span>
-                              <span className="text-[10px] text-slate-400">
-                                (₹{c.itemPrice.toFixed(2)} × {c.copies})
-                              </span>
+                              {doc.pages !== null && doc.metadata?.pageCountVerified ? (
+                                <>
+                                  <span className="text-xs font-black text-[#123B70] block">
+                                    ₹{c.totalPrice.toFixed(2)}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    (₹{c.itemPrice.toFixed(2)} × {c.copies})
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-xs font-bold text-slate-400 italic block">
+                                  Calculating...
+                                </span>
+                              )}
                             </div>
                             <button
                               type="button"
                               onClick={() => handleRemoveDoc(doc.id)}
-                              className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -1003,7 +1349,7 @@ export const DocumentPrintingPage: React.FC = () => {
                                   type="button"
                                   onClick={() => updateDocumentConfig(doc.id, { colorMode: mode })}
                                   className={cn(
-                                    "py-1.5 rounded-lg text-center font-bold capitalize transition-all",
+                                    "py-1.5 rounded-lg text-center font-bold capitalize transition-all cursor-pointer",
                                     c.colorMode === mode
                                       ? "bg-white text-[#123B70] shadow-xs"
                                       : "text-slate-600 hover:text-slate-900"
@@ -1025,7 +1371,7 @@ export const DocumentPrintingPage: React.FC = () => {
                                 type="button"
                                 onClick={() => updateDocumentConfig(doc.id, { sides: "single" })}
                                 className={cn(
-                                  "py-1.5 rounded-lg text-center font-bold transition-all",
+                                  "py-1.5 rounded-lg text-center font-bold transition-all cursor-pointer",
                                   c.sides === "single"
                                     ? "bg-white text-[#123B70] shadow-xs"
                                     : "text-slate-600 hover:text-slate-900"
@@ -1037,7 +1383,7 @@ export const DocumentPrintingPage: React.FC = () => {
                                 type="button"
                                 onClick={() => updateDocumentConfig(doc.id, { sides: "double_long" })}
                                 className={cn(
-                                  "py-1.5 rounded-lg text-center font-bold transition-all",
+                                  "py-1.5 rounded-lg text-center font-bold transition-all cursor-pointer",
                                   c.sides !== "single"
                                     ? "bg-white text-[#123B70] shadow-xs"
                                     : "text-slate-600 hover:text-slate-900"
@@ -1060,7 +1406,7 @@ export const DocumentPrintingPage: React.FC = () => {
                                   type="button"
                                   onClick={() => updateDocumentConfig(doc.id, { paperSize: sz })}
                                   className={cn(
-                                    "py-1.5 rounded-lg text-center font-bold uppercase transition-all",
+                                    "py-1.5 rounded-lg text-center font-bold uppercase transition-all cursor-pointer",
                                     c.paperSize === sz
                                       ? "bg-white text-[#123B70] shadow-xs"
                                       : "text-slate-600 hover:text-slate-900"
@@ -1083,7 +1429,7 @@ export const DocumentPrintingPage: React.FC = () => {
                                 onClick={() =>
                                   updateDocumentConfig(doc.id, { copies: Math.max(1, c.copies - 1) })
                                 }
-                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-white text-slate-700 font-bold hover:bg-slate-200 transition-colors shadow-xs"
+                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-white text-slate-700 font-bold hover:bg-slate-200 transition-colors shadow-xs cursor-pointer"
                               >
                                 <Minus className="h-3 w-3" />
                               </button>
@@ -1091,7 +1437,7 @@ export const DocumentPrintingPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => updateDocumentConfig(doc.id, { copies: c.copies + 1 })}
-                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-white text-slate-700 font-bold hover:bg-slate-200 transition-colors shadow-xs"
+                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-white text-slate-700 font-bold hover:bg-slate-200 transition-colors shadow-xs cursor-pointer"
                               >
                                 <Plus className="h-3 w-3" />
                               </button>
@@ -1142,7 +1488,7 @@ export const DocumentPrintingPage: React.FC = () => {
                                 onChange={() => updateDocumentConfig(doc.id, { pageRangeType: "all" })}
                                 className="accent-[#123B70]"
                               />
-                              <span>All Pages ({doc.pages})</span>
+                              <span>All Pages ({doc.pages !== null ? doc.pages : "..."})</span>
                             </label>
                             <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-700 ml-2">
                               <input
@@ -1163,7 +1509,7 @@ export const DocumentPrintingPage: React.FC = () => {
                               onChange={(e) =>
                                 updateDocumentConfig(doc.id, { customPageRange: e.target.value })
                               }
-                              placeholder="e.g. 1-10, 15"
+                              placeholder={doc.pages ? `e.g. 1-${doc.pages}` : "e.g. 1-10, 15"}
                               className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-mono w-32 focus:bg-white focus:border-[#123B70]"
                             />
                           )}
@@ -1506,19 +1852,39 @@ export const DocumentPrintingPage: React.FC = () => {
 
                 <div className="flex justify-between">
                   <span className="text-slate-500">{currentLang === "hi" ? "कुल प्रिंट पेज:" : "Printed Pages:"}</span>
-                  <span className="font-bold text-slate-900">{orderSnapshot.totalPrintedPages} pages</span>
+                  <span className="font-bold text-slate-900">
+                    {hasAnalyzingDocs ? (
+                      <span className="text-amber-600 font-semibold animate-pulse">⏳ Detecting...</span>
+                    ) : hasFailedDocs ? (
+                      <span className="text-rose-600 font-semibold">⚠️ Verification required</span>
+                    ) : (
+                      `${orderSnapshot.totalPrintedPages} pages`
+                    )}
+                  </span>
                 </div>
 
                 <div className="flex justify-between">
                   <span className="text-slate-500">{currentLang === "hi" ? "कलर ब्रेकडाउन:" : "Color Breakdown:"}</span>
                   <span className="font-semibold text-slate-800">
-                    ⚫ {orderSnapshot.totalBwPages} B/W • 🌈 {orderSnapshot.totalColorPages} Color
+                    {hasUnverifiedDocs ? (
+                      <span className="text-slate-400 font-medium">Pending verification</span>
+                    ) : (
+                      `⚫ ${orderSnapshot.totalBwPages} B/W • 🌈 ${orderSnapshot.totalColorPages} Color`
+                    )}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
                   <span className="text-slate-500">{currentLang === "hi" ? "कागज की शीट (Physical Sheets):" : "Physical Sheets:"}</span>
-                  <span className="font-bold text-slate-900">📑 {orderSnapshot.totalPhysicalSheets} sheets</span>
+                  <span className="font-bold text-slate-900">
+                    {hasAnalyzingDocs ? (
+                      <span className="text-amber-600 font-semibold animate-pulse">⏳ Detecting...</span>
+                    ) : hasFailedDocs ? (
+                      <span className="text-rose-600 font-semibold">⚠️ Verification required</span>
+                    ) : (
+                      `📑 ${orderSnapshot.totalPhysicalSheets} sheets`
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -1533,7 +1899,11 @@ export const DocumentPrintingPage: React.FC = () => {
                       <span className="truncate max-w-[150px] font-medium">
                         #{i + 1} {d.name}
                       </span>
-                      <span className="font-bold text-slate-900">₹{d.config.totalPrice.toFixed(2)}</span>
+                      <span className="font-bold text-slate-900">
+                        {d.pages !== null && d.metadata?.pageCountVerified
+                          ? `₹${d.config.totalPrice.toFixed(2)}`
+                          : "Calculating..."}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1600,7 +1970,11 @@ export const DocumentPrintingPage: React.FC = () => {
                   {currentLang === "hi" ? "कुल अनुमानित राशि" : "Estimated Total"}
                 </span>
                 <span className="text-2xl font-black text-[#123B70]">
-                  ₹{orderSnapshot.grandTotal.toFixed(2)}
+                  {hasUnverifiedDocs ? (
+                    <span className="text-sm text-slate-400 font-bold italic">Calculating...</span>
+                  ) : (
+                    `₹${orderSnapshot.grandTotal.toFixed(2)}`
+                  )}
                 </span>
               </div>
 
@@ -1613,11 +1987,23 @@ export const DocumentPrintingPage: React.FC = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={submitting || isStopped}
+                disabled={
+                  isStopped ||
+                  hasUnverifiedDocs ||
+                  (submissionState !== "IDLE" &&
+                    submissionState !== "FAILED" &&
+                    submissionState !== "CANCELLED")
+                }
                 className={cn(
                   "w-full flex items-center justify-center gap-2 rounded-xl py-3.5 px-4 text-xs sm:text-sm font-extrabold shadow-card transition-all",
                   isStopped
                     ? "bg-slate-300 text-slate-600 border border-slate-300 cursor-not-allowed"
+                    : hasUnverifiedDocs
+                    ? "bg-slate-300 text-slate-500 cursor-not-allowed border border-slate-300"
+                    : submissionState !== "IDLE" &&
+                      submissionState !== "FAILED" &&
+                      submissionState !== "CANCELLED"
+                    ? "bg-[#123B70]/80 text-white cursor-wait"
                     : "bg-[#123B70] hover:bg-[#0c274c] disabled:opacity-50 text-white cursor-pointer"
                 )}
               >
@@ -1627,19 +2013,69 @@ export const DocumentPrintingPage: React.FC = () => {
                       ? "⚠️ सेवा अस्थायी रूप से बंद है (Service Unavailable)"
                       : "⚠️ Service Temporarily Unavailable"}
                   </span>
-                ) : submitting ? (
+                ) : hasAnalyzingDocs ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-transparent" />
+                    <span>{currentLang === "hi" ? "दस्तावेज का विश्लेषण हो रहा है..." : "⏳ Analyzing Document Pages..."}</span>
+                  </div>
+                ) : hasFailedDocs ? (
+                  <span>{currentLang === "hi" ? "⚠️ दस्तावेज सत्यापन आवश्यक" : "⚠️ Document Verification Required"}</span>
+                ) : documents.length === 0 ? (
+                  <span>{currentLang === "hi" ? "दस्तावेज अपलोड करें" : "Upload Document to Continue"}</span>
+                ) : submissionState === "SUBMITTING" ? (
                   <div className="flex items-center gap-2">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    <span>{currentLang === "hi" ? "ऑर्डर सबमिट हो रहा है..." : "Submitting Order..."}</span>
+                    <span>{currentLang === "hi" ? "ऑर्डर शुरू हो रहा है..." : "Submitting Order..."}</span>
                   </div>
-                ) : (
-                  <>
+                ) : submissionState === "VALIDATING" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>{currentLang === "hi" ? "सत्यापन हो रहा है..." : "Validating Settings..."}</span>
+                  </div>
+                ) : submissionState === "UPLOADING" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     <span>
                       {currentLang === "hi"
-                        ? `ऑर्डर सबमिट करें (${paymentMethod === "pay_online" ? "Pay Online" : "Send Document"}) →`
-                        : `Submit Order (${paymentMethod === "pay_online" ? "Pay Online" : "Send Document"}) →`}
+                        ? `अपलोड हो रहा है (${uploadSummary?.percent || 0}%)...`
+                        : `Uploading Documents (${uploadSummary?.percent || 0}%)...`}
                     </span>
-                  </>
+                  </div>
+                ) : submissionState === "PROCESSING" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>{currentLang === "hi" ? "प्रिंट सेटिंग्स प्रोसेसिंग..." : "Processing Print Settings..."}</span>
+                  </div>
+                ) : submissionState === "ORDER_CREATING" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>{currentLang === "hi" ? "ऑर्डर दर्ज हो रहा है..." : "Creating Order..."}</span>
+                  </div>
+                ) : submissionState === "PAYMENT_PENDING" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>{currentLang === "hi" ? "भुगतान प्रक्रिया..." : "Opening Payment Gateway..."}</span>
+                  </div>
+                ) : submissionState === "PAYMENT_PROCESSING" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>{currentLang === "hi" ? "भुगतान सत्यापित हो रहा है..." : "Verifying Payment..."}</span>
+                  </div>
+                ) : submissionState === "CANCEL_REQUESTED" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>{currentLang === "hi" ? "रद्द हो रहा है..." : "Cancelling..."}</span>
+                  </div>
+                ) : (
+                  <span>
+                    {paymentMethod === "pay_online"
+                      ? currentLang === "hi"
+                        ? `तुरंत भुगतान करें (₹${orderSnapshot.grandTotal.toFixed(2)})`
+                        : `Pay & Submit Order (₹${orderSnapshot.grandTotal.toFixed(2)})`
+                      : currentLang === "hi"
+                      ? "प्रिंट ऑर्डर दर्ज करें (Pay on Pickup)"
+                      : "Confirm & Place Print Order"}
+                  </span>
                 )}
               </button>
 
@@ -1659,11 +2095,56 @@ export const DocumentPrintingPage: React.FC = () => {
         </form>
       </div>
 
+      {/* Live Order Processing Modal */}
+      {submissionState !== "IDLE" && !successData?.isOpen && (
+        <LiveOrderProcessingModal
+          isOpen={true}
+          submissionId={activeSubmissionId}
+          orderCode={confirmedOrderCode}
+          currentState={submissionState}
+          paymentMethod={paymentMethod === "pay_online" ? "pay_online" : "pay_at_store"}
+          timeline={timeline}
+          filesProgress={filesProgress}
+          uploadSummary={uploadSummary}
+          orderSummary={{
+            totalDocuments: documents.length,
+            totalPrintedPages: orderSnapshot.totalPrintedPages,
+            totalPhysicalSheets: orderSnapshot.totalPhysicalSheets,
+            colorBreakdownText: `⚫ ${orderSnapshot.totalBwPages} B/W • 🌈 ${orderSnapshot.totalColorPages} Color`,
+            duplexText: documents[0]?.config.sides !== "single" ? "Double-sided" : "Single-sided",
+            paperSizeText: documents[0]?.config.paperSize.toUpperCase() || "A4",
+            copies: documents[0]?.config.copies || 1,
+            grandTotal: orderSnapshot.grandTotal,
+            serviceName: "Document Printing",
+            docTypeLabel: getDocTypeLabel(),
+          }}
+          errorMessage={submitError}
+          onCancelRequest={handleCancelSubmission}
+          onRetry={handleRetrySubmission}
+          onClose={() => {
+            setSubmissionState("IDLE");
+            isSubmittingLockRef.current = false;
+          }}
+        />
+      )}
+
       {/* Success Modal */}
       {successData && (
         <OrderSuccessModal
           isOpen={successData.isOpen}
-          onClose={() => setSuccessData(null)}
+          onClose={() => {
+            setSuccessData(null);
+            setDocuments([]);
+            setFilesProgress([]);
+            setUploadSummary(undefined);
+            setConfirmedOrderCode(undefined);
+            setSubmissionState("IDLE");
+            setTimeline([]);
+            setActiveSubmissionId(generateUniqueSubmissionId());
+            clearActiveSubmissionSession();
+            clearDocPrintSubmissionId();
+            isSubmittingLockRef.current = false;
+          }}
           orderCode={successData.orderCode}
           serviceName="Document Printing"
           documentType={successData.docType}

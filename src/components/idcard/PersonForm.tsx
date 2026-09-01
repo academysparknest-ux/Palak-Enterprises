@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { User, AlertCircle } from 'lucide-react';
-import { bloodGroups, normalizeDate, normalizeBloodGroup, normalizePhone, sanitizeStudentId } from '../../lib/idcard/validation';
+import { bloodGroups, sanitizeStudentId } from '../../lib/idcard/validation';
 import type { IdCardPerson, TemplateFieldSchema, TemplateFieldSchemaItem } from '../../lib/idcard/types';
 import { extractTemplateFieldSchema } from '../../lib/idcard/templateFieldSchema';
+import { normalizeStudentRecord, resolveTemplateFieldValue } from '../../lib/idcard/dataBindingRegistry';
 
 export function PersonForm({
   initial,
@@ -32,28 +33,14 @@ export function PersonForm({
           { key: 'roll_number', label: 'Roll Number', type: 'text', required: false, category: 'student_input', modelKey: 'roll_number' },
         ];
 
-  // Initialize values state for all active dynamic fields
+  // Initialize values state for all active dynamic fields from canonical student record
   const [values, setValues] = useState<Record<string, string>>(() => {
+    const normalized = normalizeStudentRecord(initial);
     const initialMap: Record<string, string> = {};
     for (const field of dynamicFields) {
-      const modelK = String(field.modelKey || field.key);
-      const isRoll = field.key.includes('roll') || modelK.includes('roll');
-      const val =
-        (initial as any)?.[modelK] ??
-        (initial as any)?.[field.key] ??
-        initial?.custom_fields?.[field.key] ??
-        (isRoll
-          ? (initial as any)?.roll_number ??
-            (initial as any)?.roll_no ??
-            (initial as any)?.roll ??
-            initial?.custom_fields?.roll_number ??
-            initial?.custom_fields?.roll_no ??
-            initial?.custom_fields?.roll ??
-            initial?.custom_fields?.['Roll No'] ??
-            initial?.custom_fields?.['Roll Number']
-          : undefined) ??
-        '';
-      initialMap[field.key] = val ? String(val) : '';
+      const dummyField = { key: field.key as any, source: 'dynamic' as const, visible: true, x: 0, y: 0, width: 10, height: 10 };
+      const val = resolveTemplateFieldValue(dummyField, normalized);
+      initialMap[field.key] = val || '';
     }
     return initialMap;
   });
@@ -119,22 +106,21 @@ export function PersonForm({
     setErrors({});
 
     // Separate standard person model fields from custom dynamic fields
+    const normalized = normalizeStudentRecord(values);
     const customFieldsData: Record<string, any> = {};
     const sanitizedData: Record<string, any> = {
-      student_id: sanitizeStudentId(values.student_id || (initial?.student_id ?? '')) || '',
-      name: values.student_name?.trim() || values.name?.trim() || (initial?.name ?? ''),
-      class: values.class?.trim() ?? initial?.class ?? null,
-      section: values.section?.trim() ?? initial?.section ?? null,
-      roll_number: values.roll_number?.trim() ?? initial?.roll_number ?? null,
-      date_of_birth: values.date_of_birth ? normalizeDate(values.date_of_birth) : (initial?.date_of_birth ?? null),
-      blood_group: values.blood_group ? normalizeBloodGroup(values.blood_group) : (initial?.blood_group ?? null),
-      father_name: values.father_name?.trim() ?? initial?.father_name ?? null,
-      mother_name: values.mother_name?.trim() ?? initial?.mother_name ?? null,
-      phone: values.phone ? normalizePhone(values.phone) : (initial?.phone ?? null),
-      emergency_number: (values.emergency_no || values.emergency_number)
-        ? normalizePhone(values.emergency_no || values.emergency_number)
-        : (initial?.emergency_number ?? null),
-      address: values.address?.trim() ?? initial?.address ?? null,
+      student_id: sanitizeStudentId(normalized.student_id || (initial?.student_id ?? '')) || '',
+      name: normalized.student_name || (initial?.name ?? ''),
+      class: normalized.class ?? initial?.class ?? null,
+      section: normalized.section ?? initial?.section ?? null,
+      roll_number: normalized.roll_number ?? initial?.roll_number ?? null,
+      date_of_birth: normalized.date_of_birth ?? (initial?.date_of_birth ?? null),
+      blood_group: normalized.blood_group ?? (initial?.blood_group ?? null),
+      father_name: normalized.father_name ?? initial?.father_name ?? null,
+      mother_name: normalized.mother_name ?? initial?.mother_name ?? null,
+      phone: normalized.phone ?? (initial?.phone ?? null),
+      emergency_number: normalized.emergency_no ?? (initial?.emergency_number ?? null),
+      address: normalized.address ?? initial?.address ?? null,
     };
 
     // Populate custom dynamic fields

@@ -46,7 +46,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 }) => {
   const { language, lang } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const { user, isAuthenticated, isStaff, logout } = useAuth();
+  const { user, isAuthenticated, isStaff, isReady, loading: authLoading, logout } = useAuth();
   const location = useLocation();
 
   useScrollLock(isOpen);
@@ -214,7 +214,15 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
           <div className="p-3.5 sm:p-4 overflow-y-auto overscroll-contain space-y-3.5 flex-1 bg-slate-50/60">
             {/* Mobile Auth Quick Action Bar (Top) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2 shadow-2xs">
-              {isAuthenticated ? (
+              {!isReady && authLoading ? (
+                <div className="flex items-center gap-2.5 py-1 animate-pulse">
+                  <div className="h-8 w-8 rounded-full bg-slate-200" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="h-3 w-24 bg-slate-200 rounded" />
+                    <div className="h-2.5 w-36 bg-slate-100 rounded" />
+                  </div>
+                </div>
+              ) : isAuthenticated ? (
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">

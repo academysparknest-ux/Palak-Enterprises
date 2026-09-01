@@ -366,11 +366,36 @@ export function buildOrderPrintSnapshot(
 
   for (const doc of documents) {
     const docCopies = Math.max(1, doc.copies || 1);
-    totalPrintedPages += doc.selectedPageCount * docCopies;
-    totalBwPages += doc.bwPageCount * docCopies;
-    totalColorPages += doc.colorPageCount * docCopies;
-    totalPhysicalSheets += doc.totalPhysicalSheets;
-    subtotal = Math.round((subtotal + doc.totalPrice) * 100) / 100;
+    const selectedPages =
+      typeof doc.selectedPageCount === "number" && !isNaN(doc.selectedPageCount)
+        ? doc.selectedPageCount
+        : Math.max(1, doc.totalPages || 1);
+    const bwPages =
+      typeof doc.bwPageCount === "number" && !isNaN(doc.bwPageCount)
+        ? doc.bwPageCount
+        : doc.colorMode === "color"
+        ? 0
+        : selectedPages;
+    const colorPages =
+      typeof doc.colorPageCount === "number" && !isNaN(doc.colorPageCount)
+        ? doc.colorPageCount
+        : doc.colorMode === "color"
+        ? selectedPages
+        : 0;
+    const physicalSheets =
+      typeof doc.totalPhysicalSheets === "number" && !isNaN(doc.totalPhysicalSheets)
+        ? doc.totalPhysicalSheets
+        : (doc.sides === "single" ? selectedPages : Math.ceil(selectedPages / 2)) * docCopies;
+    const docTotalPrice =
+      typeof doc.totalPrice === "number" && !isNaN(doc.totalPrice)
+        ? doc.totalPrice
+        : 0;
+
+    totalPrintedPages += selectedPages * docCopies;
+    totalBwPages += bwPages * docCopies;
+    totalColorPages += colorPages * docCopies;
+    totalPhysicalSheets += physicalSheets;
+    subtotal = Math.round((subtotal + docTotalPrice) * 100) / 100;
   }
 
   const cleanDeliveryFee = Math.round(Math.max(0, deliveryFee || 0) * 100) / 100;

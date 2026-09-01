@@ -34,6 +34,18 @@ const testFiles = [
   'src/lib/idcard/productionReadiness.test.ts',
   'src/lib/idcard/studioDesigner.test.ts',
   'src/lib/idcard/landscapeTemplateWorkflow.test.ts',
+  'src/lib/idcard/idCardDataBindingIntegrity.test.ts',
+  'src/lib/idcard/photoOptimization.test.ts',
+  'src/lib/idcard/globalTextCase.test.ts',
+  'src/lib/idcard/nonDestructivePhotoCrop.test.ts',
+  'src/lib/orders/quickServiceOrderPerformance.test.ts',
+  'src/lib/documents/documentPageCountAccuracy.test.ts',
+  'src/lib/orders/quickServiceFileIntegrity.test.ts',
+  'src/lib/orders/quickServiceDocumentPipelineIntegrity.test.ts',
+  'src/lib/orders/quickServiceOrderAdminDelivery.test.ts',
+  'src/lib/orders/quickServiceOrderIdentityIntegrity.test.ts',
+  'src/lib/orders/quickServiceFileSizeLimit.test.ts',
+  'src/lib/auth/authBootStateTransitions.test.ts',
 ];
 
 
@@ -43,6 +55,7 @@ console.log('╚═════════════════════�
 
 let totalPassedSuites = 0;
 let totalFailedSuites = 0;
+const failedSuiteNames: string[] = [];
 
 for (const testFile of testFiles) {
   const fileName = path.basename(testFile);
@@ -58,6 +71,7 @@ for (const testFile of testFiles) {
     totalPassedSuites++;
   } else {
     totalFailedSuites++;
+    failedSuiteNames.push(fileName);
     console.error(`\n❌ Test suite failed: ${fileName}\n`);
   }
 }
@@ -66,7 +80,7 @@ console.log('\n' + '═'.repeat(65));
 console.log(`  OVERALL TEST SUMMARY:`);
 console.log(`  ✅ Passed Suites: ${totalPassedSuites} / ${testFiles.length}`);
 if (totalFailedSuites > 0) {
-  console.log(`  ❌ Failed Suites: ${totalFailedSuites} / ${testFiles.length}`);
+  console.log(`  ❌ Failed Suites: ${totalFailedSuites} / ${testFiles.length} (${failedSuiteNames.join(', ')})`);
 } else {
   console.log(`  🎉 ALL TEST SUITES PASSED ACCURATELY!`);
 }
@@ -74,4 +88,6 @@ console.log('═'.repeat(65) + '\n');
 
 if (totalFailedSuites > 0) {
   process.exit(1);
+} else {
+  process.exit(0);
 }

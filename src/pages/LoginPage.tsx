@@ -10,7 +10,7 @@ import { business } from "../config/business";
 export const LoginPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const { loginWithEmail, loginWithGoogle, isAuthenticated, isStaff, loading } = useAuth();
+  const { loginWithEmail, loginWithGoogle, isAuthenticated, isStaff, isReady, loading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -40,16 +40,16 @@ export const LoginPage: React.FC = () => {
     }
   }, [searchParams]);
 
-  // If already authenticated, redirect immediately
+  // If already authenticated and role is resolved, redirect cleanly
   useEffect(() => {
-    if (!loading && isAuthenticated) {
-      if (isStaff && returnTo === "/account") {
+    if (isReady && !loading && isAuthenticated) {
+      if (isStaff && (returnTo === "/account" || returnTo === "/")) {
         navigate("/admin", { replace: true });
       } else {
         navigate(returnTo, { replace: true });
       }
     }
-  }, [isAuthenticated, loading, isStaff, returnTo, navigate]);
+  }, [isReady, isAuthenticated, loading, isStaff, returnTo, navigate]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();

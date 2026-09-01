@@ -46,7 +46,7 @@ import { cn } from "../lib/utils";
 export const AccountPage: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
-  const { user, isAuthenticated, isStaff, isAdmin, logout, loading } = useAuth();
+  const { user, isAuthenticated, isStaff, isAdmin, logout, loading, isReady } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -107,7 +107,7 @@ export const AccountPage: React.FC = () => {
 
   // 2. Fetch and sync customer orders and data
   const loadUserData = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isReady || !isAuthenticated) return;
 
     setOrdersLoading(true);
     setOrdersError(null);
@@ -178,7 +178,7 @@ export const AccountPage: React.FC = () => {
   }, [isAuthenticated, userId, userPhone, userEmail, currentLang]);
 
   useEffect(() => {
-    if (!isAuthenticated || loading) {
+    if (!isReady || !isAuthenticated || loading) {
       setCustomerOrders([]);
       setCustomerServices([]);
       setCustomerQuotes([]);
@@ -186,12 +186,12 @@ export const AccountPage: React.FC = () => {
       return;
     }
     loadUserData();
-  }, [isAuthenticated, loading, loadUserData]);
+  }, [isReady, isAuthenticated, loading, loadUserData]);
 
   // 3. Supabase Realtime: auto-refresh customer orders & invoices live
   const customerRealtimeRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
   useEffect(() => {
-    if (!isAuthenticated || !userId || !supabase) return;
+    if (!isReady || !isAuthenticated || !userId || !supabase) return;
 
     const channel = supabase
       .channel(`customer-dashboard-${userId}`)
@@ -320,7 +320,7 @@ export const AccountPage: React.FC = () => {
   // ==========================================
   // Render State 1: Session Loading
   // ==========================================
-  if (loading) {
+  if (loading || !isReady) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center bg-[#FAF8F5] px-4">
         <SEO

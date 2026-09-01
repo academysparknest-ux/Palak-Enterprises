@@ -434,7 +434,7 @@ export const AdminPrintCenterModal: React.FC<AdminPrintCenterModalProps> = ({
       setIdCardPersons([]);
       setCardImagesMap(new Map());
     }
-  }, [isOpen, order?.orderCode, loadPrintJobData]);
+  }, [isOpen, order, loadPrintJobData]);
 
   // Load ID Card Project Data when selected
   useEffect(() => {

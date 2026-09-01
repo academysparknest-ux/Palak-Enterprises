@@ -321,3 +321,4 @@ const incompleteStudent: IdCardPerson = {
 }
 
 console.log('\n🎉 ALL 11 STATUS ENGINE & PRINT READINESS TESTS PASSED ACCURATELY! 🎉\n');
+process.exit(0);

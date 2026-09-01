@@ -18,6 +18,7 @@ import { getProducts, getServices, getCategories } from "./lib/supabase/database
 import { supabase, isSupabaseConfigured } from "./lib/supabase/client";
 import { cn } from "./lib/utils";
 import { AdminRouteGuard } from "./components/admin/AdminRouteGuard";
+import { AppBootstrapScreen } from "./components/AppBootstrapScreen";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Analytics } from "@vercel/analytics/react";
 
@@ -125,7 +126,7 @@ function ScrollToTop() {
 }
 
 export function AppContent() {
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, isReady } = useAuth();
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [modalService, setModalService] = useState<ServiceItem | null>(null);
   const location = useLocation();
@@ -135,7 +136,7 @@ export function AppContent() {
 
   // Catalog synchronization from Supabase: Gated strictly behind auth initialization
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !isReady) return;
     if (!isSupabaseConfigured || !supabase) return;
 
     let isSubscribed = true;
@@ -196,6 +197,12 @@ export function AppContent() {
     setModalService(service);
     setRequestModalOpen(true);
   };
+
+  // Authoritative Application Bootstrap Gate:
+  // Prevents premature Customer / Public shell rendering before role resolution completes
+  if (!isReady && authLoading) {
+    return <AppBootstrapScreen />;
+  }
 
   return (
     <div className={cn(

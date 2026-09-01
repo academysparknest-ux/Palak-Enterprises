@@ -10,14 +10,14 @@
  * Validates metadata without Canvas, OffscreenCanvas, or pixel modification.
  */
 
-export const MIN_PHOTO_BYTES = 50 * 1024; // 50 KB = 51,200 bytes
-export const MAX_PHOTO_BYTES = 500 * 1024; // 500 KB = 512,000 bytes
+export const MIN_PHOTO_BYTES = 5 * 1024; // 5 KB = 5,120 bytes
+export const MAX_PHOTO_BYTES = 15 * 1024 * 1024; // 15 MB = 15,728,640 bytes
 
-export const MIN_PHOTO_WIDTH = 300;
-export const MIN_PHOTO_HEIGHT = 360;
+export const MIN_PHOTO_WIDTH = 250;
+export const MIN_PHOTO_HEIGHT = 250;
 
 export const RECOMMENDED_PHOTO_WIDTH = 600;
-export const RECOMMENDED_PHOTO_HEIGHT = 720;
+export const RECOMMENDED_PHOTO_HEIGHT = 600;
 
 export const ALLOWED_PHOTO_MIME_TYPES = [
   'image/jpeg',
@@ -97,7 +97,7 @@ export function validatePhotoFile(file: { name: string; size: number; type?: str
   if (file.size < MIN_PHOTO_BYTES) {
     return {
       valid: false,
-      error: 'Photo is too small. Minimum file size is 50 KB.',
+      error: 'Photo is too small. Minimum file size is 5 KB.',
     };
   }
 
@@ -105,7 +105,7 @@ export function validatePhotoFile(file: { name: string; size: number; type?: str
   if (file.size > MAX_PHOTO_BYTES) {
     return {
       valid: false,
-      error: 'Photo is too large. Maximum file size is 500 KB.',
+      error: 'Photo is too large. Maximum file size is 15 MB.',
     };
   }
 
@@ -113,7 +113,7 @@ export function validatePhotoFile(file: { name: string; size: number; type?: str
 }
 
 /**
- * Dimension validation (Min 300x360, Recommended 600x720)
+ * Dimension validation (Min 250x250, Recommended 600x600+)
  */
 export function validatePhotoDimensions(
   width: number,
@@ -131,7 +131,10 @@ export function validatePhotoDimensions(
     };
   }
 
-  const isRecommended = width >= RECOMMENDED_PHOTO_WIDTH && height >= RECOMMENDED_PHOTO_HEIGHT;
+  const isRecommended =
+    (width >= RECOMMENDED_PHOTO_WIDTH && height >= 500) ||
+    (width >= 500 && height >= RECOMMENDED_PHOTO_HEIGHT) ||
+    (width >= 600 && height >= 600);
 
   return {
     valid: true,

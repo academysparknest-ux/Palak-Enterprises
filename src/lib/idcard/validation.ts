@@ -130,12 +130,12 @@ export const personSchema = z.object({
     .string()
     .optional()
     .or(z.literal(''))
-    .refine((v) => !v || /^[\+0-9\-\s\(\)]{6,20}$/.test(v), { message: 'Invalid phone number' }),
+    .refine((v) => !v || /^[+0-9\-\s()]{6,20}$/.test(v), { message: 'Invalid phone number' }),
   emergency_number: z
     .string()
     .optional()
     .or(z.literal(''))
-    .refine((v) => !v || /^[\+0-9\-\s\(\)]{6,20}$/.test(v), { message: 'Invalid emergency contact number' }),
+    .refine((v) => !v || /^[+0-9\-\s()]{6,20}$/.test(v), { message: 'Invalid emergency contact number' }),
   address: z.string().trim().optional().or(z.literal('')),
   photo_url: z.string().trim().optional().or(z.literal('')),
 });

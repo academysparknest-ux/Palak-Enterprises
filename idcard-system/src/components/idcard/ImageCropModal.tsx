@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Check,
@@ -10,6 +10,7 @@ import {
   Square,
   AlertCircle,
   Move,
+  Loader2,
 } from 'lucide-react';
 
 export interface ImageCropModalProps {
@@ -40,9 +41,13 @@ export function ImageCropModal({
   const [imageLoaded, setImageLoaded] = useState<boolean>(false);
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  const prevOpenRef = useRef<boolean>(false);
+  const prevImageSrcRef = useRef<string | null>(null);
 
   // Constants
   const CROP_BOX_SIZE = 260; // px on screen
@@ -87,29 +92,43 @@ export function ImageCropModal({
     };
   }, [isOpen, imageSrc]);
 
-  // Reset parameters when image changes or modal opens
+  // Reset parameters ONLY when modal first opens or when source prop itself changes
   useEffect(() => {
-    if (isOpen && (safeImageSrc || imageSrc)) {
+    if (isOpen && (!prevOpenRef.current || prevImageSrcRef.current !== imageSrc)) {
       setZoom(1);
       setRotation(0);
       setOffset({ x: 0, y: 0 });
       setImageLoaded(false);
       setError(null);
+      setIsProcessing(false);
       setShape(cropShape);
     }
-  }, [isOpen, safeImageSrc, imageSrc, cropShape]);
+    prevOpenRef.current = isOpen;
+    prevImageSrcRef.current = imageSrc;
+  }, [isOpen, imageSrc, cropShape]);
+
+  // Synchronously detect if image is already cached/complete in DOM
+  useEffect(() => {
+    if (isOpen && imageRef.current && imageRef.current.complete && imageRef.current.naturalWidth > 0) {
+      setImageLoaded(true);
+      setNaturalSize({
+        width: imageRef.current.naturalWidth,
+        height: imageRef.current.naturalHeight,
+      });
+    }
+  }, [isOpen, safeImageSrc, imageSrc]);
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
-    setImageLoaded(true);
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+      setImageLoaded(true);
 
-    // Initial smart fit zoom
-    const containerRatio = CROP_BOX_SIZE / Math.min(img.naturalWidth, img.naturalHeight);
-    if (containerRatio > 1) {
-      setZoom(Math.min(MAX_ZOOM, Math.max(1, containerRatio)));
-    } else {
-      setZoom(1);
+      // Initial smart fit zoom (only if zoom is at default 1)
+      const containerRatio = CROP_BOX_SIZE / Math.min(img.naturalWidth, img.naturalHeight);
+      if (containerRatio > 1 && zoom === 1) {
+        setZoom(Math.min(MAX_ZOOM, Math.max(1, containerRatio)));
+      }
     }
   };
 
@@ -120,20 +139,28 @@ export function ImageCropModal({
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
   };
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!isDragging) return;
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const onGlobalMouseMove = (e: MouseEvent) => {
       setOffset({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       });
-    },
-    [isDragging, dragStart]
-  );
+    };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
+    const onGlobalMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', onGlobalMouseMove);
+    window.addEventListener('mouseup', onGlobalMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onGlobalMouseMove);
+      window.removeEventListener('mouseup', onGlobalMouseUp);
+    };
+  }, [isDragging, dragStart]);
 
   // Touch handlers for mobile / touch screens
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -178,8 +205,23 @@ export function ImageCropModal({
   };
 
   // Export cropped canvas
-  const handleApplyCrop = () => {
-    if (!imageRef.current || !imageLoaded) return;
+  const handleApplyCrop = async () => {
+    if (isProcessing) return;
+    setError(null);
+
+    const img = imageRef.current;
+    if (!img) {
+      setError('Image element is not available.');
+      return;
+    }
+
+    const isReady = imageLoaded || img.complete || (img.naturalWidth > 0 && img.naturalHeight > 0);
+    if (!isReady || img.naturalWidth === 0 || img.naturalHeight === 0) {
+      setError('Image is still loading. Please wait a moment and try again.');
+      return;
+    }
+
+    setIsProcessing(true);
 
     try {
       const OUTPUT_SIZE = 600; // 600x600 px high-res ID headshot
@@ -210,30 +252,70 @@ export function ImageCropModal({
       // Apply zoom
       ctx.scale(effectiveZoom * scale, effectiveZoom * scale);
 
-      const img = imageRef.current;
+      const naturalW = img.naturalWidth || naturalSize.width;
+      const naturalH = img.naturalHeight || naturalSize.height;
+
       // Draw image centered
-      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2, img.naturalWidth, img.naturalHeight);
+      ctx.drawImage(img, -naturalW / 2, -naturalH / 2, naturalW, naturalH);
       ctx.restore();
 
-      // Convert canvas to Blob & File
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            setError('Failed to generate cropped image.');
-            return;
-          }
-          const cleanName = fileName.replace(/\.[^/.]+$/, '') + '-cropped.jpg';
+      const finishWithBlob = (blob: Blob) => {
+        try {
+          const cleanName = (fileName || 'student-photo.jpg').replace(/\.[^/.]+$/, '') + '-cropped.jpg';
           const croppedFile = new File([blob], cleanName, { type: 'image/jpeg' });
           const previewUrl = URL.createObjectURL(blob);
           onCropComplete(croppedFile, previewUrl);
           onClose();
-        },
-        'image/jpeg',
-        0.92
-      );
+        } catch (err: any) {
+          console.error('Error in onCropComplete callback:', err);
+          setError(err?.message || 'Error processing cropped image.');
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      const dataURItoBlob = (dataURI: string): Blob => {
+        const byteString = atob(dataURI.split(',')[1]);
+        const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+        }
+        return new Blob([ab], { type: mimeString });
+      };
+
+      // Convert canvas to Blob
+      if (typeof canvas.toBlob === 'function') {
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              finishWithBlob(blob);
+            } else {
+              // Fallback to dataURL
+              try {
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+                const blobFallback = dataURItoBlob(dataUrl);
+                finishWithBlob(blobFallback);
+              } catch (e: any) {
+                console.error('DataURL fallback error:', e);
+                setError('Failed to generate cropped image.');
+                setIsProcessing(false);
+              }
+            }
+          },
+          'image/jpeg',
+          0.92
+        );
+      } else {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        const blobFallback = dataURItoBlob(dataUrl);
+        finishWithBlob(blobFallback);
+      }
     } catch (err: any) {
       console.error('Crop export error:', err);
       setError(err?.message || 'Error creating cropped image.');
+      setIsProcessing(false);
     }
   };
 
@@ -245,8 +327,6 @@ export function ImageCropModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs">
       <div
         className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200"
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-3.5">
@@ -269,7 +349,6 @@ export function ImageCropModal({
           <div
             ref={containerRef}
             onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
@@ -485,16 +564,28 @@ export function ImageCropModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+            disabled={isProcessing}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleApplyCrop}
-            className="flex items-center gap-1.5 rounded-xl bg-[#123B70] px-5 py-2 text-xs font-bold text-white hover:bg-[#0e2f5a] shadow-xs transition"
+            disabled={isProcessing}
+            className="flex items-center gap-1.5 rounded-xl bg-[#123B70] px-5 py-2 text-xs font-bold text-white hover:bg-[#0e2f5a] shadow-xs transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Check size={14} /> Crop & Save Photo
+            {isProcessing ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                <span>Saving Photo...</span>
+              </>
+            ) : (
+              <>
+                <Check size={14} />
+                <span>Crop & Save Photo</span>
+              </>
+            )}
           </button>
         </div>
       </div>

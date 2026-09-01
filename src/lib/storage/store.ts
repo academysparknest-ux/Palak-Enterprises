@@ -442,6 +442,7 @@ export function normalizeOrder(raw: any): StoredOrder {
   return {
     id,
     orderCode,
+    clientSubmissionId: raw.client_submission_id || raw.clientSubmissionId || undefined,
     userId: raw.user_id || raw.userId || undefined,
     customerName: custName,
     customerPhone: custPhone,
@@ -781,6 +782,7 @@ export class PalakDataStore {
    * Used by submitPrintOrder which manages its own authoritative Supabase insert.
    */
   static saveOrderToLocal(data: {
+    id?: string;
     orderCode: string;
     clientSubmissionId?: string;
     customerName: string;
@@ -836,7 +838,7 @@ export class PalakDataStore {
     });
 
     const newOrder: StoredOrder = {
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      id: data.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
       orderCode: data.orderCode,
       clientSubmissionId: data.clientSubmissionId,
       userId: data.userId,
@@ -860,7 +862,7 @@ export class PalakDataStore {
       igstAmount: snapshot.igstAmount,
       chargesSnapshot: snapshot,
       printSnapshot: data.printSnapshot,
-      totalAmount: snapshot.grandTotal > 0 ? snapshot.grandTotal : data.totalAmount,
+      totalAmount: data.totalAmount !== undefined && data.totalAmount !== null ? data.totalAmount : snapshot.grandTotal,
       paymentMethod: data.paymentMethod as any,
       paymentStatus: (data.paymentStatus as any) || "pending",
       orderStatus: (data.orderStatus as any) || "NEW",
@@ -875,7 +877,19 @@ export class PalakDataStore {
     };
 
     const list = [...this.getOrders()];
-    list.unshift(newOrder);
+    const cleanCode = (data.orderCode || "").trim().toUpperCase();
+    const existingIdx = list.findIndex(
+      (o) =>
+        (cleanCode && o.orderCode?.trim().toUpperCase() === cleanCode) ||
+        (data.clientSubmissionId && o.clientSubmissionId === data.clientSubmissionId)
+    );
+
+    if (existingIdx >= 0) {
+      const preferredId = (data.id && isValidSupabaseUUID(data.id)) ? data.id : (list[existingIdx].id || newOrder.id);
+      list[existingIdx] = { ...list[existingIdx], ...newOrder, id: preferredId };
+    } else {
+      list.unshift(newOrder);
+    }
     setLocalOrders(list);
 
     this.addStatusHistory({
@@ -1358,9 +1372,17 @@ export class PalakDataStore {
   }
 
   static getOrderByCode(code: string): StoredOrder | undefined {
+    if (!code) return undefined;
     const clean = code.trim().toUpperCase();
     const list = this.getOrders();
-    return list.find((o) => o.orderCode.toUpperCase() === clean);
+    return list.find((o) => o.orderCode?.toUpperCase() === clean || o.id === code);
+  }
+
+  static getOrderBySubmissionId(submissionId: string): StoredOrder | undefined {
+    if (!submissionId) return undefined;
+    const clean = submissionId.trim();
+    const list = this.getOrders();
+    return list.find((o) => o.clientSubmissionId === clean);
   }
 
   static getOrdersByPhone(phone: string): StoredOrder[] {

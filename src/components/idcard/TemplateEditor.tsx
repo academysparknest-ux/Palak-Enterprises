@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Eye,
   EyeOff,
@@ -49,6 +49,7 @@ import {
   TEMPLATE_PRESETS,
   SAMPLE_TEMPLATE_1_LAYOUT,
   formatFieldDisplay,
+  applyGlobalTextCase,
   renderFormattedRichText,
   getCustomDefaultTemplate,
   saveCustomDefaultTemplate,
@@ -63,6 +64,10 @@ import type {
   TemplateSideLayout,
   IdCardTemplate,
 } from '../../lib/idcard/types';
+import {
+  resolveTemplateFieldValue,
+  resolveCanonicalFieldKey,
+} from '../../lib/idcard/dataBindingRegistry';
 
 // ============================================================
 // CONSTANTS & TYPES
@@ -237,7 +242,10 @@ export function TemplateEditor({
   }, [layout, onChange]);
 
   // Current side fields and configuration
-  const activeFields = currentSide === 'front' ? layout.fields || [] : layout.back?.fields || [];
+  const activeFields = useMemo(
+    () => (currentSide === 'front' ? layout.fields || [] : layout.back?.fields || []),
+    [currentSide, layout.fields, layout.back?.fields]
+  );
   const activeBgColor =
     currentSide === 'front'
       ? layout.backgroundColor || '#FFFFFF'
@@ -1735,6 +1743,35 @@ export function TemplateEditor({
             <Magnet size={13} /> Guides
           </button>
 
+          {/* Global Template Text Case Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              const currentCase = layout.textCase || 'uppercase';
+              const nextCase = currentCase === 'uppercase' ? 'normal' : 'uppercase';
+              const nextLayout: TemplateLayout = { ...layout, textCase: nextCase };
+              onChange(nextLayout);
+              pushHistory(nextLayout);
+            }}
+            aria-label="Global template text case"
+            aria-pressed={(layout.textCase || 'uppercase') === 'uppercase'}
+            title={
+              (layout.textCase || 'uppercase') === 'uppercase'
+                ? 'Controls the capitalization of all text on this template.\nAll template text is displayed in uppercase. Click to switch to NORMAL.'
+                : 'Controls the capitalization of all text on this template.\nText keeps its original capitalization. Click to switch to UPPERCASE.'
+            }
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
+              (layout.textCase || 'uppercase') === 'uppercase'
+                ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <span className="font-mono text-[11px] font-extrabold tracking-tight px-1 py-0.5 rounded bg-black/5">
+              {(layout.textCase || 'uppercase') === 'uppercase' ? 'AA' : 'Aa'}
+            </span>
+            <span>{(layout.textCase || 'uppercase') === 'uppercase' ? 'UPPERCASE' : 'NORMAL'}</span>
+          </button>
+
           {/* Live Roster Student Preview Switcher */}
           {persons.length > 0 && (
             <div className="flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50/70 p-1 text-xs text-purple-900">
@@ -2098,27 +2135,10 @@ export function TemplateEditor({
                 const isSelected = selectedFieldId === field.id;
                 const isImg = IMAGE_FIELDS.includes(field.key);
 
-                // Check live student roster preview data
-                let studentDataVal: string | null = null;
-                if (activePreviewPerson) {
-                  if (field.key === 'student_name') studentDataVal = activePreviewPerson.name;
-                  else if (field.key === 'student_id') studentDataVal = activePreviewPerson.student_id;
-                  else if (field.key === 'class') studentDataVal = activePreviewPerson.class;
-                  else if (field.key === 'section') studentDataVal = activePreviewPerson.section;
-                  else if (field.key === 'roll_number') studentDataVal = activePreviewPerson.roll_number;
-                  else if (field.key === 'father_name') studentDataVal = activePreviewPerson.father_name;
-                  else if (field.key === 'mother_name') studentDataVal = activePreviewPerson.mother_name;
-                  else if (field.key === 'date_of_birth') studentDataVal = activePreviewPerson.date_of_birth;
-                  else if (field.key === 'blood_group') studentDataVal = activePreviewPerson.blood_group;
-                  else if (field.key === 'phone') studentDataVal = activePreviewPerson.phone;
-                  else if (field.key === 'emergency_no') studentDataVal = activePreviewPerson.emergency_number || activePreviewPerson.phone;
-                  else if (field.key === 'address') studentDataVal = activePreviewPerson.address;
-                  else if (field.customKey && activePreviewPerson.custom_fields?.[field.customKey]) {
-                    studentDataVal = String(activePreviewPerson.custom_fields[field.customKey]);
-                  } else if (activePreviewPerson.custom_fields?.[field.key]) {
-                    studentDataVal = String(activePreviewPerson.custom_fields[field.key]);
-                  }
-                }
+                // Universal dynamic student & template value resolution
+                const resolvedVal = activePreviewPerson
+                  ? resolveTemplateFieldValue(field, activePreviewPerson, { schoolName })
+                  : '';
 
                 const fieldDefaultText =
                   field.key === 'school_name'
@@ -2128,13 +2148,14 @@ export function TemplateEditor({
                     : (FIELD_LABELS[field.key] || field.key);
 
                 const rawText =
-                  studentDataVal !== null && studentDataVal !== ''
-                    ? studentDataVal
+                  resolvedVal !== ''
+                    ? resolvedVal
                     : field.customText !== undefined && field.customText !== ''
                     ? field.customText
                     : fieldDefaultText;
 
-                const displayText = formatFieldDisplay(field.labelPrefix, rawText);
+                const effectiveTextCase = layout.textCase || 'uppercase';
+                const displayText = applyGlobalTextCase(formatFieldDisplay(field.labelPrefix, rawText), effectiveTextCase);
 
                 return (
                   <div
@@ -2979,6 +3000,84 @@ export function TemplateEditor({
                       <span>Required</span>
                     </label>
                   )}
+                </div>
+              )}
+
+              {/* ── Central Data Binding Inspector & Target Re-binder ── */}
+              {selectedField.key !== 'school_logo' && selectedField.key !== 'qr_code' && selectedField.key !== 'barcode' && (
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-2.5 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-950 text-[11px] flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-indigo-600 animate-pulse" />
+                      Canonical Data Binding
+                    </span>
+                    {(() => {
+                      const isDynamic = selectedField.source === 'dynamic' || ['student_name', 'student_id', 'student_photo', 'class', 'section', 'roll_number', 'date_of_birth', 'blood_group', 'father_name', 'mother_name', 'phone', 'emergency_no', 'address'].includes(selectedField.key);
+                      if (!isDynamic) return <span className="text-[10px] text-slate-500 font-medium">Static Text</span>;
+
+                      const val = activePreviewPerson ? resolveTemplateFieldValue(selectedField, activePreviewPerson, { schoolName }) : '';
+                      return (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${val ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {val ? '✓ Bound to Data' : '⚠ Empty for Current Student'}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <label className="block text-[10px] font-semibold text-slate-600">
+                      Bind to Student Field:
+                      <select
+                        value={selectedField.binding?.fieldId || resolveCanonicalFieldKey(selectedField)}
+                        onChange={(e) => {
+                          const newKey = e.target.value;
+                          const isStatic = newKey === 'custom_text' || newKey === 'school_name' || newKey === 'school_subtitle';
+                          updateSelectedField({
+                            key: newKey as any,
+                            source: isStatic ? 'static' : 'dynamic',
+                            binding: {
+                              type: isStatic ? 'static' : 'student_field',
+                              fieldId: newKey,
+                            },
+                          });
+                        }}
+                        className="mt-0.5 w-full rounded border border-indigo-300 bg-white px-2 py-1 text-xs font-semibold text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <optgroup label="Core Student Fields">
+                          <option value="student_name">Student Name (student_name)</option>
+                          <option value="student_id">Student ID / Adm No (student_id)</option>
+                          <option value="class">Class / Standard (class)</option>
+                          <option value="section">Section (section)</option>
+                          <option value="roll_number">Roll Number (roll_number)</option>
+                          <option value="date_of_birth">Date of Birth (date_of_birth)</option>
+                          <option value="blood_group">Blood Group (blood_group)</option>
+                        </optgroup>
+                        <optgroup label="Family & Contact">
+                          <option value="father_name">Father's Name (father_name)</option>
+                          <option value="mother_name">Mother's Name (mother_name)</option>
+                          <option value="phone">Phone / Mobile (phone)</option>
+                          <option value="emergency_no">Emergency Contact No (emergency_no)</option>
+                          <option value="address">Address (address)</option>
+                        </optgroup>
+                        <optgroup label="Static & Institution">
+                          <option value="school_name">School Name (Static)</option>
+                          <option value="school_subtitle">School Subtitle (Static)</option>
+                          <option value="academic_year">Academic Year (Static)</option>
+                          <option value="terms">Terms & Conditions (Static)</option>
+                          <option value="custom_text">Custom Text (Static)</option>
+                        </optgroup>
+                      </select>
+                    </label>
+
+                    {activePreviewPerson && (
+                      <div className="flex items-center justify-between text-[10.5px] bg-white/80 p-1.5 rounded border border-indigo-100">
+                        <span className="text-slate-500">Live Sample Value:</span>
+                        <span className="font-bold text-indigo-900 truncate max-w-[180px]">
+                          {resolveTemplateFieldValue(selectedField, activePreviewPerson, { schoolName }) || <span className="text-slate-400 font-normal italic">None (blank)</span>}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -3866,6 +3965,13 @@ export function TemplateEditor({
                   </button>
                   <button
                     type="button"
+                    onClick={() => addField('section')}
+                    className="flex items-center gap-1 rounded bg-slate-100 px-2 py-0.8 text-[11px] font-semibold text-slate-700 hover:bg-slate-200"
+                  >
+                    + Sec
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => addField('roll_number')}
                     className="flex items-center gap-1 rounded bg-slate-100 px-2 py-0.8 text-[11px] font-semibold text-slate-700 hover:bg-slate-200"
                   >
@@ -3899,6 +4005,13 @@ export function TemplateEditor({
                     className="flex items-center gap-1 rounded bg-purple-50 px-2 py-0.8 text-[11px] font-semibold text-purple-700 hover:bg-purple-100 border border-purple-200"
                   >
                     + Father's Name
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addField('mother_name')}
+                    className="flex items-center gap-1 rounded bg-purple-50 px-2 py-0.8 text-[11px] font-semibold text-purple-700 hover:bg-purple-100 border border-purple-200"
+                  >
+                    + Mother's Name
                   </button>
                   <button
                     type="button"

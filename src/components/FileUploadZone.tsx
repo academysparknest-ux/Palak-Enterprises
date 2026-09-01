@@ -3,6 +3,8 @@ import { UploadCloud, File, X, CheckCircle2, AlertCircle } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { cn } from "../lib/utils";
 
+import { QUICK_SERVICE_MAX_FILE_SIZE_MB } from "../config/quickServiceConfig";
+
 interface FileUploadZoneProps {
   onFileSelect: (fileData: { name: string; size: number; url: string } | null) => void;
   selectedFile?: { name: string; size: number; url: string } | null;
@@ -18,7 +20,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   label,
   helperText,
   accept = ".pdf,.jpg,.jpeg,.png,.webp,.docx,.cdr,.ai,.psd",
-  maxSizeMB = 25,
+  maxSizeMB = QUICK_SERVICE_MAX_FILE_SIZE_MB,
 }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
@@ -33,10 +35,11 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
 
     // Size validation
     if (file.size > maxSizeMB * 1024 * 1024) {
+      const selectedMB = (file.size / (1024 * 1024)).toFixed(2);
       setError(
         currentLang === "hi"
-          ? `फ़ाइल बहुत बड़ी है (अधिकतम ${maxSizeMB}MB)`
-          : `File size exceeds max limit of ${maxSizeMB}MB`
+          ? `फ़ाइल बहुत बड़ी है (${selectedMB} MB)। अधिकतम सीमा ${maxSizeMB} MB है।`
+          : `File "${file.name}" (${selectedMB} MB) exceeds maximum allowed size of ${maxSizeMB} MB.`
       );
       return;
     }
