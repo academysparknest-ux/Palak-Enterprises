@@ -24,7 +24,7 @@ import {
   subscribeToPrintPricing,
 } from "../supabase/database";
 import { formatPrice, roundPrice } from "../utils";
-import { calculateDocumentPrintPriceComplete } from "../pricing/printPricingEngine";
+import { calculateDocumentPrintPriceComplete, buildOrderPrintSnapshot } from "../pricing/printPricingEngine";
 import type { DocumentPrintConfig } from "../../types/printJob";
 
 let passed = 0;
@@ -259,6 +259,121 @@ assert(historicalOrder.unit_price === 2.0, "Historical order unit_price is prese
 assert(historicalOrder.total_price === 100.0, "Historical order total_price is preserved at ₹100.0");
 assert(historicalOrder.print_snapshot.grandTotal === 100.0, "Historical snapshot grandTotal remains ₹100.0");
 assert(newAdminPricing.documentPrinting.baseRatePerPage.bwSingle === 5.0, "New pricing reflects ₹5.0 independently");
+
+// ────────────────────────────────────────────────────────────────
+// Section 6: Live Binding Recalculation & Transparent Breakdown
+// ────────────────────────────────────────────────────────────────
+section("6. Live Binding Recalculation & Transparent Breakdown");
+
+const baseDoc: Partial<DocumentPrintConfig> = {
+  paperSize: "a4",
+  colorMode: "bw",
+  sides: "single",
+  gsm: 70,
+  paperType: "normal",
+  binding: "none",
+  frontCover: "none",
+  backCover: "none",
+  copies: 1,
+  totalPages: 10,
+  pageRangeType: "all",
+};
+
+// 1. Binding Option Transitions: None -> Staple -> Spiral -> Comb -> Soft -> Hard -> None
+const rNone = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "none" });
+assert(rNone.priceBreakdown.bindingCost === 0, "Binding none gives ₹0 bindingCost");
+assert(rNone.totalPrice === 20, "10 pages B/W single side = ₹20 with no binding");
+
+const rStaple = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "staple" });
+assert(rStaple.priceBreakdown.bindingCost === 5, "Binding staple gives ₹5 bindingCost");
+assert(rStaple.totalPrice === 25, "10 pages B/W single side + staple = ₹25");
+
+const rSpiral = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "spiral" });
+assert(rSpiral.priceBreakdown.bindingCost === 30, "Binding spiral gives ₹30 bindingCost");
+assert(rSpiral.totalPrice === 50, "10 pages B/W single side + spiral = ₹50");
+
+const rComb = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "comb" });
+assert(rComb.priceBreakdown.bindingCost === 25, "Binding comb gives ₹25 bindingCost");
+assert(rComb.totalPrice === 45, "10 pages B/W single side + comb = ₹45");
+
+const rSoft = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "soft" });
+assert(rSoft.priceBreakdown.bindingCost === 80, "Binding soft gives ₹80 bindingCost");
+assert(rSoft.totalPrice === 100, "10 pages B/W single side + soft = ₹100");
+
+const rHard = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "hard" });
+assert(rHard.priceBreakdown.bindingCost === 150, "Binding hard gives ₹150 bindingCost");
+assert(rHard.totalPrice === 170, "10 pages B/W single side + hard = ₹170");
+
+// Verify removing binding restores original price immediately
+const rResetNone = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "none" });
+assert(rResetNone.priceBreakdown.bindingCost === 0, "Resetting binding back to none gives ₹0");
+assert(rResetNone.totalPrice === 20, "Resetting binding drops total back to ₹20");
+
+// 2. Thermal Lamination: OFF -> ON -> OFF
+const rNoLam = calculateDocumentPrintPriceComplete({ ...baseDoc, finishing: { lamination: false } });
+assert((rNoLam.priceBreakdown.laminationCost || 0) === 0, "Lamination OFF gives ₹0 laminationCost");
+
+const rWithLam = calculateDocumentPrintPriceComplete({ ...baseDoc, finishing: { lamination: true } });
+// 10 single-sided sheets * ₹15/sheet = ₹150
+assert(rWithLam.priceBreakdown.laminationCost === 150, "Lamination ON gives 10 sheets * ₹15 = ₹150");
+assert(rWithLam.totalPrice === 170, "Base ₹20 + Lamination ₹150 = ₹170");
+
+const rLamReset = calculateDocumentPrintPriceComplete({ ...baseDoc, finishing: { lamination: false } });
+assert((rLamReset.priceBreakdown.laminationCost || 0) === 0, "Lamination toggled OFF gives ₹0");
+assert(rLamReset.totalPrice === 20, "Total reverts back to ₹20 after toggling lamination OFF");
+
+// 3. Covers: None -> Transparent Front & Black Back -> None
+const rCovers = calculateDocumentPrintPriceComplete({
+  ...baseDoc,
+  frontCover: "transparent",
+  backCover: "black",
+});
+assert(rCovers.priceBreakdown.frontCoverCost === 10, "Transparent front cover is ₹10");
+assert(rCovers.priceBreakdown.backCoverCost === 15, "Black back cover is ₹15");
+assert(rCovers.totalPrice === 45, "Base ₹20 + Covers ₹25 = ₹45");
+
+// 4. Copies Multiplier: 1 copy -> 3 copies
+const r3Copies = calculateDocumentPrintPriceComplete({ ...baseDoc, copies: 3 });
+assert(r3Copies.itemPrice === 20, "Cost per copy remains ₹20");
+assert(r3Copies.totalPrice === 60, "3 copies total ₹60");
+
+// 5. Custom Page Range: All (10 pgs) -> Custom "1-3, 5" (4 pgs)
+const rRange = calculateDocumentPrintPriceComplete({
+  ...baseDoc,
+  pageRangeType: "custom",
+  customPageRange: "1-3, 5",
+});
+assert(rRange.selectedPageCount === 4, "Custom page range parsed to 4 pages");
+assert(rRange.totalPrice === 8, "4 pages * ₹2 = ₹8");
+
+// 6. Comprehensive Multi-Attribute Configuration
+// 10 pages, Color double-sided (DEFAULT_PRINT_PRICING: ₹9/pg * 10 = ₹90), A3 size (2x = ₹180),
+// 2 copies, Spiral (₹30), Transparent front (₹10), Lamination (5 sheets * ₹15 * 2x size = ₹150), 70 GSM (+₹0)
+// Item price = ₹180 + ₹30 + ₹10 + ₹150 = ₹370 per copy
+// Total price for 2 copies = ₹740
+const complexConfig: Partial<DocumentPrintConfig> = {
+  paperSize: "a3",
+  colorMode: "color",
+  sides: "double_long",
+  gsm: 70,
+  copies: 2,
+  totalPages: 10,
+  binding: "spiral",
+  frontCover: "transparent",
+  finishing: { lamination: true },
+};
+
+const rComplex = calculateDocumentPrintPriceComplete(complexConfig, DEFAULT_PRINT_PRICING);
+assert(rComplex.itemPrice === 370, "Complex configuration unit cost is exactly ₹370");
+assert(rComplex.totalPrice === 740, "Complex configuration total for 2 copies is exactly ₹740");
+assert(rComplex.priceBreakdown.ratePerPageApplied === 9, "Breakdown includes ratePerPageApplied = ₹9");
+assert(rComplex.priceBreakdown.sizeMultiplierApplied === 2, "Breakdown includes sizeMultiplierApplied = 2x");
+assert(rComplex.priceBreakdown.bindingCost === 30, "Breakdown includes bindingCost = ₹30");
+assert(rComplex.priceBreakdown.laminationCost === 150, "Breakdown includes laminationCost = ₹150");
+
+// 7. Order Snapshot Consistency Guarantee
+const snapshot = buildOrderPrintSnapshot([complexConfig as DocumentPrintConfig], 0, "test-v1", DEFAULT_PRINT_PRICING);
+assert(snapshot.grandTotal === rComplex.totalPrice, "Order snapshot grandTotal perfectly matches document total");
 
 // ────────────────────────────────────────────────────────────────
 // Summary

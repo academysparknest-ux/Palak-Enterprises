@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import {
   Upload,
@@ -117,6 +117,42 @@ function clearDocPrintSubmissionId(): void {
   try {
     sessionStorage.removeItem(DOCPRINT_SUBMISSION_KEY);
   } catch {}
+}
+
+function getBindingLabel(type?: BindingType | string): string {
+  switch (type) {
+    case "staple":
+      return "Corner / Saddle Staple";
+    case "spiral":
+      return "Spiral Binding";
+    case "comb":
+      return "Comb Binding";
+    case "soft":
+      return "Soft Paper Binding";
+    case "hard":
+      return "Hard Bound";
+    case "none":
+    default:
+      return "None (Loose Sheets)";
+  }
+}
+
+function getCoverLabel(cover?: CoverOption | string): string {
+  switch (cover) {
+    case "transparent":
+      return "Transparent Sheet";
+    case "white":
+      return "White Card";
+    case "black":
+      return "Matte Black";
+    case "color":
+      return "Color Card";
+    case "custom":
+      return "Custom Card";
+    case "none":
+    default:
+      return "None";
+  }
 }
 
 export const DocumentPrintingPage: React.FC = () => {
@@ -483,10 +519,13 @@ export const DocumentPrintingPage: React.FC = () => {
     setDocuments((prev) =>
       prev.map((d) => {
         if (d.id !== docId) return d;
+        const docVerifiedPages = d.pages !== null && d.pages > 0 ? d.pages : null;
         let merged = { ...d.config, ...updates };
 
-        // Invariant: If 1 page file or 1-page selection, sides must be "single"
-        const totalP = Math.max(1, Math.floor(Number(merged.totalPages) || (d.pages || 1)));
+        // Authoritative page count priority: verified document pages first
+        const totalP = docVerifiedPages || Math.max(1, Math.floor(Number(merged.totalPages) || 1));
+        merged.totalPages = totalP;
+
         const rangeRes = parsePageRange(
           merged.pageRangeType === "custom" ? merged.customPageRange : undefined,
           totalP
@@ -507,8 +546,8 @@ export const DocumentPrintingPage: React.FC = () => {
             colorPageCount: calc.colorPageCount,
             physicalSheetsPerCopy: calc.physicalSheetsPerCopy,
             totalPhysicalSheets: calc.totalPhysicalSheets,
-            itemPrice: calc.itemPrice,
-            totalPrice: calc.totalPrice,
+            itemPrice: docVerifiedPages ? calc.itemPrice : 0,
+            totalPrice: docVerifiedPages ? calc.totalPrice : 0,
             priceBreakdown: calc.priceBreakdown,
           },
         };
@@ -520,11 +559,12 @@ export const DocumentPrintingPage: React.FC = () => {
   const applySettingsToAllDocuments = (sourceConfig: DocumentPrintConfig) => {
     setDocuments((prev) =>
       prev.map((d) => {
-        const docPages = d.pages || d.config.totalPages || 1;
+        const docPages = d.pages !== null && d.pages > 0 ? d.pages : (d.config.totalPages || 1);
         const targetSides = docPages <= 1 ? "single" : sourceConfig.sides;
 
         const merged: Partial<DocumentPrintConfig> = {
           ...d.config,
+          totalPages: docPages,
           colorMode: sourceConfig.colorMode,
           paperSize: sourceConfig.paperSize,
           paperType: sourceConfig.paperType,
@@ -540,6 +580,7 @@ export const DocumentPrintingPage: React.FC = () => {
           copies: sourceConfig.copies,
         };
         const calc = calculateDocumentPrintPriceComplete(merged, pricingConfig);
+        const verifiedPages = d.pages !== null && d.pages > 0;
         return {
           ...d,
           config: {
@@ -550,8 +591,8 @@ export const DocumentPrintingPage: React.FC = () => {
             colorPageCount: calc.colorPageCount,
             physicalSheetsPerCopy: calc.physicalSheetsPerCopy,
             totalPhysicalSheets: calc.totalPhysicalSheets,
-            itemPrice: calc.itemPrice,
-            totalPrice: calc.totalPrice,
+            itemPrice: verifiedPages ? calc.itemPrice : 0,
+            totalPrice: verifiedPages ? calc.totalPrice : 0,
             priceBreakdown: calc.priceBreakdown,
           },
         };
@@ -608,12 +649,55 @@ export const DocumentPrintingPage: React.FC = () => {
     (d) => d.metadata?.pageCountStatus === "failed" || d.metadata?.pageCountStatus === "unsupported"
   );
 
-  // Recalculate Order Snapshot Live (Using authoritative verified page counts)
-  const orderSnapshot: OrderPrintSnapshot = buildOrderPrintSnapshot(
-    documents.map((d) => d.config),
-    0,
-    "2026-08-22-v1"
-  );
+  // Derived documents with authoritative calculations in the same render frame
+  const calculatedDocs = useMemo(() => {
+    return documents.map((doc) => {
+      const verifiedPages = doc.pages !== null && doc.pages > 0;
+      const totalPages = verifiedPages ? doc.pages! : Math.max(1, Math.floor(Number(doc.config.totalPages) || 1));
+      const rangeRes = parsePageRange(
+        doc.config.pageRangeType === "custom" ? doc.config.customPageRange : undefined,
+        totalPages
+      );
+      const selectedCount = rangeRes.valid ? rangeRes.pages.length : totalPages;
+      const effectiveSides =
+        selectedCount <= 1 || (doc.pages !== null && doc.pages <= 1 && doc.config.pageRangeType === "all")
+          ? "single"
+          : doc.config.sides;
+
+      const mergedConfig: DocumentPrintConfig = {
+        ...doc.config,
+        totalPages,
+        sides: effectiveSides,
+      };
+
+      const calc = calculateDocumentPrintPriceComplete(mergedConfig, pricingConfig);
+
+      return {
+        ...doc,
+        config: {
+          ...mergedConfig,
+          selectedPageCount: calc.selectedPageCount,
+          bwPageCount: calc.bwPageCount,
+          colorPageCount: calc.colorPageCount,
+          physicalSheetsPerCopy: calc.physicalSheetsPerCopy,
+          totalPhysicalSheets: calc.totalPhysicalSheets,
+          itemPrice: verifiedPages ? calc.itemPrice : 0,
+          totalPrice: verifiedPages ? calc.totalPrice : 0,
+          priceBreakdown: calc.priceBreakdown,
+        },
+      };
+    });
+  }, [documents, pricingConfig]);
+
+  // Recalculate Order Snapshot Live (Using authoritative verified page counts & canonical pricing)
+  const orderSnapshot: OrderPrintSnapshot = useMemo(() => {
+    return buildOrderPrintSnapshot(
+      calculatedDocs.map((d) => d.config),
+      0,
+      "2026-08-22-v1",
+      pricingConfig
+    );
+  }, [calculatedDocs, pricingConfig]);
 
   const getDocTypeLabel = () => {
     const found = DOCUMENT_TYPES.find((d) => d.id === selectedDocType);
@@ -857,14 +941,14 @@ export const DocumentPrintingPage: React.FC = () => {
       // 4. PROCESSING
       tracer.startStep("document_processing", "PROCESSING");
       transitionTo("PROCESSING", "Verifying snapshot & compiling specifications");
-      const snapshotDocsWithUrls: DocumentPrintConfig[] = documents.map((doc, idx) => ({
+      const snapshotDocsWithUrls: DocumentPrintConfig[] = calculatedDocs.map((doc, idx) => ({
         ...doc.config,
         fileUrl: uploadedResults[idx]?.url || "",
         storagePath: uploadedResults[idx]?.storagePath || "",
         mimeType: uploadedResults[idx]?.mimeType || "application/pdf",
       }));
 
-      const finalSnapshot = buildOrderPrintSnapshot(snapshotDocsWithUrls, 0, "2026-08-22-v1");
+      const finalSnapshot = buildOrderPrintSnapshot(snapshotDocsWithUrls, 0, "2026-08-22-v1", pricingConfig);
 
       const primaryFile = uploadedResults[0] || {
         name: documents[0]?.name || "Document",
@@ -1328,7 +1412,7 @@ export const DocumentPrintingPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {documents.map((doc, idx) => {
+                  {calculatedDocs.map((doc, idx) => {
                     const c = doc.config;
 
                     return (
@@ -1989,24 +2073,179 @@ export const DocumentPrintingPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Document List in Summary */}
-              {documents.length > 0 && (
-                <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
-                  <span className="text-[11px] font-bold text-slate-400 block uppercase">
-                    Document Breakdown
-                  </span>
-                  {documents.map((d, i) => (
-                    <div key={d.id} className="flex justify-between items-center text-slate-700">
-                      <span className="truncate max-w-[150px] font-medium">
-                        #{i + 1} {d.name}
-                      </span>
-                      <span className="font-bold text-slate-900">
-                        {d.pages !== null && d.metadata?.pageCountVerified
-                          ? formatPrice(d.config.totalPrice)
-                          : "Calculating..."}
-                      </span>
-                    </div>
-                  ))}
+              {/* Detailed Authoritative Document Breakdown */}
+              {calculatedDocs.length > 0 && (
+                <div className="pt-3 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      {currentLang === "hi" ? "दस्तावेज शुल्क विवरण" : "Itemized Cost Breakdown"}
+                    </span>
+                    <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      Live Recalculation
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                    {calculatedDocs.map((d, i) => {
+                      const c = d.config;
+                      const bd = c.priceBreakdown;
+                      const isVerified = d.pages !== null && d.metadata?.pageCountVerified;
+
+                      return (
+                        <div
+                          key={d.id}
+                          className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs space-y-2 transition-all hover:bg-slate-50"
+                        >
+                          {/* File Header */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-extrabold text-slate-800 shrink-0">#{i + 1}</span>
+                                <span className="font-semibold text-slate-900 truncate" title={d.name}>
+                                  {d.name}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1 mt-1 text-[10px] text-slate-500 font-medium">
+                                <span className="bg-white border border-slate-200 px-1.5 py-0.2 rounded font-bold uppercase text-slate-700">
+                                  {c.paperSize}
+                                </span>
+                                <span className="bg-white border border-slate-200 px-1.5 py-0.2 rounded font-semibold text-slate-700">
+                                  {c.colorMode === "bw" ? "B/W" : c.colorMode === "color" ? "Color" : "Mixed"}
+                                </span>
+                                <span className="bg-white border border-slate-200 px-1.5 py-0.2 rounded font-semibold text-slate-700">
+                                  {c.sides === "single" ? "Single Sided" : "Double Sided"}
+                                </span>
+                                <span className="bg-white border border-slate-200 px-1.5 py-0.2 rounded font-semibold text-slate-700">
+                                  {c.copies} {c.copies === 1 ? "copy" : "copies"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span className="font-black text-[#123B70] text-sm block">
+                                {isVerified ? formatPrice(c.totalPrice) : "..."}
+                              </span>
+                              {isVerified && c.copies > 1 && (
+                                <span className="text-[10px] text-slate-400 block">
+                                  ({formatPrice(c.itemPrice)} / copy)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Line items if verified */}
+                          {isVerified ? (
+                            <div className="pt-2 border-t border-slate-200/60 space-y-1 text-[11px] text-slate-600">
+                              {/* 1. Base Printing */}
+                              {c.colorMode === "mixed" ? (
+                                <>
+                                  <div className="flex justify-between">
+                                    <span>
+                                      B/W Print ({c.bwPageCount} pgs × {formatPrice(c.sides === "single" ? pricingConfig.documentPrinting.baseRatePerPage.bwSingle : pricingConfig.documentPrinting.baseRatePerPage.bwDouble)})
+                                    </span>
+                                    <span className="font-semibold text-slate-800">{formatPrice(bd?.bwPrintCost || 0)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>
+                                      Color Print ({c.colorPageCount} pgs × {formatPrice(c.sides === "single" ? pricingConfig.documentPrinting.baseRatePerPage.colorSingle : pricingConfig.documentPrinting.baseRatePerPage.colorDouble)})
+                                    </span>
+                                    <span className="font-semibold text-slate-800">{formatPrice(bd?.colorPrintCost || 0)}</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="flex justify-between">
+                                  <span>
+                                    Base Print ({c.selectedPageCount} pgs × {formatPrice(bd?.ratePerPageApplied || 0)}{bd?.sizeMultiplierApplied && bd.sizeMultiplierApplied > 1 ? ` × ${bd.sizeMultiplierApplied}x size` : ""})
+                                  </span>
+                                  <span className="font-semibold text-slate-800">
+                                    {formatPrice(c.colorMode === "color" ? (bd?.colorPrintCost || 0) : (bd?.bwPrintCost || 0))}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* 2. Paper / GSM Surcharge */}
+                              {(bd?.paperCost || 0) > 0 ? (
+                                <div className="flex justify-between">
+                                  <span>
+                                    Paper / GSM ({c.paperType !== "normal" ? `${c.paperType} ` : ""}{c.gsm} GSM, {c.physicalSheetsPerCopy} sh)
+                                  </span>
+                                  <span className="font-semibold text-slate-800">{formatPrice(bd?.paperCost || 0)}</span>
+                                </div>
+                              ) : (
+                                <div className="flex justify-between text-slate-400">
+                                  <span>Paper ({c.paperSize.toUpperCase()} {c.gsm} GSM Standard)</span>
+                                  <span>₹0.00</span>
+                                </div>
+                              )}
+
+                              {/* 3. Binding Option */}
+                              <div className="flex justify-between">
+                                <span>Binding: {getBindingLabel(c.binding)}</span>
+                                <span className={cn("font-semibold", (bd?.bindingCost || 0) > 0 ? "text-slate-800" : "text-slate-400")}>
+                                  {formatPrice(bd?.bindingCost || 0)}
+                                </span>
+                              </div>
+
+                              {/* 4. Covers */}
+                              {c.frontCover && c.frontCover !== "none" && (
+                                <div className="flex justify-between">
+                                  <span>Front Cover: {getCoverLabel(c.frontCover)}</span>
+                                  <span className="font-semibold text-slate-800">{formatPrice(bd?.frontCoverCost || 0)}</span>
+                                </div>
+                              )}
+                              {c.backCover && c.backCover !== "none" && (
+                                <div className="flex justify-between">
+                                  <span>Back Cover: {getCoverLabel(c.backCover)}</span>
+                                  <span className="font-semibold text-slate-800">{formatPrice(bd?.backCoverCost || 0)}</span>
+                                </div>
+                              )}
+
+                              {/* 5. Finishing Extras */}
+                              {(bd?.laminationCost || 0) > 0 && (
+                                <div className="flex justify-between">
+                                  <span>Thermal Lamination ({c.physicalSheetsPerCopy} sheets)</span>
+                                  <span className="font-semibold text-slate-800">{formatPrice(bd?.laminationCost || 0)}</span>
+                                </div>
+                              )}
+                              {(bd?.holePunchCost || 0) > 0 && (
+                                <div className="flex justify-between">
+                                  <span>Hole Punching ({c.physicalSheetsPerCopy} sheets)</span>
+                                  <span className="font-semibold text-slate-800">{formatPrice(bd?.holePunchCost || 0)}</span>
+                                </div>
+                              )}
+                              {(bd?.cuttingCost || 0) > 0 && (
+                                <div className="flex justify-between">
+                                  <span>Paper Cutting / Trimming</span>
+                                  <span className="font-semibold text-slate-800">{formatPrice(bd?.cuttingCost || 0)}</span>
+                                </div>
+                              )}
+                              {(bd?.bookletCost || 0) > 0 && (
+                                <div className="flex justify-between">
+                                  <span>Booklet Mode</span>
+                                  <span className="font-semibold text-slate-800">{formatPrice(bd?.bookletCost || 0)}</span>
+                                </div>
+                              )}
+
+                              {/* 6. Copies calculation if > 1 */}
+                              {c.copies > 1 && (
+                                <div className="flex justify-between pt-1 border-t border-dashed border-slate-200 font-bold text-slate-900">
+                                  <span>Subtotal ({formatPrice(c.itemPrice)} × {c.copies} copies)</span>
+                                  <span>{formatPrice(c.totalPrice)}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-amber-600 font-semibold pt-1">
+                              {d.metadata?.pageCountStatus === "analyzing"
+                                ? "⏳ Analyzing page count..."
+                                : "⚠️ Page count verification required"}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -2066,17 +2305,23 @@ export const DocumentPrintingPage: React.FC = () => {
               </div>
 
               {/* Total Calculation */}
-              <div className="pt-3 border-t-2 border-slate-200 flex justify-between items-baseline">
-                <span className="text-sm font-extrabold text-slate-900">
-                  {currentLang === "hi" ? "कुल अनुमानित राशि" : "Estimated Total"}
-                </span>
-                <span className="text-2xl font-black text-[#123B70]">
-                  {hasUnverifiedDocs ? (
-                    <span className="text-sm text-slate-400 font-bold italic">Calculating...</span>
-                  ) : (
-                    formatPrice(orderSnapshot.grandTotal)
-                  )}
-                </span>
+              <div className="pt-3 border-t-2 border-slate-200 space-y-1">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-extrabold text-slate-900">
+                    {currentLang === "hi" ? "कुल अनुमानित राशि" : "Estimated Total"}
+                  </span>
+                  <span className="text-2xl font-black text-[#123B70]">
+                    {hasUnverifiedDocs ? (
+                      <span className="text-sm text-slate-400 font-bold italic">Calculating...</span>
+                    ) : (
+                      formatPrice(orderSnapshot.grandTotal)
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <span>All taxes & finishing included • Live recalculated</span>
+                </div>
               </div>
 
               {submitError && (

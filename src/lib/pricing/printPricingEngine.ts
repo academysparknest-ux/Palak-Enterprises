@@ -311,17 +311,26 @@ export function calculateDocumentPrintPriceComplete(
 
   // 9. Finishing Costs (Lamination, Hole punch, etc.)
   let finishingCost = 0;
+  let laminationCost = 0;
+  let holePunchCost = 0;
+  let cuttingCost = 0;
+  let bookletCost = 0;
+
   if (config.finishing?.lamination && pricing.documentPrinting.finishing.lamination?.enabled) {
-    finishingCost += physicalSheetsPerCopy * pricing.documentPrinting.finishing.lamination.pricePerPage * sizeMultiplier;
+    laminationCost = Math.round(physicalSheetsPerCopy * pricing.documentPrinting.finishing.lamination.pricePerPage * sizeMultiplier * 100) / 100;
+    finishingCost += laminationCost;
   }
   if (config.finishing?.holePunching) {
-    finishingCost += 2 * physicalSheetsPerCopy;
+    holePunchCost = 2 * physicalSheetsPerCopy;
+    finishingCost += holePunchCost;
   }
   if (config.finishing?.cutting) {
-    finishingCost += 10;
+    cuttingCost = 10;
+    finishingCost += cuttingCost;
   }
   if (config.finishing?.bookletMode) {
-    finishingCost += 15;
+    bookletCost = 15;
+    finishingCost += bookletCost;
   }
 
   const costPerCopy = Math.round(
@@ -340,6 +349,14 @@ export function calculateDocumentPrintPriceComplete(
     finishingCost,
     costPerCopy,
     totalCost,
+    laminationCost,
+    holePunchCost,
+    cuttingCost,
+    bookletCost,
+    ratePerPageApplied: colorMode === "color" ? colorRate : bwRate,
+    sizeMultiplierApplied: sizeMultiplier,
+    gsmExtraPerSheet: gsmExtra,
+    paperTypeExtraPerSheet: paperTypeExtra,
   };
 
   return {
@@ -360,7 +377,8 @@ export function calculateDocumentPrintPriceComplete(
 export function buildOrderPrintSnapshot(
   documents: DocumentPrintConfig[],
   deliveryFee: number = 0,
-  pricingVersion: string = "2026-08-22-v1"
+  pricingVersion: string = "2026-08-22-v1",
+  pricing?: PrintPricingConfig
 ): OrderPrintSnapshot {
   const totalDocuments = documents.length;
   let totalPrintedPages = 0;
@@ -369,7 +387,26 @@ export function buildOrderPrintSnapshot(
   let totalPhysicalSheets = 0;
   let subtotal = 0;
 
-  for (const doc of documents) {
+  const processedDocs: DocumentPrintConfig[] = [];
+
+  for (const rawDoc of documents) {
+    let doc = rawDoc;
+    if (pricing) {
+      const recomputed = calculateDocumentPrintPriceComplete(rawDoc, pricing);
+      doc = {
+        ...rawDoc,
+        selectedPageCount: recomputed.selectedPageCount,
+        bwPageCount: recomputed.bwPageCount,
+        colorPageCount: recomputed.colorPageCount,
+        physicalSheetsPerCopy: recomputed.physicalSheetsPerCopy,
+        totalPhysicalSheets: recomputed.totalPhysicalSheets,
+        itemPrice: recomputed.itemPrice,
+        totalPrice: recomputed.totalPrice,
+        priceBreakdown: recomputed.priceBreakdown,
+      };
+    }
+    processedDocs.push(doc);
+
     const docCopies = Math.max(1, doc.copies || 1);
     const selectedPages =
       typeof doc.selectedPageCount === "number" && !isNaN(doc.selectedPageCount)
@@ -410,7 +447,7 @@ export function buildOrderPrintSnapshot(
   return {
     version: "2026-08-22-v1",
     pricingConfigVersion: pricingVersion,
-    documents: JSON.parse(JSON.stringify(documents)), // deep clone
+    documents: JSON.parse(JSON.stringify(processedDocs)), // deep clone
     totalDocuments,
     totalPrintedPages,
     totalBwPages,

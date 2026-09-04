@@ -114,6 +114,15 @@ export interface DocumentPriceBreakdown {
   finishingCost: number;
   costPerCopy: number;
   totalCost: number;
+  // Itemized breakdown details for full pricing transparency
+  laminationCost?: number;
+  holePunchCost?: number;
+  cuttingCost?: number;
+  bookletCost?: number;
+  ratePerPageApplied?: number;
+  sizeMultiplierApplied?: number;
+  gsmExtraPerSheet?: number;
+  paperTypeExtraPerSheet?: number;
 }
 
 export interface OrderPrintSnapshot {
