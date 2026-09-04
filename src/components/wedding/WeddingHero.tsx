@@ -191,7 +191,7 @@ export const WeddingHero: React.FC<WeddingHeroProps> = ({ onBrowseClick, onOpenC
                 <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-xs">
                   <div>
                     <span className="text-slate-300 block text-[11px]">Chakia Walk-in Experience</span>
-                    <span className="font-bold text-white">Block Gate, Chakia (845412)</span>
+                    <span className="font-bold text-white">Near Block Gate, Chakia, East Champaran, Bihar</span>
                   </div>
                   <a
                     href="tel:9905238015"

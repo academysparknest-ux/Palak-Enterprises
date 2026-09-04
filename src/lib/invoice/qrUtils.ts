@@ -33,8 +33,8 @@ export function getAppBaseUrl(): string {
     }
   }
 
-  // Canonical Production Application URL (Current Vercel Deployment)
-  return "https://palak-enterprises-ghit.vercel.app";
+  // Canonical Production Application URL
+  return "https://www.palakenterprises.shop";
 }
 
 /**

@@ -105,8 +105,8 @@ INSERT INTO public.website_content (id, section, content, is_active, sort_order)
     "phone_primary": "9905238015",
     "phone_secondary": "7324964770",
     "whatsapp": "919905238015",
-    "address_en": "Ward No. 7, Saniganj Mohalla, Near Block Gate, Chakia, East Champaran, Bihar - 845412",
-    "address_hi": "वार्ड नं. 7, सनिगंज मोहल्ला, ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार - 845412",
+    "address_en": "Near Block Gate, Chakia, East Champaran, Bihar",
+    "address_hi": "ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार",
     "hours_en": "Monday - Saturday: 8:00 AM - 8:00 PM | Sunday: 9:00 AM - 5:00 PM",
     "hours_hi": "सोमवार - शनिवार: सुबह 8:00 से शाम 8:00 बजे | रविवार: सुबह 9:00 से शाम 5:00 बजे"
   }'::jsonb, true, 3)

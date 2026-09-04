@@ -74,13 +74,15 @@ export default function ServicesPageContent() {
     <div className="bg-slate-50 min-h-screen">
       <SEO
         title={{
-          en: "Complete Printing & Digital Services Catalog | Palak Enterprises",
-          hi: "संपूर्ण प्रिंटिंग एवं डिजिटल सेवा कैटलॉग | पालक इंटरप्राइजेज",
+          en: "Complete Printing & Digital Services Catalog | Palak Enterprises Chakia",
+          hi: "संपूर्ण प्रिंटिंग एवं डिजिटल सेवा कैटलॉग | पालक इंटरप्राइजेज चकिया",
         }}
         description={{
           en: "Explore our complete service list: Visiting cards, wedding invitations, pamphlets, flex banners, bill books, PVC ID cards, lamination, and CSC online document services in Chakia.",
           hi: "पालक इंटरप्राइजेज चकिया: विजिटिंग कार्ड, शादी कार्ड, पम्पलेट, फ्लेक्स बैनर, बिल बुक, पीवीसी आईडी कार्ड, लैमिनेशन और ऑनलाइन सेवाओं की संपूर्ण सूची।",
         }}
+        canonicalUrl="/services"
+        keywords="printing services Chakia, digital services Chakia, photocopy Chakia, passport photo Chakia, online form apply Chakia, printing catalog Bihar"
       />
 
       {/* Page Hero Header Banner */}

@@ -34,7 +34,7 @@ import {
   ctaLabels,
   getServiceById,
 } from "../config/services";
-import { getWhatsAppLink, getCallLink, business } from "../config/business";
+import { getWhatsAppLink, getCallLink, business, businessConfig } from "../config/business";
 import ServiceSamplesModal from "./ServiceSamplesModal";
 import Gallery from "./Gallery";
 import type { SampleItem } from "../config/samples";
@@ -87,6 +87,26 @@ export default function ServiceDetailPageContent({
     .filter((s): s is Service => Boolean(s))
     .slice(0, 4);
 
+  const serviceSchema = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": `${service.name.en} - Palak Enterprises Chakia`,
+    "description": service.description.en,
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Palak Enterprises",
+      "telephone": "+919905238015",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Near Block Gate",
+        "addressLocality": "Chakia",
+        "addressRegion": "Bihar",
+        "addressCountry": "IN"
+      }
+    },
+    "areaServed": "Chakia, East Champaran, Bihar"
+  };
+
   return (
     <div className="bg-slate-50 min-h-screen">
       <SEO
@@ -98,6 +118,8 @@ export default function ServiceDetailPageContent({
           en: service.description.en,
           hi: service.description.hi,
         }}
+        canonicalUrl={`/services/${category.slug}/${service.slug}`}
+        structuredData={serviceSchema}
       />
 
       {/* Service Detail Hero */}
@@ -586,7 +608,7 @@ export default function ServiceDetailPageContent({
 
                 <div className="mt-6 border-t border-slate-100 pt-4 text-[11px] text-slate-500">
                   <p className="font-semibold text-slate-700">Palak Enterprises</p>
-                  <p>{business.address.landmark[currentLang]}, {business.address.city[currentLang]}</p>
+                  <p>{businessConfig.address.fullAddress[currentLang]}</p>
                   <p className="mt-1 text-slate-500">Mon - Sun: 8:00 AM - 8:00 PM</p>
                 </div>
               </div>

@@ -528,7 +528,7 @@ export function getWhatsAppInvoiceShareLink(invoice: StoredInvoice): string {
     `*Grand Total: ₹${roundCurrency(invoice.totalAmount).toFixed(2)}*`,
     `Payment Status: *${invoice.paymentStatus.toUpperCase()}*`,
     `----------------------------------------`,
-    `📍 Near Block Gate, Chakia, Bihar - 845412`,
+    `📍 Near Block Gate, Chakia, East Champaran, Bihar - 845412`,
     `📞 +91 99052 38015`,
   ];
 

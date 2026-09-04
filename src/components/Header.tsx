@@ -155,7 +155,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
             <div className="flex items-center gap-3 text-[11px] text-slate-200 shrink-0">
               <span className="flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-amber-300" />
-                <span>{business.address.city[currentLang]}</span>
+                <span>{businessConfig.address.fullAddress[currentLang]}</span>
               </span>
               <span className="text-slate-400">•</span>
               <span className="flex items-center gap-1.5 text-slate-300">

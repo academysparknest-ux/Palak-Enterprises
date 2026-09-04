@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from "../supabase/client";
-import { business, businessConfig } from "../../config/business";
+import { business, businessConfig, OWNER_SIGNATURE_ONLINE_URL } from "../../config/business";
 import type { StoredOrder, OrderItemPayload } from "../storage/store";
 import type {
   StoredInvoice,
@@ -160,18 +160,19 @@ export function getBusinessSnapshot(): InvoiceBusinessSnapshot {
     primaryPhone: business.primaryPhone ? `+91 ${business.primaryPhone}` : "+91 99052 38015",
     secondaryPhone: business.phones[1] ? `+91 ${business.phones[1]}` : "+91 73249 64770",
     email: "support@palakenterprises.in",
-    addressLine: business.address.line1.en || "Ward No. 7, Saniganj Mohalla, Near Block Gate",
+    addressLine: business.address.line1.en || "Near Block Gate",
     landmark: "Near Block Gate",
     city: "Chakia",
     district: "East Champaran",
     state: "Bihar",
     pincode: "845412",
-    fullAddressEn: businessConfig.address.fullAddress.en || "Ward No. 7, Saniganj Mohalla, Near Block Gate, Chakia, East Champaran, Bihar - 845412",
-    fullAddressHi: businessConfig.address.fullAddress.hi || "वार्ड नं. 7, सनिगंज मोहल्ला, ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार - 845412",
+    fullAddressEn: businessConfig.address.fullAddress.en || "Near Block Gate, Chakia, East Champaran, Bihar - 845412",
+    fullAddressHi: businessConfig.address.fullAddress.hi || "ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार - 845412",
     cscId: business.registrations.cscId || "634165120013",
     udyamNo: business.registrations.udyamNo || "UDYAM-BR-11-0061705",
-    gstin: "10BRKPK1234F1Z5",
+    gstin: business.registrations.gstin || "10AVUPP3470E1ZK",
     logoUrl: "/logo.webp",
+    signatureUrl: OWNER_SIGNATURE_ONLINE_URL,
     upiId: (typeof import.meta !== "undefined" && import.meta.env?.VITE_BUSINESS_UPI_ID) || business.upiId || businessConfig.upiId || "9905238015@okbizaxis",
     terms: [
       "1. This is a computer generated invoice and does not require physical signature.",
@@ -555,7 +556,7 @@ export class PalakInvoiceStore {
           paymentStatus: normalizeInvoicePaymentStatus(order.paymentStatus),
           paymentMethod: normalizeInvoicePaymentMethod(order.paymentMethod),
           status: invData.status || "ISSUED",
-          signatureUrl: invData.signature_url,
+          signatureUrl: invData.signature_url || OWNER_SIGNATURE_ONLINE_URL,
           createdBy: invData.created_by || performedBy,
           notes: invData.notes,
           syncStatus: "SYNCED",
@@ -642,7 +643,7 @@ export class PalakInvoiceStore {
           paymentStatus: invData.payment_status || payload.paymentStatus,
           paymentMethod: invData.payment_method || payload.paymentMode,
           status: invData.status || (payload.action === "DRAFT" ? "DRAFT" : "ISSUED"),
-          signatureUrl: invData.signature_url,
+          signatureUrl: invData.signature_url || OWNER_SIGNATURE_ONLINE_URL,
           createdBy: invData.created_by || performedBy,
           notes: invData.notes || payload.notes,
           syncStatus: "SYNCED",

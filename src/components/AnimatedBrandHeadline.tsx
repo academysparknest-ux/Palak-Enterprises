@@ -163,6 +163,11 @@ export const AnimatedBrandHeadline: React.FC<AnimatedBrandHeadlineProps> = ({
             {currentItem.highlight}
           </span>
         </span>
+        <span className="sr-only">
+          {isHindi
+            ? " - चकिया, बिहार का प्रमुख प्रिंटिंग प्रेस एवं ऑनलाइन सेवा केंद्र"
+            : " - Leading Printing Press & Digital Services in Chakia, Bihar"}
+        </span>
       </span>
     </Component>
   );

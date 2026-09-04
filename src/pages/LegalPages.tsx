@@ -43,6 +43,7 @@ export const PrivacyPage: React.FC = () => {
           en: "Privacy and data protection policy at Palak Enterprises Chakia. We safeguard personal documents, identity proofs, and printing artwork.",
           hi: "पालक इंटरप्राइजेज चकिया की गोपनीयता नीति। हम आपके व्यक्तिगत दस्तावेजों, प्रमाण पत्रों एवं प्रिंटिंग डिजाइन की पूर्ण सुरक्षा करते हैं।",
         }}
+        canonicalUrl="/privacy"
       />
       <div className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 sm:p-10 shadow-xs space-y-6">
         <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-bold text-[#123B70] hover:underline">
@@ -64,7 +65,7 @@ export const PrivacyPage: React.FC = () => {
 
         <div className="space-y-4 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
           <p>
-            At <strong>Palak Enterprises</strong> (CSC Center ID: {business.registrations.cscId}), protecting your personal identity documents, certificates, and printing artwork is our highest priority.
+            At <strong>Palak Enterprises</strong> (CSC Center ID: {business.registrations.cscId}, GST No. {business.registrations.gstNo}), protecting your personal identity documents, certificates, and printing artwork is our highest priority.
           </p>
 
           <h3 className="font-bold text-slate-900 text-base">1. Information We Collect</h3>
@@ -102,6 +103,7 @@ export const TermsPage: React.FC = () => {
           en: "Terms of Service and usage conditions for printing orders, CSC services, and digital applications at Palak Enterprises Chakia.",
           hi: "पालक इंटरप्राइजेज चकिया में प्रिंटिंग ऑर्डर, सीएससी सेवा और ऑनलाइन आवेदन से जुड़े नियम व शर्तें।",
         }}
+        canonicalUrl="/terms"
       />
       <div className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 sm:p-10 shadow-xs space-y-6">
         <Link to="/" className="inline-flex items-center gap-1.5 text-xs font-bold text-[#123B70] hover:underline">
@@ -154,6 +156,7 @@ export const RefundPolicyPage: React.FC = () => {
           en: "Official Refund & Cancellation Policy of Palak Enterprises (Palak Printing Press) Chakia. Learn about pre-production cancellations via support, refund eligibility, non-refundable cases, and timelines.",
           hi: "पालक इंटरप्राइजेज (पालक प्रिंटिंग प्रेस) चकिया की रिफंड व रद्दीकरण नीति। कस्टमर सपोर्ट द्वारा रद्दीकरण, रिफंड पात्रता, गैर-वापसी योग्य शर्तें व समय-सीमा जानें।",
         }}
+        canonicalUrl="/refund-policy"
       />
 
       <div className="mx-auto max-w-4xl space-y-8">

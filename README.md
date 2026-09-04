@@ -58,7 +58,7 @@ npm run build
 ## 📍 Business Information
 * **Business Name**: Palak Enterprises (Palak Printing Press)
 * **Owner**: Kumar Pankaj
-* **Location**: Near Block Gate, Ward No. 7, Saniganj Mohalla, Chakia, East Champaran, Bihar – 845412
+* **Location**: Near Block Gate, Chakia, East Champaran, Bihar
 * **CSC ID**: 634165120013
 * **Primary Contacts**: +91 9905238015, +91 7324964770
 

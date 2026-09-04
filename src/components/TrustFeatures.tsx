@@ -39,8 +39,8 @@ export const TrustFeatures: React.FC = () => {
       icon: MapPin,
       title: { en: "Convenient Local Service", hi: "आसानी से उपलब्ध स्थानीय सेवा" },
       desc: {
-        en: "Centrally located near Block Gate, Saniganj Mohalla, Chakia for quick access.",
-        hi: "ब्लॉक गेट के पास, सनिगंज मोहल्ला, चकिया में आसानी से पहुँचने योग्य केंद्र।",
+        en: "Centrally located near Block Gate, Chakia, East Champaran, Bihar for quick access.",
+        hi: "ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार में आसानी से पहुँचने योग्य केंद्र।",
       },
       color: "text-red-600 bg-red-50 border-red-200",
     },

@@ -23,6 +23,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { SEO } from "../components/SEO";
 
 export const VerifyInvoicePage: React.FC = () => {
   const { invoiceNumber: paramInvoiceNumber } = useParams<{ invoiceNumber?: string }>();
@@ -87,6 +88,11 @@ export const VerifyInvoicePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8 flex flex-col justify-between font-sans">
+      <SEO
+        title={{ en: "Verify Tax Invoice Authenticity", hi: "बिल सत्यापन पोर्टल" }}
+        description={{ en: "Official invoice verification portal for Palak Enterprises Chakia.", hi: "पालक इंटरप्राइजेज का आधिकारिक टैक्स इनवॉइस व बिल सत्यापन पोर्टल।" }}
+        noIndex={true}
+      />
       <div className="max-w-2xl mx-auto w-full space-y-6">
         {/* Top Branding Header */}
         <div className="text-center space-y-2">
@@ -164,7 +170,7 @@ export const VerifyInvoicePage: React.FC = () => {
                 ✓ Tamper Proof Records
               </span>
               <span className="flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 font-medium">
-                ✓ Government Reg. CSC & UDYAM
+                ✓ Government Reg. CSC, UDYAM & GST
               </span>
             </div>
           </div>
@@ -274,7 +280,7 @@ export const VerifyInvoicePage: React.FC = () => {
                   </span>
                   <div className="font-bold text-slate-900 text-xs">{result.businessName}</div>
                   <div className="text-[10px] text-slate-500">
-                    CSC ID: 634165120013 • UDYAM-BR-11-0061705
+                    CSC ID: {business.registrations.cscId} • UDYAM: {business.registrations.udyamNo} • GST No. {business.registrations.gstNo}
                   </div>
                 </div>
               </div>
@@ -320,7 +326,7 @@ export const VerifyInvoicePage: React.FC = () => {
                 <div className="space-y-0.5">
                   <span className="font-bold block">✓ Verified against official records</span>
                   <p className="text-emerald-800 text-[10px] leading-tight">
-                    This invoice is permanently recorded in the Palak Enterprises official billing ledger under Ward No. 7, Saniganj Mohalla, Chakia, East Champaran, Bihar - 845412.
+                    This invoice is permanently recorded in the Palak Enterprises official billing ledger under Near Block Gate, Chakia, East Champaran, Bihar - 845412.
                   </p>
                 </div>
               </div>

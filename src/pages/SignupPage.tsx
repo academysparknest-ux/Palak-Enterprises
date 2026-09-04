@@ -128,6 +128,7 @@ export const SignupPage: React.FC = () => {
           en: "Create your Palak Enterprises account for instant online printing, order tracking, and citizen services.",
           hi: "ऑनलाइन प्रिंटिंग, ऑर्डर ट्रैकिंग और नागरिक सेवाओं के लिए अपना पालक इंटरप्राइजेज खाता बनाएं।",
         }}
+        noIndex={true}
       />
 
       <div className="w-full max-w-md space-y-6">

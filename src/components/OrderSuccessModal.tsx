@@ -11,9 +11,11 @@ import {
   X,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
-import { business, getWhatsAppLink } from "../config/business";
+import { business, businessConfig, getWhatsAppLink } from "../config/business";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { cn } from "../lib/utils";
+
+import type { OrderPrintSnapshot } from "../types/printJob";
 
 export interface OrderSuccessModalProps {
   isOpen: boolean;
@@ -23,11 +25,38 @@ export interface OrderSuccessModalProps {
   documentType?: string;
   specifications?: Record<string, string>;
   finishingSelected?: string[];
+  printSnapshot?: OrderPrintSnapshot;
   totalAmount: number;
   customerName: string;
   customerPhone: string;
   paymentMethod?: string;
   paymentStatus?: string;
+}
+
+function getBindingLabel(type?: string): string {
+  switch (type) {
+    case "staple": return "Corner / Saddle Staple";
+    case "spiral": return "Spiral Binding";
+    case "comb": return "Comb Binding";
+    case "soft": return "Soft Binding";
+    case "hard": return "Hard Binding";
+    case "none":
+    default:
+      return "None (Loose Sheets)";
+  }
+}
+
+function getCoverLabel(type?: string): string {
+  switch (type) {
+    case "transparent": return "Transparent Plastic Sheet";
+    case "white": return "Opaque White Sheet";
+    case "black": return "Matte Black Sheet";
+    case "color": return "Color Card Sheet";
+    case "custom": return "Custom Cover Sheet";
+    case "none":
+    default:
+      return "None";
+  }
 }
 
 export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
@@ -38,6 +67,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   documentType,
   specifications = {},
   finishingSelected = [],
+  printSnapshot,
   totalAmount,
   customerName,
   customerPhone,
@@ -276,8 +306,8 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
             </div>
           </div>
 
-          {/* Ordered Specifications */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-2">
+          {/* Ordered Specifications & Print Requirements */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4 space-y-3">
             <div className="flex justify-between items-center pb-2 border-b border-slate-200 gap-2">
               <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">{serviceName}</span>
               {documentType && (
@@ -287,7 +317,86 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
               )}
             </div>
 
-            {Object.entries(specifications).length > 0 && (
+            {printSnapshot?.documents && printSnapshot.documents.length > 0 ? (
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                  {currentLang === "hi" ? "आपकी प्रिंट विनिर्देश (Specifications):" : "Your Print Specifications"}
+                </span>
+
+                {printSnapshot.documents.map((doc, idx) => {
+                  const docFinishing = (doc.finishing || {}) as Record<string, boolean>;
+                  const hasLami = Boolean(docFinishing.lamination);
+                  const hasHole = Boolean(docFinishing.holePunching);
+                  const hasBooklet = Boolean(docFinishing.bookletMode);
+
+                  return (
+                    <div key={idx} className="rounded-lg bg-white p-3 border border-slate-200 space-y-2 text-xs">
+                      {printSnapshot.documents.length > 1 && (
+                        <div className="font-bold text-slate-800 text-[11px] truncate pb-1 border-b border-slate-100">
+                          File {idx + 1}: {doc.fileName}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-1 text-[10px] font-bold">
+                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
+                          {String(doc.paperSize || "A4").toUpperCase()}
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
+                          {doc.gsm || 75} GSM
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                          {doc.colorMode === "bw" ? "B/W" : doc.colorMode === "color" ? "Color" : "Mixed Color"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                          {doc.sides === "single" ? "Single-sided" : "Double-sided"}
+                        </span>
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                          {doc.orientation === "landscape" ? "Landscape" : "Portrait"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-slate-600 pt-1">
+                        <div>
+                          <span className="font-semibold text-slate-700">Binding:</span> {getBindingLabel(doc.binding)}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-700">Front Cover:</span> {getCoverLabel(doc.frontCover)}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-700">Back Cover:</span> {getCoverLabel(doc.backCover)}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-700">Copies:</span> {doc.copies || 1}
+                        </div>
+                      </div>
+
+                      {(hasLami || hasHole || hasBooklet) && (
+                        <div className="pt-1.5 border-t border-slate-100 flex flex-wrap gap-2 text-[10px] text-emerald-800 font-bold">
+                          {hasLami && (
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                              Thermal Lamination
+                            </span>
+                          )}
+                          {hasHole && (
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                              2/4 Hole Punching
+                            </span>
+                          )}
+                          {hasBooklet && (
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                              Booklet Fold & Saddle
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : Object.entries(specifications).length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-1">
                 {Object.entries(specifications).map(([key, val]) => (
                   <div key={key} className="truncate">
@@ -295,9 +404,9 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
 
-            {finishingSelected.length > 0 && (
+            {finishingSelected.length > 0 && !printSnapshot?.documents && (
               <div className="pt-2 border-t border-slate-200 text-[11px]">
                 <span className="font-bold text-slate-800 block mb-1">
                   {currentLang === "hi" ? "चयनित फिनिशिंग:" : "Selected Finishing:"}
@@ -328,7 +437,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
               <span>{currentLang === "hi" ? "दुकान संग्रह पता:" : "Store Pickup Location:"}</span>
             </div>
             <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
-              <strong>{business.name[currentLang]}</strong>: {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]} (Near Block Gate).
+              <strong>{business.name[currentLang]}</strong>: {businessConfig.address.fullAddress[currentLang]}.
             </p>
           </div>
         </div>
@@ -337,7 +446,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
         <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 shrink-0 space-y-2.5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Link
-              to={`/order-status?code=${orderCode}`}
+              to={`/track-order?code=${encodeURIComponent(orderCode)}`}
               onClick={onClose}
               className="flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-all cursor-pointer text-center"
             >

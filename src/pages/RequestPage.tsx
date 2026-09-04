@@ -130,13 +130,14 @@ export const RequestPage: React.FC = () => {
     <div className="bg-slate-50 min-h-screen pb-16">
       <SEO
         title={{
-          en: "Service Request & Document Upload | Palak Enterprises",
-          hi: "सेवा अनुरोध एवं दस्तावेज अपलोड | पालक इंटरप्राइजेज",
+          en: "Service Request & Document Upload | Palak Enterprises Chakia",
+          hi: "सेवा अनुरोध एवं दस्तावेज अपलोड | पालक इंटरप्राइजेज चकिया",
         }}
         description={{
           en: "Submit an online request for printing, photocopy, photo prints, or online government form assistance. Upload your document and chat with Palak Enterprises.",
           hi: "प्रिंटिंग, फोटोकॉपी, फोटो प्रिंट या ऑनलाइन सरकारी फॉर्म के लिए ऑनलाइन अनुरोध भेजें। दस्तावेज अपलोड करें और सीधे संपर्क करें।",
         }}
+        canonicalUrl="/request"
       />
 
       {/* Page Hero */}

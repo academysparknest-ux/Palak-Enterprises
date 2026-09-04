@@ -24,6 +24,7 @@ export interface BusinessConfig {
       en: string;
       hi: string;
     };
+    signatureUrl?: string;
   };
   phoneNumbers: {
     primary: string;
@@ -54,7 +55,23 @@ export interface BusinessConfig {
     en: string;
     hi: string;
   };
+  registrations?: {
+    cscId: string;
+    udyamNo: string;
+    gstin: string;
+    gstNo: string;
+  };
 }
+
+export const BUSINESS_GST_NUMBER = "10AVUPP3470E1ZK";
+export const BUSINESS_GST_DISPLAY = "GST No. 10AVUPP3470E1ZK";
+
+export const businessLocation = "Near Block Gate, Chakia, East Champaran, Bihar - 845412";
+export const businessLocationHi = "ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार - 845412";
+
+export const OWNER_SIGNATURE_ONLINE_URL =
+  "https://zofddiuswdtbqvqycezy.supabase.co/storage/v1/object/public/business-assets/signatures/owner_signature.png";
+export const OWNER_SIGNATURE_LOCAL_URL = "/signatures/owner_signature.png";
 
 export const businessConfig: BusinessConfig = {
   name: {
@@ -82,6 +99,7 @@ export const businessConfig: BusinessConfig = {
       en: "Proprietor",
       hi: "प्रोपराइटर",
     },
+    signatureUrl: OWNER_SIGNATURE_ONLINE_URL,
   },
   phoneNumbers: {
     primary: "9905238015",
@@ -92,7 +110,7 @@ export const businessConfig: BusinessConfig = {
   whatsappNumber: "919905238015",
   upiId: "9905238015@okbizaxis",
   address: {
-    street: "Ward No. 7, Saniganj Mohalla",
+    street: "Near Block Gate",
     landmark: {
       en: "Near Block Gate",
       hi: "ब्लॉक गेट के पास",
@@ -102,8 +120,8 @@ export const businessConfig: BusinessConfig = {
     state: "Bihar",
     pincode: "845412",
     fullAddress: {
-      en: "Ward No. 7, Saniganj Mohalla, Near Block Gate, Chakia, East Champaran, Bihar - 845412",
-      hi: "वार्ड नं. 7, सनिगंज मोहल्ला, ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार - 845412",
+      en: "Near Block Gate, Chakia, East Champaran, Bihar - 845412",
+      hi: "ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार - 845412",
     },
   },
   googleMapsUrl: "https://goo.gl/maps/UjhUTivNEjdN9Est7",
@@ -111,6 +129,12 @@ export const businessConfig: BusinessConfig = {
   openingHours: {
     en: "Monday - Saturday: 8:00 AM - 8:00 PM | Sunday: 9:00 AM - 5:00 PM",
     hi: "सोमवार - शनिवार: सुबह 8:00 से शाम 8:00 बजे | रविवार: सुबह 9:00 से शाम 5:00 बजे",
+  },
+  registrations: {
+    cscId: "634165120013",
+    udyamNo: "UDYAM-BR-11-0061705",
+    gstin: BUSINESS_GST_NUMBER,
+    gstNo: BUSINESS_GST_NUMBER,
   },
 };
 
@@ -131,6 +155,8 @@ export interface BusinessInfo {
   registrations: {
     cscId: string;
     udyamNo: string;
+    gstin: string;
+    gstNo: string;
   };
   mapsQuery: string;
   googleMapsUrl: string;
@@ -140,6 +166,7 @@ export interface BusinessInfo {
     instagram: string;
   };
   logoPath: string;
+  signaturePath?: string;
 }
 
 export const business: BusinessInfo = {
@@ -165,23 +192,25 @@ export const business: BusinessInfo = {
   upiId: "9905238015@okbizaxis",
   address: {
     line1: {
-      en: "Ward No. 7, Saniganj Mohalla",
-      hi: "वार्ड नं. 7, सनिगंज मोहल्ला",
+      en: "Near Block Gate",
+      hi: "ब्लॉक गेट के पास",
     },
     landmark: {
       en: "Near Block Gate",
       hi: "ब्लॉक गेट के पास",
     },
     city: {
-      en: "Chakia, East Champaran, Bihar – 845412",
-      hi: "चकिया, पूर्वी चंपारण, बिहार – 845412",
+      en: "Chakia, East Champaran, Bihar - 845412",
+      hi: "चकिया, पूर्वी चंपारण, बिहार - 845412",
     },
   },
   registrations: {
     cscId: "634165120013",
     udyamNo: "UDYAM-BR-11-0061705",
+    gstin: BUSINESS_GST_NUMBER,
+    gstNo: BUSINESS_GST_NUMBER,
   },
-  mapsQuery: "26.413807,85.052013",
+  mapsQuery: "Palak Enterprises, Near Block Gate, Chakia, East Champaran, Bihar - 845412",
   googleMapsUrl: "https://goo.gl/maps/UjhUTivNEjdN9Est7",
   mapEmbedUrl: "https://www.google.com/maps?q=26.413807,85.052013&z=17&output=embed",
   social: {
@@ -189,6 +218,7 @@ export const business: BusinessInfo = {
     instagram: "",
   },
   logoPath: "/logo.webp",
+  signaturePath: OWNER_SIGNATURE_ONLINE_URL,
 };
 
 export function getWhatsAppLink(prefilledMessage?: string) {

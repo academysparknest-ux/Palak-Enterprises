@@ -1,4 +1,60 @@
 {
+  "redirects": [
+    {
+      "source": "/quote",
+      "destination": "/request-quote",
+      "permanent": true
+    },
+    {
+      "source": "/graphic-design",
+      "destination": "/design-services",
+      "permanent": true
+    },
+    {
+      "source": "/signin",
+      "destination": "/login",
+      "permanent": true
+    },
+    {
+      "source": "/register",
+      "destination": "/signup",
+      "permanent": true
+    },
+    {
+      "source": "/cancellation-policy",
+      "destination": "/refund-policy",
+      "permanent": true
+    },
+    {
+      "source": "/products",
+      "destination": "/printing",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

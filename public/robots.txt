@@ -1,8 +1,19 @@
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /admin/
 Disallow: /account
+Disallow: /account/
 Disallow: /auth/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /track-order
+Disallow: /track
+Disallow: /order-status
+Disallow: /verify/
+Disallow: /verify-id/
+Disallow: /verify-invoice/
+Disallow: /invoice/
 
-Sitemap: https://palakenterprises.com/sitemap.xml
+Sitemap: https://www.palakenterprises.shop/sitemap.xml
 

@@ -18,6 +18,9 @@ describe('🛡️ Auth Boot Lifecycle, Role Resolution & UI Flicker Elimination'
     "palakenterprises@gmail.com",
     "palakprintingpress@gmail.com",
     "kumarpankaj@gmail.com",
+    "rishavraj05072002@gmail.com",
+    "rishavrajrj572@gmail.com",
+    "computerworldchakia@gmail.com",
   ];
 
   interface SimulatedAuthStore {

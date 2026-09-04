@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ShoppingCart, Trash2, ArrowRight, ArrowLeft, ShieldCheck, File, CheckCircle2 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
+import { SEO } from "../components/SEO";
 
 export const CartPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -13,6 +14,11 @@ export const CartPage: React.FC = () => {
   if (itemCount === 0) {
     return (
       <div className="min-h-[70vh] bg-[#FAF8F5] flex items-center justify-center p-4">
+        <SEO
+          title={{ en: "Shopping Cart", hi: "शॉपिंग कार्ट" }}
+          description={{ en: "Your shopping cart at Palak Enterprises.", hi: "पालक इंटरप्राइजेज पर आपकी शॉपिंग कार्ट।" }}
+          noIndex={true}
+        />
         <div className="rounded-2xl border border-slate-200 bg-white p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-xs">
           <div className="h-16 w-16 rounded-full bg-blue-50 text-[#123B70] flex items-center justify-center mx-auto">
             <ShoppingCart className="h-8 w-8" />
@@ -39,6 +45,11 @@ export const CartPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{ en: "Shopping Cart", hi: "शॉपिंग कार्ट" }}
+        description={{ en: "Review and manage your selected printing services before checkout.", hi: "चेकआउट से पहले अपनी चयनित प्रिंटिंग सेवाओं की समीक्षा करें।" }}
+        noIndex={true}
+      />
       {/* Header */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 px-4 sm:px-6">
         {/* Ambient background glows */}

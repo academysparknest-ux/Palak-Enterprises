@@ -154,6 +154,33 @@ export const ContactPage: React.FC = () => {
     window.open(getWhatsAppLink(message), "_blank", "noopener,noreferrer");
   };
 
+  const contactPageSchema = {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    "name": "Contact Palak Enterprises & Palak Printing Press",
+    "description": "Contact details and physical location for Palak Enterprises in Chakia, Bihar.",
+    "mainEntity": {
+      "@type": "LocalBusiness",
+      "name": "Palak Enterprises",
+      "taxID": business.registrations.gstin,
+      "vatID": business.registrations.gstin,
+      "telephone": "+919905238015",
+      "email": "palakenterpriseschakia@gmail.com",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Near Block Gate",
+        "addressLocality": "Chakia",
+        "addressRegion": "Bihar",
+        "addressCountry": "IN"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "26.413807",
+        "longitude": "85.052013"
+      }
+    }
+  };
+
   return (
     <div className="bg-canvas min-h-screen pb-16">
       <SEO
@@ -165,6 +192,9 @@ export const ContactPage: React.FC = () => {
           en: "Visit Palak Enterprises / Palak Printing Press near Block Gate, Chakia, East Champaran, Bihar. Call +91 99052 38015, chat on WhatsApp, or send an inquiry online.",
           hi: "पालक इंटरप्राइजेज (पालक प्रिंटिंग प्रेस) चकिया, पूर्वी चंपारण से संपर्क करें। फोन नंबर +91 99052 38015, व्हाट्सएप, ब्लॉक गेट के पास का पता एवं ऑनलाइन पूछताछ फॉर्म।",
         }}
+        canonicalUrl="/contact"
+        keywords="contact Palak Enterprises, Palak Printing Press phone number, printing press address Chakia, Near Block Gate Chakia, Chakia printing shop location, Bihar 845412"
+        structuredData={contactPageSchema}
       />
 
       {/* Page Header Banner */}
@@ -348,6 +378,8 @@ export const ContactPage: React.FC = () => {
                     </span>
                     <span>·</span>
                     <span>Udyam: {business.registrations.udyamNo}</span>
+                    <span>·</span>
+                    <span>GST No. {business.registrations.gstNo}</span>
                     <span>·</span>
                     <span>Proprietor: {business.owner[currentLang]}</span>
                   </div>

@@ -252,12 +252,32 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
     <div className="min-h-screen bg-[#FAF8F5] pb-16">
       <SEO
         title={{
-          en: "⚡ Instant Online Services | Palak Enterprises",
-          hi: "⚡ इंस्टेंट ऑनलाइन सेवाएँ | पालक इंटरप्राइजेज",
+          en: "Instant Online Printing Services in Chakia | Palak Enterprises",
+          hi: "ऑनलाइन प्रिंटिंग सेवाएँ चकिया | पालक इंटरप्राइजेज",
         }}
         description={{
-          en: "Fast online self-service printing orders: documents, passport photos, visiting cards, ID cards, and custom prints. Direct shop collection in Chakia.",
-          hi: "ऑनलाइन प्रिंटिंग सेल्फ सर्विस: नोट्स, पासपोर्ट फोटो, विजिटिंग कार्ड, आईडी कार्ड और कस्टम प्रिंट। चकिया दुकान से त्वरित कलेक्शन।",
+          en: "Order document printing, instant passport photos, visiting cards, PVC ID cards & custom prints online in Chakia. Fast turnaround & direct shop collection.",
+          hi: "चकिया में ऑनलाइन दस्तावेज प्रिंटिंग, पासपोर्ट फोटो, विजिटिंग कार्ड और स्मार्ट आईडी कार्ड ऑर्डर करें। त्वरित प्रिंट व काउंटर कलेक्शन।",
+        }}
+        canonical="/online-services"
+        keywords="Online Printing Chakia, Document Printing Online, Passport Photos Chakia, Visiting Cards Chakia, PVC ID Cards Chakia, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://www.palakenterprises.shop/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Instant Online Services",
+              "item": "https://www.palakenterprises.shop/online-services"
+            }
+          ]
         }}
       />
 

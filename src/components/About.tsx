@@ -45,6 +45,10 @@ export const About: React.FC = () => {
                   <Award className="w-4 h-4 text-navy" />
                   <span>MSME: {business.registrations.udyamNo}</span>
                 </span>
+                <span className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-bold text-xs shadow-xs flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-sky-600" />
+                  <span>GST No. {business.registrations.gstNo}</span>
+                </span>
               </div>
 
               <div className="pt-2">

@@ -20,6 +20,7 @@ import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnav
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { ImageCropModal } from "../../components/idcard/ImageCropModal";
 import { cn } from "../../lib/utils";
+import { SEO } from "../../components/SEO";
 
 export const IdCardsPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -36,7 +37,7 @@ export const IdCardsPage: React.FC = () => {
   const [organization, setOrganization] = useState<string>("Chakia Public School");
   const [bloodGroup, setBloodGroup] = useState<string>("B+");
   const [emergencyPhone, setEmergencyPhone] = useState<string>("+91 99052 38015");
-  const [address, setAddress] = useState<string>("Saniganj, Chakia, Bihar");
+  const [address, setAddress] = useState<string>("Near Block Gate, Chakia, Bihar");
   const [validity, setValidity] = useState<string>("2026 - 2027");
 
   // Options
@@ -379,6 +380,30 @@ export const IdCardsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "School & Corporate PVC ID Card Printing in Chakia | Palak Enterprises",
+          hi: "स्कूल एवं संस्था पीवीसी आईडी कार्ड प्रिंटिंग चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Custom PVC ID card maker in Chakia, Bihar. Smart student identity cards, staff badges, lanyard ropes & printed card holders with barcode/QR code support.",
+          hi: "चकिया में स्कूल, कॉलेज और ऑफिस के लिए स्मार्ट पीवीसी आईडी कार्ड, डोरी व होल्डर प्रिंटिंग। हाई-डेफिनिशन वॉटरप्रूफ कार्ड।",
+        }}
+        canonical="/online-services/id-cards"
+        keywords="PVC ID Card Printing Chakia, Student ID Card Maker Chakia, Identity Card Printing Bihar, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": "PVC ID Card Printing Service",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          },
+          "serviceType": "Identity Card Printing Service",
+          "areaServed": "Chakia, East Champaran, Bihar"
+        }}
+      />
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         {/* Ambient background glows */}

@@ -36,7 +36,7 @@ import {
 import { getUserOrders, getInvoiceByOrderCode } from "../lib/supabase/database";
 import { supabase } from "../lib/supabase/client";
 import { SEO } from "../components/SEO";
-import { business, getWhatsAppLink } from "../config/business";
+import { business, businessConfig, getWhatsAppLink } from "../config/business";
 import { CustomerOrderDetailModal } from "../components/customer/CustomerOrderDetailModal";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
@@ -422,6 +422,7 @@ export const AccountPage: React.FC = () => {
           en: "Manage your Palak Enterprises profile, orders, design requests, and CSC services.",
           hi: "पालक इंटरप्राइजेज प्रोफाइल, ऑर्डर, डिज़ाइन रिक्वेस्ट और सीएससी सेवाओं का प्रबंधन करें।",
         }}
+        noIndex={true}
       />
 
       {/* Header Profile Banner */}
@@ -617,8 +618,8 @@ export const AccountPage: React.FC = () => {
                 </span>
                 <p className="text-[11px] text-slate-600 leading-tight mt-0.5">
                   {currentLang === "hi"
-                    ? "तैयार प्रिंट लेने के लिए दुकान (ब्लॉक गेट, चकिया) आएं। ऑनलाइन ऑर्डर और भुगतान से आपको दुकान पर लाइन में इंतज़ार नहीं करना पड़ता — प्रिंट पहले से तैयार मिलता है!"
-                    : "Collect your prints at Palak Enterprises (Near Block Gate, Chakia). Online orders & payments skip counter lines and file-transfer delays for instant collection!"}
+                    ? "तैयार प्रिंट लेने के लिए दुकान (ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार) आएं। ऑनलाइन ऑर्डर और भुगतान से आपको दुकान पर लाइन में इंतज़ार नहीं करना पड़ता — प्रिंट पहले से तैयार मिलता है!"
+                    : "Collect your prints at Palak Enterprises (Near Block Gate, Chakia, East Champaran, Bihar). Online orders & payments skip counter lines and file-transfer delays for instant collection!"}
                 </p>
               </div>
             </div>
@@ -1073,7 +1074,7 @@ export const AccountPage: React.FC = () => {
                     <span>{currentLang === "hi" ? "स्थानीय केंद्र का पता" : "Local CSC Center & Print Shop"}</span>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]} (CSC ID: {business.registrations.cscId})
+                    {businessConfig.address.fullAddress[currentLang]} (CSC ID: {business.registrations.cscId})
                   </p>
                   <div className="pt-1 flex flex-wrap items-center gap-3 text-xs">
                     <a

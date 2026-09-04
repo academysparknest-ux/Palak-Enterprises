@@ -95,13 +95,15 @@ export const WorkPage: React.FC<WorkPageProps> = ({ onOpenRequestModal }) => {
     <div className="bg-slate-50 min-h-screen pb-16">
       <SEO
         title={{
-          en: "Our Work & Design Gallery | Palak Enterprises",
-          hi: "हमारा काम एवं डिज़ाइन गैलरी | पालक इंटरप्राइजेज",
+          en: "Our Work & Design Gallery | Palak Enterprises Chakia",
+          hi: "हमारा काम एवं डिज़ाइन गैलरी | पालक इंटरप्राइजेज चकिया",
         }}
         description={{
-          en: "Explore our complete portfolio of printed visiting cards, wedding invitation cards, PVC smart ID cards, stationery, bill books, and flex banners in Chakia.",
+          en: "Explore our complete portfolio of printed visiting cards, wedding invitation cards, PVC smart ID cards, stationery, bill books, and flex banners in Chakia, Bihar.",
           hi: "पालक इंटरप्राइजेज चकिया के विजिटिंग कार्ड, शादी आमंत्रण कार्ड, पीवीसी स्मार्ट आईडी कार्ड, बिल बुक व फ्लेक्स बैनर के नमूनों की संपूर्ण गैलरी देखें।",
         }}
+        canonicalUrl="/work"
+        keywords="printing portfolio Chakia, printing samples Bihar, wedding card samples Chakia, banner design portfolio, Palak Enterprises work"
       />
 
       {/* Page Hero */}

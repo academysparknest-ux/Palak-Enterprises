@@ -5,6 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { PalakDataStore } from "../lib/storage/store";
 import { FileUploadZone } from "../components/FileUploadZone";
 import { getWhatsAppLink } from "../config/business";
+import { SEO } from "../components/SEO";
 
 export const DesignServicesPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -69,6 +70,12 @@ export const DesignServicesPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title="Professional Graphic Design Services in Chakia | Palak Enterprises"
+        description="Creative graphic design studio in Chakia, East Champaran: logo design, wedding invitation proofs, flex banner layouts, business stationery, pamphlets, and DTP typesetting."
+        canonicalUrl="/design-services"
+        keywords="graphic design Chakia, logo designer East Champaran, banner design, visiting card designer Bihar, wedding card designer, DTP design Chakia"
+      />
       {/* Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-12 px-4 sm:px-6">
         {/* Ambient background glows */}

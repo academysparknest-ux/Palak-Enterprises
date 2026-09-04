@@ -103,13 +103,15 @@ export const WeddingEventsPage: React.FC = () => {
     <div className="min-h-screen bg-[#FCFBF7] text-slate-900 pb-20">
       <SEO
         title={{
-          en: "Royal Wedding & Invitation Card Showroom | Palak Enterprises Chakia",
-          hi: "शाही शादी एवं मांगलिक कार्ड कैटलॉग | पालक इंटरप्राइजेज चकिया",
+          en: "Royal Wedding & Invitation Card Printing in Chakia | Palak Enterprises",
+          hi: "शाही शादी एवं मांगलिक कार्ड प्रिंटिंग चकिया | पालक इंटरप्राइजेज",
         }}
         description={{
-          en: "Explore luxury Indian wedding stationery, Tilak & Mundan invitations, laser cut cards, and velvet boxes with in-house printing in Chakia, Bihar.",
+          en: "Explore luxury Indian wedding stationery, Tilak & Mundan invitations, laser cut cards, and velvet boxes with high-speed in-house printing in Chakia, Bihar.",
           hi: "शादी, तिलक, मुंडन, सगाई और गृह प्रवेश के 500+ सुंदर कार्ड। गोल्डन फॉयल, संस्कृत श्लोक एवं चकिया में इन-हाउस प्रिंटिंग।",
         }}
+        canonicalUrl="/wedding-events"
+        keywords="wedding card printing Chakia, shadi card Chakia, invitation card printer Bihar, tilak card, mundan card, gold foil wedding card East Champaran"
       />
 
       {/* 1. Hero Section */}

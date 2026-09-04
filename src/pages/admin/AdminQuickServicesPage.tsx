@@ -13,6 +13,7 @@ import {
   toggleQuickServiceAvailability,
   toggleAllQuickServicesAvailability,
   subscribeToQuickServices,
+  broadcastQuickServicesUpdate,
   type QuickServiceItem,
   DEFAULT_QUICK_SERVICES,
 } from '../../lib/supabase/database';
@@ -108,11 +109,12 @@ export const AdminQuickServicesPage: React.FC = () => {
     try {
       const [liveConfig, liveServices] = await Promise.all([
         getPrintPricingConfig(),
-        getQuickServices(),
+        getQuickServices(true),
       ]);
       setConfig(liveConfig);
       setInitialConfig(liveConfig);
       setQuickServices(liveServices);
+      broadcastQuickServicesUpdate(liveServices);
     } catch (err: any) {
       console.error('Error loading quick services data:', err);
       addToast({ type: 'error', title: 'Failed to load configuration' });

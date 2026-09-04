@@ -7,6 +7,7 @@ import { ToastProvider } from "./AdminToast";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
 import { useRealtimeOrders } from "../../hooks/useRealtimeOrders";
 import { Lock, AlertCircle } from "lucide-react";
+import { SEO } from "../SEO";
 
 export const AdminLayout: React.FC = () => {
   const { user, isStaff, isAuthenticated, loading: authLoading, isReady, authError } = useAuth();
@@ -218,6 +219,7 @@ export const AdminLayout: React.FC = () => {
 
   return (
     <ToastProvider>
+      <SEO title="Admin Control Center | Palak Enterprises" noIndex={true} />
       <div className="min-h-screen bg-[#F1F5F9] flex flex-col">
         {/* Top Header */}
         <AdminHeader

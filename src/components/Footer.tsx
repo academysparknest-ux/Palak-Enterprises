@@ -2,9 +2,9 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useAccessibility } from "../context/AccessibilityContext";
-import { business } from "../config/business";
+import { business, businessConfig } from "../config/business";
 import { cn } from "../lib/utils";
-import { Eye, ShieldCheck, Zap } from "lucide-react";
+import { Eye, ShieldCheck, Zap, MapPin } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 export function Footer(): React.JSX.Element {
@@ -44,6 +44,10 @@ export function Footer(): React.JSX.Element {
           </p>
 
           <div className="rounded-xl bg-slate-900/80 p-3.5 border border-slate-800 space-y-1.5 text-xs text-slate-300">
+            <div className="flex items-center gap-2 text-slate-200">
+              <MapPin className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>{businessConfig.address.fullAddress[currentLang]}</span>
+            </div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
               <span>CSC ID: <strong className="text-white font-mono">{business.registrations.cscId}</strong></span>
@@ -51,6 +55,10 @@ export function Footer(): React.JSX.Element {
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0" />
               <span>MSME Udyam: <strong className="text-white font-mono">{business.registrations.udyamNo}</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-sky-400 shrink-0" />
+              <span>GST No. <strong className="text-white font-mono">{business.registrations.gstNo}</strong></span>
             </div>
           </div>
 

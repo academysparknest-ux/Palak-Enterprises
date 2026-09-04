@@ -319,7 +319,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
                   <p className="text-slate-600 text-[11px] mt-0.5">
                     {order.fulfillmentType === "delivery"
                       ? `${order.deliveryAddress?.street || ""}, ${order.deliveryAddress?.city || "Chakia"} - ${order.deliveryAddress?.pincode || "845412"}`
-                      : "Palak Enterprises, Ward No. 7, Near Block Gate, Chakia, East Champaran, Bihar - 845412"}
+                      : "Palak Enterprises, Near Block Gate, Chakia, East Champaran, Bihar"}
                   </p>
                 </div>
               </div>

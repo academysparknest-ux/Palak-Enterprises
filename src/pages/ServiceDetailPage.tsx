@@ -9,6 +9,7 @@ import {
 import CategoryPageContent from "../components/CategoryPageContent";
 import ServiceDetailPageContent from "../components/ServiceDetailPageContent";
 import { useLanguage } from "../context/LanguageContext";
+import { SEO } from "../components/SEO";
 
 export interface ServiceDetailPageProps {
   onOpenRequestModal?: (serviceId?: string) => void;
@@ -78,6 +79,7 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   // Fallback: Not Found
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center bg-slate-50">
+      <SEO title="Service Not Found | Palak Enterprises Chakia" noIndex={true} />
       <h2 className="text-2xl font-black text-slate-900 mb-2">
         {currentLang === "hi" ? "सेवा नहीं मिली" : "Service Not Found"}
       </h2>

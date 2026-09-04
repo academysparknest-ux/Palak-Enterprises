@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
+import { SEO } from "../../components/SEO";
 import {
   DEFAULT_PRINT_PRICING,
   type PrintPricingConfig,
@@ -220,6 +221,7 @@ export const DocumentPrintingPage: React.FC = () => {
     docType: string;
     specifications: Record<string, string>;
     finishingSelected: string[];
+    printSnapshot?: OrderPrintSnapshot;
     paymentMethod: string;
     paymentStatus: string;
   } | null>(null);
@@ -981,6 +983,7 @@ export const DocumentPrintingPage: React.FC = () => {
               docType: getDocTypeLabel(),
               specifications,
               finishingSelected: [],
+              printSnapshot: finalSnapshot,
               paymentMethod: "Online Payment (UPI/Card)",
               paymentStatus: "Paid & Confirmed",
             });
@@ -1001,6 +1004,7 @@ export const DocumentPrintingPage: React.FC = () => {
               docType: getDocTypeLabel(),
               specifications,
               finishingSelected: [],
+              printSnapshot: finalSnapshot,
               paymentMethod: "Pay on Pickup",
               paymentStatus: "Pending (Pay at Store)",
             });
@@ -1026,6 +1030,7 @@ export const DocumentPrintingPage: React.FC = () => {
               docType: getDocTypeLabel(),
               specifications,
               finishingSelected: [],
+              printSnapshot: finalSnapshot,
               paymentMethod: "Pay on Pickup",
               paymentStatus: "Pending (Pay at Store)",
             });
@@ -1048,6 +1053,7 @@ export const DocumentPrintingPage: React.FC = () => {
           docType: getDocTypeLabel(),
           specifications,
           finishingSelected: [],
+          printSnapshot: finalSnapshot,
           paymentMethod: "Pay on Pickup",
           paymentStatus: "Pending (Pay at Store)",
         });
@@ -1068,6 +1074,30 @@ export const DocumentPrintingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "Online Document Printing, Photocopy & Binding in Chakia | Palak Enterprises",
+          hi: "ऑनलाइन दस्तावेज प्रिंटिंग, फोटोकॉपी व बाइंडिंग चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Fast online PDF and document printing in Chakia, Bihar. Black & white or color prints, single/double sided, spiral binding, corner staple & instant shop pickup.",
+          hi: "चकिया में ऑनलाइन पीडीएफ और डॉक्यूमेंट प्रिंटिंग। ब्लैक एंड व्हाइट या कलर प्रिंट, स्पाइरल बाइंडिंग, लेमिनेशन एवं त्वरित दुकान से पिकअप।",
+        }}
+        canonical="/online-services/document-printing"
+        keywords="Document Printing Chakia, PDF Printing Online Chakia, Photocopy in Chakia, Spiral Binding Chakia, Color Printing Chakia, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": "Document & PDF Printing Service",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          },
+          "serviceType": "Printing Service",
+          "areaServed": "Chakia, East Champaran, Bihar"
+        }}
+      />
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         <div
@@ -1826,7 +1856,7 @@ export const DocumentPrintingPage: React.FC = () => {
                     required
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="e.g. 9876543210"
+                    placeholder="e.g. 9801234567"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
                   />
                 </div>
@@ -1839,7 +1869,7 @@ export const DocumentPrintingPage: React.FC = () => {
                     type="tel"
                     value={customerWhatsApp}
                     onChange={(e) => setCustomerWhatsApp(e.target.value)}
-                    placeholder="e.g. 9876543210"
+                    placeholder="e.g. 9801234567"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:border-[#123B70] focus:bg-white focus:outline-hidden"
                   />
                 </div>
@@ -2154,6 +2184,88 @@ export const DocumentPrintingPage: React.FC = () => {
             </div>
           </div>
         </form>
+
+        {/* Informative Editorial & Local Chakia Guide Section */}
+        <div className="mt-14 space-y-10 border-t border-slate-200 pt-12">
+          <div className="text-center max-w-3xl mx-auto space-y-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#123B70] text-xs font-bold border border-blue-200">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>Chakia In-House Document Print Press</span>
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              {currentLang === "hi"
+                ? "चकिया में ऑनलाइन दस्तावेज़ प्रिंटिंग — संपूर्ण जानकारी व विकल्प"
+                : "Professional Document Printing in Chakia — Specifications & Guides"}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              {currentLang === "hi"
+                ? "पालक इंटरप्राइजेज पर उच्च गुणवत्ता वाली डिजिटल व लेजर प्रिंटिंग, स्पाइरल बाइंडिंग एवं तत्काल काउंटर पिकअप उपलब्ध है।"
+                : "Palak Enterprises provides high-speed digital and laser document printing, custom finishing, and immediate counter pickup right next to Chakia Block Gate."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Card 1: Paper Specifications */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#123B70] flex items-center justify-center font-bold text-lg">
+                📄
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "कागज़ की गुणवत्ता (Paper Stock)" : "Paper GSM & Stock"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">70 GSM Copier:</strong> {currentLang === "hi" ? "दैनिक नोट्स, असाइनमेंट व सामान्य प्रिंटिंग हेतु श्रेष्ठ।" : "Standard everyday high-speed monochrome and study material prints."}</li>
+                <li><strong className="text-slate-800">80 GSM Bond:</strong> {currentLang === "hi" ? "कोर्ट पिटीशन, सरकारी फॉर्म, एग्रीमेंट व प्रोजेक्ट रिपोर्ट।" : "Heavyweight crisp paper for court filings, resumes, and executive contracts."}</li>
+                <li><strong className="text-slate-800">100 GSM Premium:</strong> {currentLang === "hi" ? "सर्टिफिकेट, प्रेजेंटेशन व कलर ब्रोशर पेजेस।" : "Ultra-bright stock preventing bleed-through on saturated full-color artwork."}</li>
+              </ul>
+            </div>
+
+            {/* Card 2: Print Tech */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-lg">
+                ⚡
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "प्रिंट तकनीक (Print Technology)" : "Laser & Pigment Output"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">1200 DPI B/W Laser:</strong> {currentLang === "hi" ? "शार्प और स्मज-फ्री टेक्स्ट, लंबे समय तक सुरक्षित।" : "Deep black toner fusion that never smudges under moisture or highlighters."}</li>
+                <li><strong className="text-slate-800">Vivid Color:</strong> {currentLang === "hi" ? "डायग्राम, ग्राफ व कलर डॉक्यूमेंट्स का सटीक आउटपुट।" : "Accurate color rendition for engineering diagrams, medical charts & photos."}</li>
+                <li><strong className="text-slate-800">Duplex (Both Sides):</strong> {currentLang === "hi" ? "किफ़ायती व पर्यावरण-अनुकूल दो-तरफ़ा प्रिंटिंग।" : "Automatic two-sided printing optimizing document thickness and cost."}</li>
+              </ul>
+            </div>
+
+            {/* Card 3: Binding & Finishing */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-lg">
+                📚
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "बाइंडिंग व लैमिनेशन (Binding)" : "Binding & Finishing"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">Spiral Wire Binding:</strong> {currentLang === "hi" ? "पारदर्शी पीवीसी शीट + मजबूत बैक कवर के साथ।" : "Durable plastic coil with clear front OHP sheet and rigid colored back cover."}</li>
+                <li><strong className="text-slate-800">Thermal Tape Spine:</strong> {currentLang === "hi" ? "आधिकारिक रिपोर्ट व प्रोजेक्ट सबमिशन के लिए।" : "Professional bound spine for project dossiers and academic theses."}</li>
+                <li><strong className="text-slate-800">Thermal Lamination:</strong> {currentLang === "hi" ? "प्रमाणपत्रों व ज़रूरी कागज़ातों की वाटरप्रूफ सुरक्षा।" : "Gloss and matte film lamination protecting certificates from moisture."}</li>
+              </ul>
+            </div>
+
+            {/* Card 4: Local Chakia Center */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center font-bold text-lg">
+                📍
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "लोकल काउंटर पिकअप (Chakia Center)" : "Counter Pickup & Proximity"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">5-15 Min Turnaround:</strong> {currentLang === "hi" ? "वेबसाइट से फ़ाइल अपलोड करें, काउंटर पर तुरंत पाएं।" : "Files queued and processed immediately for fast collection without waiting."}</li>
+                <li><strong className="text-slate-800">Prime Location:</strong> {currentLang === "hi" ? "ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार।" : "Near Block Gate, Chakia, East Champaran, Bihar."}</li>
+                <li><strong className="text-slate-800">Convenient For:</strong> {currentLang === "hi" ? "चकिया अनुमंडल कोर्ट, ब्लॉक ऑफिस, स्कूल एवं कॉलेज छात्र।" : "Walking distance from Chakia Sub-Divisional offices, Anchal & local schools."}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Live Order Processing Modal */}
@@ -2211,6 +2323,7 @@ export const DocumentPrintingPage: React.FC = () => {
           documentType={successData.docType}
           specifications={successData.specifications}
           finishingSelected={successData.finishingSelected}
+          printSnapshot={successData.printSnapshot}
           totalAmount={successData.totalAmount}
           customerName={customerName}
           customerPhone={customerPhone}

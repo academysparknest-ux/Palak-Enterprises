@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Calculator,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
@@ -19,6 +20,7 @@ import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { cn } from "../../lib/utils";
+import { SEO } from "../../components/SEO";
 
 export const VisitingCardsPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -39,7 +41,7 @@ export const VisitingCardsPage: React.FC = () => {
   const [cardWhatsApp, setCardWhatsApp] = useState<string>("+91 99052 38015");
   const [cardEmail, setCardEmail] = useState<string>("palakchakia@gmail.com");
   const [cardAddress, setCardAddress] = useState<string>("Near Block Gate, Chakia");
-  const [cardWebsite, setCardWebsite] = useState<string>("www.palakchakia.com");
+  const [cardWebsite, setCardWebsite] = useState<string>("www.palakenterprises.shop");
 
   // Printing Specs
   const [sides, setSides] = useState<"single" | "double">("single");
@@ -343,6 +345,30 @@ export const VisitingCardsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "Visiting Card & Business Card Printing in Chakia | Palak Enterprises",
+          hi: "विजिटिंग कार्ड एवं बिजनेस कार्ड प्रिंटिंग चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Custom visiting card & business card printing in Chakia, Bihar. 350 GSM card stock, single or double sided, matte or glossy lamination, fast dispatch & pickup.",
+          hi: "चकिया में प्रीमियम विजिटिंग कार्ड प्रिंटिंग। 350 GSM मोटा कार्ड, सिंगल/डबल साइडेड, मैट या ग्लॉस लेमिनेशन, 100 से 1000 कार्ड पैक।",
+        }}
+        canonical="/online-services/visiting-cards"
+        keywords="Visiting Card Printing Chakia, Business Card Maker Chakia, Visiting Card Printing Bihar, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": "Visiting Card & Business Card Printing",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          },
+          "serviceType": "Commercial Printing Service",
+          "areaServed": "Chakia, East Champaran, Bihar"
+        }}
+      />
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         {/* Ambient background glows */}
@@ -914,6 +940,88 @@ export const VisitingCardsPage: React.FC = () => {
             </div>
           </div>
         </form>
+
+        {/* Informative Editorial & Visiting Card Specifications Section */}
+        <div className="mt-14 space-y-10 border-t border-slate-200 pt-12">
+          <div className="text-center max-w-3xl mx-auto space-y-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#123B70] text-xs font-bold border border-blue-200">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>Commercial Offset & Digital Quality</span>
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              {currentLang === "hi"
+                ? "चकिया में प्रीमियम विजिटिंग कार्ड प्रिंटिंग — विकल्प व विशेषताएं"
+                : "Premium Visiting Cards Printing in Chakia — Quality & Finishes"}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              {currentLang === "hi"
+                ? "व्यापारियों, डॉक्टरों, वकीलों एवं प्रोफेशनल्स के लिए उच्च श्रेणी के बिजनेस कार्ड, विभिन्न फिनिश और सटीक कटिंग के साथ उपलब्ध।"
+                : "Make a powerful first impression with heavy cardstock, velvet or matte lamination, and sharp color rendering from Palak Enterprises."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Card 1: Cardstock GSM */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#123B70] flex items-center justify-center font-bold text-lg">
+                💳
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "कार्डस्टॉक व मोटाई" : "Cardstock & Weight"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">300 GSM Art Card:</strong> {currentLang === "hi" ? "स्टैंडर्ड व्यावसायिक कार्ड, टिकाऊ एवं आर्थिक रूप से किफ़ायती।" : "High-density bright white art board for crisp corporate printing."}</li>
+                <li><strong className="text-slate-800">350 GSM Heavy Board:</strong> {currentLang === "hi" ? "प्रीमियम कठोर बोर्ड, हाथ में लेने पर भारी व लग्जरी अनुभव।" : "Rigid non-bendable executive board delivering elite tactile feel."}</li>
+                <li><strong className="text-slate-800">Corner Styles:</strong> {currentLang === "hi" ? "क्लासिक शार्प कॉर्नर अथवा मॉडर्न राउंड कॉर्नर फिनिशिंग।" : "Precision die-cut square or modern rounded corner radius options."}</li>
+              </ul>
+            </div>
+
+            {/* Card 2: Lamination & Finishes */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-lg">
+                ✨
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "फिनिश एवं लेमिनेशन" : "Lamination & Effects"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">Matte Lamination:</strong> {currentLang === "hi" ? "एंटी-ग्लेयर, परिपक्व एवं फिंगरप्रिंट-रेसिस्टेंट मैट कोट।" : "Velvety non-reflective thermal coating resisting scratches and fingerprints."}</li>
+                <li><strong className="text-slate-800">Gloss Lamination:</strong> {currentLang === "hi" ? "चमकदार एवं वाइब्रेंट कलर्स जो दूर से ध्यान आकर्षित करें।" : "High-shine protective layer enhancing bright graphics and logos."}</li>
+                <li><strong className="text-slate-800">Velvet Soft Touch:</strong> {currentLang === "hi" ? "रॉयल मखमली फील के साथ प्रीमियम स्पॉट-यूवी फिनिश।" : "Ultra-luxurious peach-skin texture designed for leadership profiles."}</li>
+              </ul>
+            </div>
+
+            {/* Card 3: Business Profiles in Chakia */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-lg">
+                👔
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "स्थानीय उपयोग एवं सेक्टर्स" : "Chakia Business Profiles"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">Advocates & Legal:</strong> {currentLang === "hi" ? "चकिया अनुमंडल कोर्ट व रजिस्ट्री कार्यालय के वकीलों हेतु।" : "Tailored clean layouts for legal practitioners at Chakia Court."}</li>
+                <li><strong className="text-slate-800">Retail & Merchants:</strong> {currentLang === "hi" ? "चकिया बाजार के थोक व खुदरा व्यापारियों के लिए क्यूआर कोड सहित।" : "Store branding with integrated UPI payment QR codes."}</li>
+                <li><strong className="text-slate-800">Clinics & Doctors:</strong> {currentLang === "hi" ? "ओपीडी समय व क्लिनिक पते के साथ दो-तरफ़ा प्रिंटिंग।" : "Appointment details and consulting hours on rear side."}</li>
+              </ul>
+            </div>
+
+            {/* Card 4: Local Chakia Delivery */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center font-bold text-lg">
+                📦
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "टर्नअराउंड व काउंटर पिकअप" : "Turnaround & Pickup"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">24-48 Hr Fast Delivery:</strong> {currentLang === "hi" ? "डिजिटल कार्ड्स 24 घंटे में एवं ऑफसेट बल्क 48 घंटे में तैयार।" : "Digital batch in 24 hours; bulk offset runs ready in 48 hours."}</li>
+                <li><strong className="text-slate-800">Store Address:</strong> {currentLang === "hi" ? "ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार।" : "Near Block Gate, Chakia, East Champaran, Bihar."}</li>
+                <li><strong className="text-slate-800">Free Design Review:</strong> {currentLang === "hi" ? "प्रिंटिंग से पूर्व व्हाट्सएप पर प्रूफ अनुमोदन निःशुल्क।" : "WhatsApp soft-proofing included before final print run."}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       {successData && (

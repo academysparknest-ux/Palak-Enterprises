@@ -56,6 +56,7 @@ export interface InvoiceBusinessSnapshot {
   udyamNo: string;
   gstin?: string;
   logoUrl: string;
+  signatureUrl?: string;
   upiId?: string;
   terms: string[];
 }

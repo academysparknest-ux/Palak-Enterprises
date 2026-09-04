@@ -24,6 +24,7 @@ import { TeacherDigitalIdCard } from "../components/digital-id/TeacherDigitalIdC
 import { VerificationStatusBadge } from "../components/digital-id/VerificationStatusBadge";
 import { business } from "../config/business";
 import { cn } from "../lib/utils";
+import { SEO } from "../components/SEO";
 
 export const DigitalIdVerificationPage: React.FC = () => {
   const { id: paramId } = useParams<{ id?: string }>();
@@ -120,6 +121,11 @@ export const DigitalIdVerificationPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col justify-between relative selection:bg-[#123B70] selection:text-white">
+      <SEO
+        title={{ en: "Digital ID Card Verification", hi: "डिजिटल आईडी कार्ड सत्यापन" }}
+        description={{ en: "Authentic student and staff PVC ID card verification portal.", hi: "प्रामाणिक छात्र एवं कर्मचारी पीवीसी आईडी कार्ड सत्यापन पोर्टल।" }}
+        noIndex={true}
+      />
       {/* Subtle Premium Background Gradients & Glows */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         {/* Soft Radial Ambient Lighting */}

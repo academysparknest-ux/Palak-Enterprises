@@ -17,6 +17,7 @@ import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { cn } from "../../lib/utils";
+import { SEO } from "../../components/SEO";
 
 const SIZES = [
   { id: "a4", label: "A4 (8.3 × 11.7 in)", isStandard: true, price: 20 },
@@ -315,6 +316,30 @@ export const PosterBannerPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "Flex Banner, Poster & Vinyl Printing in Chakia | Palak Enterprises",
+          hi: "फ्लेक्स बैनर, पोस्टर व विनाइल प्रिंटिंग चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "High-resolution outdoor star flex banner, shop signage board, vinyl sticker and poster printing in Chakia, East Champaran. Fast delivery & custom sizes.",
+          hi: "चकिया में स्टार फ्लेक्स बैनर, दुकान के बोर्ड, विनाइल स्टीकर और हाई-ग्लॉस पोस्टर प्रिंटिंग। वाटरप्रूफ एवं टिकाऊ प्रिंट।",
+        }}
+        canonical="/online-services/poster-banner"
+        keywords="Flex Printing in Chakia, Banner Printing Chakia, Vinyl Printing East Champaran, Poster Printing Bihar, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": "Flex Banner & Poster Printing",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          },
+          "serviceType": "Signage & Banner Printing Service",
+          "areaServed": "Chakia, East Champaran, Bihar"
+        }}
+      />
       {/* Header */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         {/* Ambient background glows */}

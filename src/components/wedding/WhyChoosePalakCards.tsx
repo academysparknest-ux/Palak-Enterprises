@@ -1,7 +1,7 @@
 import React from "react";
 import { Sparkles, ShieldCheck, Printer, Users, Eye, MapPin } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
-import { getWhatsAppLink } from "../../config/business";
+import { getWhatsAppLink, businessConfig } from "../../config/business";
 
 export const WhyChoosePalakCards: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -96,9 +96,7 @@ export const WhyChoosePalakCards: React.FC = () => {
               : "Visit Our Showroom to Experience 500+ Physical Cards"}
           </h4>
           <p className="text-xs text-slate-300 max-w-xl">
-            {currentLang === "hi"
-              ? "वार्ड नं. 7, सनिगंज मोहल्ला, ब्लॉक गेट के पास, चकिया (पूर्वी चंपारण) - 845412"
-              : "Ward No. 7, Saniganj Mohalla, Near Block Gate, Chakia, East Champaran, Bihar - 845412"}
+            {businessConfig.address.fullAddress[currentLang]}
           </p>
         </div>
 

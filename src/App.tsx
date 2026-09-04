@@ -96,6 +96,7 @@ const ServiceDetailPage = lazyWithRetry(() => import("./pages/ServiceDetailPage"
 const PrivacyPage = lazyWithRetry(() => import("./pages/LegalPages").then((m) => ({ default: m.PrivacyPage })));
 const TermsPage = lazyWithRetry(() => import("./pages/LegalPages").then((m) => ({ default: m.TermsPage })));
 const RefundPolicyPage = lazyWithRetry(() => import("./pages/LegalPages").then((m) => ({ default: m.RefundPolicyPage })));
+const NotFoundPage = lazyWithRetry(() => import("./pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
 
 // Loading spinner component
 const PageLoader = () => (
@@ -270,6 +271,7 @@ export function AppContent() {
                 {/* Order Tracking & Status */}
                 <Route path="/track-order" element={<TrackOrderPage />} />
                 <Route path="/track" element={<TrackOrderPage />} />
+                <Route path="/order-status" element={<TrackOrderPage />} />
 
                 {/* Public Invoice Authenticity Verification */}
                 <Route path="/verify-invoice/:invoiceNumber" element={<VerifyInvoicePage />} />
@@ -413,6 +415,7 @@ export function AppContent() {
                 {/* Information, Brand & Policy Pages */}
                 <Route path="/services" element={<ServicesPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
                 <Route path="/services/:slug" element={<ServiceDetailPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+                <Route path="/services/:category/:serviceSlug" element={<ServiceDetailPage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
                 <Route path="/work" element={<WorkPage onOpenRequestModal={handleOpenRequestModal} />} />
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/contact" element={<ContactPage />} />
@@ -424,8 +427,9 @@ export function AppContent() {
                 <Route path="/refund-policy" element={<RefundPolicyPage />} />
                 <Route path="/cancellation-policy" element={<RefundPolicyPage />} />
 
-                {/* Catch-all fallback */}
-                <Route path="*" element={<HomePage onOpenRequestModal={handleOpenRequestModal} onSelectService={handleSelectServiceCard} />} />
+                {/* 404 Not Found & Catch-all fallback */}
+                <Route path="/404" element={<NotFoundPage />} />
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </PageTransition>
           </Suspense>

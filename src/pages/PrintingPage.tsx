@@ -5,6 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { ProductCard } from "../components/ProductCard";
 import { PalakDataStore } from "../lib/storage/store";
 import { cn } from "../lib/utils";
+import { SEO } from "../components/SEO";
 
 interface PrintingPageProps {
   onOpenRequestModal?: (serviceId?: string) => void;
@@ -69,6 +70,30 @@ export const PrintingPage: React.FC<PrintingPageProps> = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "Commercial & Offset Printing Press Catalog in Chakia | Palak Enterprises",
+          hi: "प्रिंटिंग प्रेस कैटलॉग एवं उत्पाद चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Explore the complete printing catalog of Palak Enterprises, Chakia: visiting cards, wedding invitations, pamphlets, flex banners, bill books, and office stationery.",
+          hi: "पालक इंटरप्राइजेज चकिया का सम्पूर्ण प्रिंटिंग कैटलॉग: विजिटिंग कार्ड, शादी निमंत्रण, पम्पलेट, फ्लेक्स बैनर, बिल बुक एवं ऑफिस स्टेशनरी।",
+        }}
+        canonical="/printing"
+        keywords="Printing Press Chakia, Offset Printing Chakia, Printing Products Bihar, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          "name": "Printing Products & Services Catalog",
+          "description": "Complete collection of commercial offset and digital printing products in Chakia, Bihar.",
+          "url": "https://www.palakenterprises.shop/printing",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          }
+        }}
+      />
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         {/* Ambient background glows */}

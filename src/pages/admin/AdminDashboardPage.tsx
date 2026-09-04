@@ -19,7 +19,13 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { PalakDataStore } from '../../lib/storage/store';
-import { getStaffOrders, getStaffServiceRequests, getStaffQuoteRequests } from '../../lib/supabase/database';
+import { 
+  getDashboardRecentOrders, 
+  getDashboardOrderMetrics, 
+  getPendingServiceRequestsCount, 
+  getPendingQuoteRequestsCount,
+  type DashboardRecentOrder 
+} from '../../lib/supabase/database';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { AdminContentContainer } from '../../components/admin/AdminContentContainer';
@@ -47,15 +53,7 @@ interface DashboardStats {
   pendingQuoteRequests: number;
 }
 
-interface RecentOrder {
-  id: string;
-  order_code: string;
-  customer_name: string;
-  service_name: string;
-  total_amount: number;
-  status: string;
-  created_at: string;
-}
+type RecentOrder = DashboardRecentOrder;
 
 // ─── Error Classifier ───────────────────────────────────────────────────────
 
@@ -119,11 +117,20 @@ function classifyError(error: any): { isAuth: boolean; isNetwork: boolean; isPer
 export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { loading: authLoading, isAuthenticated, isStaff } = useAuth();
-  const [loading, setLoading] = useState(true);
+  
+  // Local cache check for instantaneous first paint (stale-while-revalidate)
+  const initialOrders = PalakDataStore.getOrders();
+  const hasLocalOrders = initialOrders.length > 0;
+
+  const [metricsLoading, setMetricsLoading] = useState(!hasLocalOrders);
+  const [recentOrdersLoading, setRecentOrdersLoading] = useState(!hasLocalOrders);
+  const [inquiriesLoading, setInquiriesLoading] = useState(!hasLocalOrders);
   const [refreshing, setRefreshing] = useState(false);
   const [isOfflineFallback, setIsOfflineFallback] = useState(false);
+  
   const fetchRequestIdRef = React.useRef<number>(0);
   const isMountedRef = React.useRef<boolean>(true);
+  const inFlightPromiseRef = React.useRef<Promise<void> | null>(null);
   const reconcileTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
@@ -167,9 +174,10 @@ export const AdminDashboardPage: React.FC = () => {
         serviceName += ` + ${order.items.length - 1} more`;
       }
       return {
-        id: order.id,
+        id: order.id || order.orderCode,
         order_code: order.orderCode,
-        customer_name: order.customerName || 'Guest Customer',
+        customer_name: order.customerName || (order.customerPhone ? `Customer (${order.customerPhone})` : 'Guest Customer'),
+        customer_phone: order.customerPhone,
         service_name: serviceName,
         total_amount: Math.max(0, Number(order.totalAmount) || 0),
         status: order.orderStatus,
@@ -179,181 +187,93 @@ export const AdminDashboardPage: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDashboardData = useCallback(async () => {
-    const currentRequestId = ++fetchRequestIdRef.current;
-    try {
-      if (isMountedRef.current) {
-        setError(null);
-      }
-
-      // Start & End of day in local timezone (IST / user's local day boundaries)
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      const todayTimestamp = startOfToday.getTime();
-
-      const endOfToday = new Date();
-      endOfToday.setHours(23, 59, 59, 999);
-      const endTimestamp = endOfToday.getTime();
-
-      let ordersList: any[] = [];
-      let serviceList: any[] = [];
-      let quoteList: any[] = [];
-      let isFallback = false;
-
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const [fetchedOrders, fetchedServices, fetchedQuotes] = await Promise.all([
-            getStaffOrders(200),
-            getStaffServiceRequests().catch((err) => {
-              console.warn('getStaffServiceRequests notice:', err);
-              return PalakDataStore.getServiceRequests();
-            }),
-            getStaffQuoteRequests().catch((err) => {
-              console.warn('getStaffQuoteRequests notice:', err);
-              return PalakDataStore.getQuoteRequests();
-            }),
-          ]);
-
-          if (currentRequestId !== fetchRequestIdRef.current || !isMountedRef.current) {
-            return;
-          }
-
-          ordersList = fetchedOrders;
-          serviceList = fetchedServices;
-          quoteList = fetchedQuotes;
-          isFallback = false;
-        } catch (queryErr: any) {
-          console.warn('Cloud fetch error in dashboard, using local fallback:', queryErr);
-          const classified = classifyError(queryErr);
-          if (classified.isNetwork || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-            isFallback = true;
-          } else if (classified.isAuth) {
-            if (isMountedRef.current) setError(classified.message);
-          }
-          ordersList = PalakDataStore.getOrders();
-          serviceList = PalakDataStore.getServiceRequests();
-          quoteList = PalakDataStore.getQuoteRequests();
-        }
-      } else {
-        ordersList = PalakDataStore.getOrders();
-        serviceList = PalakDataStore.getServiceRequests();
-        quoteList = PalakDataStore.getQuoteRequests();
-        isFallback = false;
-      }
-
-      if (currentRequestId !== fetchRequestIdRef.current || !isMountedRef.current) {
-        return;
-      }
-
-      setIsOfflineFallback(isFallback);
-
-      // Calculate stats safely
-      const totalOrdersCount = ordersList.length;
-      const newOrdersCount = ordersList.filter(
-        (o) => o.orderStatus === 'NEW' || o.orderStatus === 'UNDER_REVIEW'
-      ).length;
-      const inProductionCount = ordersList.filter(
-        (o) =>
-          o.orderStatus === 'IN_PRODUCTION' ||
-          o.orderStatus === 'DESIGN_REVIEW' ||
-          o.orderStatus === 'APPROVED' ||
-          o.orderStatus === 'PROCESSING'
-      ).length;
-      const readyForPickupCount = ordersList.filter(
-        (o) => o.orderStatus === 'READY_FOR_PICKUP' || o.orderStatus === 'OUT_FOR_DELIVERY'
-      ).length;
-
-      const totalRevenue = ordersList
-        .filter(
-          (o) =>
-            (String(o.paymentStatus).toLowerCase() === 'paid' ||
-              String(o.paymentStatus).toLowerCase() === 'confirmed') &&
-            o.orderStatus !== 'CANCELLED'
-        )
-        .reduce((sum, o) => {
-          const amt = Number(o.totalAmount);
-          return sum + (isNaN(amt) ? 0 : Math.max(0, amt));
-        }, 0);
-
-      const todaysCount = ordersList.filter((o) => {
-        const time = new Date(o.createdAt).getTime();
-        return time >= todayTimestamp && time <= endTimestamp;
-      }).length;
-
-      const pendingServicesCount = serviceList.filter(
-        (s) => s.requestStatus !== 'COMPLETED' && s.requestStatus !== 'REJECTED'
-      ).length;
-
-      const pendingQuotesCount = quoteList.filter(
-        (q) =>
-          q.quoteStatus === 'NEW' ||
-          q.quoteStatus === 'ESTIMATE_PREPARED' ||
-          q.quoteStatus === 'QUOTE_SENT'
-      ).length;
-
-      setStats({
-        totalOrders: totalOrdersCount,
-        newOrders: newOrdersCount,
-        inProduction: inProductionCount,
-        readyForPickup: readyForPickupCount,
-        totalRevenue,
-        todaysOrders: todaysCount,
-        pendingServiceRequests: pendingServicesCount,
-        pendingQuoteRequests: pendingQuotesCount,
-      });
-
-      // Format recent orders safely (top 6 sorted by createdAt desc)
-      const sortedOrders = [...ordersList].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-
-      const formattedOrders: RecentOrder[] = sortedOrders.slice(0, 6).map((order) => {
-        let serviceName = 'Print Order';
-        try {
-          const itemsArr = Array.isArray(order.items) ? order.items : [];
-          if (itemsArr.length > 0) {
-            const first = itemsArr[0];
-            const rawName = first?.productName || first?.name || 'Print Service';
-            const qty = Number(first?.quantity) || 1;
-            serviceName = qty > 1 ? `${rawName} (${qty}x)` : rawName;
-            if (itemsArr.length > 1) {
-              serviceName += ` + ${itemsArr.length - 1} more`;
-            }
-          }
-        } catch {}
-
-        return {
-          id: String(order.id || order.orderCode),
-          order_code: order.orderCode || 'ORD-NEW',
-          customer_name: order.customerName || (order.customerPhone ? `Customer (${order.customerPhone})` : 'Guest Customer'),
-          service_name: serviceName,
-          total_amount: Math.max(0, Number(order.totalAmount) || 0),
-          status: order.orderStatus || 'NEW',
-          created_at: order.createdAt || new Date().toISOString(),
-        };
-      });
-
-      setRecentOrders(formattedOrders);
-    } catch (err: any) {
-      console.error('Error in dashboard data fetcher:', err);
-      const classified = classifyError(err);
-      if (isMountedRef.current) {
-        setError(classified.message);
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-        setRefreshing(false);
-      }
+  const fetchDashboardData = useCallback(async (isManualRefresh: boolean = false) => {
+    if (inFlightPromiseRef.current) {
+      return inFlightPromiseRef.current;
     }
+
+    const currentRequestId = ++fetchRequestIdRef.current;
+    if (isManualRefresh && isMountedRef.current) {
+      setRefreshing(true);
+    }
+
+    const task = (async () => {
+      try {
+        if (isMountedRef.current) {
+          setError(null);
+        }
+
+        // Concurrently query only focused dashboard data via Promise.allSettled
+        const [metricsResult, recentOrdersResult, inquiriesResult] = await Promise.allSettled([
+          getDashboardOrderMetrics(),
+          getDashboardRecentOrders(6),
+          Promise.all([
+            getPendingServiceRequestsCount(),
+            getPendingQuoteRequestsCount(),
+          ]),
+        ]);
+
+        if (currentRequestId !== fetchRequestIdRef.current || !isMountedRef.current) {
+          return;
+        }
+
+        // 1. Process Metrics
+        if (metricsResult.status === 'fulfilled') {
+          setStats((prev) => ({
+            ...prev,
+            ...metricsResult.value,
+          }));
+        } else {
+          console.warn('Dashboard metrics notice:', metricsResult.reason);
+        }
+
+        // 2. Process Recent Orders
+        if (recentOrdersResult.status === 'fulfilled') {
+          setRecentOrders(recentOrdersResult.value);
+        } else {
+          console.warn('Dashboard recent orders notice:', recentOrdersResult.reason);
+        }
+
+        // 3. Process Inquiries
+        if (inquiriesResult.status === 'fulfilled') {
+          const [pendingServices, pendingQuotes] = inquiriesResult.value;
+          setStats((prev) => ({
+            ...prev,
+            pendingServiceRequests: pendingServices,
+            pendingQuoteRequests: pendingQuotes,
+          }));
+        } else {
+          console.warn('Dashboard inquiries notice:', inquiriesResult.reason);
+        }
+
+        setIsOfflineFallback(typeof navigator !== 'undefined' && !navigator.onLine);
+      } catch (err: any) {
+        console.error('Error in dashboard data fetcher:', err);
+        const classified = classifyError(err);
+        if (isMountedRef.current) {
+          setError(classified.message);
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setMetricsLoading(false);
+          setRecentOrdersLoading(false);
+          setInquiriesLoading(false);
+          setRefreshing(false);
+        }
+        inFlightPromiseRef.current = null;
+      }
+    })();
+
+    inFlightPromiseRef.current = task;
+    return task;
   }, []);
 
   // Optimistically and reliably handle real-time orders on dashboard
   const debouncedReconcile = useCallback(() => {
     if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
     reconcileTimerRef.current = setTimeout(() => {
-      fetchDashboardData();
-    }, 1000);
+      fetchDashboardData(false);
+    }, 1200);
   }, [fetchDashboardData]);
 
   useRealtimeOrders({
@@ -378,9 +298,10 @@ export const AdminDashboardPage: React.FC = () => {
         }
 
         const newRecent: RecentOrder = {
-          id: newOrder.id,
+          id: newOrder.id || newOrder.orderCode,
           order_code: newOrder.orderCode,
-          customer_name: newOrder.customerName || "Customer",
+          customer_name: newOrder.customerName || (newOrder.customerPhone ? `Customer (${newOrder.customerPhone})` : "Customer"),
+          customer_phone: newOrder.customerPhone,
           service_name: serviceName,
           total_amount: Math.max(0, Number(newOrder.totalAmount) || 0),
           status: newOrder.orderStatus,
@@ -412,20 +333,21 @@ export const AdminDashboardPage: React.FC = () => {
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated || !isStaff) {
-      setLoading(false);
+      setMetricsLoading(false);
+      setRecentOrdersLoading(false);
+      setInquiriesLoading(false);
       return;
     }
 
-    fetchDashboardData();
+    fetchDashboardData(false);
 
     // 1. Listen for admin refresh events from top bar + realtime reconnect
     const handleAdminRefresh = () => {
-      setRefreshing(true);
-      fetchDashboardData();
+      fetchDashboardData(true);
     };
     const handleRealtimeReconnect = () => {
       console.debug("[Dashboard] Realtime reconnected — syncing dashboard...");
-      fetchDashboardData();
+      fetchDashboardData(false);
     };
     window.addEventListener('admin-refresh', handleAdminRefresh);
     window.addEventListener('palak:realtime-reconnected', handleRealtimeReconnect);
@@ -433,7 +355,7 @@ export const AdminDashboardPage: React.FC = () => {
     // 2. Tab switching & focus synchronization
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        fetchDashboardData();
+        fetchDashboardData(false);
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -454,14 +376,22 @@ export const AdminDashboardPage: React.FC = () => {
             'postgres_changes' as any,
             { event: '*', schema: 'public', table: 'service_requests' },
             () => {
-              fetchDashboardData();
+              getPendingServiceRequestsCount().then((count) => {
+                if (isMountedRef.current) {
+                  setStats((prev) => ({ ...prev, pendingServiceRequests: count }));
+                }
+              }).catch(() => {});
             }
           )
           .on(
             'postgres_changes' as any,
             { event: '*', schema: 'public', table: 'quote_requests' },
             () => {
-              fetchDashboardData();
+              getPendingQuoteRequestsCount().then((count) => {
+                if (isMountedRef.current) {
+                  setStats((prev) => ({ ...prev, pendingQuoteRequests: count }));
+                }
+              }).catch(() => {});
             }
           )
           .subscribe((status: string) => {
@@ -616,31 +546,6 @@ export const AdminDashboardPage: React.FC = () => {
     },
   ];
 
-  if (loading) {
-    return (
-      <AdminContentContainer>
-        <AdminPageHeader 
-          title="Dashboard" 
-          subtitle="Overview of your business operations" 
-        />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 w-full">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-20 bg-white rounded-xl animate-pulse shadow-xs border border-slate-200/80"></div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 w-full">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-18 bg-white rounded-xl animate-pulse shadow-xs border border-slate-200/80"></div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
-          <div className="lg:col-span-2 h-72 bg-white rounded-xl animate-pulse shadow-xs border border-slate-200/80"></div>
-          <div className="h-72 bg-white rounded-xl animate-pulse shadow-xs border border-slate-200/80"></div>
-        </div>
-      </AdminContentContainer>
-    );
-  }
-
   return (
     <AdminContentContainer>
       {/* 1. Dashboard Header */}
@@ -650,8 +555,7 @@ export const AdminDashboardPage: React.FC = () => {
         actions={
           <button
             onClick={() => {
-              setRefreshing(true);
-              fetchDashboardData();
+              fetchDashboardData(true);
             }}
             disabled={refreshing}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
@@ -671,8 +575,7 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
           <button
             onClick={() => {
-              setRefreshing(true);
-              fetchDashboardData();
+              fetchDashboardData(true);
             }}
             className="text-xs font-bold underline hover:no-underline text-amber-900 cursor-pointer"
           >
@@ -690,8 +593,7 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
           <button
             onClick={() => {
-              setRefreshing(true);
-              fetchDashboardData();
+              fetchDashboardData(true);
             }}
             className="text-xs font-bold px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg hover:bg-rose-200 transition-colors cursor-pointer"
           >
@@ -724,9 +626,13 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
             <div>
               <h3 className="text-[11px] font-medium text-slate-500 truncate mb-0.5">{kpi.label}</h3>
-              <p className={cn("text-lg sm:text-xl font-bold tracking-tight", kpi.valueColor)}>
-                {kpi.value}
-              </p>
+              {metricsLoading && stats.totalOrders === 0 ? (
+                <div className="h-6 w-16 bg-slate-100 animate-pulse rounded my-0.5" />
+              ) : (
+                <p className={cn("text-lg sm:text-xl font-bold tracking-tight", kpi.valueColor)}>
+                  {kpi.value}
+                </p>
+              )}
             </div>
           </Link>
         ))}
@@ -790,7 +696,13 @@ export const AdminDashboardPage: React.FC = () => {
             </Link>
           </div>
           
-          {recentOrders.length > 0 ? (
+          {recentOrdersLoading && recentOrders.length === 0 ? (
+            <div className="p-3.5 space-y-2">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-8 bg-slate-50 animate-pulse rounded-lg border border-slate-100/80" />
+              ))}
+            </div>
+          ) : recentOrders.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs admin-table">
                 <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-100">
@@ -853,7 +765,11 @@ export const AdminDashboardPage: React.FC = () => {
               <p className="text-amber-900 text-[11px] font-bold mb-0.5">Citizen & Digital Requests</p>
               <p className="text-[10px] text-amber-700/80 mb-2">PAN, CSC, Certificates & Forms</p>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black text-amber-700">{stats.pendingServiceRequests}</span>
+                {inquiriesLoading && stats.pendingServiceRequests === 0 ? (
+                  <div className="h-7 w-10 bg-amber-200/50 animate-pulse rounded my-0.5" />
+                ) : (
+                  <span className="text-2xl font-black text-amber-700">{stats.pendingServiceRequests}</span>
+                )}
                 <span className="text-amber-800/80 text-[11px] font-semibold">pending requests</span>
               </div>
             </Link>
@@ -869,7 +785,11 @@ export const AdminDashboardPage: React.FC = () => {
               <p className="text-indigo-900 text-[11px] font-bold mb-0.5">Custom Quote Inquiries</p>
               <p className="text-[10px] text-indigo-700/80 mb-2">Bulk printing, wedding & custom jobs</p>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black text-indigo-700">{stats.pendingQuoteRequests}</span>
+                {inquiriesLoading && stats.pendingQuoteRequests === 0 ? (
+                  <div className="h-7 w-10 bg-indigo-200/50 animate-pulse rounded my-0.5" />
+                ) : (
+                  <span className="text-2xl font-black text-indigo-700">{stats.pendingQuoteRequests}</span>
+                )}
                 <span className="text-indigo-800/80 text-[11px] font-semibold">pending quotes</span>
               </div>
             </Link>

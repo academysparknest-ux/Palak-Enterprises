@@ -109,6 +109,7 @@ export const LoginPage: React.FC = () => {
           en: "Sign in to track orders, review proofs, access printing quotes, and manage citizen services.",
           hi: "ऑर्डर ट्रैक करने, डिज़ाइन प्रूफ देखने और प्रिंटिंग व नागरिक सेवाओं के प्रबंधन हेतु लॉगिन करें।",
         }}
+        noIndex={true}
       />
 
       <div className="w-full max-w-md space-y-6">

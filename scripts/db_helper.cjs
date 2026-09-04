@@ -1,12 +1,14 @@
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 const { Client } = require('pg');
 
 const ref = 'zofddiuswdtbqvqycezy';
 const password = 'R9i8s7h6@5v4';
 
 const hosts = [
+  { host: `db.${ref}.supabase.co`, port: 5432, user: 'postgres' },
   { host: `aws-0-ap-southeast-1.pooler.supabase.com`, port: 6543, user: `postgres.${ref}` },
   { host: `aws-0-ap-south-1.pooler.supabase.com`, port: 6543, user: `postgres.${ref}` },
-  { host: `db.${ref}.supabase.co`, port: 5432, user: 'postgres' },
   { host: `aws-0-us-east-1.pooler.supabase.com`, port: 6543, user: `postgres.${ref}` }
 ];
 

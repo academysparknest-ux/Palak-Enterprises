@@ -4,6 +4,7 @@ import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminModal } from '../../components/admin/AdminModal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { useToast } from '../../components/admin/AdminToast';
+import { business } from '../../config/business';
 import { PalakChargesStore } from '../../lib/charges/chargesStore';
 import { calculateOrderCharges, roundCurrency } from '../../lib/charges/pricingEngine';
 import type {
@@ -515,7 +516,10 @@ export const AdminChargesPage: React.FC = () => {
             <div className="p-3 sm:p-3.5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-[#123B70]" />
-                <h2 className="text-sm font-bold text-slate-900">Tax & GST Configuration (India)</h2>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Tax & GST Configuration (India)</h2>
+                  <p className="text-[11px] text-slate-500">Palak Enterprises • GST No. {business.registrations.gstNo}</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-slate-700 cursor-pointer">

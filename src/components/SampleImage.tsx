@@ -189,7 +189,7 @@ function renderProductMockup(type: SampleFallbackType, _title: string) {
               <div className="h-1 w-2/3 bg-slate-300 rounded" />
             </div>
             <div className="border-t border-slate-200 pt-1 flex items-center justify-between text-[7px] text-slate-400">
-              <span>Chakia, Bihar - 845412</span>
+              <span>Near Block Gate, Chakia, East Champaran, Bihar</span>
               <span>info@palakenterprises.com</span>
             </div>
           </div>

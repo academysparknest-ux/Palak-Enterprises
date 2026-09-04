@@ -306,7 +306,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
             {/* Actions */}
             <div className="space-y-3 pt-2 max-w-md lg:max-w-lg mx-auto">
               <Link
-                to={`/order-status?code=${submittedCode}`}
+                to={`/track-order?code=${encodeURIComponent(submittedCode)}`}
                 onClick={() => {
                   onClose();
                   resetForm();

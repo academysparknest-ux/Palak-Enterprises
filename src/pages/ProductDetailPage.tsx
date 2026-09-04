@@ -5,6 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { PalakDataStore } from "../lib/storage/store";
 import { ProductConfigurator } from "../components/ProductConfigurator";
 import { ProductCard } from "../components/ProductCard";
+import { SEO } from "../components/SEO";
 
 export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -17,6 +18,7 @@ export const ProductDetailPage: React.FC = () => {
   if (!product) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center space-y-4">
+        <SEO title="Product Not Found" noIndex={true} />
         <h2 className="text-2xl font-extrabold text-slate-900">
           {currentLang === "hi" ? "उत्पाद नहीं मिला" : "Product Not Found"}
         </h2>
@@ -42,6 +44,37 @@ export const ProductDetailPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: `${product.name.en} | Printing in Chakia`,
+          hi: `${product.name.hi} | प्रिंटिंग चकिया`,
+        }}
+        description={{
+          en: product.description.en.slice(0, 155),
+          hi: product.description.hi.slice(0, 155),
+        }}
+        canonical={`/printing/${product.slug}`}
+        ogType="product"
+        ogImage={product.imageUrl}
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Product",
+          "name": product.name.en,
+          "description": product.description.en,
+          "image": product.imageUrl,
+          "offers": {
+            "@type": "Offer",
+            "price": product.startingPrice,
+            "priceCurrency": "INR",
+            "availability": "https://schema.org/InStock",
+            "seller": {
+              "@type": "LocalBusiness",
+              "name": "Palak Enterprises",
+              "url": "https://www.palakenterprises.shop"
+            }
+          }
+        }}
+      />
       {/* Breadcrumb Bar */}
       <div className="border-b border-slate-200 bg-white py-3 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl flex items-center justify-between text-xs text-slate-500">
@@ -89,7 +122,13 @@ export const ProductDetailPage: React.FC = () => {
                           : "border-slate-200 hover:border-slate-300"
                       }`}
                     >
-                      <img src={img} alt="" className="h-full w-full object-contain" />
+                      <img
+                        src={img}
+                        alt={`${product.name[currentLang]} preview thumbnail ${idx + 1}`}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-contain"
+                      />
                     </button>
                   ))}
                 </div>

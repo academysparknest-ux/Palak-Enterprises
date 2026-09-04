@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
+import { SEO } from "../../components/SEO";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 import {
   getPrintPricingConfig,
@@ -314,6 +315,30 @@ export const PassportPhotoPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "Instant 5-Minute Passport Size Photos in Chakia | Palak Enterprises",
+          hi: "तत्काल पासपोर्ट साइज फोटो प्रिंटिंग चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Get high-resolution instant passport size photos in 5 minutes at Palak Enterprises, Chakia. 8, 16, or 32 sheet packs on premium glossy photo paper with custom background.",
+          hi: "चकिया में मात्र 5 मिनट में हाई-क्वालिटी पासपोर्ट फोटो प्राप्त करें। 8, 16 या 32 फोटो शीट पैक, प्रीमियम ग्लॉसी फोटो पेपर और व्हाइट/ब्लू बैकग्राउंड।",
+        }}
+        canonical="/online-services/passport-photo"
+        keywords="Passport Photo in Chakia, Instant Passport Size Photos Chakia, Photo Studio Chakia, 5 Minute Photo Chakia, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": "Instant Passport Photo Printing",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          },
+          "serviceType": "Photo Printing Service",
+          "areaServed": "Chakia, East Champaran, Bihar"
+        }}
+      />
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         {/* Ambient background glows */}
@@ -748,6 +773,88 @@ export const PassportPhotoPage: React.FC = () => {
             </div>
           </div>
         </form>
+
+        {/* Informative Editorial & Passport Photo Standards Section */}
+        <div className="mt-14 space-y-10 border-t border-slate-200 pt-12">
+          <div className="text-center max-w-3xl mx-auto space-y-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#123B70] text-xs font-bold border border-blue-200">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>Government Standard Compliance</span>
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              {currentLang === "hi"
+                ? "चकिया में तत्काल पासपोर्ट फोटो प्रिंटिंग — मानक एवं दिशानिर्देश"
+                : "Instant Passport Photo Printing in Chakia — Standards & Guidelines"}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              {currentLang === "hi"
+                ? "सरकारी फॉर्म, प्रतियोगी परीक्षाओं एवं पासपोर्ट सेवा के लिए 100% स्वीकृत पासपोर्ट साइज फोटो केवल 5 मिनट में तैयार।"
+                : "Guaranteed photo compliance for all central & Bihar state competitive exams, passport seva, and official ID cards."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Card 1: Exact Dimensions */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#123B70] flex items-center justify-center font-bold text-lg">
+                📐
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "मानक आकार (Dimensions)" : "Official Dimensions"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">35mm × 45mm:</strong> {currentLang === "hi" ? "मानक भारतीय पासपोर्ट, वीज़ा व आधिकारिक पहचान पत्र।" : "Standard Indian passport, driving license, and formal identification size."}</li>
+                <li><strong className="text-slate-800">80% Face Area:</strong> {currentLang === "hi" ? "चेहरा स्पष्ट, दोनों कान दृश्यमान एवं निष्पक्ष अभिव्यक्ति।" : "Full facial profile from crown to chin with neutral expression and open eyes."}</li>
+                <li><strong className="text-slate-800">Background:</strong> {currentLang === "hi" ? "सफेद या हल्का नीला बैकग्राउंड नियमानुसार।" : "Solid white or light blue backdrop compliant with biometric norms."}</li>
+              </ul>
+            </div>
+
+            {/* Card 2: Exam & Portal Compliance */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-lg">
+                📋
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "परीक्षा व फॉर्म स्वीकृति" : "Exams & Portals"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">Bihar Competitive:</strong> {currentLang === "hi" ? "BPSC, BSSC, बिहार पुलिस, शिक्षक भर्ती (TRE)।" : "100% compliant for BPSC, BSSC, Bihar Police & Teacher Recruitment."}</li>
+                <li><strong className="text-slate-800">Central Govt Exams:</strong> {currentLang === "hi" ? "SSC CGL/CHSL/GD, Railway RRB, Banking IBPS/SBI।" : "SSC, Railway RRB NTPC/Group D, and IBPS online portals."}</li>
+                <li><strong className="text-slate-800">RTPS & Citizen:</strong> {currentLang === "hi" ? "आय, जाति, निवास व राशन कार्ड आवेदनों हेतु।" : "Bihar RTPS caste, income, residential, and e-Kalyan scholarship portals."}</li>
+              </ul>
+            </div>
+
+            {/* Card 3: Photo Paper & Lab Quality */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-lg">
+                🖼️
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "पेपर व लैब क्वालिटी" : "Lab Grade Paper & Ink"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">260 GSM Glossy:</strong> {currentLang === "hi" ? "हैवीवेट प्रीमियम वाटरप्रूफ फोटोग्राफिक पेपर।" : "Heavyweight microporous RC photo paper with brilliant gloss finish."}</li>
+                <li><strong className="text-slate-800">6-Color Inks:</strong> {currentLang === "hi" ? "नेचुरल स्किन टोन एवं फेड-रेसिस्टेंट आर्काइवल क्वालिटी।" : "High-density micro-pigment inks ensuring lifetime fade resistance."}</li>
+                <li><strong className="text-slate-800">Precision Cutting:</strong> {currentLang === "hi" ? "बिना खरोंच सटीक कटी हुई व्यक्तिगत प्रतियां।" : "Individual rotary blade cut with clean, uniform borders."}</li>
+              </ul>
+            </div>
+
+            {/* Card 4: Local Chakia Center */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center font-bold text-lg">
+                🏪
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {currentLang === "hi" ? "तत्काल 5-मिनट पिकअप" : "Instant Chakia Pickup"}
+              </h3>
+              <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong className="text-slate-800">5 Minutes Ready:</strong> {currentLang === "hi" ? "फ़ोन से सेल्फी अपलोड करें, काउंटर पर तुरंत प्रिंट प्राप्त करें।" : "Upload directly from your smartphone; collect within 5 minutes."}</li>
+                <li><strong className="text-slate-800">Store Address:</strong> {currentLang === "hi" ? "ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार।" : "Near Block Gate, Chakia, East Champaran, Bihar."}</li>
+                <li><strong className="text-slate-800">Support & Editing:</strong> {currentLang === "hi" ? "बैकग्राउंड चेंज व लाइट एडजस्टमेंट इन-स्टोर उपलब्ध।" : "Background cleaning and contrast enhancement handled automatically."}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       {successData && (

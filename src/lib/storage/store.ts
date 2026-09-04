@@ -392,19 +392,87 @@ export function normalizeOrder(raw: any): StoredOrder {
     }));
   }
 
-  const normalizedItems: OrderItemPayload[] = itemsList.map((it: any) => ({
-    productId: it.productId || it.product_id || "print-service",
-    productName: it.productName || it.product_name || "Print Order",
-    quantity: Math.max(1, Number(it.quantity) || 1),
-    unitPrice: Math.max(0, Number(it.unitPrice || it.unit_price) || 0),
-    totalPrice: Math.max(0, Number(it.totalPrice || it.total_price) || 0),
-    selectedOptions: it.selectedOptions || it.selected_options || {},
-    selectedOptionsLabels: it.selectedOptionsLabels || it.selected_options_labels || {},
-    uploadedFileName: it.uploadedFileName || it.uploaded_file_name,
-    uploadedFileUrl: it.uploadedFileUrl || it.uploaded_file_url,
-    designAssistanceRequested: Boolean(it.designAssistanceRequested || it.design_assistance_requested),
-    designNotes: it.designNotes || it.design_notes,
-  }));
+  let printSnapshotObj: OrderPrintSnapshot | undefined = undefined;
+  const rawSnap = raw.print_snapshot || raw.printSnapshot || raw.chargesSnapshot?.breakdown?.snapshot || raw.charges_snapshot?.breakdown?.snapshot;
+  if (typeof rawSnap === "string") {
+    try {
+      printSnapshotObj = JSON.parse(rawSnap);
+    } catch {}
+  } else if (rawSnap && typeof rawSnap === "object") {
+    printSnapshotObj = rawSnap;
+  }
+
+  // If still not found, check items
+  if (!printSnapshotObj) {
+    for (const it of itemsList) {
+      const itSnap = it?.selectedOptions?.printSnapshot || (it as any)?.selected_options?.printSnapshot || (it as any)?.selected_options?.print_snapshot;
+      if (itSnap) {
+        if (typeof itSnap === "string") {
+          try {
+            printSnapshotObj = JSON.parse(itSnap);
+            break;
+          } catch {}
+        } else if (typeof itSnap === "object") {
+          printSnapshotObj = itSnap;
+          break;
+        }
+      }
+    }
+  }
+
+  const normalizedItems: OrderItemPayload[] = itemsList.map((it: any, itIdx: number) => {
+    const rawOpts = it.selectedOptions || it.selected_options || {};
+    const itemSnapshot = rawOpts.printSnapshot || printSnapshotObj;
+    const docConfig = itemSnapshot?.documents?.[itIdx] || itemSnapshot?.documents?.[0];
+    const isDocPrint = String(it.productId || it.product_id || it.productName || it.product_name || "").toLowerCase().includes("document");
+    const mergedOpts = {
+      ...rawOpts,
+      ...(itemSnapshot ? { printSnapshot: itemSnapshot } : {}),
+      ...(docConfig
+        ? {
+            gsm: rawOpts.gsm ?? docConfig.gsm,
+            binding: rawOpts.binding ?? docConfig.binding,
+            frontCover: rawOpts.frontCover ?? docConfig.frontCover,
+            backCover: rawOpts.backCover ?? docConfig.backCover,
+            finishing: { ...(rawOpts.finishing || {}), ...(docConfig.finishing || {}) },
+            paperSize: rawOpts.paperSize ?? docConfig.paperSize,
+            colorMode: rawOpts.colorMode ?? docConfig.colorMode,
+            sides: rawOpts.sides ?? docConfig.sides,
+            orientation: rawOpts.orientation ?? docConfig.orientation,
+            copies: rawOpts.copies ?? docConfig.copies,
+            totalPages: rawOpts.totalPages ?? docConfig.totalPages,
+            totalPhysicalSheets: rawOpts.totalPhysicalSheets ?? docConfig.totalPhysicalSheets,
+            priceBreakdown: rawOpts.priceBreakdown ?? docConfig.priceBreakdown,
+          }
+        : isDocPrint
+        ? {
+            gsm: rawOpts.gsm ?? 75,
+            binding: rawOpts.binding ?? "none",
+            frontCover: rawOpts.frontCover ?? "none",
+            backCover: rawOpts.backCover ?? "none",
+            finishing: rawOpts.finishing || {},
+            paperSize: rawOpts.paperSize ?? "a4",
+            colorMode: rawOpts.colorMode ?? "bw",
+            sides: rawOpts.sides ?? "single",
+            orientation: rawOpts.orientation ?? "portrait",
+          }
+        : {}),
+    };
+
+    return {
+      productId: it.productId || it.product_id || "print-service",
+      productName: it.productName || it.product_name || "Print Order",
+      quantity: Math.max(1, Number(it.quantity) || 1),
+      unitPrice: Math.max(0, Number(it.unitPrice || it.unit_price) || 0),
+      totalPrice: Math.max(0, Number(it.totalPrice || it.total_price) || 0),
+      selectedOptions: mergedOpts,
+      selectedOptionsLabels: it.selectedOptionsLabels || it.selected_options_labels || {},
+      uploadedFileName: it.uploadedFileName || it.uploaded_file_name,
+      uploadedFileUrl: it.uploadedFileUrl || it.uploaded_file_url,
+      designAssistanceRequested: Boolean(it.designAssistanceRequested || it.design_assistance_requested),
+      designNotes: it.designNotes || it.design_notes,
+    };
+  });
 
   let payStatus = String(raw.payment_status || raw.paymentStatus || "pending").toLowerCase();
   if (payStatus === "success" || payStatus === "completed" || payStatus === "captured") payStatus = "paid";
@@ -463,7 +531,7 @@ export function normalizeOrder(raw: any): StoredOrder {
     sgstAmount: raw.sgst_amount || raw.sgstAmount,
     igstAmount: raw.igst_amount || raw.igstAmount,
     chargesSnapshot: raw.charges_snapshot || raw.chargesSnapshot,
-    printSnapshot: raw.print_snapshot || raw.printSnapshot || undefined,
+    printSnapshot: printSnapshotObj,
     totalAmount,
     paymentMethod: (raw.payment_method || raw.paymentMethod || "pay_at_store") as any,
     paymentStatus: payStatus as any,

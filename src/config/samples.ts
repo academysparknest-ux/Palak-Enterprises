@@ -108,7 +108,7 @@ export const sampleItems: SampleItem[] = [
     title: { en: "Palak Press Visiting Card & Signboard", hi: "पलक प्रिंटिंग प्रेस विजिटिंग कार्ड" },
     description: {
       en: "Original business card and contact signboard design for proprietor Pankaj Kumar, Chakia.",
-      hi: "प्रो. पंकज कुमार, वार्ड नं. 7, रानीगंज मोहल्ला, बारा चकिया का आधिकारिक विजिटिंग कार्ड व बोर्ड।",
+      hi: "प्रो. पंकज कुमार, ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार का आधिकारिक विजिटिंग कार्ड व बोर्ड।",
     },
     badge: { en: "Actual Photo", hi: "वास्तविक कार्ड" },
     image: "/images/palak-visiting-card.jpeg",

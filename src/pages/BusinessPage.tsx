@@ -6,6 +6,7 @@ import { PageHero } from "../components/PageHero";
 import { ProductCard } from "../components/ProductCard";
 import { PalakDataStore } from "../lib/storage/store";
 import { getWhatsAppLink } from "../config/business";
+import { SEO } from "../components/SEO";
 
 export const BusinessPage: React.FC<{ onOpenRequestModal?: () => void }> = () => {
   const { lang, language } = useLanguage();
@@ -52,6 +53,12 @@ export const BusinessPage: React.FC<{ onOpenRequestModal?: () => void }> = () =>
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title="Corporate & Commercial Business Printing Services in Chakia | Palak Enterprises"
+        description="Comprehensive business printing in Chakia, East Champaran: visiting cards, GST bill books, letterheads, brochures, school IDs, shop branding, and banners at wholesale rates."
+        canonicalUrl="/business"
+        keywords="business printing Chakia, corporate printing Bihar, visiting cards Chakia, bill book printing, letterhead printer East Champaran, shop branding kits, flex banner Chakia"
+      />
       {/* Page Hero */}
       <PageHero
         breadcrumbs={[

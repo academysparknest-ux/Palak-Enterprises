@@ -37,6 +37,8 @@ export const AboutPage: React.FC = () => {
           en: "Learn about Palak Enterprises and Palak Printing Press in Chakia, East Champaran, Bihar. Founded & managed by Kumar Pankaj, registered CSC center and premier printing studio.",
           hi: "पालक इंटरप्राइजेज और पालक प्रिंटिंग प्रेस चकिया, पूर्वी चंपारण। प्रोपराइटर कुमार पंकज के नेतृत्व में प्रिंटिंग व पंजीकृत सीएससी ऑनलाइन सेवा केंद्र।",
         }}
+        canonicalUrl="/about"
+        keywords="about Palak Enterprises, Palak Printing Press Chakia, Kumar Pankaj Chakia, printing press near block gate Chakia, CSC center Chakia, East Champaran printing press"
       />
 
       {/* Page Hero */}
@@ -101,8 +103,8 @@ export const AboutPage: React.FC = () => {
           >
             <p>
               {currentLang === "hi"
-                ? "पालक इंटरप्राइजेज, जो पालक प्रिंटिंग प्रेस के साथ संचालित होता है, नियर ब्लॉक गेट, वार्ड नं. 7, सनिगंज मोहल्ला, चकिया, पूर्वी चंपारण, बिहार स्थित एक स्थापित स्थानीय प्रिंटिंग व डिजिटल सेवा केंद्र है। हम एक ही छत के नीचे प्रिंटिंग उत्पादन, व्यावसायिक स्टेशनरी, कस्टम ग्राफिक डिज़ाइन, दस्तावेज़ निर्माण और सरकारी ऑनलाइन पोर्टल सहायता प्रदान करते हैं।"
-                : "Palak Enterprises, operating alongside Palak Printing Press, is an established local printing and digital service center situated near Block Gate, Ward No. 7, Saniganj Mohalla, Chakia, East Champaran, Bihar. We offer a comprehensive ecosystem of print production, business stationery, custom graphic designing, document preparation, and government online portal assistance under one roof."}
+                ? "पालक इंटरप्राइजेज, जो पालक प्रिंटिंग प्रेस के साथ संचालित होता है, ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार स्थित एक स्थापित स्थानीय प्रिंटिंग व डिजिटल सेवा केंद्र है। हम एक ही छत के नीचे प्रिंटिंग उत्पादन, व्यावसायिक स्टेशनरी, कस्टम ग्राफिक डिज़ाइन, दस्तावेज़ निर्माण और सरकारी ऑनलाइन पोर्टल सहायता प्रदान करते हैं।"
+                : "Palak Enterprises, operating alongside Palak Printing Press, is an established local printing and digital service center situated near Block Gate, Chakia, East Champaran, Bihar. We offer a comprehensive ecosystem of print production, business stationery, custom graphic designing, document preparation, and government online portal assistance under one roof."}
             </p>
             <p>
               {currentLang === "hi"
@@ -120,6 +122,10 @@ export const AboutPage: React.FC = () => {
             <span className="inline-flex items-center gap-2 rounded-pill bg-navy/10 border border-navy/20 px-4 py-2 text-xs sm:text-sm font-bold text-navy">
               <Award size={16} />
               <span>MSME Udyam: <strong>{business.registrations.udyamNo}</strong></span>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-pill bg-sky-50 border border-sky-200 px-4 py-2 text-xs sm:text-sm font-bold text-sky-900">
+              <ShieldCheck size={16} className="text-sky-600" />
+              <span>GST No. <strong>{business.registrations.gstNo}</strong></span>
             </span>
             <span className="inline-flex items-center gap-2 rounded-pill bg-amber-50 border border-amber-200 px-4 py-2 text-xs sm:text-sm font-bold text-amber-900">
               <Sparkles size={16} className="text-saffron" />
@@ -417,6 +423,10 @@ export const AboutPage: React.FC = () => {
               <div className="flex justify-between border-b border-white/10 pb-2">
                 <dt className="text-slate-400">MSME Udyam No.</dt>
                 <dd className="font-mono font-bold text-amber-300">{business.registrations.udyamNo}</dd>
+              </div>
+              <div className="flex justify-between border-b border-white/10 pb-2">
+                <dt className="text-slate-400">GST No.</dt>
+                <dd className="font-mono font-bold text-amber-300">{business.registrations.gstNo}</dd>
               </div>
               <div className="flex justify-between pt-1">
                 <dt className="text-slate-400">{currentLang === "hi" ? "पता" : "Location"}</dt>

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
-import { business, getWhatsAppLink, getCallLink } from "../config/business";
+import { business, businessConfig, getWhatsAppLink, getCallLink } from "../config/business";
 import { useScrollLock } from "../hooks/useScrollLock";
 import {
   X,
@@ -474,8 +474,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
           {/* Bottom Footer Info */}
           <div className="p-3 border-t border-slate-200 bg-slate-50 text-center text-[10px] text-slate-500">
             <p className="font-semibold text-slate-700">{business.name[currentLang]}</p>
-            <p>{business.address.landmark[currentLang]}, {business.address.city[currentLang]}</p>
-            <p className="text-slate-400 mt-0.5">CSC ID: {business.registrations.cscId}</p>
+            <p>{businessConfig.address.fullAddress[currentLang]}</p>
+            <p className="text-slate-400 mt-0.5">CSC ID: {business.registrations.cscId} • GST No. {business.registrations.gstNo}</p>
           </div>
         </div>
       </div>

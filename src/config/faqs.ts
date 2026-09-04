@@ -54,8 +54,8 @@ export const faqData: FAQItem[] = [
       hi: "पालक प्रिंटिंग प्रेस चकिया में कहाँ स्थित है?",
     },
     answer: {
-      en: "Our center is located at Ward No. 7, Saniganj Mohalla, Near Block Gate, Chakia, East Champaran, Bihar. It is conveniently accessible from main roads and government block offices.",
-      hi: "हमारा केंद्र वार्ड नं. 7, सनिगंज मोहल्ला, ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार में स्थित है। यह ब्लॉक ऑफिस और मुख्य मार्ग के बिल्कुल निकट है।",
+      en: "Our center is located near Block Gate, Chakia, East Champaran, Bihar. It is conveniently accessible from main roads and government block offices.",
+      hi: "हमारा केंद्र ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार में स्थित है। यह ब्लॉक ऑफिस और मुख्य मार्ग के बिल्कुल निकट है।",
     },
   },
   {

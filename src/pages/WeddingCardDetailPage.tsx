@@ -36,6 +36,7 @@ export const WeddingCardDetailPage: React.FC = () => {
   if (!product) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center bg-[#FCFBF7] px-4 py-20">
+        <SEO title="Invitation Card Not Found | Palak Enterprises Chakia" noIndex={true} />
         <div className="max-w-md w-full rounded-3xl border border-slate-200 bg-white p-8 text-center space-y-4 shadow-md">
           <div className="h-16 w-16 rounded-full bg-rose-50 text-[#881337] flex items-center justify-center mx-auto text-2xl font-bold">
             🪔
@@ -99,17 +100,43 @@ I would like to discuss:
     }
   };
 
+  const productSchema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": `${product.name.en} - Wedding Invitation Card Chakia`,
+    "image": product.imageUrl.startsWith("http") ? product.imageUrl : `https://www.palakenterprises.shop${product.imageUrl}`,
+    "description": product.shortDesc.en,
+    "sku": product.sku || product.id,
+    "brand": {
+      "@type": "Brand",
+      "name": "Palak Enterprises"
+    },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "INR",
+      "price": `${price}`,
+      "availability": "https://schema.org/InStock",
+      "seller": {
+        "@type": "LocalBusiness",
+        "name": "Palak Enterprises",
+        "telephone": "+919905238015"
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FCFBF7] pb-24">
       <SEO
         title={{
-          en: `${product.name.en} (${product.sku || ""}) | Palak Enterprises`,
-          hi: `${product.name.hi} (${product.sku || ""}) | पालक इंटरप्राइजेज`,
+          en: `${product.name.en} (${product.sku || ""}) | Wedding Cards Chakia | Palak Enterprises`,
+          hi: `${product.name.hi} (${product.sku || ""}) | शादी कार्ड चकिया | पालक इंटरप्राइजेज`,
         }}
         description={{
-          en: product.shortDesc.en,
-          hi: product.shortDesc.hi,
+          en: `${product.shortDesc.en} Available at Palak Enterprises, Near Block Gate, Chakia, East Champaran, Bihar.`,
+          hi: `${product.shortDesc.hi} पालक इंटरप्राइजेज, ब्लॉक गेट के पास, चकिया में उपलब्ध।`,
         }}
+        canonicalUrl={`/wedding-events/${product.slug}`}
+        structuredData={productSchema}
       />
 
       {/* Breadcrumbs Navigation Bar */}
@@ -168,7 +195,13 @@ I would like to discuss:
                           : "border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100"
                       }`}
                     >
-                      <img src={img} alt="" className="h-full w-full object-contain" />
+                      <img
+                        src={img}
+                        alt={`${product.name[currentLang]} sample image ${idx + 1}`}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-contain"
+                      />
                     </button>
                   ))}
                 </div>

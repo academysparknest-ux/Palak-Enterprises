@@ -20,8 +20,9 @@ import { ProductCard } from "../components/ProductCard";
 import { DigitalServiceCard } from "../components/DigitalServiceCard";
 import { ScrollReveal } from "../components/ui/motion/ScrollReveal";
 import { PalakDataStore } from "../lib/storage/store";
-import { business, getWhatsAppLink, getDirectionsLink } from "../config/business";
+import { business, businessConfig, getWhatsAppLink, getDirectionsLink } from "../config/business";
 import { cn } from "../lib/utils";
+import { SEO } from "../components/SEO";
 
 interface HomePageProps {
   onOpenRequestModal?: (serviceId?: string) => void;
@@ -48,11 +49,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
     },
     {
       id: "digital",
-      title: { en: "Digital Services", hi: "डिजिटल सेवाएँ" },
+      title: { en: "Digital & CSC Services", hi: "डिजिटल एवं सीएससी सेवाएँ" },
       desc: { en: "PAN card, RTPS certificates, exam forms, scholarships & CSC services.", hi: "पैन कार्ड, जाति/आय प्रमाण, परीक्षा फॉर्म, छात्रवृत्ति व सीएससी सेवाएँ।" },
       count: "12+ Services",
       icon: Globe,
-      link: "/services/government",
+      link: "/digital-services",
       color: "bg-amber-50 text-amber-800 border-amber-200/60",
     },
     {
@@ -61,7 +62,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
       desc: { en: "Office stationery, carbonless bill books, shop branding & custom web dev.", hi: "ऑफिस स्टेशनरी, बिल बुक, दुकान ब्रांडिंग एवं कस्टम वेबसाइट।" },
       count: "8+ Packages",
       icon: Briefcase,
-      link: "/services/stationery",
+      link: "/business",
       color: "bg-emerald-50 text-emerald-800 border-emerald-200/60",
     },
     {
@@ -70,13 +71,26 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
       desc: { en: "Royal gold-foil wedding cards, Tilak, Mundan & ceremony invitations.", hi: "शाही शादी कार्ड, तिलक, मुंडन और मांगलिक आयोजनों के निमंत्रण पत्र।" },
       count: "6+ Collections",
       icon: Gift,
-      link: "/services/wedding-invitations",
+      link: "/wedding-events",
       color: "bg-rose-50 text-rose-800 border-rose-200/60",
     },
   ];
 
   return (
     <div className="space-y-14 sm:space-y-20 pb-16">
+      <SEO
+        title={{
+          en: "Printing Press & Digital Services in Chakia, Bihar | Palak Enterprises",
+          hi: "प्रिंटिंग प्रेस एवं ऑनलाइन सेवा केंद्र चकिया, बिहार | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Palak Enterprises (Palak Printing Press) in Chakia, Bihar. Fast document printing, visiting cards, wedding cards, flex banners, instant passport photos, PVC ID cards & online CSC services.",
+          hi: "पालक इंटरप्राइजेज चकिया (पूर्वी चंपारण): ऑनलाइन दस्तावेज प्रिंटिंग, विजिटिंग कार्ड, शादी कार्ड, फ्लेक्स बैनर, 5 मिनट पासपोर्ट फोटो, पीवीसी स्मार्ट कार्ड व सरकारी ऑनलाइन सेवा केंद्र।",
+        }}
+        canonical="/"
+        keywords="Printing Press in Chakia, Palak Enterprises, Palak Printing Press, Digital Printing in Chakia, Wedding Card Printing Chakia, Visiting Card Chakia, Flex Printing East Champaran, Document Photocopy Chakia"
+      />
+
       {/* 1. Hero Section */}
       <Hero onOpenRequestModal={onOpenRequestModal} />
 
@@ -364,7 +378,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
                 {business.name[currentLang]} / {business.unit[currentLang]}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}, {business.address.city[currentLang]}
+                {businessConfig.address.fullAddress[currentLang]}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">

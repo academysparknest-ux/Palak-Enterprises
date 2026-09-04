@@ -13,6 +13,7 @@ import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { cn } from "../../lib/utils";
+import { SEO } from "../../components/SEO";
 import {
   validateQuickServiceFileSize,
   QUICK_SERVICE_MAX_FILE_SIZE_MB,
@@ -223,6 +224,30 @@ export const CustomPrintPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "Custom Printing Solutions & Bulk Orders in Chakia | Palak Enterprises",
+          hi: "कस्टम प्रिंटिंग एवं थोक प्रिंट ऑर्डर चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Order customized pamphlets, flyers, brochures, letterheads, bill books, stickers & promotional stationery in Chakia, Bihar. Upload requirements for instant quotation.",
+          hi: "चकिया में पम्पलेट, फ्लायर, ब्रोशर, लेटरहेड, बिल बुक, स्टीकर एवं प्रचार प्रिंटिंग। अपनी आवश्यकता अपलोड करें व तत्काल कोटेशन प्राप्त करें।",
+        }}
+        canonical="/online-services/custom-print"
+        keywords="Custom Printing Chakia, Pamphlet Printing Chakia, Bill Book Printing Bihar, Brochure Printing East Champaran, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": "Custom Printing Service",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          },
+          "serviceType": "Commercial Printing Service",
+          "areaServed": "Chakia, East Champaran, Bihar"
+        }}
+      />
       {/* Header */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         {/* Ambient background glows */}

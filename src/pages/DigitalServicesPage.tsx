@@ -5,6 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { DigitalServiceCard } from "../components/DigitalServiceCard";
 import { PalakDataStore } from "../lib/storage/store";
 import { business, getWhatsAppLink } from "../config/business";
+import { SEO } from "../components/SEO";
 
 export const DigitalServicesPage: React.FC<{ onOpenRequestModal?: () => void }> = () => {
   const { lang, language } = useLanguage();
@@ -26,6 +27,30 @@ export const DigitalServicesPage: React.FC<{ onOpenRequestModal?: () => void }> 
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "Digital CSC & Online Citizen Services in Chakia | Palak Enterprises",
+          hi: "डिजिटल सीएससी एवं ऑनलाइन सरकारी सेवाएँ चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Authorized CSC digital service center in Chakia, Bihar. Fast assistance for PAN card, RTPS caste/income certificates, exam forms, scholarships, Aadhaar PVC & online forms.",
+          hi: "चकिया में अधिकृत सीएससी डिजिटल सेवा केंद्र। पैन कार्ड, आरटीपीएस जाति/आय/निवास प्रमाण पत्र, ऑनलाइन परीक्षा फॉर्म, छात्रवृत्ति व आधार कार्ड सेवाएं।",
+        }}
+        canonical="/digital-services"
+        keywords="CSC Center Chakia, Digital Services Chakia, PAN Card Chakia, RTPS Bihar Chakia, Online Application Center East Champaran, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": "CSC Digital Citizen Services",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          },
+          "serviceType": "Government & Citizen Services Assistance",
+          "areaServed": "Chakia, East Champaran, Bihar"
+        }}
+      />
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 sm:py-12 px-4 sm:px-6">
         {/* Ambient background glows */}

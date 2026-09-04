@@ -34,7 +34,7 @@ async function testAcceptance() {
     SELECT u.id, u.email, ur.role as db_role 
     FROM auth.users u
     LEFT JOIN public.user_roles ur ON ur.user_id = u.id
-    WHERE u.email IN ('academysparknest@gmail.com', 'palakenterprises@gmail.com', 'rishavraj05072002@gmail.com', 'rishavrajrj572@gmail.com')
+    WHERE u.email IN ('academysparknest@gmail.com', 'palakenterprises@gmail.com', 'rishavraj05072002@gmail.com', 'rishavrajrj572@gmail.com', 'computerworldchakia@gmail.com')
   `);
   console.log('\n2. AUTHORIZED ADMIN ROLES IN DB');
   console.log(usersRes.rows);

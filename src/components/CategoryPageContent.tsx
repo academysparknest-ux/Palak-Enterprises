@@ -110,6 +110,7 @@ export default function CategoryPageContent({
           en: category.description.en,
           hi: category.description.hi,
         }}
+        canonicalUrl={`/services/${category.slug}`}
       />
 
       {/* Category Hero Banner */}

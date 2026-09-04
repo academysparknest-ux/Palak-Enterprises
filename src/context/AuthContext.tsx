@@ -71,6 +71,9 @@ const ADMIN_STAFF_EMAILS = [
   "palakenterprises@gmail.com",
   "palakprintingpress@gmail.com",
   "kumarpankaj@gmail.com",
+  "rishavraj05072002@gmail.com",
+  "rishavrajrj572@gmail.com",
+  "computerworldchakia@gmail.com",
 ];
 
 const checkIsAdminEmail = (email?: string): boolean => {

@@ -16,6 +16,7 @@ import { getWhatsAppLink } from "../../config/business";
 import { PalakDataStore } from "../../lib/storage/store";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase/client";
 import { cn } from "../../lib/utils";
+import { SEO } from "../../components/SEO";
 
 const EVENT_TYPES = [
   { id: "wedding", labelEn: "Wedding / Vivah (शादी)", icon: "💍" },
@@ -172,6 +173,30 @@ export const InvitationCardsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{
+          en: "Wedding & Invitation Card Printing in Chakia | Palak Enterprises",
+          hi: "शादी व निमंत्रण कार्ड प्रिंटिंग चकिया | पालक इंटरप्राइजेज",
+        }}
+        description={{
+          en: "Royal wedding cards, Tilak, Mundan, anniversary and event invitation printing in Chakia, Bihar. Gold foil embossing, laser-cut acrylic cards & Hindi/English typography.",
+          hi: "चकिया में शाही शादी कार्ड, तिलक, मुंडन और मांगलिक आयोजनों के निमंत्रण पत्र। गोल्ड फॉयल, लेजर कट, पारंपरिक एवं आधुनिक डिज़ाइन।",
+        }}
+        canonical="/online-services/invitation-cards"
+        keywords="Wedding Card Printing Chakia, Shadi Card Maker Chakia, Invitation Cards East Champaran, Palak Enterprises"
+        schema={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          "name": "Wedding & Invitation Card Printing",
+          "provider": {
+            "@type": "LocalBusiness",
+            "name": "Palak Enterprises",
+            "url": "https://www.palakenterprises.shop"
+          },
+          "serviceType": "Invitation Printing Service",
+          "areaServed": "Chakia, East Champaran, Bihar"
+        }}
+      />
       {/* Header Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-12 px-4 sm:px-6">
         {/* Ambient background glows */}
@@ -246,7 +271,7 @@ export const InvitationCardsPage: React.FC = () => {
 
             <div className="space-y-3 pt-2 max-w-md mx-auto">
               <Link
-                to={`/order-status?code=${submittedCode}`}
+                to={`/track-order?code=${encodeURIComponent(submittedCode)}`}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#123B70] hover:bg-[#0c274c] px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-card transition-all"
               >
                 <span>{currentLang === "hi" ? "अनुरोध लाइव ट्रैक करें" : "Track Request Status"}</span>

@@ -4,6 +4,7 @@ import { CheckCircle2, MapPin, Store, Send, AlertCircle, ArrowRight, MessageSqua
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
+import { SEO } from "../components/SEO";
 import { PalakDataStore } from "../lib/storage/store";
 import { getWhatsAppLink } from "../config/business";
 import { initiateRazorpayPayment } from "../lib/razorpay";
@@ -223,6 +224,11 @@ export const CheckoutPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={{ en: "Order Checkout", hi: "ऑर्डर चेकआउट" }}
+        description={{ en: "Complete and confirm your printing order with Palak Enterprises.", hi: "पालक इंटरप्राइजेज के साथ अपना प्रिंटिंग ऑर्डर पूरा और पुष्टि करें।" }}
+        noIndex={true}
+      />
       {/* Header */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-10 px-4 sm:px-6">
         {/* Ambient background glows */}
@@ -270,8 +276,8 @@ export const CheckoutPage: React.FC = () => {
                       ? "⚡ ऑनलाइन भुगतान सफल! आपका ऑर्डर प्राथमिकता से प्रिंट व पैक किया जा रहा है। दुकान पहुँचते ही बिना लाइन लगे सीधे अपना पार्सल प्राप्त करें।"
                       : "⚡ Online payment confirmed! Your job is queued for priority printing and express packing. Skip the line and collect directly at the shop.")
                   : (currentLang === "hi"
-                      ? "ऑर्डर दर्ज हो गया है। कृपया दुकान (ब्लॉक गेट, चकिया) आकर काउंटर पर भुगतान करें और प्रिंट प्राप्त करें।"
-                      : "Order registered. Please visit our shop (Near Block Gate, Chakia) to pay at the counter and collect your prints.")}
+                      ? "ऑर्डर दर्ज हो गया है। कृपया दुकान (ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार) आकर काउंटर पर भुगतान करें और प्रिंट प्राप्त करें।"
+                      : "Order registered. Please visit our shop (Near Block Gate, Chakia, East Champaran, Bihar) to pay at the counter and collect your prints.")}
               </p>
             </div>
 
@@ -282,8 +288,8 @@ export const CheckoutPage: React.FC = () => {
               </span>
               <p className="text-[11px] text-slate-600">
                 {currentLang === "hi"
-                  ? "पालक एंटरप्राइजेज, ब्लॉक गेट के पास, चकिया। दुकान पहुँचकर केवल अपना ऑर्डर आईडी दिखाएं।"
-                  : "Palak Enterprises, Near Block Gate, Chakia, East Champaran. Just show your Order ID at the counter to collect."}
+                  ? "पालक एंटरप्राइजेज, ब्लॉक गेट के पास, चकिया, पूर्वी चंपारण, बिहार। दुकान पहुँचकर केवल अपना ऑर्डर आईडी दिखाएं।"
+                  : "Palak Enterprises, Near Block Gate, Chakia, East Champaran, Bihar. Just show your Order ID at the counter to collect."}
               </p>
             </div>
 
@@ -319,7 +325,7 @@ export const CheckoutPage: React.FC = () => {
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
-                to={`/track-order?code=${placedOrder.code}`}
+                to={`/track-order?code=${encodeURIComponent(placedOrder.code)}`}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#123B70] px-6 py-3 text-xs font-bold text-white hover:bg-[#0c274c]"
               >
                 <span>{currentLang === "hi" ? "ऑर्डर ट्रैक करें" : "Track Order Status"}</span>

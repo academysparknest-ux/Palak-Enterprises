@@ -5,6 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { PalakDataStore } from "../lib/storage/store";
 import { FileUploadZone } from "../components/FileUploadZone";
 import { getWhatsAppLink } from "../config/business";
+import { SEO } from "../components/SEO";
 
 export const RequestQuotePage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -80,6 +81,12 @@ export const RequestQuotePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title="Request a Custom Printing Quote | Palak Enterprises Chakia"
+        description="Get bulk wholesale quotes for printing, visiting cards, flex hoardings, brochures, school IDs, and bill books from Palak Enterprises in Chakia, Bihar."
+        canonicalUrl="/request-quote"
+        keywords="printing quote Chakia, bulk printing price Bihar, wholesale printing press Chakia, custom print estimate"
+      />
       {/* Banner */}
       <div className="relative overflow-hidden bg-[#123B70] border-b border-line text-white py-12 px-4 sm:px-6">
         {/* Ambient background glows */}

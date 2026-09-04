@@ -55,6 +55,7 @@ export const ResetPasswordPage: React.FC = () => {
           en: "Enter your new password to secure your Palak Enterprises account.",
           hi: "अपने पालक इंटरप्राइजेज अकाउंट के लिए नया सुरक्षित पासवर्ड दर्ज करें।",
         }}
+        noIndex={true}
       />
 
       <div className="w-full max-w-md space-y-6">

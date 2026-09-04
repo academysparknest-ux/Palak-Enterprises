@@ -49,19 +49,6 @@ export default function IdCardPreviewPage() {
           (project.template_id ? projectTemplates.find((t) => t.id === project.template_id) : null) ??
           null;
 
-        if (import.meta.env.DEV) {
-          console.debug('[ID CARD DEBUG]', {
-            'Preview Template ID': resolvedTemplate?.id || '(none)',
-            'Project Template ID': project.template_id || '(none)',
-            'URL Template ID': queryTemplateId || '(none)',
-            'Front Background': resolvedTemplate?.layout?.backgroundUrl ? 'Present (Custom)' : 'None (Color/Default)',
-            'Back Background': resolvedTemplate?.layout?.back?.backgroundUrl ? 'Present (Custom)' : 'None (Color/Default)',
-            'Header SVG': resolvedTemplate?.layout?.headerSvg ? 'Present (Preset)' : 'None (Null/Suppressed)',
-            'Footer SVG': resolvedTemplate?.layout?.footerSvg ? 'Present (Preset)' : 'None (Null/Suppressed)',
-            'Updated At': resolvedTemplate?.updated_at,
-          });
-        }
-
         setTemplate(resolvedTemplate);
 
         if (personsResult.data[0]) {

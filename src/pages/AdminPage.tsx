@@ -92,9 +92,63 @@ interface AdminOrderItemSpecsProps {
   item: OrderItemPayload;
   itemIndex?: number;
   totalItems?: number;
-  orderCode: string;
+  orderCode?: string;
   isModal?: boolean;
   onOpenPreview?: (doc: DocumentItem) => void;
+}
+
+function getBindingLabel(type?: string): string {
+  switch (type) {
+    case "staple": return "Corner / Saddle Staple";
+    case "spiral": return "Spiral Binding";
+    case "comb": return "Comb Binding";
+    case "soft": return "Soft Binding";
+    case "hard": return "Hard Binding";
+    case "none":
+    default:
+      return "None (Loose Sheets)";
+  }
+}
+
+function getCoverLabel(type?: string): string {
+  switch (type) {
+    case "transparent": return "Transparent Plastic Sheet";
+    case "white": return "Opaque White Sheet";
+    case "black": return "Matte Black Sheet";
+    case "color": return "Color Card Sheet";
+    case "custom": return "Custom Cover Sheet";
+    case "none":
+    default:
+      return "None";
+  }
+}
+
+function getSidesLabel(sides?: string): string {
+  switch (sides) {
+    case "single": return "Single Sided";
+    case "double_long": return "Double Sided (Long Edge)";
+    case "double_short": return "Double Sided (Short Edge)";
+    case "double": return "Double Sided";
+    default: return "Single Sided";
+  }
+}
+
+function getColorModeLabel(mode?: string, bw?: number, color?: number): string {
+  switch (mode) {
+    case "bw": return "B/W (Grayscale)";
+    case "color": return "Full Color";
+    case "mixed": return `Mixed (${bw || 0} B/W, ${color || 0} Color)`;
+    default: return "B/W (Grayscale)";
+  }
+}
+
+function getOrientationLabel(ori?: string): string {
+  switch (ori) {
+    case "portrait": return "Portrait (Vertical)";
+    case "landscape": return "Landscape (Horizontal)";
+    case "auto": return "Auto (Match File)";
+    default: return "Portrait (Vertical)";
+  }
 }
 
 const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
@@ -111,13 +165,19 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
   const prodId = (item.productId || "").toLowerCase();
   const prodName = (item.productName || "").toLowerCase();
 
+  // Local checklist state for admin production work
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const toggleChecklist = (key: string) => {
+    setCheckedItems((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   // Determine Category / Service Kind
   const isVisitingCard = prodId.includes("visiting") || prodName.includes("visiting");
   const isPassportPhoto = prodId.includes("passport") || prodId.includes("photo") || prodName.includes("passport") || prodName.includes("photo");
   const isIdCard = prodId.includes("id-card") || prodId.includes("id_card") || prodName.includes("id card");
   const isPosterBanner = prodId.includes("poster") || prodId.includes("banner") || prodName.includes("poster") || prodName.includes("banner");
   const isWeddingCard = prodId.includes("wedding") || prodId.includes("invitation") || prodName.includes("wedding") || prodName.includes("invitation");
-  const isDocumentPrinting = prodId.includes("document") || prodName.includes("document") || (!isVisitingCard && !isPassportPhoto && !isIdCard && !isPosterBanner && !isWeddingCard && (opts.paperSize || opts.colorMode || opts.sides));
+  const isDocumentPrinting = prodId.includes("document") || prodName.includes("document") || (!isVisitingCard && !isPassportPhoto && !isIdCard && !isPosterBanner && !isWeddingCard && (opts.paperSize || opts.colorMode || opts.sides || opts.gsm || opts.printSnapshot));
 
   // Collect all attached files
   const attachedFiles: Array<{ name: string; url: string; mimeType?: string; size?: number }> = [];
@@ -159,7 +219,395 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
     });
   }
 
-  // Generate human-readable specs list
+  // Handle Document Printing with canonical per-document specifications
+  if (isDocumentPrinting) {
+    const rawDocs: any[] = Array.isArray(opts.printSnapshot?.documents) && opts.printSnapshot.documents.length > 0
+      ? opts.printSnapshot.documents
+      : Array.isArray(opts.files) && opts.files.length > 0
+      ? opts.files.map((f: any, idx: number) => ({
+          documentId: `doc-${idx}`,
+          fileName: f.name || item.uploadedFileName || `Document ${idx + 1}`,
+          fileSize: f.size || 0,
+          fileUrl: f.url || f.storagePath || item.uploadedFileUrl,
+          totalPages: f.pageCount || opts.totalPages || opts.pageCount || 1,
+          copies: item.quantity || opts.copies || 1,
+          paperSize: opts.paperSize || "a4",
+          gsm: opts.gsm || 75,
+          colorMode: opts.colorMode || "bw",
+          sides: opts.sides || "single",
+          orientation: opts.orientation || "portrait",
+          binding: opts.binding || "none",
+          frontCover: opts.frontCover || "none",
+          backCover: opts.backCover || "none",
+          finishing: opts.finishing || {},
+          totalPhysicalSheets: opts.totalPhysicalSheets,
+          totalPrice: item.totalPrice,
+          priceBreakdown: opts.priceBreakdown,
+        }))
+      : [
+          {
+            documentId: `doc-single`,
+            fileName: item.uploadedFileName || "Document.pdf",
+            fileSize: opts.fileSize || 0,
+            fileUrl: item.uploadedFileUrl || opts.storagePath,
+            totalPages: opts.totalPages || opts.pageCount || 1,
+            copies: item.quantity || opts.copies || 1,
+            paperSize: opts.paperSize || "a4",
+            gsm: opts.gsm || 75,
+            colorMode: opts.colorMode || "bw",
+            sides: opts.sides || "single",
+            orientation: opts.orientation || "portrait",
+            binding: opts.binding || "none",
+            frontCover: opts.frontCover || "none",
+            backCover: opts.backCover || "none",
+            finishing: opts.finishing || {},
+            totalPhysicalSheets: opts.totalPhysicalSheets,
+            totalPrice: item.totalPrice,
+            priceBreakdown: opts.priceBreakdown,
+          },
+        ];
+
+    return (
+      <div className={cn(
+        "rounded-xl p-3 sm:p-4 space-y-3 bg-white border border-slate-200/90 shadow-2xs",
+        totalItems > 1 && "bg-slate-50/50"
+      )}>
+        {/* Main Product Header */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+          <div className="flex items-center gap-2">
+            {totalItems > 1 && (
+              <span className="h-5 w-5 rounded-full bg-[#123B70] text-white text-[10px] font-bold flex items-center justify-center">
+                {itemIndex + 1}
+              </span>
+            )}
+            <span className="font-bold text-xs sm:text-sm text-slate-900">
+              {item.productName || opts.documentType || "Document Printing"}
+            </span>
+            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 border border-blue-200">
+              {opts.documentType || "Print Job"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+            <span>Qty: <strong className="text-slate-900 font-bold">{item.quantity}</strong></span>
+            <span>•</span>
+            <span className="text-[#123B70] font-black text-sm">₹{item.totalPrice}</span>
+          </div>
+        </div>
+
+        {/* Per-Document Specifications Cards (Multi-file support) */}
+        <div className="space-y-3">
+          {rawDocs.map((doc: any, dIdx: number) => {
+            const pageCount = doc.selectedPageCount || doc.totalPages || opts.totalPages || 1;
+            const copies = doc.copies || item.quantity || 1;
+            const sides = doc.sides || "single";
+            const effectiveSides = pageCount <= 1 ? "single" : sides;
+            const physicalSheetsPerCopy = doc.physicalSheetsPerCopy || (effectiveSides === "single" ? pageCount : Math.ceil(pageCount / 2));
+            const totalSheets = doc.totalPhysicalSheets || (physicalSheetsPerCopy * copies);
+
+            const docFinishing = (doc.finishing || {}) as Record<string, boolean>;
+            const hasLamination = Boolean(docFinishing.lamination || fin.lamination);
+            const hasHolePunch = Boolean(docFinishing.holePunching || fin.holePunching);
+            const hasBooklet = Boolean(docFinishing.bookletMode || fin.bookletMode);
+            const hasCutting = Boolean(docFinishing.cutting || fin.cutting);
+
+            const bindingLabel = getBindingLabel(doc.binding || opts.binding);
+            const frontCoverLabel = getCoverLabel(doc.frontCover || opts.frontCover);
+            const backCoverLabel = getCoverLabel(doc.backCover || opts.backCover);
+            const colorLabel = getColorModeLabel(doc.colorMode || opts.colorMode, doc.bwPageCount, doc.colorPageCount);
+            const sidesLabel = getSidesLabel(doc.sides || opts.sides);
+            const orientationLabel = getOrientationLabel(doc.orientation || opts.orientation);
+            const gsmValue = doc.gsm || opts.gsm || 75;
+            const paperSizeLabel = String(doc.paperSize || opts.paperSize || "A4").toUpperCase();
+
+            const pKeyPrefix = `${orderCode}_doc_${dIdx}_`;
+
+            const attachedDoc = attachedFiles[dIdx] || attachedFiles[0] || {
+              name: doc.fileName || item.uploadedFileName || `Document-${dIdx + 1}.pdf`,
+              url: doc.fileUrl || doc.storagePath || item.uploadedFileUrl || "",
+              mimeType: doc.mimeType || opts.mimeType || "application/pdf",
+              size: doc.fileSize || opts.fileSize,
+            };
+
+            const breakdown = doc.priceBreakdown || opts.priceBreakdown;
+
+            return (
+              <div
+                key={dIdx}
+                className="rounded-xl p-3 bg-slate-50/90 border border-slate-200/90 space-y-3"
+              >
+                {/* Document Sub-Header (When multi-file) */}
+                <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1 border-b border-slate-200/70">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="h-4 w-4 rounded-full bg-slate-200 text-slate-700 text-[9px] font-bold flex items-center justify-center shrink-0">
+                      {dIdx + 1}
+                    </span>
+                    <span className="font-bold text-xs text-slate-800 truncate" title={doc.fileName || attachedDoc.name}>
+                      {doc.fileName || attachedDoc.name}
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-medium text-slate-600 flex items-center gap-2">
+                    <span>{pageCount} Pages</span>
+                    <span>•</span>
+                    <span>{physicalSheetsPerCopy} Sheets/copy</span>
+                    <span>•</span>
+                    <span className="font-bold text-[#123B70]">₹{doc.totalPrice || item.totalPrice}</span>
+                  </div>
+                </div>
+
+                {/* ─── SECTION 1: PRINT REQUIREMENTS (Grid of Badges) ─── */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-slate-600 tracking-wider flex items-center gap-1">
+                      <span>🖨️</span>
+                      <span>Print Requirements</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      Total Sheets: <strong className="text-slate-800">{totalSheets}</strong>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+                    <div className="rounded-lg p-2 border bg-blue-50/80 text-blue-950 border-blue-200/90 font-bold">
+                      <span className="text-[9px] text-blue-700 block uppercase tracking-wide leading-none mb-0.5">
+                        Paper Weight (GSM)
+                      </span>
+                      <span className="text-xs block truncate font-black text-blue-950">{gsmValue} GSM</span>
+                    </div>
+
+                    <div className="rounded-lg p-2 border bg-white text-slate-800 border-slate-200 font-semibold">
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+                        Paper Size
+                      </span>
+                      <span className="text-xs block truncate font-bold text-slate-900">{paperSizeLabel}</span>
+                    </div>
+
+                    <div className="rounded-lg p-2 border bg-white text-slate-800 border-slate-200 font-semibold">
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+                        Color Mode
+                      </span>
+                      <span className={cn("text-xs block truncate font-bold", doc.colorMode === "color" ? "text-amber-700 font-black" : "text-slate-900")}>
+                        {colorLabel}
+                      </span>
+                    </div>
+
+                    <div className="rounded-lg p-2 border bg-white text-slate-800 border-slate-200 font-semibold">
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+                        Print Sides
+                      </span>
+                      <span className="text-xs block truncate font-bold text-slate-900">{sidesLabel}</span>
+                    </div>
+
+                    <div className="rounded-lg p-2 border bg-white text-slate-800 border-slate-200 font-semibold">
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+                        Orientation
+                      </span>
+                      <span className="text-xs block truncate font-bold text-slate-900">{orientationLabel}</span>
+                    </div>
+
+                    <div className="rounded-lg p-2 border bg-white text-slate-800 border-slate-200 font-semibold">
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+                        Copies
+                      </span>
+                      <span className="text-xs block truncate font-bold text-slate-900">{copies} Copies</span>
+                    </div>
+
+                    <div className="rounded-lg p-2 border bg-white text-slate-800 border-slate-200 font-semibold sm:col-span-2">
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+                        Binding
+                      </span>
+                      <span className={cn("text-xs block truncate font-bold", doc.binding && doc.binding !== "none" ? "text-indigo-800 font-black" : "text-slate-700")}>
+                        {bindingLabel}
+                      </span>
+                    </div>
+
+                    <div className="rounded-lg p-2 border bg-white text-slate-800 border-slate-200 font-semibold sm:col-span-2">
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+                        Front Cover
+                      </span>
+                      <span className={cn("text-xs block truncate font-bold", doc.frontCover && doc.frontCover !== "none" ? "text-purple-800 font-black" : "text-slate-700")}>
+                        {frontCoverLabel}
+                      </span>
+                    </div>
+
+                    <div className="rounded-lg p-2 border bg-white text-slate-800 border-slate-200 font-semibold sm:col-span-2">
+                      <span className="text-[9px] text-slate-400 block uppercase tracking-wide leading-none mb-0.5">
+                        Back Cover
+                      </span>
+                      <span className={cn("text-xs block truncate font-bold", doc.backCover && doc.backCover !== "none" ? "text-purple-800 font-black" : "text-slate-700")}>
+                        {backCoverLabel}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── SECTION 2: FINISHING SERVICES ─── */}
+                <div className="rounded-lg bg-white p-2.5 border border-slate-200 space-y-1.5">
+                  <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">
+                    Finishing Services
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
+                    <div className={cn(
+                      "flex items-center gap-1.5 px-2 py-1 rounded-md border",
+                      hasLamination ? "bg-emerald-50 text-emerald-900 border-emerald-200 font-bold" : "bg-slate-50 text-slate-400 border-slate-100"
+                    )}>
+                      <CheckCircle2 className={cn("h-3.5 w-3.5 shrink-0", hasLamination ? "text-emerald-600" : "text-slate-300")} />
+                      <span>{hasLamination ? "Thermal Lamination (+₹15/sheet)" : "Lamination: No"}</span>
+                    </div>
+
+                    <div className={cn(
+                      "flex items-center gap-1.5 px-2 py-1 rounded-md border",
+                      hasHolePunch ? "bg-emerald-50 text-emerald-900 border-emerald-200 font-bold" : "bg-slate-50 text-slate-400 border-slate-100"
+                    )}>
+                      <CheckCircle2 className={cn("h-3.5 w-3.5 shrink-0", hasHolePunch ? "text-emerald-600" : "text-slate-300")} />
+                      <span>{hasHolePunch ? "2/4 Hole Punching (+₹2/sheet)" : "Hole Punching: No"}</span>
+                    </div>
+
+                    <div className={cn(
+                      "flex items-center gap-1.5 px-2 py-1 rounded-md border",
+                      hasBooklet ? "bg-emerald-50 text-emerald-900 border-emerald-200 font-bold" : "bg-slate-50 text-slate-400 border-slate-100"
+                    )}>
+                      <CheckCircle2 className={cn("h-3.5 w-3.5 shrink-0", hasBooklet ? "text-emerald-600" : "text-slate-300")} />
+                      <span>{hasBooklet ? "Booklet Fold & Saddle (+₹15)" : "Booklet Fold: No"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── SECTION 3: ADMIN PRODUCTION CHECKLIST ─── */}
+                <div className="rounded-lg bg-indigo-50/40 p-2.5 border border-indigo-100/90 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider flex items-center gap-1">
+                      <span>📋</span>
+                      <span>Production Checklist</span>
+                    </span>
+                    <span className="text-[9px] text-indigo-700 font-semibold">
+                      Derived from customer snapshot
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
+                    {[
+                      { key: "paper", label: `Paper: ${gsmValue} GSM (${paperSizeLabel})` },
+                      { key: "color", label: `Print: ${colorLabel} • ${sidesLabel}` },
+                      { key: "orientation", label: `Orientation: ${orientationLabel}` },
+                      { key: "copies", label: `Copies: ${copies} (${totalSheets} total physical sheets)` },
+                      { key: "binding", label: `Binding: ${bindingLabel}` },
+                      { key: "frontCover", label: `Front Cover: ${frontCoverLabel}` },
+                      { key: "backCover", label: `Back Cover: ${backCoverLabel}` },
+                      {
+                        key: "finishing",
+                        label: `Finishing: ${[
+                          hasLamination ? "Thermal Lamination" : null,
+                          hasHolePunch ? "2/4 Hole Punching" : null,
+                          hasBooklet ? "Booklet Fold & Saddle" : null,
+                          hasCutting ? "Cutting" : null,
+                        ].filter(Boolean).join(", ") || "No extra finishing"}`,
+                      },
+                    ].map((chk) => {
+                      const id = pKeyPrefix + chk.key;
+                      const isChecked = Boolean(checkedItems[id]);
+                      return (
+                        <label
+                          key={chk.key}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleChecklist(id);
+                          }}
+                          className={cn(
+                            "flex items-center gap-2 p-1.5 rounded-md border cursor-pointer select-none transition-colors",
+                            isChecked
+                              ? "bg-emerald-50 text-emerald-950 border-emerald-300 font-semibold line-through opacity-85"
+                              : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            className="rounded text-[#123B70] accent-[#123B70] h-3.5 w-3.5 shrink-0"
+                          />
+                          <span className="truncate">{chk.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ─── SECTION 4: ADD-ON PRICES & FINANCIAL RECONCILIATION ─── */}
+                {breakdown && (
+                  <div className="rounded-lg bg-amber-50/50 p-2.5 border border-amber-200/70 space-y-1 text-xs">
+                    <div className="flex items-center justify-between pb-1 border-b border-amber-200/50">
+                      <span className="text-[10px] font-black uppercase text-amber-900 tracking-wider flex items-center gap-1">
+                        <span>💰</span>
+                        <span>Item Price Breakdown & Add-ons</span>
+                      </span>
+                      <span className="font-bold text-amber-950 text-[11px]">
+                        Unit: ₹{breakdown.costPerCopy || breakdown.totalCost} • Total: ₹{breakdown.totalCost || doc.totalPrice}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-0.5 text-[10px] text-amber-950">
+                      <div>
+                        <span className="text-amber-800">Base Print ({colorLabel}):</span>{" "}
+                        <strong>₹{(breakdown.bwPrintCost || 0) + (breakdown.colorPrintCost || 0)}</strong>
+                      </div>
+                      {breakdown.paperCost > 0 && (
+                        <div>
+                          <span className="text-amber-800">{gsmValue} GSM Surcharge:</span>{" "}
+                          <strong>+₹{breakdown.paperCost}</strong>
+                        </div>
+                      )}
+                      {breakdown.bindingCost > 0 && (
+                        <div>
+                          <span className="text-amber-800">Binding ({bindingLabel}):</span>{" "}
+                          <strong>+₹{breakdown.bindingCost}</strong>
+                        </div>
+                      )}
+                      {breakdown.frontCoverCost > 0 && (
+                        <div>
+                          <span className="text-amber-800">Front Cover:</span>{" "}
+                          <strong>+₹{breakdown.frontCoverCost}</strong>
+                        </div>
+                      )}
+                      {breakdown.backCoverCost > 0 && (
+                        <div>
+                          <span className="text-amber-800">Back Cover:</span>{" "}
+                          <strong>+₹{breakdown.backCoverCost}</strong>
+                        </div>
+                      )}
+                      {breakdown.finishingCost > 0 && (
+                        <div>
+                          <span className="text-amber-800">Finishing (Lamination/Punch):</span>{" "}
+                          <strong>+₹{breakdown.finishingCost}</strong>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── SECTION 5: ATTACHED FILE ACTIONS ─── */}
+                <div className="pt-0.5 space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                    <span>Attached Document</span>
+                    <span>{attachedDoc.size ? `${(attachedDoc.size / (1024 * 1024)).toFixed(2)} MB` : "PDF"}</span>
+                  </div>
+                  <AdminFileActions
+                    fileName={attachedDoc.name}
+                    fileUrl={attachedDoc.url}
+                    mimeType={attachedDoc.mimeType}
+                    orderCode={orderCode}
+                    compact={!isModal}
+                    onOpenPreview={onOpenPreview}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Generate human-readable specs list for other product types
   const specPills: Array<{ label: string; value: string; highlight?: boolean }> = [];
 
   if (isVisitingCard) {
@@ -217,20 +665,6 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
     if (opts.eyelets) specPills.push({ label: "Eyelets", value: "Metal Rings Included" });
     if (opts.lamination) specPills.push({ label: "Lamination", value: "Laminated" });
     specPills.push({ label: "Quantity", value: `${item.quantity} Pcs`, highlight: true });
-  } else if (isDocumentPrinting) {
-    const pageCount = opts.totalPages || opts.printSnapshot?.totalPrintedPages || opts.pageCount;
-    const physicalSheets = opts.totalPhysicalSheets || opts.printSnapshot?.totalPhysicalSheets;
-    if (pageCount) {
-      specPills.push({ label: "Pages", value: `${pageCount} Pages`, highlight: true });
-    }
-    if (physicalSheets) {
-      specPills.push({ label: "Sheets", value: `${physicalSheets} Sheets` });
-    }
-    specPills.push({ label: "Paper", value: String(opts.paperSize || "A4").toUpperCase() });
-    specPills.push({ label: "Color", value: opts.colorMode === "bw" ? "B&W (Grayscale)" : "Full Color", highlight: opts.colorMode !== "bw" });
-    specPills.push({ label: "Sides", value: opts.sides === "single" ? "Single Sided" : "Double Sided (Back-to-Back)" });
-    specPills.push({ label: "Orientation", value: opts.orientation === "landscape" ? "Landscape" : "Portrait" });
-    specPills.push({ label: "Copies", value: `${item.quantity || 1} Copies`, highlight: true });
   } else if (isWeddingCard) {
     specPills.push({ label: "Paper Stock", value: opts.paperStock || "300 GSM Shimmer Metallic", highlight: true });
     if (opts.cardFormat) specPills.push({ label: "Format", value: opts.cardFormat });
@@ -266,9 +700,6 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
     { label: "Address", val: opts.cardAddress },
     { label: "Website", val: opts.cardWebsite },
   ].filter((f) => Boolean(f.val));
-
-  // Finishing checklist for document printing
-  const hasFinishing = fin.spiralBinding || fin.combBinding || fin.lamination || fin.stapling;
 
   return (
     <div className={cn(
@@ -313,41 +744,6 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
           </div>
         ))}
       </div>
-
-      {/* Document Printing Finishing Checklist */}
-      {isDocumentPrinting && hasFinishing && (
-        <div className="rounded-md bg-white p-2 border border-slate-200 space-y-1">
-          <span className="text-[9px] font-bold uppercase text-slate-500 block">
-            Finishing Services Requested
-          </span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[10px]">
-            {fin.spiralBinding && (
-              <div className="flex items-center gap-1 text-emerald-800 font-bold">
-                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                <span>Spiral Binding</span>
-              </div>
-            )}
-            {fin.combBinding && (
-              <div className="flex items-center gap-1 text-emerald-800 font-bold">
-                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                <span>Comb Binding</span>
-              </div>
-            )}
-            {fin.lamination && (
-              <div className="flex items-center gap-1 text-emerald-800 font-bold">
-                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                <span>Lamination</span>
-              </div>
-            )}
-            {fin.stapling && (
-              <div className="flex items-center gap-1 text-emerald-800 font-bold">
-                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                <span>Stapling</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Template Card Details (if visiting card template used) */}
       {templateFields.length > 0 && (
@@ -1339,16 +1735,26 @@ export const AdminPage: React.FC = () => {
       const orderCode = (o.orderCode || "").toLowerCase();
       const customerName = (o.customerName || "").toLowerCase();
       const customerPhone = (o.customerPhone || "").toLowerCase();
+      const customerEmail = (o.customerEmail || "").toLowerCase();
       const notes = (o.orderNotes || "").toLowerCase();
+      const staffNotes = (o.staffNotes || "").toLowerCase();
       const itemNames = (o.items || []).map((it) => (it.productName || "").toLowerCase()).join(" ");
+      const fileNames = (o.items || []).map((it) => (it.uploadedFileName || "").toLowerCase()).join(" ");
+      const optionsText = (o.items || []).map((it) => JSON.stringify(it.selectedOptions || {}).toLowerCase()).join(" ");
+      const snapshotText = o.printSnapshot ? JSON.stringify(o.printSnapshot).toLowerCase() : "";
 
       const matchesQuery =
         !q ||
         orderCode.includes(q) ||
         customerName.includes(q) ||
         customerPhone.includes(q) ||
+        customerEmail.includes(q) ||
         notes.includes(q) ||
-        itemNames.includes(q);
+        staffNotes.includes(q) ||
+        itemNames.includes(q) ||
+        fileNames.includes(q) ||
+        optionsText.includes(q) ||
+        snapshotText.includes(q);
 
       const qMeta = getQueueClassification(o);
       const ordStatus = (o.orderStatus || "NEW").toUpperCase();
@@ -2196,8 +2602,16 @@ export const AdminPage: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-center py-10 text-xs text-slate-400">
-                    {orders.length === 0 ? "No orders found in the database." : "No print orders matching your filter criteria."}
+                  <div className="text-center py-12 px-4 space-y-2">
+                    <Package className="h-8 w-8 text-slate-300 mx-auto stroke-1" />
+                    <div className="text-sm font-bold text-slate-700">
+                      {orders.length === 0 ? "No orders yet" : "No orders matching filters"}
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      {orders.length === 0
+                        ? "Incoming online printing and in-store customer orders will appear here automatically."
+                        : "Try adjusting your search terms or status filters to view orders."}
+                    </p>
                   </div>
                 )}
 
@@ -2513,8 +2927,16 @@ export const AdminPage: React.FC = () => {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-slate-400 italic text-xs">
-                          No invoices matching the selected filters.
+                        <td colSpan={8} className="py-12 text-center">
+                          <Receipt className="h-8 w-8 text-slate-300 mx-auto stroke-1 mb-2" />
+                          <div className="text-sm font-bold text-slate-700">
+                            {invoices.length === 0 ? "No invoices yet" : "No invoices matching filters"}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {invoices.length === 0
+                              ? "Generated GST invoices and counter cash receipts will be recorded here."
+                              : "Try adjusting your search criteria or date filters."}
+                          </p>
                         </td>
                       </tr>
                     )}
@@ -2970,10 +3392,16 @@ export const AdminPage: React.FC = () => {
                   </table>
                 </div>
               ) : (
-                <div className="text-center py-12 text-xs text-slate-400 space-y-1.5">
-                  <Receipt className="h-8 w-8 text-slate-300 mx-auto" />
-                  <p className="font-semibold text-slate-600">No payment records found matching your filter criteria.</p>
-                  <p className="text-[10px] text-slate-400">Try adjusting your search term or clearing the status/method filter.</p>
+                <div className="text-center py-12 text-xs text-slate-400 space-y-2">
+                  <Receipt className="h-8 w-8 text-slate-300 mx-auto stroke-1" />
+                  <div className="text-sm font-bold text-slate-700">
+                    {totalOrdersCount === 0 ? "No payment transactions yet" : "No payments matching filters"}
+                  </div>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    {totalOrdersCount === 0
+                      ? "Online payments and in-store counter collections will be logged here."
+                      : "Try adjusting your search term or clearing the status/method filter."}
+                  </p>
                 </div>
               )}
             </div>
@@ -3342,7 +3770,11 @@ export const AdminPage: React.FC = () => {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-6 text-xs text-slate-400">No applications in queue.</div>
+                <div className="text-center py-10 space-y-1.5">
+                  <Globe className="h-7 w-7 text-slate-300 mx-auto stroke-1" />
+                  <div className="text-sm font-bold text-slate-700">No applications in queue</div>
+                  <p className="text-xs text-slate-400">Online portal applications and digital service requests will appear here.</p>
+                </div>
               )}
             </div>
 
@@ -3433,7 +3865,11 @@ export const AdminPage: React.FC = () => {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-6 text-xs text-slate-400">No quotes pending.</div>
+                <div className="text-center py-10 space-y-1.5">
+                  <FileText className="h-7 w-7 text-slate-300 mx-auto stroke-1" />
+                  <div className="text-sm font-bold text-slate-700">No quote inquiries yet</div>
+                  <p className="text-xs text-slate-400">Customer requests for custom quotes will appear here.</p>
+                </div>
               )}
             </div>
 

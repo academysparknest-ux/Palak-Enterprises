@@ -168,6 +168,8 @@ export const WebsiteDevPage: React.FC<WebsiteDevPageProps> = ({ onOpenRequestMod
           en: "Professional, fast, mobile-friendly bilingual websites and ERP systems for schools, coaching institutes, shops, and businesses in Chakia, East Champaran, Bihar.",
           hi: "चकिया और बिहार के स्कूलों, कोचिंग, दुकानों और व्यवसायों के लिए आधुनिक, तेज़, मोबाइल-फ्रेंडली द्विभाषी वेबसाइट व ईआरपी निर्माण।",
         }}
+        canonicalUrl="/website-development"
+        keywords="website development Chakia, website designer East Champaran, school ERP Bihar, coaching institute website, web design Bihar, Palak Enterprises tech"
       />
 
       {/* Page Hero */}

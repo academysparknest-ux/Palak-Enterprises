@@ -527,6 +527,229 @@ export async function getStaffQuoteRequests(limit: number = 200): Promise<Stored
   }
 }
 
+// ─── Focused Dashboard Queries ────────────────────────────────────────────────
+
+export interface DashboardRecentOrder {
+  id: string;
+  order_code: string;
+  customer_name: string;
+  customer_phone?: string;
+  service_name: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+}
+
+export interface DashboardOrderMetrics {
+  totalOrders: number;
+  newOrders: number;
+  inProduction: number;
+  readyForPickup: number;
+  totalRevenue: number;
+  todaysOrders: number;
+}
+
+/**
+ * High-performance focused query for Dashboard Recent Orders.
+ * Fetches only the latest N orders (default 6) and only the 8 columns required for display.
+ */
+export async function getDashboardRecentOrders(limit: number = 6): Promise<DashboardRecentOrder[]> {
+  const mapRowToRecent = (row: any): DashboardRecentOrder => {
+    let serviceName = "Print Order";
+    try {
+      const itemsArr = Array.isArray(row.items) ? row.items : [];
+      if (itemsArr.length > 0) {
+        const first = itemsArr[0];
+        const rawName = first?.productName || first?.name || "Print Service";
+        const qty = Number(first?.quantity) || 1;
+        serviceName = qty > 1 ? `${rawName} (${qty}x)` : rawName;
+        if (itemsArr.length > 1) {
+          serviceName += ` + ${itemsArr.length - 1} more`;
+        }
+      }
+    } catch {}
+
+    return {
+      id: String(row.id || row.order_code || row.orderCode),
+      order_code: row.order_code || row.orderCode || "ORD-NEW",
+      customer_name: row.customer_name || row.customerName || (row.customer_phone || row.customerPhone ? `Customer (${row.customer_phone || row.customerPhone})` : "Guest Customer"),
+      customer_phone: row.customer_phone || row.customerPhone,
+      service_name: serviceName,
+      total_amount: Math.max(0, Number(row.total_amount ?? row.totalAmount) || 0),
+      status: row.order_status || row.orderStatus || "NEW",
+      created_at: row.created_at || row.createdAt || new Date().toISOString(),
+    };
+  };
+
+  if (!isSupabaseConfigured || !supabase) {
+    const localOrders = PalakDataStore.getOrders();
+    return localOrders.slice(0, limit).map(mapRowToRecent);
+  }
+
+  try {
+    const data = await executeWithAuthRetry(async (client) => {
+      const { data, error } = await client
+        .from("orders")
+        .select("id, order_code, customer_name, customer_phone, items, total_amount, order_status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    });
+
+    return (data || []).map(mapRowToRecent);
+  } catch (err) {
+    console.warn("getDashboardRecentOrders notice, using local fallback:", err);
+    const localOrders = PalakDataStore.getOrders();
+    return localOrders.slice(0, limit).map(mapRowToRecent);
+  }
+}
+
+/**
+ * High-performance focused query for Dashboard Order KPIs.
+ * Queries only scalar columns (order_status, payment_status, total_amount, created_at) with exact count.
+ * Completely avoids downloading heavy JSON cart items or addresses.
+ */
+export async function getDashboardOrderMetrics(): Promise<DashboardOrderMetrics> {
+  const computeFromList = (orders: any[], exactTotal?: number | null): DashboardOrderMetrics => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayTimestamp = startOfToday.getTime();
+
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    const endTimestamp = endOfToday.getTime();
+
+    const totalOrders = exactTotal !== null && exactTotal !== undefined ? exactTotal : orders.length;
+    let newOrders = 0;
+    let inProduction = 0;
+    let readyForPickup = 0;
+    let totalRevenue = 0;
+    let todaysOrders = 0;
+
+    for (const o of orders) {
+      const status = (o.order_status || o.orderStatus || "").toUpperCase();
+      const paymentStatus = String(o.payment_status || o.paymentStatus || "").toLowerCase();
+      const amt = Number(o.total_amount ?? o.totalAmount) || 0;
+      const createdAt = o.created_at || o.createdAt;
+      const time = createdAt ? new Date(createdAt).getTime() : 0;
+
+      if (status === "NEW" || status === "UNDER_REVIEW") {
+        newOrders++;
+      } else if (
+        status === "IN_PRODUCTION" ||
+        status === "DESIGN_REVIEW" ||
+        status === "APPROVED" ||
+        status === "PROCESSING"
+      ) {
+        inProduction++;
+      } else if (status === "READY_FOR_PICKUP" || status === "OUT_FOR_DELIVERY") {
+        readyForPickup++;
+      }
+
+      if ((paymentStatus === "paid" || paymentStatus === "confirmed") && status !== "CANCELLED") {
+        totalRevenue += Math.max(0, amt);
+      }
+
+      if (time >= todayTimestamp && time <= endTimestamp) {
+        todaysOrders++;
+      }
+    }
+
+    return {
+      totalOrders,
+      newOrders,
+      inProduction,
+      readyForPickup,
+      totalRevenue,
+      todaysOrders,
+    };
+  };
+
+  if (!isSupabaseConfigured || !supabase) {
+    return computeFromList(PalakDataStore.getOrders());
+  }
+
+  try {
+    const { data, count } = await executeWithAuthRetry(async (client) => {
+      const { data, count, error } = await client
+        .from("orders")
+        .select("order_status, payment_status, total_amount, created_at", { count: "exact" });
+
+      if (error) throw error;
+      return { data: data || [], count };
+    });
+
+    return computeFromList(data, count);
+  } catch (err) {
+    console.warn("getDashboardOrderMetrics notice, falling back to local store:", err);
+    return computeFromList(PalakDataStore.getOrders());
+  }
+}
+
+/**
+ * Server-side head count query for pending service requests.
+ * Zero bytes body payload transferred.
+ */
+export async function getPendingServiceRequestsCount(): Promise<number> {
+  if (!isSupabaseConfigured || !supabase) {
+    const local = PalakDataStore.getServiceRequests();
+    return local.filter((s) => s.requestStatus !== "COMPLETED" && s.requestStatus !== "REJECTED").length;
+  }
+
+  try {
+    const count = await executeWithAuthRetry(async (client) => {
+      const { count, error } = await client
+        .from("service_requests")
+        .select("id", { count: "exact", head: true })
+        .not("request_status", "in", '("COMPLETED","REJECTED")');
+
+      if (error) throw error;
+      return count || 0;
+    });
+
+    return count;
+  } catch (err) {
+    console.warn("getPendingServiceRequestsCount notice:", err);
+    const local = PalakDataStore.getServiceRequests();
+    return local.filter((s) => s.requestStatus !== "COMPLETED" && s.requestStatus !== "REJECTED").length;
+  }
+}
+
+/**
+ * Server-side head count query for pending custom quote inquiries.
+ * Zero bytes body payload transferred.
+ */
+export async function getPendingQuoteRequestsCount(): Promise<number> {
+  if (!isSupabaseConfigured || !supabase) {
+    const local = PalakDataStore.getQuoteRequests();
+    return local.filter(
+      (q) => q.quoteStatus === "NEW" || q.quoteStatus === "ESTIMATE_PREPARED" || q.quoteStatus === "QUOTE_SENT"
+    ).length;
+  }
+
+  try {
+    const count = await executeWithAuthRetry(async (client) => {
+      const { count, error } = await client
+        .from("quote_requests")
+        .select("id", { count: "exact", head: true })
+        .in("quote_status", ["NEW", "ESTIMATE_PREPARED", "QUOTE_SENT"]);
+
+      if (error) throw error;
+      return count || 0;
+    });
+
+    return count;
+  } catch (err) {
+    console.warn("getPendingQuoteRequestsCount notice:", err);
+    const local = PalakDataStore.getQuoteRequests();
+    return local.filter(
+      (q) => q.quoteStatus === "NEW" || q.quoteStatus === "ESTIMATE_PREPARED" || q.quoteStatus === "QUOTE_SENT"
+    ).length;
+  }
+}
+
 export async function updateStaffOrderStatus(
   orderCode: string,
   newStatus: StoredOrder["orderStatus"],
@@ -1404,31 +1627,88 @@ export const DEFAULT_QUICK_SERVICES: QuickServiceItem[] = [
 ];
 
 const QUICK_SERVICES_LOCAL_KEY = "palak_quick_services_availability";
+export const QUICK_SERVICES_BROADCAST_CHANNEL = "palak_quick_services_channel";
 
-export function getLocalQuickServices(): QuickServiceItem[] {
-  if (typeof window === "undefined") return DEFAULT_QUICK_SERVICES;
+type QuickServiceCallback = (services: QuickServiceItem[]) => void;
+const quickServiceSubscribers = new Set<QuickServiceCallback>();
+let quickServicesChannel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
+let lastCachedQuickServices: QuickServiceItem[] | null = null;
+let memoryQuickServices: QuickServiceItem[] | null = null;
+let heartbeatIntervalId: any = null;
+let lastRevalidationTimestamp = 0;
+
+// Multi-tab / multi-window BroadcastChannel singleton
+let quickServicesBroadcastChannel: BroadcastChannel | null = null;
+if (typeof window !== "undefined" && "BroadcastChannel" in window) {
   try {
-    const raw = localStorage.getItem(QUICK_SERVICES_LOCAL_KEY);
-    if (!raw) return DEFAULT_QUICK_SERVICES;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_QUICK_SERVICES;
-  } catch {
-    return DEFAULT_QUICK_SERVICES;
+    quickServicesBroadcastChannel = new BroadcastChannel(QUICK_SERVICES_BROADCAST_CHANNEL);
+  } catch (e) {
+    console.debug("[QuickServices] BroadcastChannel init notice:", e);
   }
 }
 
-export function saveLocalQuickServices(services: QuickServiceItem[]): void {
+export function getLocalQuickServices(): QuickServiceItem[] {
+  if (typeof window === "undefined") return memoryQuickServices || DEFAULT_QUICK_SERVICES;
+  try {
+    const raw = localStorage.getItem(QUICK_SERVICES_LOCAL_KEY);
+    if (!raw) return memoryQuickServices || DEFAULT_QUICK_SERVICES;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : (memoryQuickServices || DEFAULT_QUICK_SERVICES);
+  } catch {
+    return memoryQuickServices || DEFAULT_QUICK_SERVICES;
+  }
+}
+
+export function saveLocalQuickServices(services: QuickServiceItem[], broadcastToOtherTabs = true): void {
+  memoryQuickServices = services;
+  lastCachedQuickServices = services;
+
+  // Immediately notify all active subscribers in the current JS environment
+  quickServiceSubscribers.forEach((cb) => {
+    try {
+      cb(services);
+    } catch (err) {
+      console.warn("[QuickServices] Subscriber callback error:", err);
+    }
+  });
+
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(QUICK_SERVICES_LOCAL_KEY, JSON.stringify(services));
+    // 1. Same-window instant notification
     window.dispatchEvent(new CustomEvent("palak_quick_services_updated", { detail: services }));
+    // 2. Cross-tab BroadcastChannel notification
+    if (broadcastToOtherTabs && quickServicesBroadcastChannel) {
+      quickServicesBroadcastChannel.postMessage({
+        type: "QUICK_SERVICES_AVAILABILITY_CHANGED",
+        timestamp: Date.now(),
+        services,
+      });
+    }
   } catch (e) {
     console.error("Error saving quick services locally:", e);
   }
 }
 
+/** Explicitly broadcast an availability changed event to other tabs/windows */
+export function broadcastQuickServicesUpdate(services?: QuickServiceItem[]): void {
+  if (typeof window === "undefined") return;
+  const list = services || getLocalQuickServices();
+  if (quickServicesBroadcastChannel) {
+    try {
+      quickServicesBroadcastChannel.postMessage({
+        type: "QUICK_SERVICES_AVAILABILITY_CHANGED",
+        timestamp: Date.now(),
+        services: list,
+      });
+    } catch (e) {
+      console.debug("[QuickServices] broadcast error:", e);
+    }
+  }
+}
+
 /** Fetches all Quick Services with real-time status from cloud or local fallback */
-export async function getQuickServices(): Promise<QuickServiceItem[]> {
+export async function getQuickServices(_forceServer = false): Promise<QuickServiceItem[]> {
   const localList = getLocalQuickServices();
   if (!isSupabaseConfigured || !supabase) {
     return localList;
@@ -1436,14 +1716,14 @@ export async function getQuickServices(): Promise<QuickServiceItem[]> {
   try {
     const { data, error } = await supabase
       .from("quick_services")
-      .select("id, name_en, name_hi, category, description_en, description_hi, path, icon_name, is_active, stop_reason, stop_reason_hi, stopped_at, stopped_by, sort_order, updated_at")
+      .select("id, name_en, name_hi, category, description_en, description_hi, path, icon_name, is_active, stop_reason, stop_reason_hi, sort_order, updated_by, created_at, updated_at")
       .order("sort_order", { ascending: true });
 
     if (error || !data || data.length === 0) {
       return localList;
     }
 
-    const merged = data.map((item: any) => ({
+    const merged: QuickServiceItem[] = data.map((item: any) => ({
       id: item.id,
       name_en: item.name_en,
       name_hi: item.name_hi,
@@ -1461,7 +1741,8 @@ export async function getQuickServices(): Promise<QuickServiceItem[]> {
       updated_at: item.updated_at,
     }));
 
-    saveLocalQuickServices(merged);
+    // Save to local cache without rebroadcasting to avoid loop
+    saveLocalQuickServices(merged, false);
     return merged;
   } catch {
     return localList;
@@ -1481,20 +1762,21 @@ export async function toggleQuickServiceAvailability(
   stopReason?: string,
   performedBy: string = "Admin Staff"
 ): Promise<{ success: boolean; error?: string; service?: QuickServiceItem }> {
-  // Update local cache optimistically
+  const nowIso = new Date().toISOString();
+  // Update local cache optimistically and broadcast immediately
   const currentList = getLocalQuickServices();
   const updatedList = currentList.map((s) =>
     s.id === serviceId
       ? {
           ...s,
           is_active: isActive,
-          stop_reason: isActive ? null : stopReason || "Temporarily unavailable",
+          stop_reason: isActive ? null : stopReason?.trim() || "Temporarily unavailable",
           updated_by: performedBy,
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         }
       : s
   );
-  saveLocalQuickServices(updatedList);
+  saveLocalQuickServices(updatedList, true);
 
   if (!isSupabaseConfigured || !supabase) {
     const updated = updatedList.find((s) => s.id === serviceId);
@@ -1511,8 +1793,10 @@ export async function toggleQuickServiceAvailability(
     });
 
     if (!rpcErr && rpcData?.success) {
-      const fresh = await getQuickServices();
+      const fresh = await getQuickServices(true);
       const s = fresh.find((x) => x.id === serviceId);
+      // Broadcast verified canonical state across tabs
+      broadcastQuickServicesUpdate(fresh);
       return { success: true, service: s };
     }
 
@@ -1523,7 +1807,7 @@ export async function toggleQuickServiceAvailability(
         is_active: isActive,
         stop_reason: isActive ? null : stopReason?.trim() || "Temporarily unavailable",
         updated_by: performedBy,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       })
       .eq("id", serviceId)
       .select()
@@ -1534,7 +1818,8 @@ export async function toggleQuickServiceAvailability(
       return { success: false, error: error.message };
     }
 
-    const fresh = await getQuickServices();
+    const fresh = await getQuickServices(true);
+    broadcastQuickServicesUpdate(fresh);
     return { success: true, service: fresh.find((x) => x.id === serviceId) };
   } catch (err: any) {
     console.error("toggleQuickServiceAvailability exception:", err);
@@ -1548,17 +1833,17 @@ export async function toggleAllQuickServicesAvailability(
   stopReason?: string,
   performedBy: string = "Admin Staff"
 ): Promise<{ success: boolean; services?: QuickServiceItem[]; error?: string }> {
-  // Update local cache immediately
+  // Update local cache immediately and broadcast
   const localList = getLocalQuickServices();
   const nowIso = new Date().toISOString();
   const updatedList = localList.map((s) => ({
     ...s,
     is_active: isActive,
-    stop_reason: isActive ? null : stopReason || "All quick services temporarily paused",
+    stop_reason: isActive ? null : stopReason?.trim() || "All quick services temporarily paused",
     updated_by: performedBy,
     updated_at: nowIso,
   }));
-  saveLocalQuickServices(updatedList);
+  saveLocalQuickServices(updatedList, true);
 
   if (!isSupabaseConfigured || !supabase) {
     return { success: true, services: updatedList };
@@ -1573,7 +1858,8 @@ export async function toggleAllQuickServicesAvailability(
     });
 
     if (!rpcErr && rpcData?.success) {
-      const fresh = await getQuickServices();
+      const fresh = await getQuickServices(true);
+      broadcastQuickServicesUpdate(fresh);
       return { success: true, services: fresh };
     }
 
@@ -1593,7 +1879,8 @@ export async function toggleAllQuickServicesAvailability(
       return { success: false, error: error.message };
     }
 
-    const fresh = await getQuickServices();
+    const fresh = await getQuickServices(true);
+    broadcastQuickServicesUpdate(fresh);
     return { success: true, services: fresh };
   } catch (err: any) {
     console.error("toggleAllQuickServicesAvailability exception:", err);
@@ -1602,25 +1889,54 @@ export async function toggleAllQuickServicesAvailability(
 }
 
 // ─── Centralized Quick Services Realtime Multiplexer (Singleton) ─────────────
-type QuickServiceCallback = (services: QuickServiceItem[]) => void;
-const quickServiceSubscribers = new Set<QuickServiceCallback>();
-let quickServicesChannel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
-let lastCachedQuickServices: QuickServiceItem[] | null = null;
+function dispatchToAllSubscribers(services: QuickServiceItem[]) {
+  lastCachedQuickServices = services;
+  quickServiceSubscribers.forEach((cb) => {
+    try {
+      cb(services);
+    } catch (err) {
+      console.warn("[QuickServicesRealtime] Subscriber callback error:", err);
+    }
+  });
+}
 
-async function notifyQuickServiceSubscribers() {
+async function notifyQuickServiceSubscribers(forceFetch = false) {
   try {
-    const fresh = await getQuickServices();
-    lastCachedQuickServices = fresh;
-    quickServiceSubscribers.forEach((cb) => {
-      try {
-        cb(fresh);
-      } catch (err) {
-        console.warn("[QuickServicesRealtime] Subscriber callback error:", err);
-      }
-    });
+    const fresh = await getQuickServices(forceFetch);
+    dispatchToAllSubscribers(fresh);
   } catch (e) {
     console.warn("Quick services realtime fetch notice:", e);
   }
+}
+
+// Global cross-tab broadcast handler
+if (quickServicesBroadcastChannel) {
+  quickServicesBroadcastChannel.onmessage = (event: MessageEvent) => {
+    if (event.data?.type === "QUICK_SERVICES_AVAILABILITY_CHANGED") {
+      if (Array.isArray(event.data.services) && event.data.services.length > 0) {
+        // Immediately sync local cache without looping broadcast
+        saveLocalQuickServices(event.data.services, false);
+        dispatchToAllSubscribers(event.data.services);
+      }
+      // Revalidate from backend asynchronously to guarantee consistency
+      notifyQuickServiceSubscribers(true);
+    }
+  };
+}
+
+// Global storage event listener (cross-tab fallback when BroadcastChannel is not active or as redundancy)
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e: StorageEvent) => {
+    if (e.key === QUICK_SERVICES_LOCAL_KEY && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          dispatchToAllSubscribers(parsed);
+        }
+      } catch {}
+      notifyQuickServiceSubscribers(true);
+    }
+  });
 }
 
 /** Subscribe to live real-time changes on quick services via a shared singleton channel */
@@ -1630,9 +1946,10 @@ export function subscribeToQuickServices(
   quickServiceSubscribers.add(callback);
 
   // Deliver cached services immediately if available
-  if (lastCachedQuickServices) {
+  const initial = lastCachedQuickServices || getLocalQuickServices();
+  if (initial && initial.length > 0) {
     try {
-      callback(lastCachedQuickServices);
+      callback(initial);
     } catch {}
   }
 
@@ -1647,6 +1964,32 @@ export function subscribeToQuickServices(
     window.addEventListener("palak_quick_services_updated", localHandler);
   }
 
+  // Focus & Visibility Revalidation Handler (Throttled to max once per 5 seconds)
+  const handleWindowFocusOrVisible = () => {
+    if (typeof document !== "undefined" && document.hidden) return;
+    const now = Date.now();
+    if (now - lastRevalidationTimestamp > 5000) {
+      lastRevalidationTimestamp = now;
+      notifyQuickServiceSubscribers(true);
+    }
+  };
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("focus", handleWindowFocusOrVisible);
+  }
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", handleWindowFocusOrVisible);
+  }
+
+  // Setup periodic background heartbeat (every 25 seconds if active)
+  if (!heartbeatIntervalId && typeof window !== "undefined") {
+    heartbeatIntervalId = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      notifyQuickServiceSubscribers(false);
+    }, 25000);
+  }
+
+  // Supabase Realtime Channel
   if (isSupabaseConfigured && supabase && !quickServicesChannel) {
     quickServicesChannel = supabase
       .channel("quick-services-realtime-singleton")
@@ -1654,7 +1997,7 @@ export function subscribeToQuickServices(
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "quick_services" },
         () => {
-          notifyQuickServiceSubscribers();
+          notifyQuickServiceSubscribers(true);
         }
       )
       .subscribe();
@@ -1664,12 +2007,22 @@ export function subscribeToQuickServices(
     quickServiceSubscribers.delete(callback);
     if (typeof window !== "undefined") {
       window.removeEventListener("palak_quick_services_updated", localHandler);
+      window.removeEventListener("focus", handleWindowFocusOrVisible);
     }
-    if (quickServiceSubscribers.size === 0 && quickServicesChannel && supabase) {
-      try {
-        supabase.removeChannel(quickServicesChannel);
-      } catch {}
-      quickServicesChannel = null;
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", handleWindowFocusOrVisible);
+    }
+    if (quickServiceSubscribers.size === 0) {
+      if (heartbeatIntervalId) {
+        clearInterval(heartbeatIntervalId);
+        heartbeatIntervalId = null;
+      }
+      if (quickServicesChannel && supabase) {
+        try {
+          supabase.removeChannel(quickServicesChannel);
+        } catch {}
+        quickServicesChannel = null;
+      }
     }
   };
 }
@@ -1695,8 +2048,28 @@ export async function submitPrintOrder(
   }
 
   const executionPromise = (async () => {
-    // 0. Pre-validate Service Availability instantly from local store (zero network latency)
+    // 0. Pre-validate Service Availability authoritatively against server/database
     try {
+      if (isSupabaseConfigured && supabase) {
+        const { data: svcRecord, error: svcErr } = await supabase
+          .from("quick_services")
+          .select("id, is_active, stop_reason, name_en")
+          .eq("id", payload.serviceId)
+          .maybeSingle();
+
+        if (!svcErr && svcRecord) {
+          if (svcRecord.is_active === false) {
+            const stopReasonMsg = svcRecord.stop_reason ? ` (${svcRecord.stop_reason})` : "";
+            return {
+              success: false,
+              orderCode: "",
+              error: `This service is currently unavailable. Please try again later.${stopReasonMsg}`,
+            };
+          }
+        }
+      }
+
+      // Offline / Local Fallback availability validation
       const activeServices = getLocalQuickServices();
       const matchedService = activeServices.find((s) => s.id === payload.serviceId);
       if (matchedService && matchedService.is_active === false) {
@@ -1706,7 +2079,7 @@ export async function submitPrintOrder(
         return {
           success: false,
           orderCode: "",
-          error: `This service is currently paused and not accepting new orders${stopReasonMsg}. Please choose another service or try again later.`,
+          error: `This service is currently unavailable. Please try again later.${stopReasonMsg}`,
         };
       }
     } catch (availCheckErr) {
@@ -1748,6 +2121,7 @@ export async function submitPrintOrder(
     }
 
     const primaryFile = allFiles[0] || payload.file;
+    const doc0 = payload.printSnapshot?.documents?.[0];
 
     const orderItem = {
       productId: payload.serviceId,
@@ -1757,8 +2131,26 @@ export async function submitPrintOrder(
       totalPrice: Math.max(0, payload.pricingSnapshot.totalAmount || 0),
       selectedOptions: {
         ...payload.options,
+        ...(payload.printSnapshot ? { printSnapshot: payload.printSnapshot } : {}),
+        ...(doc0
+          ? {
+              gsm: payload.options.gsm ?? doc0.gsm,
+              binding: payload.options.binding ?? doc0.binding,
+              frontCover: payload.options.frontCover ?? doc0.frontCover,
+              backCover: payload.options.backCover ?? doc0.backCover,
+              finishing: { ...(payload.options.finishing || {}), ...(doc0.finishing || {}), ...(payload.finishingOptions || {}) },
+              paperSize: payload.options.paperSize ?? doc0.paperSize,
+              colorMode: payload.options.colorMode ?? doc0.colorMode,
+              sides: payload.options.sides ?? doc0.sides,
+              orientation: payload.options.orientation ?? doc0.orientation,
+              totalPages: payload.options.totalPages ?? doc0.totalPages,
+              totalPhysicalSheets: payload.options.totalPhysicalSheets ?? doc0.totalPhysicalSheets,
+              priceBreakdown: payload.options.priceBreakdown ?? doc0.priceBreakdown,
+            }
+          : {
+              finishing: payload.finishingOptions || {},
+            }),
         documentType: payload.documentType || "General Document",
-        finishing: payload.finishingOptions || {},
         finishingTotal: payload.pricingSnapshot.finishingTotal || 0,
         breakdown: payload.pricingSnapshot.breakdown || {},
         storagePath: primaryFile?.storagePath,
@@ -1804,11 +2196,17 @@ export async function submitPrintOrder(
       // Tier 1: Fast Direct PostgreSQL Table Insertion with Idempotency Guard
       try {
         // Fast Idempotency Check: if already committed under this clientSubmissionId
-        const { data: existingOrder } = await client
-          .from("orders")
-          .select("id, order_code, total_amount, subtotal_amount, print_snapshot")
-          .eq("client_submission_id", clientSubmissionId)
-          .maybeSingle();
+        const checkTimeout = new Promise<{ data: any; error: any }>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: { message: "Idempotency check timeout exceeded" } }), 2000)
+        );
+        const { data: existingOrder } = await Promise.race([
+          client
+            .from("orders")
+            .select("id, order_code, total_amount, subtotal_amount, print_snapshot")
+            .eq("client_submission_id", clientSubmissionId)
+            .maybeSingle(),
+          checkTimeout,
+        ]);
 
         if (existingOrder?.order_code) {
           finalOrderCode = existingOrder.order_code;
@@ -1844,21 +2242,34 @@ export async function submitPrintOrder(
             print_snapshot: payload.printSnapshot || null,
           };
 
-          let { data: insertedOrder, error: insertErr } = await client
-            .from("orders")
-            .insert(orderInsertData)
-            .select("id, order_code")
-            .maybeSingle();
+          const insertTimeout = new Promise<{ data: any; error: any }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: { message: "Insert timeout exceeded" } }), 3000)
+          );
+
+          let { data: insertedOrder, error: insertErr } = await Promise.race([
+            client
+              .from("orders")
+              .insert(orderInsertData)
+              .select("id, order_code")
+              .maybeSingle(),
+            insertTimeout,
+          ]);
 
           // Column compatibility retry if database schema is missing newer columns
           if (insertErr && (insertErr.message?.includes("column") || insertErr.code === "42703")) {
             delete orderInsertData.client_submission_id;
             delete orderInsertData.print_snapshot;
-            const retryRes = await client
-              .from("orders")
-              .insert(orderInsertData)
-              .select("id, order_code")
-              .maybeSingle();
+            const retryTimeout = new Promise<{ data: any; error: any }>((resolve) =>
+              setTimeout(() => resolve({ data: null, error: { message: "Retry timeout exceeded" } }), 3000)
+            );
+            const retryRes = await Promise.race([
+              client
+                .from("orders")
+                .insert(orderInsertData)
+                .select("id, order_code")
+                .maybeSingle(),
+              retryTimeout,
+            ]);
             insertedOrder = retryRes.data;
             insertErr = retryRes.error;
           }

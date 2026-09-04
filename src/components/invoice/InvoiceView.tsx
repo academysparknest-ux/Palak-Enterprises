@@ -4,6 +4,7 @@ import { numberToIndianRupeesWords, formatCurrency } from "../../lib/invoice/inv
 import { CheckCircle2, AlertCircle, Phone, Mail, MapPin, Clock, ShieldCheck } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { InvoiceQRCode } from "./InvoiceQRCode";
+import { OWNER_SIGNATURE_ONLINE_URL, OWNER_SIGNATURE_LOCAL_URL, business, businessConfig } from "../../config/business";
 
 export interface InvoiceViewProps {
   invoice: StoredInvoice;
@@ -48,7 +49,12 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
   const elementId = id || "invoice-print-root";
 
   const effectiveDocType = invoice.documentType === "RETAIL_BILL" ? "RETAIL BILL" : "TAX INVOICE / RETAIL BILL";
-  const activeSignature = signatureUrl || invoice.signatureUrl;
+  const activeSignature =
+    signatureUrl ||
+    invoice.signatureUrl ||
+    invoice.businessSnapshot?.signatureUrl ||
+    OWNER_SIGNATURE_ONLINE_URL ||
+    OWNER_SIGNATURE_LOCAL_URL;
 
   return (
     <div
@@ -117,8 +123,9 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
               <p className="text-[10px] text-slate-600 flex items-center gap-1 leading-tight">
                 <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" />
                 <span>
-                  {invoice.businessSnapshot?.fullAddressEn ||
-                    "Ward No. 7, Saniganj Mohalla, Near Block Gate, Chakia, East Champaran, Bihar - 845412"}
+                  {businessConfig.address.fullAddress.en ||
+                    invoice.businessSnapshot?.fullAddressEn ||
+                    "Near Block Gate, Chakia, East Champaran, Bihar - 845412"}
                 </span>
               </p>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-600 pt-0.5">
@@ -152,7 +159,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
             <div className="text-[9px] text-slate-600 bg-slate-50 border border-slate-200 px-2 py-1 rounded text-right space-y-0.5">
               <div><strong>CSC ID:</strong> {invoice.businessSnapshot?.cscId || "634165120013"}</div>
               <div><strong>UDYAM:</strong> {invoice.businessSnapshot?.udyamNo || "UDYAM-BR-11-0061705"}</div>
-              <div><strong>GSTIN:</strong> {invoice.businessSnapshot?.gstin || "10BRKPK1234F1Z5"}</div>
+              <div><strong>GSTIN:</strong> {business.registrations.gstin || invoice.businessSnapshot?.gstin || "10AVUPP3470E1ZK"}</div>
             </div>
           </div>
         </div>
@@ -477,12 +484,19 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
             <div className="font-bold text-slate-900 text-[10px]">For Palak Enterprises</div>
             
             {/* Signature Image or Configurable Placeholder */}
-            <div className="h-10 flex items-center justify-end">
+            <div className="h-11 flex items-center justify-end">
               {activeSignature ? (
                 <img
                   src={activeSignature}
-                  alt="Authorized Signatory"
-                  className="max-h-9 max-w-[140px] object-contain"
+                  alt="Authorized Signatory - Kumar Pankaj"
+                  crossOrigin="anonymous"
+                  className="max-h-10 max-w-[150px] object-contain"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.src.includes(OWNER_SIGNATURE_LOCAL_URL)) {
+                      img.src = OWNER_SIGNATURE_LOCAL_URL;
+                    }
+                  }}
                 />
               ) : (
                 <div className="border-b border-dashed border-slate-300 w-36 h-7 flex items-end justify-center text-[9px] text-slate-400 italic">
@@ -491,8 +505,11 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
               )}
             </div>
 
-            <div className="text-[8px] text-slate-500 font-semibold">
-              Proprietor / Authorized CSC Operator
+            <div className="text-[9px] text-slate-800 font-bold leading-tight">
+              {invoice.businessSnapshot?.ownerName || "Kumar Pankaj"}
+            </div>
+            <div className="text-[7.5px] text-slate-500 font-semibold tracking-wide uppercase">
+              {invoice.businessSnapshot?.ownerTitle || "Proprietor"} / Authorized Signatory
             </div>
           </div>
         </div>

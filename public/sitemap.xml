@@ -1,114 +1,311 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <!-- Homepage -->
   <url>
-    <loc>https://palakenterprises.com/</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="en" href="https://palakenterprises.com/?lang=en"/>
-    <xhtml:link rel="alternate" hreflang="hi" href="https://palakenterprises.com/?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.palakenterprises.shop/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://www.palakenterprises.shop/?lang=hi"/>
   </url>
+
+  <!-- Instant Online Services Hub & Departments -->
   <url>
-    <loc>https://palakenterprises.com/online-services</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/online-services</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/online-services/document-printing</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/online-services/document-printing</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/online-services/passport-photo</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/online-services/passport-photo</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
+    <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/online-services/visiting-cards</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/online-services/visiting-cards</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
+    <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/online-services/invitation-cards</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/online-services/invitation-cards</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
+    <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/online-services/id-cards</loc>
-    <lastmod>2026-08-18</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://palakenterprises.com/online-services/poster-banner</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/online-services/id-cards</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/online-services/custom-print</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/online-services/poster-banner</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/track-order</loc>
-    <lastmod>2026-08-18</lastmod>
-    <changefreq>always</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://palakenterprises.com/wedding-events</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/online-services/custom-print</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- All Services Directory -->
+  <url>
+    <loc>https://www.palakenterprises.shop/services</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <!-- Core Commercial, Press & Digital Services -->
+  <url>
+    <loc>https://www.palakenterprises.shop/printing</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/digital-services</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/digital-services</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/design-services</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/business</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/business</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/design-services</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/website-development</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/website-development</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/about</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/request-quote</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/contact</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/work</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
+    <priority>0.75</priority>
+  </url>
+
+  <!-- Printing Products Detail Showroom -->
+  <url>
+    <loc>https://www.palakenterprises.shop/printing/visiting-cards</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://palakenterprises.com/faq</loc>
-    <lastmod>2026-08-18</lastmod>
+    <loc>https://www.palakenterprises.shop/printing/flex-banners</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/printing/pamphlets-flyers</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/printing/letterheads-envelopes</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/printing/pvc-id-cards</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/printing/photo-prints</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/printing/document-lamination</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <!-- Wedding & Ceremony Cards Collection -->
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/royal-gold-shloka-wedding-card</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/peacock-motif-laser-cut-wedding-card</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/luxury-velvet-hardboard-box-card</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/traditional-tilak-utsav-card</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/shubha-mundan-sanskar-invitation</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/royal-floral-engagement-invitation</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/luxury-frosted-acrylic-wedding-card</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/griha-pravesh-housewarming-card</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/kids-cartoon-photo-birthday-invitation</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/bespoke-custom-designer-invitation</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/wedding-events/wedding-invitations</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <!-- Digital & CSC Citizen Services -->
+  <url>
+    <loc>https://www.palakenterprises.shop/digital-services/pan</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/digital-services/rtps-certificates</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/digital-services/ayushman-card</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/digital-services/govt-exam-forms</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/digital-services/pension-schemes</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/digital-services/farmer-services</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- Authority & Contact Information -->
+  <url>
+    <loc>https://www.palakenterprises.shop/about</loc>
+    <lastmod>2026-09-04</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/contact</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/faq</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
+  <!-- Trust, Legal & Policy -->
+  <url>
+    <loc>https://www.palakenterprises.shop/privacy</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.50</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/terms</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.50</priority>
+  </url>
+  <url>
+    <loc>https://www.palakenterprises.shop/refund-policy</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.50</priority>
   </url>
 </urlset>

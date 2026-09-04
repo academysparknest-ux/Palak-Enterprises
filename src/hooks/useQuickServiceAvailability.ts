@@ -17,7 +17,7 @@ export function useQuickServiceAvailability(serviceId: string) {
     try {
       setLoading(true);
       setError(null);
-      const services = await getQuickServices();
+      const services = await getQuickServices(true);
       const match = services.find((s) => s.id === serviceId);
       setService(match || null);
     } catch (err) {
@@ -73,7 +73,7 @@ export function useAllQuickServicesAvailability() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getQuickServices();
+      const data = await getQuickServices(true);
       setServices(data);
     } catch (err) {
       console.warn("Failed to fetch all quick services availability:", err);

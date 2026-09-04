@@ -17,6 +17,7 @@ import { PalakDataStore } from "../lib/storage/store";
 import { FileUploadZone } from "../components/FileUploadZone";
 import { getWhatsAppLink } from "../config/business";
 import { DynamicIcon } from "../components/DynamicIcon";
+import { SEO } from "../components/SEO";
 
 export const DigitalServiceDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -40,6 +41,7 @@ export const DigitalServiceDetailPage: React.FC = () => {
   if (!service) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center space-y-4">
+        <SEO title="Digital Service Not Found | Palak Enterprises Chakia" noIndex={true} />
         <h2 className="text-2xl font-extrabold text-slate-900">
           {currentLang === "hi" ? "सेवा नहीं मिली" : "Digital Service Not Found"}
         </h2>
@@ -56,6 +58,34 @@ export const DigitalServiceDetailPage: React.FC = () => {
       </div>
     );
   }
+
+  const serviceJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": `${service.name.en} - Palak Enterprises Chakia`,
+    "description": service.description.en,
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Palak Enterprises",
+      "telephone": "+919905238015",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Near Block Gate",
+        "addressLocality": "Chakia",
+        "addressRegion": "Bihar",
+        "addressCountry": "IN"
+      }
+    },
+    "areaServed": {
+      "@type": "AdministrativeArea",
+      "name": "Chakia, East Champaran, Bihar"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": service.estimatedFee ? `${service.estimatedFee}` : "50.00",
+      "priceCurrency": "INR"
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +129,12 @@ export const DigitalServiceDetailPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] pb-20">
+      <SEO
+        title={`${service.name[currentLang]} | CSC & Digital Services Chakia | Palak Enterprises`}
+        description={`${service.description[currentLang]} Fast online application assistance at Palak Enterprises, Near Block Gate, Chakia, East Champaran.`}
+        canonicalUrl={`/digital-services/${service.slug}`}
+        structuredData={serviceJsonLd}
+      />
       {/* Breadcrumbs */}
       <div className="border-b border-slate-200 bg-white py-3 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl flex items-center justify-between text-xs text-slate-500">

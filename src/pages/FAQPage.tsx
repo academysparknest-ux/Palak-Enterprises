@@ -43,17 +43,33 @@ export const FAQPage: React.FC = () => {
     });
   }, [activeCategory, searchQuery]);
 
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqData.slice(0, 12).map((f) => ({
+      "@type": "Question",
+      "name": f.question.en,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": f.answer.en
+      }
+    }))
+  };
+
   return (
     <div className="bg-slate-50 min-h-screen pb-16">
       <SEO
         title={{
-          en: "Frequently Asked Questions (FAQ) | Palak Enterprises",
-          hi: "अक्सर पूछे जाने वाले सवाल (FAQ) | पालक इंटरप्राइजेज",
+          en: "Frequently Asked Questions (FAQ) | Palak Enterprises Chakia",
+          hi: "अक्सर पूछे जाने वाले सवाल (FAQ) | पालक इंटरप्राइजेज चकिया",
         }}
         description={{
           en: "Find answers to frequently asked questions about printing, photocopy, passport photos, online RTPS certificate assistance, pensions, timings, and websites at Palak Enterprises Chakia.",
           hi: "पालक इंटरप्राइजेज चकिया में प्रिंटिंग, फोटोकॉपी, पासपोर्ट फोटो, जाति-आय-निवास फॉर्म, पेंशन योजना, समय और वेबसाइट से जुड़े सवालों के जवाब।",
         }}
+        canonicalUrl="/faq"
+        keywords="FAQ Palak Enterprises, printing press Chakia questions, CSC center Chakia timings, print rates Chakia"
+        structuredData={faqSchema}
       />
 
       {/* Page Hero */}

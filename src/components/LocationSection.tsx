@@ -30,9 +30,7 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ isHomePage = t
   const [copied, setCopied] = useState(false);
 
   const handleCopyAddress = () => {
-    const fullAddress =
-      businessConfig.address.fullAddress[currentLang] ||
-      `${business.address.line1[currentLang]}, ${business.address.landmark[currentLang]}, ${business.address.city[currentLang]}`;
+    const fullAddress = businessConfig.address.fullAddress[currentLang];
     navigator.clipboard.writeText(fullAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
@@ -73,11 +71,7 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ isHomePage = t
                   <MapPin className="mt-1 h-5 w-5 shrink-0 text-brandred" />
                   <div>
                     <strong className="block font-bold text-navy text-base">{business.name[currentLang]}</strong>
-                    <span>
-                      {business.address.line1[currentLang]}, {business.address.landmark[currentLang]}
-                    </span>
-                    <br />
-                    <span>{business.address.city[currentLang]}</span>
+                    <span>{businessConfig.address.fullAddress[currentLang]}</span>
                   </div>
                 </div>
 
@@ -185,6 +179,9 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ isHomePage = t
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-pill bg-slate-200/70 px-3 py-1 text-slate-700">
                     Udyam: {business.registrations.udyamNo}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-pill bg-sky-100 text-sky-800 px-3 py-1">
+                    GST No. {business.registrations.gstNo}
                   </span>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { StoredInvoice, InvoiceItem, InvoiceCustomerSnapshot } from "../../lib/invoice/types";
-import { PalakInvoiceStore, roundCurrency } from "../../lib/invoice/invoiceStore";
+import { PalakInvoiceStore, roundCurrency, getBusinessSnapshot } from "../../lib/invoice/invoiceStore";
 import { useScrollLock } from "../../hooks/useScrollLock";
 import {
   X,
@@ -279,35 +279,8 @@ export const AdminCreateBillModal: React.FC<AdminCreateBillModalProps> = ({
       invoiceDate: new Date().toISOString(),
       completionDate: new Date().toISOString(),
       customerSnapshot: customer,
-      businessSnapshot: {
-        nameEn: "Palak Enterprises",
-        nameHi: "पालक इंटरप्राइजेज",
-        unitEn: "Palak Printing Press & Digital CSC Hub",
-        unitHi: "पालक प्रिंटिंग प्रेस एवं डिजिटल सेवा केंद्र",
-        taglineEn: "Printing & Digital Services, All in One Place",
-        taglineHi: "आपकी हर प्रिंटिंग और ऑनलाइन सेवा, एक ही जगह",
-        ownerName: "Kumar Pankaj",
-        ownerTitle: "Proprietor",
-        primaryPhone: "+91 99052 38015",
-        secondaryPhone: "+91 73249 64770",
-        email: "support@palakenterprises.in",
-        addressLine: "Ward No. 7, Saniganj Mohalla, Near Block Gate",
-        city: "Chakia",
-        district: "East Champaran",
-        state: "Bihar",
-        pincode: "845412",
-        fullAddressEn: "Ward No. 7, Saniganj Mohalla, Near Block Gate, Chakia, East Champaran, Bihar - 845412",
-        cscId: "634165120013",
-        udyamNo: "UDYAM-BR-11-0061705",
-        gstin: "10BRKPK1234F1Z5",
-        logoUrl: "/logo.webp",
-        terms: [
-          "1. This is a computer generated invoice and does not require physical signature.",
-          "2. Goods/prints once inspected and delivered will not be returned.",
-          "3. Online services fees are non-refundable once portal filing is initiated.",
-          "4. Jurisdiction for disputes: Chakia / Motihari, East Champaran, Bihar.",
-        ],
-      },
+      businessSnapshot: getBusinessSnapshot(),
+      signatureUrl: draftToEdit?.signatureUrl || getBusinessSnapshot().signatureUrl,
       items: calculatedTotals.computedItems,
       subtotalAmount: calculatedTotals.subtotal,
       discountAmount: calculatedTotals.discount,
