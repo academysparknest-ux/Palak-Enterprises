@@ -131,8 +131,8 @@ export const websiteProjects: WebsiteProject[] = [
     },
     image: "/projects/palak-enterprises.png",
     technologies: ["React 19", "TypeScript", "Tailwind CSS", "Supabase Realtime", "Vite"],
-    url: "https://palak-enterprises-ghit.vercel.app/",
-    displayUrl: "palak-enterprises-ghit.vercel.app",
+    url: "https://www.palakenterprises.shop/",
+    displayUrl: "palakenterprises.shop",
     featured: false,
     highlightBadge: {
       en: "Live E-Commerce Store",

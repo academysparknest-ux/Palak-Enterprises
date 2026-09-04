@@ -54,7 +54,7 @@ export function isPermanentInvoiceNumber(invoiceNumber?: string): boolean {
 
 /**
  * Builds canonical public invoice verification URL using the permanent invoice identifier
- * Example: https://palak-enterprises-ghit.vercel.app/verify-invoice/PE-2026-0042
+ * Example: https://www.palakenterprises.shop/verify-invoice/PE-2026-0042
  */
 export function buildInvoiceVerificationUrl(invoice: StoredInvoice | { invoiceNumber?: string }): string | null {
   const invoiceNumber = (invoice.invoiceNumber || "").trim().toUpperCase();

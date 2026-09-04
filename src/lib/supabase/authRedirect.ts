@@ -7,7 +7,7 @@ export function getSiteOrigin(): string {
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  return import.meta.env.VITE_APP_URL || import.meta.env.VITE_SITE_URL || "https://palak-enterprises-ghit.vercel.app";
+  return import.meta.env.VITE_APP_URL || import.meta.env.VITE_SITE_URL || "https://www.palakenterprises.shop";
 }
 
 /**

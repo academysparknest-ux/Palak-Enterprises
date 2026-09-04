@@ -58,7 +58,7 @@ export function getQrCodePayload(
     const envUrl = typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_URL
       ? String(import.meta.env.VITE_APP_URL).replace(/\/+$/, '')
       : '';
-    const origin = envUrl || (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://palak-enterprises-ghit.vercel.app');
+    const origin = envUrl || (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://www.palakenterprises.shop');
     return `${origin}/verify/${encodeURIComponent(cleanId)}`;
   }
 

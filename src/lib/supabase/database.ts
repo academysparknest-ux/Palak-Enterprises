@@ -1520,7 +1520,8 @@ if (typeof window !== "undefined" && typeof BroadcastChannel !== "undefined") {
     if (e.key === PRINT_PRICING_STORAGE_KEY && e.newValue) {
       try {
         const parsed = JSON.parse(e.newValue);
-        const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, parsed);
+        const configData = parsed && parsed.__isEnvelope ? parsed.config : parsed;
+        const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, configData);
         lastCachedPrintPricing = sanitized;
         dispatchToAllPricingSubscribers(sanitized);
       } catch {}
@@ -1557,7 +1558,11 @@ function initPrintPricingCloudSubscription() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          getPrintPricingConfig().catch(() => {});
+        }
+      });
   } catch (e) {
     console.debug("Supabase print pricing realtime notice:", e);
   }
@@ -1570,7 +1575,8 @@ export function getLocalPrintPricingConfig(): PrintPricingConfig {
     const raw = localStorage.getItem(PRINT_PRICING_STORAGE_KEY);
     if (!raw) return DEFAULT_PRINT_PRICING;
     const parsed = JSON.parse(raw);
-    const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, parsed);
+    const configData = parsed && parsed.__isEnvelope ? parsed.config : parsed;
+    const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, configData);
     lastCachedPrintPricing = sanitized;
     return sanitized;
   } catch {
@@ -1583,7 +1589,13 @@ export function saveLocalPrintPricingConfig(config: PrintPricingConfig, broadcas
   lastCachedPrintPricing = sanitized;
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(PRINT_PRICING_STORAGE_KEY, JSON.stringify(sanitized));
+    const envelope = {
+      __isEnvelope: true,
+      version: 2,
+      savedAt: new Date().toISOString(),
+      config: sanitized,
+    };
+    localStorage.setItem(PRINT_PRICING_STORAGE_KEY, JSON.stringify(envelope));
     window.dispatchEvent(new CustomEvent("palak_print_pricing_updated", { detail: sanitized }));
     if (broadcast && printPricingBroadcastChannel) {
       printPricingBroadcastChannel.postMessage({
@@ -1633,7 +1645,7 @@ export function subscribeToPrintPricing(
   };
 }
 
-export async function getPrintPricingConfig(forceRefresh = false): Promise<PrintPricingConfig> {
+export async function getPrintPricingConfig(_forceRefresh = false): Promise<PrintPricingConfig> {
   const localConfig = getLocalPrintPricingConfig();
   if (!isSupabaseConfigured || !supabase) {
     return localConfig;
@@ -1650,9 +1662,8 @@ export async function getPrintPricingConfig(forceRefresh = false): Promise<Print
     }
     const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, data.value);
     saveLocalPrintPricingConfig(sanitized, false);
-    if (forceRefresh) {
-      dispatchToAllPricingSubscribers(sanitized);
-    }
+    // Always dispatch to subscribers so UI immediately reflects server truth
+    dispatchToAllPricingSubscribers(sanitized);
     return sanitized;
   } catch {
     return localConfig;
@@ -1661,13 +1672,8 @@ export async function getPrintPricingConfig(forceRefresh = false): Promise<Print
 
 export async function updatePrintPricingConfig(config: PrintPricingConfig): Promise<boolean> {
   const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, config);
-  
-  // Persist locally, notify memory subscribers, and broadcast cross-tab immediately
-  saveLocalPrintPricingConfig(sanitized, true);
-  dispatchToAllPricingSubscribers(sanitized);
 
-  if (!isSupabaseConfigured || !supabase) return true;
-  try {
+  if (isSupabaseConfigured && supabase) {
     const { error } = await supabase
       .from("business_settings")
       .upsert({
@@ -1677,13 +1683,15 @@ export async function updatePrintPricingConfig(config: PrintPricingConfig): Prom
         updated_at: new Date().toISOString(),
       });
     if (error) {
-      console.warn("[updatePrintPricingConfig] Cloud update notice (saved locally):", error.message);
+      console.error("[updatePrintPricingConfig] Server update failed:", error.message);
+      throw new Error(`Failed to update server pricing: ${error.message}`);
     }
-    return true;
-  } catch (err) {
-    console.warn("[updatePrintPricingConfig] Cloud update notice (saved locally):", err);
-    return true;
   }
+
+  // Once server write succeeds, update local storage and broadcast to all tabs
+  saveLocalPrintPricingConfig(sanitized, true);
+  dispatchToAllPricingSubscribers(sanitized);
+  return true;
 }
 
 // ==============================================================================

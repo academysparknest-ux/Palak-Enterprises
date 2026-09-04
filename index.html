@@ -9,6 +9,16 @@
     <meta name="author" content="Kumar Pankaj - Palak Enterprises" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <link rel="canonical" href="https://www.palakenterprises.shop/" />
+    <script>
+      (function() {
+        if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+          var host = window.location.hostname;
+          if (host.indexOf('vercel.app') !== -1) {
+            window.location.replace('https://www.palakenterprises.shop' + window.location.pathname + window.location.search + window.location.hash);
+          }
+        }
+      })();
+    </script>
 
     <!-- Local & Geo Targeting Tags -->
     <meta name="geo.region" content="IN-BR" />

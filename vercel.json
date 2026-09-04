@@ -1,6 +1,17 @@
 {
   "redirects": [
     {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": ".*\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://www.palakenterprises.shop/$1",
+      "permanent": true
+    },
+    {
       "source": "/quote",
       "destination": "/request-quote",
       "permanent": true
