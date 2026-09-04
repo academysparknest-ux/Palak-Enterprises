@@ -835,7 +835,7 @@ export const AdminQuickServicesPage: React.FC = () => {
 
                           <div>
                             <h4 className="text-xs font-bold text-slate-900 mb-2">Finishing & Binding Add-ons</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white p-3.5 rounded-xl border border-slate-200">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 bg-white p-3.5 rounded-xl border border-slate-200">
                               <div className="space-y-2 p-2.5 border border-slate-200 rounded-lg bg-slate-50/50">
                                 {renderToggle("Spiral Binding", ["documentPrinting", "finishing", "spiralBinding", "enabled"], config.documentPrinting.finishing.spiralBinding.enabled)}
                                 {renderNumberInput("Rate (per book)", ["documentPrinting", "finishing", "spiralBinding", "price"], config.documentPrinting.finishing.spiralBinding.price, "1", 0)}
@@ -844,6 +844,16 @@ export const AdminQuickServicesPage: React.FC = () => {
                               <div className="space-y-2 p-2.5 border border-slate-200 rounded-lg bg-slate-50/50">
                                 {renderToggle("Comb Binding", ["documentPrinting", "finishing", "combBinding", "enabled"], config.documentPrinting.finishing.combBinding.enabled)}
                                 {renderNumberInput("Rate (per book)", ["documentPrinting", "finishing", "combBinding", "price"], config.documentPrinting.finishing.combBinding.price, "1", 0)}
+                              </div>
+
+                              <div className="space-y-2 p-2.5 border border-slate-200 rounded-lg bg-slate-50/50">
+                                {renderToggle("Soft Binding", ["documentPrinting", "finishing", "softBinding", "enabled"], config.documentPrinting.finishing.softBinding?.enabled ?? true)}
+                                {renderNumberInput("Rate (per book)", ["documentPrinting", "finishing", "softBinding", "price"], config.documentPrinting.finishing.softBinding?.price ?? 0, "1", 0)}
+                              </div>
+
+                              <div className="space-y-2 p-2.5 border border-slate-200 rounded-lg bg-slate-50/50">
+                                {renderToggle("Hard Binding", ["documentPrinting", "finishing", "hardBinding", "enabled"], config.documentPrinting.finishing.hardBinding?.enabled ?? true)}
+                                {renderNumberInput("Rate (per book)", ["documentPrinting", "finishing", "hardBinding", "price"], config.documentPrinting.finishing.hardBinding?.price ?? 0, "1", 0)}
                               </div>
 
                               <div className="space-y-2 p-2.5 border border-slate-200 rounded-lg bg-slate-50/50">

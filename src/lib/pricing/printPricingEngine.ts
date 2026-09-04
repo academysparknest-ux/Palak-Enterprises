@@ -200,8 +200,8 @@ export const BINDING_PRICES: Record<string, number> = {
   staple: 5,
   spiral: 30,
   comb: 25,
-  soft: 80,
-  hard: 150,
+  soft: 0,
+  hard: 0,
 };
 
 export const COVER_PRICES: Record<string, number> = {
@@ -296,13 +296,17 @@ export function calculateDocumentPrintPriceComplete(
 
   // 7. Binding Cost
   const bindingType = config.binding || "none";
-  let bindingCost = BINDING_PRICES[bindingType] || 0;
-  if (bindingType === "spiral" && pricing.documentPrinting.finishing.spiralBinding?.enabled) {
-    bindingCost = pricing.documentPrinting.finishing.spiralBinding.price;
-  } else if (bindingType === "comb" && pricing.documentPrinting.finishing.combBinding?.enabled) {
-    bindingCost = pricing.documentPrinting.finishing.combBinding.price;
-  } else if (bindingType === "staple" && pricing.documentPrinting.finishing.stapling?.enabled) {
-    bindingCost = pricing.documentPrinting.finishing.stapling.price;
+  let bindingCost = 0;
+  if (bindingType === "spiral" && pricing.documentPrinting.finishing.spiralBinding?.enabled !== false) {
+    bindingCost = pricing.documentPrinting.finishing.spiralBinding?.price ?? 30;
+  } else if (bindingType === "comb" && pricing.documentPrinting.finishing.combBinding?.enabled !== false) {
+    bindingCost = pricing.documentPrinting.finishing.combBinding?.price ?? 25;
+  } else if (bindingType === "staple" && pricing.documentPrinting.finishing.stapling?.enabled !== false) {
+    bindingCost = pricing.documentPrinting.finishing.stapling?.price ?? 5;
+  } else if (bindingType === "soft" && pricing.documentPrinting.finishing.softBinding?.enabled !== false) {
+    bindingCost = pricing.documentPrinting.finishing.softBinding?.price || 0;
+  } else if (bindingType === "hard" && pricing.documentPrinting.finishing.hardBinding?.enabled !== false) {
+    bindingCost = pricing.documentPrinting.finishing.hardBinding?.price || 0;
   }
 
   // 8. Cover Costs

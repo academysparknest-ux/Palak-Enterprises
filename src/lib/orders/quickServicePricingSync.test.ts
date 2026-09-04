@@ -296,13 +296,34 @@ const rComb = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "comb" 
 assert(rComb.priceBreakdown.bindingCost === 25, "Binding comb gives ₹25 bindingCost");
 assert(rComb.totalPrice === 45, "10 pages B/W single side + comb = ₹45");
 
-const rSoft = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "soft" });
-assert(rSoft.priceBreakdown.bindingCost === 80, "Binding soft gives ₹80 bindingCost");
-assert(rSoft.totalPrice === 100, "10 pages B/W single side + soft = ₹100");
+// Soft & Hard Binding: When unconfigured (price: 0), bindingCost is ₹0 (no arbitrary price charged)
+const rSoftUnset = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "soft" });
+assert(rSoftUnset.priceBreakdown.bindingCost === 0, "Unconfigured soft binding gives ₹0 bindingCost");
+assert(rSoftUnset.totalPrice === 20, "10 pages B/W single side + unconfigured soft = ₹20");
 
-const rHard = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "hard" });
-assert(rHard.priceBreakdown.bindingCost === 150, "Binding hard gives ₹150 bindingCost");
-assert(rHard.totalPrice === 170, "10 pages B/W single side + hard = ₹170");
+const rHardUnset = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "hard" });
+assert(rHardUnset.priceBreakdown.bindingCost === 0, "Unconfigured hard binding gives ₹0 bindingCost");
+assert(rHardUnset.totalPrice === 20, "10 pages B/W single side + unconfigured hard = ₹20");
+
+// When configured by admin with current prices:
+const configuredPricing: PrintPricingConfig = {
+  ...DEFAULT_PRINT_PRICING,
+  documentPrinting: {
+    ...DEFAULT_PRINT_PRICING.documentPrinting,
+    finishing: {
+      ...DEFAULT_PRINT_PRICING.documentPrinting.finishing,
+      softBinding: { id: "soft_binding", name: { en: "Soft Binding", hi: "सॉफ्ट बाइंडिंग" }, enabled: true, price: 60 },
+      hardBinding: { id: "hard_binding", name: { en: "Hard Binding", hi: "हार्ड बाइंडिंग" }, enabled: true, price: 120 },
+    },
+  },
+};
+const rSoftConfigured = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "soft" }, configuredPricing);
+assert(rSoftConfigured.priceBreakdown.bindingCost === 60, "Configured soft binding gives current price ₹60");
+assert(rSoftConfigured.totalPrice === 80, "10 pages B/W single side (₹20) + configured soft (₹60) = ₹80");
+
+const rHardConfigured = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "hard" }, configuredPricing);
+assert(rHardConfigured.priceBreakdown.bindingCost === 120, "Configured hard binding gives current price ₹120");
+assert(rHardConfigured.totalPrice === 140, "10 pages B/W single side (₹20) + configured hard (₹120) = ₹140");
 
 // Verify removing binding restores original price immediately
 const rResetNone = calculateDocumentPrintPriceComplete({ ...baseDoc, binding: "none" });

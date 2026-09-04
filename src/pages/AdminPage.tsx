@@ -3621,6 +3621,56 @@ export const AdminPage: React.FC = () => {
                       className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-bold focus:bg-white focus:outline-hidden"
                     />
                   </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Soft Binding (₹)</label>
+                    <input
+                      type="number"
+                      value={pricingConfig.documentPrinting.finishing.softBinding?.price ?? 0}
+                      onChange={(e) =>
+                        setPricingConfig({
+                          ...pricingConfig,
+                          documentPrinting: {
+                            ...pricingConfig.documentPrinting,
+                            finishing: {
+                              ...pricingConfig.documentPrinting.finishing,
+                              softBinding: {
+                                id: "soft_binding",
+                                name: pricingConfig.documentPrinting.finishing.softBinding?.name || { en: "Soft Binding", hi: "सॉफ्ट बाइंडिंग" },
+                                enabled: pricingConfig.documentPrinting.finishing.softBinding?.enabled ?? true,
+                                price: parseInt(e.target.value) || 0,
+                              },
+                            },
+                          },
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-bold focus:bg-white focus:outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Hard Binding (₹)</label>
+                    <input
+                      type="number"
+                      value={pricingConfig.documentPrinting.finishing.hardBinding?.price ?? 0}
+                      onChange={(e) =>
+                        setPricingConfig({
+                          ...pricingConfig,
+                          documentPrinting: {
+                            ...pricingConfig.documentPrinting,
+                            finishing: {
+                              ...pricingConfig.documentPrinting.finishing,
+                              hardBinding: {
+                                id: "hard_binding",
+                                name: pricingConfig.documentPrinting.finishing.hardBinding?.name || { en: "Hard Binding", hi: "हार्ड बाइंडिंग" },
+                                enabled: pricingConfig.documentPrinting.finishing.hardBinding?.enabled ?? true,
+                                price: parseInt(e.target.value) || 0,
+                              },
+                            },
+                          },
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs font-bold focus:bg-white focus:outline-hidden"
+                    />
+                  </div>
                 </div>
               </div>
 

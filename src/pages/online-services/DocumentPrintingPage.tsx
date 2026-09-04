@@ -30,6 +30,7 @@ import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnav
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { cn, formatPrice } from "../../lib/utils";
 import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
+import type { PrintPricingConfig } from "../../config/printPricing";
 import {
   STATE_METADATA_MAP,
 } from "../../lib/orders/orderSubmissionStateMachine";
@@ -72,7 +73,6 @@ import {
   buildOrderPrintSnapshot,
   parsePageRange,
   GSM_SURCHARGES,
-  BINDING_PRICES,
   COVER_PRICES,
 } from "../../lib/pricing/printPricingEngine";
 import { UserPrintPreferencesStore } from "../../lib/storage/userPrintPreferencesStore";
@@ -134,6 +134,49 @@ function getBindingLabel(type?: BindingType | string): string {
     case "none":
     default:
       return "None (Loose Sheets)";
+  }
+}
+
+function getBindingOptionDisplay(
+  type: BindingType,
+  pricing: PrintPricingConfig
+): string {
+  const f = pricing.documentPrinting.finishing;
+  switch (type) {
+    case "none":
+      return "None (Loose Sheets)";
+    case "staple": {
+      const p = f.stapling?.price;
+      return p !== undefined && p > 0
+        ? `Corner / Saddle Staple (${formatPrice(p)})`
+        : "Corner / Saddle Staple";
+    }
+    case "spiral": {
+      const p = f.spiralBinding?.price;
+      return p !== undefined && p > 0
+        ? `Spiral Binding (${formatPrice(p)})`
+        : "Spiral Binding";
+    }
+    case "comb": {
+      const p = f.combBinding?.price;
+      return p !== undefined && p > 0
+        ? `Comb Binding (${formatPrice(p)})`
+        : "Comb Binding";
+    }
+    case "soft": {
+      const p = f.softBinding?.price;
+      return p !== undefined && p > 0
+        ? `Soft Binding (${formatPrice(p)})`
+        : "Soft Binding";
+    }
+    case "hard": {
+      const p = f.hardBinding?.price;
+      return p !== undefined && p > 0
+        ? `Hard Binding (${formatPrice(p)})`
+        : "Hard Binding";
+    }
+    default:
+      return type;
   }
 }
 
@@ -1768,12 +1811,12 @@ export const DocumentPrintingPage: React.FC = () => {
                                     }
                                     className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
                                   >
-                                    <option value="none">None (Loose Sheets)</option>
-                                    <option value="staple">Corner / Saddle Staple ({formatPrice(pricingConfig.documentPrinting.finishing.stapling?.price || BINDING_PRICES.staple)})</option>
-                                    <option value="spiral">Spiral Binding ({formatPrice(pricingConfig.documentPrinting.finishing.spiralBinding?.price || BINDING_PRICES.spiral)})</option>
-                                    <option value="comb">Comb Binding ({formatPrice(pricingConfig.documentPrinting.finishing.combBinding?.price || BINDING_PRICES.comb)})</option>
-                                    <option value="soft">Soft Binding ({formatPrice(BINDING_PRICES.soft)})</option>
-                                    <option value="hard">Hard Binding ({formatPrice(BINDING_PRICES.hard)})</option>
+                                    <option value="none">{getBindingOptionDisplay("none", pricingConfig)}</option>
+                                    <option value="staple">{getBindingOptionDisplay("staple", pricingConfig)}</option>
+                                    <option value="spiral">{getBindingOptionDisplay("spiral", pricingConfig)}</option>
+                                    <option value="comb">{getBindingOptionDisplay("comb", pricingConfig)}</option>
+                                    <option value="soft">{getBindingOptionDisplay("soft", pricingConfig)}</option>
+                                    <option value="hard">{getBindingOptionDisplay("hard", pricingConfig)}</option>
                                   </select>
                                 </div>
 

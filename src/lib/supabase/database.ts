@@ -1449,6 +1449,18 @@ export function sanitizeAndMergePrintPricing(
           enabled: docSrc.finishing?.stapling?.enabled !== undefined ? Boolean(docSrc.finishing.stapling.enabled) : docBase.finishing.stapling.enabled,
           price: sanitizePriceValue(docSrc.finishing?.stapling?.price, docBase.finishing.stapling.price),
         },
+        softBinding: {
+          id: "soft_binding",
+          name: docSrc.finishing?.softBinding?.name || docBase.finishing.softBinding?.name || { en: "Soft Binding", hi: "सॉफ्ट बाइंडिंग" },
+          enabled: docSrc.finishing?.softBinding?.enabled !== undefined ? Boolean(docSrc.finishing.softBinding.enabled) : (docBase.finishing.softBinding?.enabled ?? true),
+          price: sanitizePriceValue(docSrc.finishing?.softBinding?.price, docBase.finishing.softBinding?.price || 0, 0),
+        },
+        hardBinding: {
+          id: "hard_binding",
+          name: docSrc.finishing?.hardBinding?.name || docBase.finishing.hardBinding?.name || { en: "Hard Binding", hi: "हार्ड बाइंडिंग" },
+          enabled: docSrc.finishing?.hardBinding?.enabled !== undefined ? Boolean(docSrc.finishing.hardBinding.enabled) : (docBase.finishing.hardBinding?.enabled ?? true),
+          price: sanitizePriceValue(docSrc.finishing?.hardBinding?.price, docBase.finishing.hardBinding?.price || 0, 0),
+        },
       },
     },
     passportPhoto: {

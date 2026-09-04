@@ -38,6 +38,18 @@ export interface PrintPricingConfig {
         enabled: boolean;
         price: number; // ₹5
       };
+      softBinding?: {
+        id: "soft_binding";
+        name: { en: string; hi: string };
+        enabled: boolean;
+        price: number;
+      };
+      hardBinding?: {
+        id: "hard_binding";
+        name: { en: string; hi: string };
+        enabled: boolean;
+        price: number;
+      };
     };
   };
   passportPhoto: {
@@ -110,6 +122,18 @@ export const DEFAULT_PRINT_PRICING: PrintPricingConfig = {
         name: { en: "Corner / Saddle Stapling", hi: "कॉर्नर स्टेपलिंग (पिन लगाना)" },
         enabled: true,
         price: 5,
+      },
+      softBinding: {
+        id: "soft_binding",
+        name: { en: "Soft Binding", hi: "सॉफ्ट बाइंडिंग" },
+        enabled: true,
+        price: 0,
+      },
+      hardBinding: {
+        id: "hard_binding",
+        name: { en: "Hard Binding", hi: "हार्ड बाइंडिंग" },
+        enabled: true,
+        price: 0,
       },
     },
   },
