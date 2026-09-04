@@ -25,7 +25,8 @@ import {
 import { useLanguage } from "../context/LanguageContext";
 import { SEO } from "../components/SEO";
 import { PageHero } from "../components/PageHero";
-import { cn } from "../lib/utils";
+import { cn, formatPrice } from "../lib/utils";
+import { usePrintPricingConfig } from "../hooks/usePrintPricingConfig";
 import { useAllQuickServicesAvailability } from "../hooks/useQuickServiceAvailability";
 
 interface OnlineServicesPageProps {
@@ -72,6 +73,13 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
     setSearchParams(newParams, { replace: true });
   };
 
+  const { pricingConfig } = usePrintPricingConfig();
+  const docMin = formatPrice(Math.min(pricingConfig.documentPrinting.baseRatePerPage.bwDouble, pricingConfig.documentPrinting.baseRatePerPage.bwSingle));
+  const passportMin = formatPrice(Math.min(...Object.values(pricingConfig.passportPhoto).filter((v): v is number => typeof v === 'number' && v > 0)));
+  const cardMin = formatPrice(pricingConfig.visitingCards.base100Single);
+  const idCardMin = formatPrice(pricingConfig.idCards.pvcSingle);
+  const posterMin = formatPrice(Math.min(pricingConfig.posters.a4Photo, pricingConfig.posters.a3Glossy, pricingConfig.posters.a2Photo));
+
   const services = [
     {
       id: "document-printing",
@@ -81,8 +89,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "नोट्स, असाइनमेंट, फॉर्म, रिपोर्ट एवं अन्य सभी अध्ययन और आधिकारिक दस्तावेज।",
       featureLine: "B&W • Color • Single/Double Side • Binding • Lamination",
       featureLineHi: "ब्लैक & व्हाइट • रंगीन • सिंगल / डबल साइड • बाइंडिंग • लैमिनेशन",
-      priceText: "₹1.50 onwards",
-      priceTextHi: "₹1.50 से शुरू",
+      priceText: `${docMin} onwards`,
+      priceTextHi: `${docMin} से शुरू`,
       icon: FileText,
       path: "/online-services/document-printing",
       badge: "MOST POPULAR",
@@ -101,8 +109,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "अपनी फोटो अपलोड करें और आवश्यक प्रिंट लेआउट (8, 16, 32 शीट) चुनें।",
       featureLine: "8, 16, 32 Photos • Glossy Photo Sheet • Stamp / Passport Size",
       featureLineHi: "8, 16, 32 फोटो शीट • ग्लॉसी फोटो पेपर • त्वरित प्रिंट",
-      priceText: "₹20 onwards",
-      priceTextHi: "₹20 से शुरू",
+      priceText: `${passportMin} onwards`,
+      priceTextHi: `${passportMin} से शुरू`,
       icon: Camera,
       path: "/online-services/passport-photo",
       actionText: "Order Now →",
@@ -119,8 +127,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "अपना डिज़ाइन अपलोड करें या उपलब्ध टेम्पलेट से बिजनेस कार्ड ऑर्डर करें।",
       featureLine: "350 GSM Premium • Matte & Gloss • Single & Both Side",
       featureLineHi: "350 GSM प्रीमियम • मैट व ग्लॉस फिनिश • सिंगल व दोनों साइड",
-      priceText: "₹350 onwards",
-      priceTextHi: "₹350 से शुरू",
+      priceText: `${cardMin} onwards`,
+      priceTextHi: `${cardMin} से शुरू`,
       icon: CreditCard,
       path: "/online-services/visiting-cards",
       actionText: "Order Now →",
@@ -137,8 +145,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "स्कूल, कॉलेज, स्टाफ और व्यक्तिगत स्मार्ट पीवीसी आईडी कार्ड ऑर्डर करें।",
       featureLine: "Smart PVC Card • Lanyard & Holder • Single / Double Sided",
       featureLineHi: "स्मार्ट PVC कार्ड • डोरी व होल्डर • सिंगल व डबल साइडेड",
-      priceText: "₹40 onwards",
-      priceTextHi: "₹40 से शुरू",
+      priceText: `${idCardMin} onwards`,
+      priceTextHi: `${idCardMin} से शुरू`,
       icon: Contact,
       path: "/online-services/id-cards",
       actionText: "Order Now →",
@@ -155,8 +163,8 @@ export const OnlineServicesPage: React.FC<OnlineServicesPageProps> = () => {
       descHi: "अपना डिज़ाइन अपलोड करें और साइज, पेपर या फ्लेक्स मटेरियल चुनें।",
       featureLine: "A4, A3, Photo Paper • Vinyl & Flex • High-Definition",
       featureLineHi: "A4, A3 फोटो शीट • विनाइल व फ्लेक्स • HD प्रिंटिंग",
-      priceText: "₹20 onwards",
-      priceTextHi: "₹20 से शुरू",
+      priceText: `${posterMin} onwards`,
+      priceTextHi: `${posterMin} से शुरू`,
       icon: ImageIcon,
       path: "/online-services/poster-banner",
       actionText: "Order Now →",

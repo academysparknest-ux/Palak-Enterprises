@@ -9,6 +9,7 @@ import {
 } from "../storage/catalogData";
 import { PalakDataStore, normalizeOrder, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest } from "../storage/store";
 import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
+import { calculateDocumentPrintPriceComplete } from "../pricing/printPricingEngine";
 import { getQueueClassification, type QueueType, type QueuePriority } from "../queue";
 import type { StoredInvoice } from "../invoice/types";
 import { PalakInvoiceStore } from "../invoice/invoiceStore";
@@ -1364,66 +1365,275 @@ export async function uploadOrderFile(
   return null;
 }
 
-const PRINT_PRICING_STORAGE_KEY = "palak_print_pricing_config_v1";
+export const PRINT_PRICING_STORAGE_KEY = "palak_print_pricing_config_v1";
+
+/**
+ * Sanitizes numeric price values to ensure they are valid non-negative numbers rounded to 2 decimals.
+ */
+export function sanitizePriceValue(val: any, fallback: number, min: number = 0): number {
+  const num = Number(val);
+  if (isNaN(num) || !isFinite(num) || num < min) return fallback;
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * Sanitizes multiplier values to ensure they are positive numbers rounded to 2 decimals.
+ */
+export function sanitizeMultiplierValue(val: any, fallback: number): number {
+  const num = Number(val);
+  if (isNaN(num) || !isFinite(num) || num <= 0) return fallback;
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * Deep merges and sanitizes any partial or unvalidated pricing config against authoritative schema defaults.
+ */
+export function sanitizeAndMergePrintPricing(
+  base: PrintPricingConfig = DEFAULT_PRINT_PRICING,
+  source?: any
+): PrintPricingConfig {
+  if (!source || typeof source !== "object") return JSON.parse(JSON.stringify(base));
+
+  const docBase = base.documentPrinting;
+  const docSrc = source.documentPrinting || {};
+
+  return {
+    documentPrinting: {
+      paperSizes: {
+        a4: {
+          name: docSrc.paperSizes?.a4?.name || docBase.paperSizes.a4.name,
+          multiplier: sanitizeMultiplierValue(docSrc.paperSizes?.a4?.multiplier, docBase.paperSizes.a4.multiplier),
+          enabled: docSrc.paperSizes?.a4?.enabled !== undefined ? Boolean(docSrc.paperSizes.a4.enabled) : docBase.paperSizes.a4.enabled,
+        },
+        a3: {
+          name: docSrc.paperSizes?.a3?.name || docBase.paperSizes.a3.name,
+          multiplier: sanitizeMultiplierValue(docSrc.paperSizes?.a3?.multiplier, docBase.paperSizes.a3.multiplier),
+          enabled: docSrc.paperSizes?.a3?.enabled !== undefined ? Boolean(docSrc.paperSizes.a3.enabled) : docBase.paperSizes.a3.enabled,
+        },
+        a5: {
+          name: docSrc.paperSizes?.a5?.name || docBase.paperSizes.a5.name,
+          multiplier: sanitizeMultiplierValue(docSrc.paperSizes?.a5?.multiplier, docBase.paperSizes.a5.multiplier),
+          enabled: docSrc.paperSizes?.a5?.enabled !== undefined ? Boolean(docSrc.paperSizes.a5.enabled) : docBase.paperSizes.a5.enabled,
+        },
+      },
+      baseRatePerPage: {
+        bwSingle: sanitizePriceValue(docSrc.baseRatePerPage?.bwSingle, docBase.baseRatePerPage.bwSingle),
+        bwDouble: sanitizePriceValue(docSrc.baseRatePerPage?.bwDouble, docBase.baseRatePerPage.bwDouble),
+        colorSingle: sanitizePriceValue(docSrc.baseRatePerPage?.colorSingle, docBase.baseRatePerPage.colorSingle),
+        colorDouble: sanitizePriceValue(docSrc.baseRatePerPage?.colorDouble, docBase.baseRatePerPage.colorDouble),
+      },
+      finishing: {
+        spiralBinding: {
+          id: "spiral_binding",
+          name: docSrc.finishing?.spiralBinding?.name || docBase.finishing.spiralBinding.name,
+          enabled: docSrc.finishing?.spiralBinding?.enabled !== undefined ? Boolean(docSrc.finishing.spiralBinding.enabled) : docBase.finishing.spiralBinding.enabled,
+          price: sanitizePriceValue(docSrc.finishing?.spiralBinding?.price, docBase.finishing.spiralBinding.price),
+          minPages: sanitizePriceValue(docSrc.finishing?.spiralBinding?.minPages, docBase.finishing.spiralBinding.minPages, 1),
+        },
+        combBinding: {
+          id: "comb_binding",
+          name: docSrc.finishing?.combBinding?.name || docBase.finishing.combBinding.name,
+          enabled: docSrc.finishing?.combBinding?.enabled !== undefined ? Boolean(docSrc.finishing.combBinding.enabled) : docBase.finishing.combBinding.enabled,
+          price: sanitizePriceValue(docSrc.finishing?.combBinding?.price, docBase.finishing.combBinding.price),
+          minPages: sanitizePriceValue(docSrc.finishing?.combBinding?.minPages, docBase.finishing.combBinding.minPages, 1),
+        },
+        lamination: {
+          id: "lamination",
+          name: docSrc.finishing?.lamination?.name || docBase.finishing.lamination.name,
+          enabled: docSrc.finishing?.lamination?.enabled !== undefined ? Boolean(docSrc.finishing.lamination.enabled) : docBase.finishing.lamination.enabled,
+          pricePerPage: sanitizePriceValue(docSrc.finishing?.lamination?.pricePerPage, docBase.finishing.lamination.pricePerPage),
+        },
+        stapling: {
+          id: "stapling",
+          name: docSrc.finishing?.stapling?.name || docBase.finishing.stapling.name,
+          enabled: docSrc.finishing?.stapling?.enabled !== undefined ? Boolean(docSrc.finishing.stapling.enabled) : docBase.finishing.stapling.enabled,
+          price: sanitizePriceValue(docSrc.finishing?.stapling?.price, docBase.finishing.stapling.price),
+        },
+      },
+    },
+    passportPhoto: {
+      sheet8: sanitizePriceValue(source.passportPhoto?.sheet8, base.passportPhoto.sheet8),
+      sheet16: sanitizePriceValue(source.passportPhoto?.sheet16, base.passportPhoto.sheet16),
+      sheet32: sanitizePriceValue(source.passportPhoto?.sheet32, base.passportPhoto.sheet32),
+      singlePrint: sanitizePriceValue(source.passportPhoto?.singlePrint, base.passportPhoto.singlePrint),
+    },
+    visitingCards: {
+      base100Single: sanitizePriceValue(source.visitingCards?.base100Single, base.visitingCards.base100Single),
+      base100Double: sanitizePriceValue(source.visitingCards?.base100Double, base.visitingCards.base100Double),
+      base500Single: sanitizePriceValue(source.visitingCards?.base500Single, base.visitingCards.base500Single),
+      base500Double: sanitizePriceValue(source.visitingCards?.base500Double, base.visitingCards.base500Double),
+      base1000Single: sanitizePriceValue(source.visitingCards?.base1000Single, base.visitingCards.base1000Single),
+      base1000Double: sanitizePriceValue(source.visitingCards?.base1000Double, base.visitingCards.base1000Double),
+      matteFinishExtra: sanitizePriceValue(source.visitingCards?.matteFinishExtra, base.visitingCards.matteFinishExtra),
+      glossFinishExtra: sanitizePriceValue(source.visitingCards?.glossFinishExtra, base.visitingCards.glossFinishExtra),
+      velvetFinishExtra: sanitizePriceValue(source.visitingCards?.velvetFinishExtra, base.visitingCards.velvetFinishExtra),
+    },
+    idCards: {
+      pvcSingle: sanitizePriceValue(source.idCards?.pvcSingle, base.idCards.pvcSingle),
+      pvcDouble: sanitizePriceValue(source.idCards?.pvcDouble, base.idCards.pvcDouble),
+      withLanyardHolder: sanitizePriceValue(source.idCards?.withLanyardHolder, base.idCards.withLanyardHolder),
+    },
+    posters: {
+      a4Photo: sanitizePriceValue(source.posters?.a4Photo, base.posters.a4Photo),
+      a3Glossy: sanitizePriceValue(source.posters?.a3Glossy, base.posters.a3Glossy),
+      a2Photo: sanitizePriceValue(source.posters?.a2Photo, base.posters.a2Photo),
+      vinylPerSqFt: sanitizePriceValue(source.posters?.vinylPerSqFt, base.posters.vinylPerSqFt),
+      flexPerSqFt: sanitizePriceValue(source.posters?.flexPerSqFt, base.posters.flexPerSqFt),
+    },
+  };
+}
+
+// ─── Centralized Quick Services Pricing Realtime Multiplexer (Singleton) ──────
+const printPricingSubscribers = new Set<(config: PrintPricingConfig) => void>();
+let lastCachedPrintPricing: PrintPricingConfig | null = null;
+let printPricingBroadcastChannel: BroadcastChannel | null = null;
+let printPricingCloudSubscribed = false;
+
+function dispatchToAllPricingSubscribers(config: PrintPricingConfig) {
+  lastCachedPrintPricing = config;
+  printPricingSubscribers.forEach((cb) => {
+    try {
+      cb(config);
+    } catch (err) {
+      console.warn("[PrintPricingRealtime] Subscriber callback error:", err);
+    }
+  });
+}
+
+// Initialize Cross-Tab BroadcastChannel
+if (typeof window !== "undefined" && typeof BroadcastChannel !== "undefined") {
+  try {
+    printPricingBroadcastChannel = new BroadcastChannel("palak_print_pricing_channel");
+    printPricingBroadcastChannel.onmessage = (event: MessageEvent) => {
+      if (event.data?.type === "PRINT_PRICING_CHANGED" && event.data.config) {
+        const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, event.data.config);
+        saveLocalPrintPricingConfig(sanitized, false);
+        dispatchToAllPricingSubscribers(sanitized);
+      }
+    };
+  } catch (e) {
+    console.debug("BroadcastChannel not supported or error:", e);
+  }
+
+  // Cross-tab storage listener (fallback/redundancy across tabs)
+  window.addEventListener("storage", (e: StorageEvent) => {
+    if (e.key === PRINT_PRICING_STORAGE_KEY && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue);
+        const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, parsed);
+        lastCachedPrintPricing = sanitized;
+        dispatchToAllPricingSubscribers(sanitized);
+      } catch {}
+    }
+  });
+
+  // Revalidate on focus / visibility change
+  window.addEventListener("focus", () => {
+    getPrintPricingConfig().then((fresh) => {
+      dispatchToAllPricingSubscribers(fresh);
+    }).catch(() => {});
+  });
+}
+
+function initPrintPricingCloudSubscription() {
+  if (printPricingCloudSubscribed || !isSupabaseConfigured || !supabase) return;
+  printPricingCloudSubscribed = true;
+  try {
+    supabase
+      .channel("print_pricing_realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "business_settings",
+          filter: "key=eq.print_pricing_config",
+        },
+        (payload: any) => {
+          if (payload.new && payload.new.value) {
+            const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, payload.new.value);
+            saveLocalPrintPricingConfig(sanitized, true);
+            dispatchToAllPricingSubscribers(sanitized);
+          }
+        }
+      )
+      .subscribe();
+  } catch (e) {
+    console.debug("Supabase print pricing realtime notice:", e);
+  }
+}
 
 export function getLocalPrintPricingConfig(): PrintPricingConfig {
+  if (lastCachedPrintPricing) return lastCachedPrintPricing;
   if (typeof window === "undefined") return DEFAULT_PRINT_PRICING;
   try {
     const raw = localStorage.getItem(PRINT_PRICING_STORAGE_KEY);
     if (!raw) return DEFAULT_PRINT_PRICING;
     const parsed = JSON.parse(raw);
-    return {
-      ...DEFAULT_PRINT_PRICING,
-      ...parsed,
-      documentPrinting: {
-        ...DEFAULT_PRINT_PRICING.documentPrinting,
-        ...(parsed.documentPrinting || {}),
-        paperSizes: {
-          ...DEFAULT_PRINT_PRICING.documentPrinting.paperSizes,
-          ...(parsed.documentPrinting?.paperSizes || {}),
-        },
-        baseRatePerPage: {
-          ...DEFAULT_PRINT_PRICING.documentPrinting.baseRatePerPage,
-          ...(parsed.documentPrinting?.baseRatePerPage || {}),
-        },
-        finishing: {
-          ...DEFAULT_PRINT_PRICING.documentPrinting.finishing,
-          ...(parsed.documentPrinting?.finishing || {}),
-        },
-      },
-      passportPhoto: {
-        ...DEFAULT_PRINT_PRICING.passportPhoto,
-        ...(parsed.passportPhoto || {}),
-      },
-      visitingCards: {
-        ...DEFAULT_PRINT_PRICING.visitingCards,
-        ...(parsed.visitingCards || {}),
-      },
-      idCards: {
-        ...DEFAULT_PRINT_PRICING.idCards,
-        ...(parsed.idCards || {}),
-      },
-      posters: {
-        ...DEFAULT_PRINT_PRICING.posters,
-        ...(parsed.posters || {}),
-      },
-    };
+    const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, parsed);
+    lastCachedPrintPricing = sanitized;
+    return sanitized;
   } catch {
     return DEFAULT_PRINT_PRICING;
   }
 }
 
-export function saveLocalPrintPricingConfig(config: PrintPricingConfig): void {
+export function saveLocalPrintPricingConfig(config: PrintPricingConfig, broadcast = true): void {
+  const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, config);
+  lastCachedPrintPricing = sanitized;
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(PRINT_PRICING_STORAGE_KEY, JSON.stringify(config));
-    window.dispatchEvent(new CustomEvent("palak_print_pricing_updated", { detail: config }));
+    localStorage.setItem(PRINT_PRICING_STORAGE_KEY, JSON.stringify(sanitized));
+    window.dispatchEvent(new CustomEvent("palak_print_pricing_updated", { detail: sanitized }));
+    if (broadcast && printPricingBroadcastChannel) {
+      printPricingBroadcastChannel.postMessage({
+        type: "PRINT_PRICING_CHANGED",
+        config: sanitized,
+      });
+    }
   } catch (e) {
     console.error("Error saving print pricing locally:", e);
   }
 }
 
-export async function getPrintPricingConfig(): Promise<PrintPricingConfig> {
+export function broadcastPrintPricingUpdate(config: PrintPricingConfig): void {
+  const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, config);
+  saveLocalPrintPricingConfig(sanitized, true);
+  dispatchToAllPricingSubscribers(sanitized);
+}
+
+export function subscribeToPrintPricing(
+  callback: (config: PrintPricingConfig) => void
+): () => void {
+  printPricingSubscribers.add(callback);
+  initPrintPricingCloudSubscription();
+
+  // Immediately notify with current config
+  const initial = lastCachedPrintPricing || getLocalPrintPricingConfig();
+  try {
+    callback(initial);
+  } catch {}
+
+  const localHandler = (e: any) => {
+    if (e?.detail) {
+      const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, e.detail);
+      lastCachedPrintPricing = sanitized;
+      callback(sanitized);
+    }
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("palak_print_pricing_updated", localHandler);
+  }
+
+  return () => {
+    printPricingSubscribers.delete(callback);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("palak_print_pricing_updated", localHandler);
+    }
+  };
+}
+
+export async function getPrintPricingConfig(forceRefresh = false): Promise<PrintPricingConfig> {
   const localConfig = getLocalPrintPricingConfig();
   if (!isSupabaseConfigured || !supabase) {
     return localConfig;
@@ -1438,17 +1648,23 @@ export async function getPrintPricingConfig(): Promise<PrintPricingConfig> {
     if (error || !data || !data.value) {
       return localConfig;
     }
-    const merged = { ...localConfig, ...data.value };
-    saveLocalPrintPricingConfig(merged);
-    return merged;
+    const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, data.value);
+    saveLocalPrintPricingConfig(sanitized, false);
+    if (forceRefresh) {
+      dispatchToAllPricingSubscribers(sanitized);
+    }
+    return sanitized;
   } catch {
     return localConfig;
   }
 }
 
 export async function updatePrintPricingConfig(config: PrintPricingConfig): Promise<boolean> {
-  // Always persist locally first so edits are guaranteed across reloads
-  saveLocalPrintPricingConfig(config);
+  const sanitized = sanitizeAndMergePrintPricing(DEFAULT_PRINT_PRICING, config);
+  
+  // Persist locally, notify memory subscribers, and broadcast cross-tab immediately
+  saveLocalPrintPricingConfig(sanitized, true);
+  dispatchToAllPricingSubscribers(sanitized);
 
   if (!isSupabaseConfigured || !supabase) return true;
   try {
@@ -1456,7 +1672,7 @@ export async function updatePrintPricingConfig(config: PrintPricingConfig): Prom
       .from("business_settings")
       .upsert({
         key: "print_pricing_config",
-        value: config as any,
+        value: sanitized as any,
         description: "Authoritative pricing configuration for instant online printing services",
         updated_at: new Date().toISOString(),
       });
@@ -2122,6 +2338,87 @@ export async function submitPrintOrder(
 
     const primaryFile = allFiles[0] || payload.file;
     const doc0 = payload.printSnapshot?.documents?.[0];
+
+    // ── Server-Side Authoritative Price Validation & Recalculation ────────────
+    const authoritativeConfig = getLocalPrintPricingConfig();
+    let recomputedUnitPrice: number | null = null;
+    let recomputedTotal: number | null = null;
+    const copiesOrQty = Math.max(1, Number(payload.options.copies) || Number(payload.options.quantity) || 1);
+
+    if (payload.serviceId === "document-printing") {
+      if (payload.printSnapshot?.documents && payload.printSnapshot.documents.length > 0) {
+        let docsSum = 0;
+        for (const doc of payload.printSnapshot.documents) {
+          const res = calculateDocumentPrintPriceComplete(doc, authoritativeConfig);
+          docsSum += res.totalPrice;
+        }
+        recomputedTotal = Math.round(docsSum * 100) / 100;
+        recomputedUnitPrice = Math.round((recomputedTotal / copiesOrQty) * 100) / 100;
+      } else if (payload.options) {
+        const res = calculateDocumentPrintPriceComplete(payload.options, authoritativeConfig);
+        recomputedTotal = res.totalPrice;
+        recomputedUnitPrice = res.itemPrice;
+      }
+    } else if (payload.serviceId === "passport-photo") {
+      const layoutId = payload.options.layout || payload.options.layoutId || "sheet8";
+      const keyMap: Record<string, keyof typeof authoritativeConfig.passportPhoto> = {
+        sheet8: "sheet8",
+        sheet16: "sheet16",
+        sheet32: "sheet32",
+        single: "singlePrint",
+        singlePrint: "singlePrint",
+      };
+      const photoKey = keyMap[layoutId] || "sheet8";
+      recomputedUnitPrice = authoritativeConfig.passportPhoto[photoKey] || 50;
+      recomputedTotal = recomputedUnitPrice * copiesOrQty;
+    } else if (payload.serviceId === "visiting-cards") {
+      const qty = Number(payload.options.quantity) || 100;
+      const isSingle = payload.options.sides !== "double";
+      let baseRate = 250;
+      if (qty <= 100) baseRate = isSingle ? authoritativeConfig.visitingCards.base100Single : authoritativeConfig.visitingCards.base100Double;
+      else if (qty <= 500) baseRate = isSingle ? authoritativeConfig.visitingCards.base500Single : authoritativeConfig.visitingCards.base500Double;
+      else if (qty <= 1000) baseRate = isSingle ? authoritativeConfig.visitingCards.base1000Single : authoritativeConfig.visitingCards.base1000Double;
+      else {
+        baseRate = Math.round((qty / 100) * (isSingle ? authoritativeConfig.visitingCards.base100Single : authoritativeConfig.visitingCards.base100Double) * 0.85);
+      }
+      let finishExtra = 0;
+      if (payload.options.finish === "velvet") finishExtra = authoritativeConfig.visitingCards.velvetFinishExtra;
+      else if (payload.options.finish === "matte") finishExtra = authoritativeConfig.visitingCards.matteFinishExtra;
+      else if (payload.options.finish === "gloss") finishExtra = authoritativeConfig.visitingCards.glossFinishExtra;
+      recomputedUnitPrice = baseRate + finishExtra;
+      recomputedTotal = recomputedUnitPrice * Math.max(1, Number(payload.options.sets) || 1);
+    } else if (payload.serviceId === "id-cards") {
+      const isSingle = payload.options.cardSides !== "double";
+      const baseCardRate = isSingle ? authoritativeConfig.idCards.pvcSingle : authoritativeConfig.idCards.pvcDouble;
+      const lanyardRate = payload.options.includeLanyard ? authoritativeConfig.idCards.withLanyardHolder : 0;
+      recomputedUnitPrice = baseCardRate + lanyardRate;
+      recomputedTotal = recomputedUnitPrice * copiesOrQty;
+    } else if (payload.serviceId === "poster-banner") {
+      const sz = payload.options.size;
+      let rate = 0;
+      if (sz === "a4") rate = authoritativeConfig.posters.a4Photo;
+      else if (sz === "a3") rate = authoritativeConfig.posters.a3Glossy;
+      else if (sz === "a2") rate = authoritativeConfig.posters.a2Photo;
+      else if (sz === "vinyl") rate = authoritativeConfig.posters.vinylPerSqFt;
+      else if (sz === "flex") rate = authoritativeConfig.posters.flexPerSqFt;
+      if (payload.options.finish === "laminated" && (sz === "a4" || sz === "a3" || sz === "a2")) {
+        rate += authoritativeConfig.documentPrinting.finishing.lamination.pricePerPage;
+      }
+      if (rate > 0) {
+        recomputedUnitPrice = rate;
+        recomputedTotal = rate * copiesOrQty;
+      }
+    }
+
+    if (recomputedTotal !== null && recomputedTotal > 0) {
+      const clientTotal = Number(payload.pricingSnapshot?.totalAmount) || 0;
+      if (Math.abs(clientTotal - recomputedTotal) > 0.5) {
+        console.warn(`[submitPrintOrder] Price revalidation: Overriding client price ₹${clientTotal} with authoritative price ₹${recomputedTotal}`);
+        payload.pricingSnapshot.unitPrice = recomputedUnitPrice!;
+        payload.pricingSnapshot.subtotal = recomputedTotal;
+        payload.pricingSnapshot.totalAmount = recomputedTotal;
+      }
+    }
 
     const orderItem = {
       productId: payload.serviceId,

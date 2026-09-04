@@ -204,4 +204,29 @@ export function formatAdminErrorMessage(error: any, fallback: string = "Operatio
   return error.message || fallback;
 }
 
+/**
+ * Standard rounding to 2 decimal places to avoid floating point inaccuracies (e.g. ₹1.4999999)
+ */
+export function roundPrice(amount: number): number {
+  if (isNaN(amount) || !isFinite(amount)) return 0;
+  return Math.round((Number(amount) + Number.EPSILON) * 100) / 100;
+}
 
+/**
+ * Standardize price formatting across the entire Palak Enterprises application.
+ * Formats whole integers without decimals (e.g. ₹2, ₹30, ₹250),
+ * and fractional prices with exactly 2 decimal places (e.g. ₹1.50, ₹8.50, ₹0.75).
+ */
+export function formatPrice(amount: number | null | undefined, prefix: string = "₹"): string {
+  if (amount === null || amount === undefined || isNaN(Number(amount))) {
+    return `${prefix}0`;
+  }
+  const valid = roundPrice(Number(amount));
+  if (Number.isInteger(valid)) {
+    return `${prefix}${valid.toLocaleString("en-IN")}`;
+  }
+  return `${prefix}${valid.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}

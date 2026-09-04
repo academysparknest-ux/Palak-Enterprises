@@ -12,14 +12,14 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
-import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
-import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
+import { submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
 import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
-import { cn } from "../../lib/utils";
+import { cn, formatPrice } from "../../lib/utils";
+import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
 import { SEO } from "../../components/SEO";
 
 export const VisitingCardsPage: React.FC = () => {
@@ -28,7 +28,7 @@ export const VisitingCardsPage: React.FC = () => {
   const { user } = useAuth();
   const { isStopped, stopReason } = useQuickServiceAvailability("visiting-cards");
 
-  const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
+  const { pricingConfig } = usePrintPricingConfig();
 
   const [mode, setMode] = useState<"upload" | "template">("upload");
 
@@ -113,15 +113,6 @@ export const VisitingCardsPage: React.FC = () => {
     paymentStatus: string;
   } | null>(null);
 
-  useEffect(() => {
-    getPrintPricingConfig().then(setPricingConfig).catch(() => setPricingConfig(DEFAULT_PRINT_PRICING));
-    const handleUpdate = (e: any) => {
-      if (e?.detail) setPricingConfig(e.detail);
-    };
-    window.addEventListener("palak_print_pricing_updated", handleUpdate);
-    return () => window.removeEventListener("palak_print_pricing_updated", handleUpdate);
-  }, []);
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null);
     if (!e.target.files || e.target.files.length === 0) return;
@@ -155,13 +146,15 @@ export const VisitingCardsPage: React.FC = () => {
     } else if (quantity === 1000) {
       base = sides === "single" ? pricingConfig.visitingCards.base1000Single : pricingConfig.visitingCards.base1000Double;
     } else {
-      // 250
-      base = Math.round((sides === "single" ? 500 : 750));
+      // 250 cards scaled dynamically from base 100 rate
+      const base100 = sides === "single" ? pricingConfig.visitingCards.base100Single : pricingConfig.visitingCards.base100Double;
+      base = Math.round(base100 * 2.2);
     }
 
     let finishExtra = 0;
     if (finish === "velvet") finishExtra = pricingConfig.visitingCards.velvetFinishExtra;
     else if (finish === "matte") finishExtra = pricingConfig.visitingCards.matteFinishExtra;
+    else if (finish === "gloss") finishExtra = pricingConfig.visitingCards.glossFinishExtra;
 
     return base + finishExtra;
   };
@@ -897,7 +890,7 @@ export const VisitingCardsPage: React.FC = () => {
 
               <div className="pt-3 border-t-2 border-slate-200 flex justify-between items-baseline">
                 <span className="text-sm font-extrabold text-slate-900">Total Price</span>
-                <span className="text-2xl font-black text-[#123B70]">₹{totalPrice}</span>
+                <span className="text-2xl font-black text-[#123B70]">{formatPrice(totalPrice)}</span>
               </div>
 
               {submitError && (

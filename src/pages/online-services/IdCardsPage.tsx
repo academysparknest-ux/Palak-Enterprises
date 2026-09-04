@@ -11,15 +11,15 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
-import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
-import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
+import { submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
 import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { ImageCropModal } from "../../components/idcard/ImageCropModal";
-import { cn } from "../../lib/utils";
+import { cn, formatPrice } from "../../lib/utils";
+import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
 import { SEO } from "../../components/SEO";
 
 export const IdCardsPage: React.FC = () => {
@@ -28,7 +28,7 @@ export const IdCardsPage: React.FC = () => {
   const { user } = useAuth();
   const { isStopped, stopReason } = useQuickServiceAvailability("id-cards");
 
-  const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
+  const { pricingConfig } = usePrintPricingConfig();
 
   // ID Card Fields
   const [holderName, setHolderName] = useState<string>("Amit Kumar");
@@ -120,15 +120,6 @@ export const IdCardsPage: React.FC = () => {
     paymentMethod: string;
     paymentStatus: string;
   } | null>(null);
-
-  useEffect(() => {
-    getPrintPricingConfig().then(setPricingConfig).catch(() => setPricingConfig(DEFAULT_PRINT_PRICING));
-    const handleUpdate = (e: any) => {
-      if (e?.detail) setPricingConfig(e.detail);
-    };
-    window.addEventListener("palak_print_pricing_updated", handleUpdate);
-    return () => window.removeEventListener("palak_print_pricing_updated", handleUpdate);
-  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null);
@@ -765,7 +756,7 @@ export const IdCardsPage: React.FC = () => {
                   </div>
                 </div>
                 <span className="text-xs font-extrabold text-[#123B70]">
-                  +₹{pricingConfig.idCards.withLanyardHolder} / card
+                  +{formatPrice(pricingConfig.idCards.withLanyardHolder)} / card
                 </span>
               </label>
             </section>
@@ -884,7 +875,7 @@ export const IdCardsPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Lanyard:</span>
-                  <span className="font-semibold text-slate-800">{includeLanyard ? "Yes (+₹25)" : "No"}</span>
+                  <span className="font-semibold text-slate-800">{includeLanyard ? `Yes (+${formatPrice(pricingConfig.idCards.withLanyardHolder)})` : "No"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Quantity:</span>
@@ -894,7 +885,7 @@ export const IdCardsPage: React.FC = () => {
 
               <div className="pt-3 border-t-2 border-slate-200 flex justify-between items-baseline">
                 <span className="text-sm font-extrabold text-slate-900">Total Amount</span>
-                <span className="text-2xl font-black text-[#123B70]">₹{totalAmount}</span>
+                <span className="text-2xl font-black text-[#123B70]">{formatPrice(totalAmount)}</span>
               </div>
 
               {submitError && (

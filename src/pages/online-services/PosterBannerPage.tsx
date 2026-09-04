@@ -9,14 +9,14 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
-import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
-import { getPrintPricingConfig, submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
+import { submitPrintOrder, uploadOrderFile } from "../../lib/supabase/database";
 import { initiateRazorpayPayment } from "../../lib/razorpay";
 import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
-import { cn } from "../../lib/utils";
+import { cn, formatPrice } from "../../lib/utils";
+import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
 import { SEO } from "../../components/SEO";
 
 const SIZES = [
@@ -42,7 +42,7 @@ export const PosterBannerPage: React.FC = () => {
   const { user } = useAuth();
   const { isStopped, stopReason } = useQuickServiceAvailability("poster-banner");
 
-  const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
+  const { pricingConfig } = usePrintPricingConfig();
 
   const [selectedSize, setSelectedSize] = useState<string>("a3");
   const [customSizeText, setCustomSizeText] = useState<string>("");
@@ -114,15 +114,6 @@ export const PosterBannerPage: React.FC = () => {
     paymentStatus: string;
   } | null>(null);
 
-  useEffect(() => {
-    getPrintPricingConfig().then(setPricingConfig).catch(() => setPricingConfig(DEFAULT_PRINT_PRICING));
-    const handleUpdate = (e: any) => {
-      if (e?.detail) setPricingConfig(e.detail);
-    };
-    window.addEventListener("palak_print_pricing_updated", handleUpdate);
-    return () => window.removeEventListener("palak_print_pricing_updated", handleUpdate);
-  }, []);
-
   const sizeObj = SIZES.find((s) => s.id === selectedSize) || SIZES[1];
   const isStandardPricing = sizeObj.isStandard;
 
@@ -132,7 +123,7 @@ export const PosterBannerPage: React.FC = () => {
   else if (selectedSize === "a2") unitPrice = pricingConfig.posters.a2Photo;
 
   if (finish === "laminated" && isStandardPricing) {
-    unitPrice += 15;
+    unitPrice += pricingConfig.documentPrinting.finishing.lamination.pricePerPage || 15;
   }
 
   const totalAmount = isStandardPricing ? unitPrice * Math.max(1, quantity) : 0;
@@ -674,7 +665,7 @@ export const PosterBannerPage: React.FC = () => {
                   {isStandardPricing ? "Estimated Total" : "Pricing Notice"}
                 </span>
                 <span className="text-xl font-black text-[#123B70]">
-                  {isStandardPricing ? `₹${totalAmount}` : "Quote on Review"}
+                  {isStandardPricing ? formatPrice(totalAmount) : "Quote on Review"}
                 </span>
               </div>
 

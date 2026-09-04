@@ -20,11 +20,6 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { SEO } from "../../components/SEO";
 import {
-  DEFAULT_PRINT_PRICING,
-  type PrintPricingConfig,
-} from "../../config/printPricing";
-import {
-  getPrintPricingConfig,
   submitPrintOrder,
 } from "../../lib/supabase/database";
 import { initiateRazorpayPayment } from "../../lib/razorpay";
@@ -33,7 +28,8 @@ import { LiveOrderProcessingModal } from "../../components/orders/LiveOrderProce
 import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
-import { cn } from "../../lib/utils";
+import { cn, formatPrice } from "../../lib/utils";
+import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
 import {
   STATE_METADATA_MAP,
 } from "../../lib/orders/orderSubmissionStateMachine";
@@ -75,6 +71,9 @@ import {
   calculateDocumentPrintPriceComplete,
   buildOrderPrintSnapshot,
   parsePageRange,
+  GSM_SURCHARGES,
+  BINDING_PRICES,
+  COVER_PRICES,
 } from "../../lib/pricing/printPricingEngine";
 import { UserPrintPreferencesStore } from "../../lib/storage/userPrintPreferencesStore";
 
@@ -125,7 +124,7 @@ export const DocumentPrintingPage: React.FC = () => {
   const currentLang = (lang || language || "en") as "en" | "hi";
   const { isStopped, stopReason } = useQuickServiceAvailability("document-printing");
 
-  const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
+  const { pricingConfig } = usePrintPricingConfig();
 
   // Saved user preferences
   const [savedPrefs, setSavedPrefs] = useState<UserSavedPrintPreferences>(() =>
@@ -139,6 +138,26 @@ export const DocumentPrintingPage: React.FC = () => {
 
   // Step 2: Uploaded Documents with Independent Configurations
   const [documents, setDocuments] = useState<UploadedConfiguredDocument[]>([]);
+
+  // Automatically recalculate configured documents if admin updates pricingConfig in real time
+  useEffect(() => {
+    setDocuments((prevDocs) => {
+      if (!prevDocs || prevDocs.length === 0) return prevDocs;
+      return prevDocs.map((doc) => {
+        const calc = calculateDocumentPrintPriceComplete(doc.config, pricingConfig);
+        const verifiedPages = doc.pages !== null && doc.pages > 0;
+        return {
+          ...doc,
+          config: {
+            ...doc.config,
+            itemPrice: verifiedPages ? calc.itemPrice : 0,
+            totalPrice: verifiedPages ? calc.totalPrice : 0,
+            priceBreakdown: calc.priceBreakdown,
+          },
+        };
+      });
+    });
+  }, [pricingConfig]);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addMoreInputRef = useRef<HTMLInputElement>(null);
@@ -271,15 +290,6 @@ export const DocumentPrintingPage: React.FC = () => {
     }
   }, []);
 
-  // Fetch pricing on load
-  useEffect(() => {
-    getPrintPricingConfig().then(setPricingConfig).catch(() => setPricingConfig(DEFAULT_PRINT_PRICING));
-    const handleUpdate = (e: any) => {
-      if (e?.detail) setPricingConfig(e.detail);
-    };
-    window.addEventListener("palak_print_pricing_updated", handleUpdate);
-    return () => window.removeEventListener("palak_print_pricing_updated", handleUpdate);
-  }, []);
 
   // Helper to construct a DocumentPrintConfig from preferences
   const createInitialConfig = (
@@ -1369,10 +1379,10 @@ export const DocumentPrintingPage: React.FC = () => {
                               {doc.pages !== null && doc.metadata?.pageCountVerified ? (
                                 <>
                                   <span className="text-xs font-black text-[#123B70] block">
-                                    ₹{c.totalPrice.toFixed(2)}
+                                    {formatPrice(c.totalPrice)}
                                   </span>
                                   <span className="text-[10px] text-slate-400">
-                                    (₹{c.itemPrice.toFixed(2)} × {c.copies})
+                                    ({formatPrice(c.itemPrice)} × {c.copies})
                                   </span>
                                 </>
                               ) : (
@@ -1650,13 +1660,13 @@ export const DocumentPrintingPage: React.FC = () => {
                                     className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
                                   >
                                     <option value={70}>70 GSM (Standard Lightweight)</option>
-                                    <option value={75}>75 GSM (Everyday Standard +₹0.20)</option>
-                                    <option value={80}>80 GSM (Executive Quality +₹0.50)</option>
-                                    <option value={100}>100 GSM (Heavyweight +₹1.00)</option>
-                                    <option value={120}>120 GSM (Presentation Paper +₹2.00)</option>
-                                    <option value={160}>160 GSM (Cardstock +₹4.00)</option>
-                                    <option value={200}>200 GSM (Heavy Cardstock +₹6.00)</option>
-                                    <option value={250}>250 GSM (Thick Artboard +₹8.00)</option>
+                                    <option value={75}>75 GSM (Everyday Standard +{formatPrice(GSM_SURCHARGES[75])})</option>
+                                    <option value={80}>80 GSM (Executive Quality +{formatPrice(GSM_SURCHARGES[80])})</option>
+                                    <option value={100}>100 GSM (Heavyweight +{formatPrice(GSM_SURCHARGES[100])})</option>
+                                    <option value={120}>120 GSM (Presentation Paper +{formatPrice(GSM_SURCHARGES[120])})</option>
+                                    <option value={160}>160 GSM (Cardstock +{formatPrice(GSM_SURCHARGES[160])})</option>
+                                    <option value={200}>200 GSM (Heavy Cardstock +{formatPrice(GSM_SURCHARGES[200])})</option>
+                                    <option value={250}>250 GSM (Thick Artboard +{formatPrice(GSM_SURCHARGES[250])})</option>
                                   </select>
                                 </div>
 
@@ -1675,11 +1685,11 @@ export const DocumentPrintingPage: React.FC = () => {
                                     className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
                                   >
                                     <option value="none">None (Loose Sheets)</option>
-                                    <option value="staple">Corner / Saddle Staple (₹5)</option>
-                                    <option value="spiral">Spiral Binding (₹30)</option>
-                                    <option value="comb">Comb Binding (₹25)</option>
-                                    <option value="soft">Soft Binding (₹80)</option>
-                                    <option value="hard">Hard Binding (₹150)</option>
+                                    <option value="staple">Corner / Saddle Staple ({formatPrice(pricingConfig.documentPrinting.finishing.stapling?.price || BINDING_PRICES.staple)})</option>
+                                    <option value="spiral">Spiral Binding ({formatPrice(pricingConfig.documentPrinting.finishing.spiralBinding?.price || BINDING_PRICES.spiral)})</option>
+                                    <option value="comb">Comb Binding ({formatPrice(pricingConfig.documentPrinting.finishing.combBinding?.price || BINDING_PRICES.comb)})</option>
+                                    <option value="soft">Soft Binding ({formatPrice(BINDING_PRICES.soft)})</option>
+                                    <option value="hard">Hard Binding ({formatPrice(BINDING_PRICES.hard)})</option>
                                   </select>
                                 </div>
 
@@ -1718,10 +1728,10 @@ export const DocumentPrintingPage: React.FC = () => {
                                     className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
                                   >
                                     <option value="none">No Cover Sheet</option>
-                                    <option value="transparent">Transparent Plastic Sheet (+₹10)</option>
-                                    <option value="white">Opaque White Sheet (+₹10)</option>
-                                    <option value="black">Matte Black Sheet (+₹15)</option>
-                                    <option value="color">Color Card Sheet (+₹20)</option>
+                                    <option value="transparent">Transparent Plastic Sheet (+{formatPrice(COVER_PRICES.transparent)})</option>
+                                    <option value="white">Opaque White Sheet (+{formatPrice(COVER_PRICES.white)})</option>
+                                    <option value="black">Matte Black Sheet (+{formatPrice(COVER_PRICES.black)})</option>
+                                    <option value="color">Color Card Sheet (+{formatPrice(COVER_PRICES.color)})</option>
                                   </select>
                                 </div>
 
@@ -1737,10 +1747,10 @@ export const DocumentPrintingPage: React.FC = () => {
                                     className="w-full rounded-lg border border-slate-200 bg-white p-2 text-slate-800 font-semibold"
                                   >
                                     <option value="none">No Back Cover</option>
-                                    <option value="transparent">Transparent Plastic Sheet (+₹10)</option>
-                                    <option value="white">Opaque White Sheet (+₹10)</option>
-                                    <option value="black">Matte Black Sheet (+₹15)</option>
-                                    <option value="color">Color Card Sheet (+₹20)</option>
+                                    <option value="transparent">Transparent Plastic Sheet (+{formatPrice(COVER_PRICES.transparent)})</option>
+                                    <option value="white">Opaque White Sheet (+{formatPrice(COVER_PRICES.white)})</option>
+                                    <option value="black">Matte Black Sheet (+{formatPrice(COVER_PRICES.black)})</option>
+                                    <option value="color">Color Card Sheet (+{formatPrice(COVER_PRICES.color)})</option>
                                   </select>
                                 </div>
                               </div>
@@ -1758,7 +1768,7 @@ export const DocumentPrintingPage: React.FC = () => {
                                     }
                                     className="rounded text-[#123B70] accent-[#123B70]"
                                   />
-                                  <span>Thermal Lamination (+₹15/sheet)</span>
+                                  <span>Thermal Lamination (+{formatPrice(pricingConfig.documentPrinting.finishing.lamination.pricePerPage)}/sheet)</span>
                                 </label>
 
                                 <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
@@ -1992,7 +2002,7 @@ export const DocumentPrintingPage: React.FC = () => {
                       </span>
                       <span className="font-bold text-slate-900">
                         {d.pages !== null && d.metadata?.pageCountVerified
-                          ? `₹${d.config.totalPrice.toFixed(2)}`
+                          ? formatPrice(d.config.totalPrice)
                           : "Calculating..."}
                       </span>
                     </div>
@@ -2064,7 +2074,7 @@ export const DocumentPrintingPage: React.FC = () => {
                   {hasUnverifiedDocs ? (
                     <span className="text-sm text-slate-400 font-bold italic">Calculating...</span>
                   ) : (
-                    `₹${orderSnapshot.grandTotal.toFixed(2)}`
+                    formatPrice(orderSnapshot.grandTotal)
                   )}
                 </span>
               </div>
@@ -2161,8 +2171,8 @@ export const DocumentPrintingPage: React.FC = () => {
                   <span>
                     {paymentMethod === "pay_online"
                       ? currentLang === "hi"
-                        ? `तुरंत भुगतान करें (₹${orderSnapshot.grandTotal.toFixed(2)})`
-                        : `Pay & Submit Order (₹${orderSnapshot.grandTotal.toFixed(2)})`
+                        ? `तुरंत भुगतान करें (${formatPrice(orderSnapshot.grandTotal)})`
+                        : `Pay & Submit Order (${formatPrice(orderSnapshot.grandTotal)})`
                       : currentLang === "hi"
                       ? "प्रिंट ऑर्डर दर्ज करें (Pay on Pickup)"
                       : "Confirm & Place Print Order"}

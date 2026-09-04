@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { StatusBadge } from '../../components/admin/StatusBadge';
 import { useToast } from '../../components/admin/AdminToast';
-import { cn, formatAdminErrorMessage } from '../../lib/utils';
-import { Save, Edit3, Check, X, RefreshCw, Clock, Filter } from 'lucide-react';
+import { cn, formatAdminErrorMessage, formatPrice, roundPrice } from '../../lib/utils';
+import { Save, Edit3, Check, X, RefreshCw, Clock, Filter, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { type PrintPricingConfig } from '../../config/printPricing';
-import { logAdminAudit, getPrintPricingConfig, updatePrintPricingConfig } from '../../lib/supabase/database';
+import { logAdminAudit, getPrintPricingConfig, updatePrintPricingConfig, subscribeToPrintPricing } from '../../lib/supabase/database';
 import { PalakDataStore } from '../../lib/storage/store';
 
 interface Product {
@@ -60,6 +61,15 @@ export const WebsitePricingPage: React.FC = () => {
 
   useEffect(() => {
     loadInitialData();
+
+    // Subscribe to live realtime print pricing changes across multiple staff sessions & tabs
+    const unsubscribePricing = subscribeToPrintPricing((freshConfig) => {
+      setQuickConfig(freshConfig);
+    });
+
+    return () => {
+      unsubscribePricing();
+    };
   }, []);
 
   const loadInitialData = async () => {
@@ -214,26 +224,41 @@ export const WebsitePricingPage: React.FC = () => {
     const newConfig = JSON.parse(JSON.stringify(quickConfig));
     let current: any = newConfig;
     for (let i = 0; i < path.length - 1; i++) {
+      if (!current[path[i]]) current[path[i]] = {};
       current = current[path[i]];
     }
-    current[path[path.length - 1]] = value;
+    const isMultiplier = path.includes("multiplier");
+    const sanitizedVal = isMultiplier
+      ? Math.max(0.1, roundPrice(value))
+      : Math.max(0, roundPrice(value));
+    current[path[path.length - 1]] = sanitizedVal;
     
     setQuickConfig(newConfig);
     setEditingQuickKey(null);
 
-    // Auto-persist immediately so reload retains the value
+    // Auto-persist immediately to canonical source so all other screens and tabs update live
     try {
       await updatePrintPricingConfig(newConfig);
-      addToast({ title: 'Rate updated & saved live', type: 'success' });
+      addToast({ title: 'Rate updated & synchronized live across all tabs', type: 'success' });
     } catch (e) {
       console.error('Error auto-saving quick rate:', e);
+      addToast({ title: 'Failed to update rate', type: 'error' });
     }
   };
 
   const handleQuickEditSave = (path: string[]) => {
+    if (!editQuickVal.trim() || isNaN(Number(editQuickVal))) {
+      addToast({ title: 'Invalid number. Please enter a valid rate', type: 'error' });
+      return;
+    }
     const val = Number(editQuickVal);
-    if (isNaN(val)) {
-      addToast({ title: 'Invalid price', type: 'error' });
+    const isMultiplier = path.includes("multiplier");
+    if (!isMultiplier && val < 0) {
+      addToast({ title: 'Price cannot be negative', type: 'error' });
+      return;
+    }
+    if (isMultiplier && val <= 0) {
+      addToast({ title: 'Multiplier must be greater than 0', type: 'error' });
       return;
     }
     updateQuickVal(path, val);
@@ -408,42 +433,68 @@ export const WebsitePricingPage: React.FC = () => {
 
       {activeTab === 'quick-service' && quickConfig && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between bg-white p-3 rounded-xl shadow-xs border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl shadow-xs border border-slate-200">
             <div>
-              <h3 className="font-bold text-xs text-slate-800">Quick Service Rates</h3>
-              <p className="text-[11px] text-slate-500">Manage pricing for instant print jobs</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-xs sm:text-sm text-slate-800">Authoritative Quick Service Rates</h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Live Synced
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Every rate edited here updates immediately across the entire site, customer order forms, and backend calculators.
+              </p>
             </div>
-            <button
-              onClick={saveQuickConfig}
-              disabled={savingQuickConfig}
-              className="flex items-center px-3.5 py-1.5 bg-[#123B70] text-white rounded-lg hover:bg-[#0a2955] transition-colors disabled:opacity-50 text-xs font-bold shadow-xs cursor-pointer"
-            >
-              {savingQuickConfig ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
-              Save All Changes
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/admin/quick-services"
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#123B70] hover:underline px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+              >
+                <span>Full Quick Services Manager</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+              <button
+                onClick={saveQuickConfig}
+                disabled={savingQuickConfig}
+                className="flex items-center px-3.5 py-1.5 bg-[#123B70] text-white rounded-lg hover:bg-[#0a2955] transition-colors disabled:opacity-50 text-xs font-bold shadow-xs cursor-pointer"
+              >
+                {savingQuickConfig ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                Save All Changes
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Document Printing */}
-            <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3.5 sm:p-4">
-              <h4 className="text-sm font-bold text-[#123B70] mb-3 pb-1.5 border-b border-slate-100">Document Printing</h4>
+            <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3.5 sm:p-4 space-y-3.5">
+              <h4 className="text-sm font-bold text-[#123B70] pb-1.5 border-b border-slate-100">Document Printing</h4>
               <div className="space-y-3">
                 <div>
                   <h5 className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Base Rate (Per Page)</h5>
                   <div className="space-y-1">
                     <QuickRateRow label="B&W Single Side" path={['documentPrinting', 'baseRatePerPage', 'bwSingle']} value={quickConfig.documentPrinting.baseRatePerPage.bwSingle} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                    <QuickRateRow label="B&W Double Side" path={['documentPrinting', 'baseRatePerPage', 'bwDouble']} value={quickConfig.documentPrinting.baseRatePerPage.bwDouble} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="B&W Double Side (per side)" path={['documentPrinting', 'baseRatePerPage', 'bwDouble']} value={quickConfig.documentPrinting.baseRatePerPage.bwDouble} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                     <QuickRateRow label="Color Single Side" path={['documentPrinting', 'baseRatePerPage', 'colorSingle']} value={quickConfig.documentPrinting.baseRatePerPage.colorSingle} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                    <QuickRateRow label="Color Double Side" path={['documentPrinting', 'baseRatePerPage', 'colorDouble']} value={quickConfig.documentPrinting.baseRatePerPage.colorDouble} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="Color Double Side (per side)" path={['documentPrinting', 'baseRatePerPage', 'colorDouble']} value={quickConfig.documentPrinting.baseRatePerPage.colorDouble} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                   </div>
                 </div>
+
                 <div>
-                  <h5 className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Finishing</h5>
+                  <h5 className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Paper Size Multipliers</h5>
                   <div className="space-y-1">
-                    <QuickRateRow label="Spiral Binding" path={['documentPrinting', 'finishing', 'spiralBinding', 'price']} value={quickConfig.documentPrinting.finishing.spiralBinding.price} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                    <QuickRateRow label="Comb Binding" path={['documentPrinting', 'finishing', 'combBinding', 'price']} value={quickConfig.documentPrinting.finishing.combBinding.price} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                    <QuickRateRow label="Lamination (per page)" path={['documentPrinting', 'finishing', 'lamination', 'pricePerPage']} value={quickConfig.documentPrinting.finishing.lamination.pricePerPage} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                    <QuickRateRow label="Stapling" path={['documentPrinting', 'finishing', 'stapling', 'price']} value={quickConfig.documentPrinting.finishing.stapling.price} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="A4 Multiplier (Standard)" path={['documentPrinting', 'paperSizes', 'a4', 'multiplier']} value={quickConfig.documentPrinting.paperSizes.a4.multiplier} isMultiplier editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="A3 Multiplier (Large)" path={['documentPrinting', 'paperSizes', 'a3', 'multiplier']} value={quickConfig.documentPrinting.paperSizes.a3.multiplier} isMultiplier editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="A5 Multiplier (Booklet)" path={['documentPrinting', 'paperSizes', 'a5', 'multiplier']} value={quickConfig.documentPrinting.paperSizes.a5.multiplier} isMultiplier editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                  </div>
+                </div>
+
+                <div>
+                  <h5 className="text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Finishing & Binding</h5>
+                  <div className="space-y-1">
+                    <QuickRateRow label="Spiral Binding (per book)" path={['documentPrinting', 'finishing', 'spiralBinding', 'price']} value={quickConfig.documentPrinting.finishing.spiralBinding.price} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="Comb Binding (per book)" path={['documentPrinting', 'finishing', 'combBinding', 'price']} value={quickConfig.documentPrinting.finishing.combBinding.price} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="Lamination (per leaf)" path={['documentPrinting', 'finishing', 'lamination', 'pricePerPage']} value={quickConfig.documentPrinting.finishing.lamination.pricePerPage} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="Stapling (per set)" path={['documentPrinting', 'finishing', 'stapling', 'price']} value={quickConfig.documentPrinting.finishing.stapling.price} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                   </div>
                 </div>
               </div>
@@ -454,21 +505,21 @@ export const WebsitePricingPage: React.FC = () => {
               <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3.5 sm:p-4">
                 <h4 className="text-sm font-bold text-[#123B70] mb-3 pb-1.5 border-b border-slate-100">Passport Photos</h4>
                 <div className="space-y-1">
+                  <QuickRateRow label="Single 4×6 Print" path={['passportPhoto', 'singlePrint']} value={quickConfig.passportPhoto.singlePrint} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                   <QuickRateRow label="8 Photos Sheet" path={['passportPhoto', 'sheet8']} value={quickConfig.passportPhoto.sheet8} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                   <QuickRateRow label="16 Photos Sheet" path={['passportPhoto', 'sheet16']} value={quickConfig.passportPhoto.sheet16} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                   <QuickRateRow label="32 Photos Sheet" path={['passportPhoto', 'sheet32']} value={quickConfig.passportPhoto.sheet32} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                  <QuickRateRow label="Single Print" path={['passportPhoto', 'singlePrint']} value={quickConfig.passportPhoto.singlePrint} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                 </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3.5 sm:p-4">
                 <h4 className="text-sm font-bold text-[#123B70] mb-3 pb-1.5 border-b border-slate-100">Posters & Large Format</h4>
                 <div className="space-y-1">
-                  <QuickRateRow label="A4 Photo" path={['posters', 'a4Photo']} value={quickConfig.posters.a4Photo} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                  <QuickRateRow label="A3 Glossy" path={['posters', 'a3Glossy']} value={quickConfig.posters.a3Glossy} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                  <QuickRateRow label="A2 Photo" path={['posters', 'a2Photo']} value={quickConfig.posters.a2Photo} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                  <QuickRateRow label="Vinyl (per sq ft)" path={['posters', 'vinylPerSqFt']} value={quickConfig.posters.vinylPerSqFt} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
-                  <QuickRateRow label="Flex (per sq ft)" path={['posters', 'flexPerSqFt']} value={quickConfig.posters.flexPerSqFt} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                  <QuickRateRow label="A4 Photo Sheet" path={['posters', 'a4Photo']} value={quickConfig.posters.a4Photo} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                  <QuickRateRow label="A3 Glossy Paper" path={['posters', 'a3Glossy']} value={quickConfig.posters.a3Glossy} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                  <QuickRateRow label="A2 Photo Sheet" path={['posters', 'a2Photo']} value={quickConfig.posters.a2Photo} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                  <QuickRateRow label="Vinyl Flex (per sq.ft)" path={['posters', 'vinylPerSqFt']} value={quickConfig.posters.vinylPerSqFt} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                  <QuickRateRow label="Regular Flex (per sq.ft)" path={['posters', 'flexPerSqFt']} value={quickConfig.posters.flexPerSqFt} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                 </div>
               </div>
             </div>
@@ -483,7 +534,12 @@ export const WebsitePricingPage: React.FC = () => {
                     <QuickRateRow label="100 Cards (Single Side)" path={['visitingCards', 'base100Single']} value={quickConfig.visitingCards.base100Single} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                     <QuickRateRow label="100 Cards (Double Side)" path={['visitingCards', 'base100Double']} value={quickConfig.visitingCards.base100Double} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                     <QuickRateRow label="500 Cards (Single Side)" path={['visitingCards', 'base500Single']} value={quickConfig.visitingCards.base500Single} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="500 Cards (Double Side)" path={['visitingCards', 'base500Double']} value={quickConfig.visitingCards.base500Double} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                     <QuickRateRow label="1000 Cards (Single Side)" path={['visitingCards', 'base1000Single']} value={quickConfig.visitingCards.base1000Single} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="1000 Cards (Double Side)" path={['visitingCards', 'base1000Double']} value={quickConfig.visitingCards.base1000Double} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="Matte Finish Extra" path={['visitingCards', 'matteFinishExtra']} value={quickConfig.visitingCards.matteFinishExtra} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="Gloss Finish Extra" path={['visitingCards', 'glossFinishExtra']} value={quickConfig.visitingCards.glossFinishExtra} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
+                    <QuickRateRow label="Velvet Finish Extra" path={['visitingCards', 'velvetFinishExtra']} value={quickConfig.visitingCards.velvetFinishExtra} editingKey={editingQuickKey} setEditingKey={setEditingQuickKey} editVal={editQuickVal} setEditVal={setEditQuickVal} onSave={handleQuickEditSave} />
                   </div>
                 </div>
                 <div>
@@ -509,6 +565,7 @@ function QuickRateRow({
   label, 
   path, 
   value, 
+  isMultiplier = false,
   editingKey, 
   setEditingKey, 
   editVal, 
@@ -518,6 +575,7 @@ function QuickRateRow({
   label: string; 
   path: string[]; 
   value: number; 
+  isMultiplier?: boolean;
   editingKey: string | null; 
   setEditingKey: (k: string | null) => void;
   editVal: string;
@@ -533,9 +591,11 @@ function QuickRateRow({
       
       {isEditing ? (
         <div className="flex items-center space-x-1">
-          <span className="text-slate-500 font-medium text-xs">₹</span>
+          {!isMultiplier && <span className="text-slate-500 font-medium text-xs">₹</span>}
           <input
             type="number"
+            step={isMultiplier ? "0.1" : "0.5"}
+            min={isMultiplier ? "0.1" : "0"}
             value={editVal}
             onChange={(e) => setEditVal(e.target.value)}
             className="w-16 px-1.5 py-0.5 text-xs border-slate-300 rounded focus:ring-[#123B70] focus:border-[#123B70]"
@@ -545,6 +605,7 @@ function QuickRateRow({
               if (e.key === 'Escape') setEditingKey(null);
             }}
           />
+          {isMultiplier && <span className="text-slate-400 font-bold text-xs">x</span>}
           <button onClick={() => onSave(path)} className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded cursor-pointer">
             <Check className="w-3 h-3" />
           </button>
@@ -554,7 +615,9 @@ function QuickRateRow({
         </div>
       ) : (
         <div className="flex items-center">
-          <span className="font-bold text-[#123B70] min-w-[2.5rem] text-right text-xs">₹{value}</span>
+          <span className="font-bold text-[#123B70] min-w-[3rem] text-right text-xs">
+            {isMultiplier ? `${value}x` : formatPrice(value)}
+          </span>
           <button
             onClick={() => {
               setEditingKey(keyStr);

@@ -8,6 +8,7 @@ import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from '../../config/pri
 import {
   getPrintPricingConfig,
   updatePrintPricingConfig,
+  subscribeToPrintPricing,
   logAdminAudit,
   getQuickServices,
   toggleQuickServiceAvailability,
@@ -127,11 +128,18 @@ export const AdminQuickServicesPage: React.FC = () => {
   useEffect(() => {
     loadAllData();
     // Subscribe to live realtime status changes across multiple staff sessions
-    const unsubscribe = subscribeToQuickServices((fresh) => {
+    const unsubscribeServices = subscribeToQuickServices((fresh) => {
       setQuickServices(fresh);
     });
+    // Subscribe to live realtime print pricing changes across multiple staff sessions & tabs
+    const unsubscribePricing = subscribeToPrintPricing((freshPricing) => {
+      setConfig(freshPricing);
+      setInitialConfig(freshPricing);
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeServices();
+      unsubscribePricing();
     };
   }, [loadAllData]);
 
@@ -357,8 +365,18 @@ export const AdminQuickServicesPage: React.FC = () => {
           step={step}
           value={isNaN(value) ? '' : value}
           onChange={(e) => {
-            const val = parseFloat(e.target.value);
-            updateConfigValue(path, isNaN(val) ? 0 : Math.max(min, val));
+            const rawVal = e.target.value;
+            if (rawVal === '') {
+              updateConfigValue(path, min);
+              return;
+            }
+            const val = parseFloat(rawVal);
+            if (isNaN(val)) {
+              updateConfigValue(path, min);
+            } else {
+              const clamped = Math.max(min, Math.round((val + Number.EPSILON) * 100) / 100);
+              updateConfigValue(path, clamped);
+            }
           }}
           className="pl-7 pr-2.5 block w-full rounded-lg border border-slate-200 bg-white py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#123B70] focus:border-[#123B70] transition-colors"
         />

@@ -13,9 +13,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 import { SEO } from "../../components/SEO";
-import { DEFAULT_PRINT_PRICING, type PrintPricingConfig } from "../../config/printPricing";
 import {
-  getPrintPricingConfig,
   submitPrintOrder,
   uploadOrderFile,
 } from "../../lib/supabase/database";
@@ -24,7 +22,8 @@ import { OrderSuccessModal } from "../../components/OrderSuccessModal";
 import { OrderAuthGate } from "../../components/OrderAuthGate";
 import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnavailableBanner";
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
-import { cn } from "../../lib/utils";
+import { cn, formatPrice } from "../../lib/utils";
+import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
 
 const PHOTO_LAYOUTS = [
   { id: "sheet8", labelEn: "8 Passport Photos (Single Sheet)", labelHi: "8 पासपोर्ट फोटो (1 शीट)", photosCount: 8, baseKey: "sheet8" as const },
@@ -39,7 +38,7 @@ export const PassportPhotoPage: React.FC = () => {
   const { user } = useAuth();
   const { isStopped, stopReason } = useQuickServiceAvailability("passport-photo");
 
-  const [pricingConfig, setPricingConfig] = useState<PrintPricingConfig>(DEFAULT_PRINT_PRICING);
+  const { pricingConfig } = usePrintPricingConfig();
 
   const [selectedLayout, setSelectedLayout] = useState<"sheet8" | "sheet16" | "sheet32" | "singlePrint">("sheet8");
   const [paperFinish, setPaperFinish] = useState<"glossy" | "matte">("glossy");
@@ -106,15 +105,6 @@ export const PassportPhotoPage: React.FC = () => {
     paymentMethod: string;
     paymentStatus: string;
   } | null>(null);
-
-  useEffect(() => {
-    getPrintPricingConfig().then(setPricingConfig).catch(() => setPricingConfig(DEFAULT_PRINT_PRICING));
-    const handleUpdate = (e: any) => {
-      if (e?.detail) setPricingConfig(e.detail);
-    };
-    window.addEventListener("palak_print_pricing_updated", handleUpdate);
-    return () => window.removeEventListener("palak_print_pricing_updated", handleUpdate);
-  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFileError(null);
@@ -507,7 +497,7 @@ export const PassportPhotoPage: React.FC = () => {
                         </span>
                       </div>
                       <span className="text-sm font-extrabold text-[#123B70]">
-                        ₹{price}
+                        {formatPrice(price)}
                       </span>
                     </button>
                   );
@@ -717,7 +707,7 @@ export const PassportPhotoPage: React.FC = () => {
                   {currentLang === "hi" ? "कुल राशि" : "Total Price"}
                 </span>
                 <span className="text-2xl font-black text-[#123B70]">
-                  ₹{totalAmount}
+                  {formatPrice(totalAmount)}
                 </span>
               </div>
 

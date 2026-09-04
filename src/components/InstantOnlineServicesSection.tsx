@@ -14,7 +14,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
-import { cn } from "../lib/utils";
+import { cn, formatPrice } from "../lib/utils";
+import { usePrintPricingConfig } from "../hooks/usePrintPricingConfig";
 import { useAllQuickServicesAvailability } from "../hooks/useQuickServiceAvailability";
 
 interface InstantOnlineServicesSectionProps {
@@ -37,6 +38,13 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
     refresh: refreshAvailability,
   } = useAllQuickServicesAvailability();
 
+  const { pricingConfig } = usePrintPricingConfig();
+  const docMin = formatPrice(Math.min(pricingConfig.documentPrinting.baseRatePerPage.bwDouble, pricingConfig.documentPrinting.baseRatePerPage.bwSingle));
+  const passportMin = formatPrice(Math.min(...Object.values(pricingConfig.passportPhoto).filter((v): v is number => typeof v === 'number' && v > 0)));
+  const cardMin = formatPrice(pricingConfig.visitingCards.base100Single);
+  const idCardMin = formatPrice(pricingConfig.idCards.pvcSingle);
+  const posterMin = formatPrice(Math.min(pricingConfig.posters.a4Photo, pricingConfig.posters.a3Glossy, pricingConfig.posters.a2Photo));
+
   const services = [
     {
       id: "document-printing",
@@ -46,8 +54,8 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
         currentLang === "hi"
           ? "Notes, assignments, forms, reports aur documents print karein — spiral binding, comb binding aur lamination ke sath."
           : "Print notes, assignments, forms, certificates & reports — add spiral binding, comb binding, or lamination in one click.",
-      priceText: "₹1.50 onwards",
-      priceTextHi: "₹1.50 से शुरू",
+      priceText: `${docMin} onwards`,
+      priceTextHi: `${docMin} से शुरू`,
       icon: FileText,
       path: "/online-services/document-printing",
       badge: currentLang === "hi" ? "सबसे लोकप्रिय" : "Most Popular",
@@ -64,8 +72,8 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
         currentLang === "hi"
           ? "Apni photo upload karein aur printable photo order karein — 8, 16 ya 32 photo sheet."
           : "Upload your photo, select layout (8, 16, 32 photos or 4×6 sheet) & order high-gloss prints.",
-      priceText: "₹20 onwards",
-      priceTextHi: "₹20 से शुरू",
+      priceText: `${passportMin} onwards`,
+      priceTextHi: `${passportMin} से शुरू`,
       icon: Camera,
       path: "/online-services/passport-photo",
       badge: currentLang === "hi" ? "त्वरित प्रिंट" : "Fast & Sharp",
@@ -82,8 +90,8 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
         currentLang === "hi"
           ? "Apna design upload karein ya available template se start karein — Matte / Gloss finish."
           : "Upload your custom card design or create professional business card from live template.",
-      priceText: "₹350 onwards",
-      priceTextHi: "₹350 से शुरू",
+      priceText: `${cardMin} onwards`,
+      priceTextHi: `${cardMin} से शुरू`,
       icon: CreditCard,
       path: "/online-services/visiting-cards",
       badge: currentLang === "hi" ? "350 GSM प्रीमियम" : "350 GSM Premium",
@@ -118,8 +126,8 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
         currentLang === "hi"
           ? "Personal aur organization ID cards ke liye print order karein — PVC Card + Lanyard."
           : "Order high durability PVC smart ID cards with lanyards & badge holders.",
-      priceText: "₹40 onwards",
-      priceTextHi: "₹40 से शुरू",
+      priceText: `${idCardMin} onwards`,
+      priceTextHi: `${idCardMin} से शुरू`,
       icon: Contact,
       path: "/online-services/id-cards",
       badge: currentLang === "hi" ? "स्मार्ट पीवीसी" : "Smart PVC",
@@ -136,8 +144,8 @@ export const InstantOnlineServicesSection: React.FC<InstantOnlineServicesSection
         currentLang === "hi"
           ? "Apna design upload karein aur required size/material select karein — HD Vibrant Print."
           : "Upload your promotional artwork, choose paper/flex material & get high-definition prints.",
-      priceText: "₹20 onwards",
-      priceTextHi: "₹20 से शुरू",
+      priceText: `${posterMin} onwards`,
+      priceTextHi: `${posterMin} से शुरू`,
       icon: ImageIcon,
       path: "/online-services/poster-banner",
       badge: currentLang === "hi" ? "एचडी प्रिंट" : "HD Glossy",

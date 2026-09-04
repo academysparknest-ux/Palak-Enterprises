@@ -332,7 +332,7 @@ export function AppContent() {
                   <Route path="orders/:orderCode" element={<AdminLegacyPage />} />
                   <Route path="notifications" element={<Navigate to="/admin/orders" replace />} />
                   <Route path="payments" element={<AdminLegacyPage />} />
-                  <Route path="pricing" element={<AdminLegacyPage />} />
+                  <Route path="pricing" element={<Navigate to="/admin/website/pricing" replace />} />
                   <Route path="services-requests" element={<AdminLegacyPage />} />
                   <Route path="quotes" element={<AdminLegacyPage />} />
                   <Route path="designs" element={<AdminLegacyPage />} />
