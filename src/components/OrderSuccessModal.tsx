@@ -31,6 +31,7 @@ export interface OrderSuccessModalProps {
   customerPhone: string;
   paymentMethod?: string;
   paymentStatus?: string;
+  razorpayPaymentId?: string;
 }
 
 function getBindingLabel(type?: string): string {
@@ -73,6 +74,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   customerPhone,
   paymentMethod = "pay_at_shop",
   paymentStatus = "pending",
+  razorpayPaymentId,
 }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
@@ -303,6 +305,16 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                   {isPaid ? (currentLang === "hi" ? "Paid" : "Paid") : (currentLang === "hi" ? "Pending" : "Pending")}
                 </span>
               </div>
+              {razorpayPaymentId && (
+                <div className="flex items-center justify-between gap-1.5 pt-1 text-[11px] border-t border-slate-200/80 font-mono">
+                  <span className="text-slate-500 font-sans text-[10px] font-bold uppercase tracking-wider">
+                    {currentLang === "hi" ? "ट्रांजेक्शन नं. (Txn ID)" : "Payment Txn No"}
+                  </span>
+                  <span className="font-black text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 select-all">
+                    {razorpayPaymentId}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

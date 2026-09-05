@@ -322,6 +322,7 @@ export const DocumentPrintingPage: React.FC = () => {
     printSnapshot?: OrderPrintSnapshot;
     paymentMethod: string;
     paymentStatus: string;
+    razorpayPaymentId?: string;
   } | null>(null);
 
   const transitionTo = (newState: OrderSubmissionState, detail?: string) => {
@@ -1118,6 +1119,7 @@ export const DocumentPrintingPage: React.FC = () => {
               printSnapshot: finalSnapshot,
               paymentMethod: "Online Payment (UPI/Card)",
               paymentStatus: "Paid & Confirmed",
+              razorpayPaymentId: paymentId,
             });
             isSubmittingLockRef.current = false;
           },
@@ -2600,6 +2602,7 @@ export const DocumentPrintingPage: React.FC = () => {
           customerPhone={customerPhone}
           paymentMethod={successData.paymentMethod}
           paymentStatus={successData.paymentStatus}
+          razorpayPaymentId={successData.razorpayPaymentId}
         />
       )}
     </div>

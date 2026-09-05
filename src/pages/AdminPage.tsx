@@ -2217,6 +2217,7 @@ export const AdminPage: React.FC = () => {
                     const positionInfo = queueStats.positionsMap.get(order.orderCode);
                     const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid" || isOrderPaidOnline(order);
                     const isOnlineOrder = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online" || isOrderPaidOnline(order);
+                    const rzpId = extractRazorpayId(order.orderNotes);
                     const isSelected = selectedOrderCode === order.orderCode;
                     const isDelivery = order.fulfillmentType === "delivery";
 
@@ -2332,6 +2333,16 @@ export const AdminPage: React.FC = () => {
                                   : (isPaid ? "Pay at Shop — Paid" : "Pay at Counter")}
                               </span>
                             </button>
+
+                            {rzpId && (
+                              <span
+                                className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 select-all"
+                                title="Razorpay Payment Transaction Number"
+                              >
+                                <span>Txn:</span>
+                                <span>{rzpId}</span>
+                              </span>
+                            )}
 
                             <span className="text-xs font-black text-slate-900 px-1">
                               ₹{order.totalAmount}

@@ -67,6 +67,7 @@ export const CheckoutPage: React.FC = () => {
     paymentStatus: string;
     totalAmount: number;
     fulfillmentType: string;
+    razorpayPaymentId?: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,6 +172,7 @@ export const CheckoutPage: React.FC = () => {
           paymentStatus: order.paymentStatus,
           totalAmount: order.totalAmount,
           fulfillmentType: order.fulfillmentType,
+          razorpayPaymentId,
         });
         clearCheckoutSubmissionId();
         clearCart();
@@ -313,6 +315,14 @@ export const CheckoutPage: React.FC = () => {
                     : (currentLang === "hi" ? "⏳ दुकान पर भुगतान (बाकी)" : "⏳ Pay at Shop (Pending)")}
                 </span>
               </div>
+              {placedOrder.razorpayPaymentId && (
+                <div className="flex items-center justify-between text-xs font-mono pt-0.5">
+                  <span className="text-slate-500 font-sans font-medium">Payment Txn No:</span>
+                  <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 select-all">
+                    {placedOrder.razorpayPaymentId}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-500 font-medium">Collection:</span>
                 <span className="font-bold text-slate-800">

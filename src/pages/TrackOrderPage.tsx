@@ -7,7 +7,7 @@ import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type Store
 import { fetchPublicTracking, getInvoiceByOrderCode, type PublicTrackingResponse } from "../lib/supabase/database";
 import { OrderTimeline } from "../components/OrderTimeline";
 import { getWhatsAppLink } from "../config/business";
-import { getSingleOrderQueueInfo } from "../lib/queue";
+import { getSingleOrderQueueInfo, extractRazorpayId } from "../lib/queue";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
@@ -251,6 +251,14 @@ export const TrackOrderPage: React.FC = () => {
                           ? "PAY AT SHOP — PAID"
                           : "PAY AT SHOP — PENDING")}
                   </div>
+                  {(() => {
+                    const rzpId = extractRazorpayId(rpcTrackingResult.record.orderNotes);
+                    return rzpId ? (
+                      <div className="text-[10px] font-mono text-emerald-800 font-bold mt-0.5 pt-0.5 border-t border-slate-200/80">
+                        Txn: <span className="select-all">{rzpId}</span>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
               </div>
             </div>
@@ -431,6 +439,14 @@ export const TrackOrderPage: React.FC = () => {
                         ? (isPaid ? "PAID ONLINE" : "ONLINE — PENDING")
                         : (isPaid ? "PAY AT SHOP — PAID" : "PAY AT SHOP — PENDING")}
                     </div>
+                    {(() => {
+                      const rzpId = extractRazorpayId(order.orderNotes);
+                      return rzpId ? (
+                        <div className="text-[10px] font-mono text-emerald-800 font-bold mt-0.5 pt-0.5 border-t border-slate-200/80">
+                          Txn: <span className="select-all">{rzpId}</span>
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
 
                   <a

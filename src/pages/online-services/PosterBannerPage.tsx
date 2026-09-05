@@ -112,6 +112,7 @@ export const PosterBannerPage: React.FC = () => {
     specifications: Record<string, string>;
     paymentMethod: string;
     paymentStatus: string;
+    razorpayPaymentId?: string;
   } | null>(null);
 
   const sizeObj = SIZES.find((s) => s.id === selectedSize) || SIZES[1];
@@ -263,6 +264,7 @@ export const PosterBannerPage: React.FC = () => {
             specifications,
             paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_shop",
             paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+            razorpayPaymentId,
           });
         } else {
           setSubmitError(res.error || "Failed to submit request.");
@@ -721,6 +723,7 @@ export const PosterBannerPage: React.FC = () => {
           customerPhone={customerPhone}
           paymentMethod={successData.paymentMethod}
           paymentStatus={successData.paymentStatus}
+          razorpayPaymentId={(successData as any).razorpayPaymentId}
         />
       )}
     </div>

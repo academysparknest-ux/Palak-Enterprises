@@ -3,6 +3,7 @@ import type { StoredInvoice } from "../../lib/invoice/types";
 import { numberToIndianRupeesWords, formatCurrency } from "../../lib/invoice/invoiceStore";
 import { CheckCircle2, AlertCircle, Phone, Mail, MapPin, Clock, ShieldCheck } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { extractRazorpayId } from "../../lib/queue";
 import { InvoiceQRCode } from "./InvoiceQRCode";
 import { OWNER_SIGNATURE_ONLINE_URL, OWNER_SIGNATURE_LOCAL_URL, business, businessConfig } from "../../config/business";
 
@@ -222,6 +223,17 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({
                     {invoice.paymentMethod ? invoice.paymentMethod.replace(/_/g, " ") : "PAY AT STORE"}
                   </span>
                 </div>
+                {(() => {
+                  const rzpId = extractRazorpayId(invoice.notes) || (invoice.paymentReference && invoice.paymentReference.startsWith("pay_") ? invoice.paymentReference : null);
+                  return rzpId ? (
+                    <div className="col-span-2 flex items-center justify-between pt-0.5 font-mono text-[10px]">
+                      <span className="text-slate-500 font-sans">Payment Txn No:</span>
+                      <span className="font-black text-emerald-800 bg-white px-1.5 py-0.2 rounded border border-slate-200 select-all">
+                        {rzpId}
+                      </span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             </div>
 

@@ -559,7 +559,7 @@ export class PalakInvoiceStore {
           status: invData.status || "ISSUED",
           signatureUrl: invData.signature_url || OWNER_SIGNATURE_ONLINE_URL,
           createdBy: invData.created_by || performedBy,
-          notes: invData.notes,
+          notes: invData.notes || order.orderNotes,
           syncStatus: "SYNCED",
           isTemporary: false,
           createdAt: invData.created_at || now,

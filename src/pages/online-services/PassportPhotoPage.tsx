@@ -104,6 +104,7 @@ export const PassportPhotoPage: React.FC = () => {
     specifications: Record<string, string>;
     paymentMethod: string;
     paymentStatus: string;
+    razorpayPaymentId?: string;
   } | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,6 +262,7 @@ export const PassportPhotoPage: React.FC = () => {
             specifications,
             paymentMethod: paymentMethod === "pay_online" ? "upi_online" : "pay_at_shop",
             paymentStatus: razorpayPaymentId ? "confirmed" : "pending",
+            razorpayPaymentId,
           });
         } else {
           setSubmitError(res.error || "Failed to submit order.");
@@ -860,6 +862,7 @@ export const PassportPhotoPage: React.FC = () => {
           customerPhone={customerPhone}
           paymentMethod={successData.paymentMethod}
           paymentStatus={successData.paymentStatus}
+          razorpayPaymentId={(successData as any).razorpayPaymentId}
         />
       )}
     </div>
