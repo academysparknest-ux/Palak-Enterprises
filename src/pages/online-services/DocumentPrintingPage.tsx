@@ -1028,9 +1028,6 @@ export const DocumentPrintingPage: React.FC = () => {
       tracer.endStep("document_processing", true);
       if (abortController.signal.aborted) return;
 
-      // 5. ORDER CREATION
-      transitionTo("ORDER_CREATING", "Submitting authoritative order transaction");
-
       const createOrderRecord = async (razorpayPaymentId?: string) => {
         tracer.startStep("order_transaction", "ORDER_CREATING");
         const orderNotesWithPayment = razorpayPaymentId
@@ -1088,16 +1085,13 @@ export const DocumentPrintingPage: React.FC = () => {
       };
 
       if (paymentMethod === "pay_online") {
-        // Create order in pending state first
-        const confirmedCode = await createOrderRecord();
-
-        // 6. ONLINE PAYMENT GATEWAY
+        // 5. ONLINE PAYMENT GATEWAY - Open Razorpay BEFORE creating order in database!
         transitionTo("PAYMENT_PENDING", "Opening secure payment gateway");
 
         await initiateRazorpayPayment({
           amount: finalSnapshot.grandTotal,
           name: "Palak Enterprises",
-          orderCode: confirmedCode,
+          orderCode: subId,
           description: `Document Print Order (${finalSnapshot.totalPrintedPages} pages)`,
           prefill: {
             name: customerName.trim(),
@@ -1106,7 +1100,8 @@ export const DocumentPrintingPage: React.FC = () => {
           },
           onSuccess: async (paymentId) => {
             transitionTo("PAYMENT_PROCESSING", "Verifying payment confirmation");
-            await createOrderRecord(paymentId);
+            transitionTo("ORDER_CREATING", "Submitting authoritative order transaction");
+            const confirmedCode = await createOrderRecord(paymentId);
             transitionTo("COMPLETED", "Order confirmed & payment verified");
             tracer.summarize();
             clearActiveSubmissionSession();
@@ -1127,55 +1122,33 @@ export const DocumentPrintingPage: React.FC = () => {
             isSubmittingLockRef.current = false;
           },
           onDismiss: () => {
-            // Payment dismissed -> order is already created in pending state
-            transitionTo("COMPLETED", "Order confirmed (Payment pending at counter)");
-            tracer.summarize();
+            // Payment dismissed by user - DO NOT CREATE ORDER IN DATABASE
+            setSubmitError(
+              currentLang === "hi"
+                ? "ऑनलाइन भुगतान रद्द कर दिया गया। आपका ऑर्डर सबमिट नहीं हुआ। आप पुनः प्रयास कर सकते हैं या 'दुकान पर भुगतान' चुन सकते हैं।"
+                : "Online payment was cancelled. Your order was not submitted. You can try again or select 'Pay on Pickup'."
+            );
+            setSubmissionState("IDLE");
             clearActiveSubmissionSession();
-            clearDocPrintSubmissionId();
-            setActiveSubmissionId(generateUniqueSubmissionId());
-
-            setSuccessData({
-              isOpen: true,
-              orderCode: confirmedCode,
-              totalAmount: finalSnapshot.grandTotal,
-              docType: getDocTypeLabel(),
-              specifications,
-              finishingSelected: [],
-              printSnapshot: finalSnapshot,
-              paymentMethod: "Pay on Pickup",
-              paymentStatus: "Pending (Pay at Store)",
-            });
             isSubmittingLockRef.current = false;
           },
           onError: (err) => {
+            // Payment error - DO NOT CREATE ORDER IN DATABASE
             setSubmitError(
               err?.description ||
+                err?.message ||
                 (currentLang === "hi"
-                  ? "ऑनलाइन भुगतान में त्रुटि हुई। आप दुकान पर भुगतान कर सकते हैं।"
-                  : "Online payment was not completed. You can pay at the counter.")
+                  ? "ऑनलाइन भुगतान असफल रहा। आपका ऑर्डर सबमिट नहीं हुआ। कृपया पुनः प्रयास करें या 'दुकान पर भुगतान' चुनें।"
+                  : "Online payment failed. Your order was not submitted. Please try again or select 'Pay on Pickup'.")
             );
-            transitionTo("COMPLETED", "Order confirmed (Pay at pickup)");
-            tracer.summarize();
+            setSubmissionState("IDLE");
             clearActiveSubmissionSession();
-            clearDocPrintSubmissionId();
-            setActiveSubmissionId(generateUniqueSubmissionId());
-
-            setSuccessData({
-              isOpen: true,
-              orderCode: confirmedCode,
-              totalAmount: finalSnapshot.grandTotal,
-              docType: getDocTypeLabel(),
-              specifications,
-              finishingSelected: [],
-              printSnapshot: finalSnapshot,
-              paymentMethod: "Pay on Pickup",
-              paymentStatus: "Pending (Pay at Store)",
-            });
             isSubmittingLockRef.current = false;
           },
         });
       } else {
-        // Pay on Pickup Flow
+        // Pay on Pickup Flow - Only create order when user explicitly chooses Pay on Pickup
+        transitionTo("ORDER_CREATING", "Submitting authoritative order transaction");
         const confirmedCode = await createOrderRecord();
         transitionTo("COMPLETED", "Order confirmed in normal print queue");
         tracer.summarize();
