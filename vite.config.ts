@@ -2,7 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-import { handleCreateOrder, handleVerifyPayment } from './api/_razorpayServer.ts'
+import handleCreateOrder from './api/create-order.ts'
+import handleVerifyPayment from './api/verify-payment.ts'
 
 function razorpayDevApi() {
   return {

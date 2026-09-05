@@ -1,5 +1,104 @@
-import { handleCreateOrder } from "./_razorpayServer.ts";
-
 export default async function handler(req: any, res: any) {
-  return handleCreateOrder(req, res);
+  // Set CORS headers
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") {
+    if (typeof res.status === "function") return res.status(204).end();
+    res.writeHead(204);
+    return res.end();
+  }
+
+  if (req.method !== "POST") {
+    const errorMsg = { error: "Method Not Allowed. Use POST." };
+    if (typeof res.status === "function") return res.status(405).json(errorMsg);
+    res.writeHead(405, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify(errorMsg));
+  }
+
+  const keyId = (process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || "").trim();
+  const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+
+  if (!keyId || !keySecret) {
+    const errorMsg = { error: "Unauthorized: Razorpay credentials are not configured on server." };
+    if (typeof res.status === "function") return res.status(401).json(errorMsg);
+    res.writeHead(401, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify(errorMsg));
+  }
+
+  // Parse body safely
+  let body = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      body = {};
+    }
+  } else if (!body) {
+    body = await new Promise((resolve) => {
+      let data = "";
+      req.on("data", (chunk: any) => { data += chunk; });
+      req.on("end", () => {
+        try { resolve(data ? JSON.parse(data) : {}); } catch { resolve({}); }
+      });
+      req.on("error", () => resolve({}));
+    });
+  }
+
+  const amount = Number(body?.amount);
+  const currency = (body?.currency || "INR").toString().toUpperCase();
+  const receipt = body?.receipt ? String(body.receipt).slice(0, 40) : `rcpt_${Date.now()}`;
+  const notes = body?.notes || {};
+
+  if (isNaN(amount) || amount < 100) {
+    const errorMsg = { error: "Invalid amount: Minimum amount must be at least 100 paise (₹1.00)." };
+    if (typeof res.status === "function") return res.status(400).json(errorMsg);
+    res.writeHead(400, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify(errorMsg));
+  }
+
+  try {
+    const authHeader = "Basic " + Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    const rzpResponse = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": authHeader,
+      },
+      body: JSON.stringify({
+        amount: Math.round(amount),
+        currency,
+        receipt,
+        notes,
+      }),
+    });
+
+    const responseData: any = await rzpResponse.json();
+
+    if (!rzpResponse.ok) {
+      const errorText = responseData?.error?.description || responseData?.message || "Razorpay API error";
+      const status = rzpResponse.status === 401 ? 401 : 500;
+      if (typeof res.status === "function") return res.status(status).json({ error: errorText });
+      res.writeHead(status, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: errorText }));
+    }
+
+    const payload = {
+      order_id: responseData.id,
+      amount: responseData.amount,
+      currency: responseData.currency,
+      receipt: responseData.receipt,
+    };
+
+    if (typeof res.status === "function") return res.status(200).json(payload);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify(payload));
+  } catch (error: any) {
+    console.error("Order creation error:", error);
+    const errorMsg = { error: error?.message || "Internal server error creating order" };
+    if (typeof res.status === "function") return res.status(500).json(errorMsg);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify(errorMsg));
+  }
 }

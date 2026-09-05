@@ -1,4 +1,5 @@
-import { handleCreateOrder, handleVerifyPayment, getRazorpayCredentials } from "../api/_razorpayServer.ts";
+import handleCreateOrder from "../api/create-order.ts";
+import handleVerifyPayment from "../api/verify-payment.ts";
 import crypto from "crypto";
 
 // Mock helper to simulate HTTP request and response objects
@@ -64,7 +65,28 @@ async function runTests() {
   console.log("   RAZORPAY INTEGRATION VERIFICATION TEST ");
   console.log("==========================================\n");
 
-  const { keyId, keySecret } = getRazorpayCredentials();
+  // Ensure .env is loaded
+  try {
+    const fs = await import("fs");
+    const path = await import("path");
+    const envPath = path.resolve(process.cwd(), ".env");
+    if (fs.existsSync(envPath)) {
+      const lines = fs.readFileSync(envPath, "utf-8").split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx !== -1) {
+          const k = trimmed.slice(0, eqIdx).trim();
+          const v = trimmed.slice(eqIdx + 1).trim();
+          if (!process.env[k]) process.env[k] = v;
+        }
+      }
+    }
+  } catch {}
+
+  const keyId = (process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || "").trim();
+  const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
   console.log("✓ Loaded credentials from environment:");
   console.log(`  KEY_ID: ${keyId}`);
   console.log(`  KEY_SECRET: ${keySecret ? "********" + keySecret.slice(-4) : "MISSING"}\n`);
