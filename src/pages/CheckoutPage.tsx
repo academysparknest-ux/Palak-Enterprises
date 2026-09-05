@@ -182,6 +182,7 @@ export const CheckoutPage: React.FC = () => {
           amount: chargesBreakdown.grandTotal,
           name: "Palak Enterprises",
           description: `Order checkout (${items.length} item${items.length > 1 ? "s" : ""})`,
+          orderCode: activeSubmissionId,
           prefill: {
             name: customerName.trim(),
             email: customerEmail.trim(),
@@ -196,8 +197,9 @@ export const CheckoutPage: React.FC = () => {
           onError: (err) => {
             setError(
               err?.description ||
+                err?.message ||
                 (currentLang === "hi"
-                  ? "भुगतान रद्द हुआ। आप पुनः प्रयास कर सकते हैं या 'दुकान पर भुगतान (Pay on Pickup)' चुन सकते हैं।"
+                  ? "भुगतान रद्द हुआ या असफल रहा। आप पुनः प्रयास कर सकते हैं या 'दुकान पर भुगतान (Pay on Pickup)' चुन सकते हैं।"
                   : "Payment was cancelled or failed. You can try again or choose 'Pay on Pickup'.")
             );
             setIsSubmitting(false);

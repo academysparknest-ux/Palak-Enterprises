@@ -48,7 +48,7 @@ export const loadRazorpayScript = (): Promise<boolean> => {
 
 export const getRazorpayKey = (): string => {
   const envKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || "").trim();
-  return envKey || "rzp_test_TQq5XDAdzNen1K";
+  return envKey || "rzp_live_TYE05N6VPfRyrg";
 };
 
 export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise<boolean> => {
@@ -65,18 +65,77 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
   // Razorpay minimum transaction amount is 100 paise (₹1.00)
   const amountInPaise = Math.max(100, Math.round(Number(options.amount || 0) * 100));
 
+  // STEP 1: Call Backend to Create Order
+  let orderData: { order_id: string; amount: number; currency: string };
+  try {
+    const orderRes = await fetch("/api/create-order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: amountInPaise,
+        currency: options.currency || "INR",
+        receipt: options.orderCode || `rcpt_${Date.now()}`,
+        notes: {
+          order_code: options.orderCode || "",
+        },
+      }),
+    });
+
+    if (!orderRes.ok) {
+      const errData = await orderRes.json().catch(() => ({}));
+      throw new Error(errData.error || `Failed to create payment order (Status ${orderRes.status})`);
+    }
+
+    orderData = await orderRes.json();
+  } catch (err: any) {
+    if (options.onError) {
+      options.onError(err);
+    }
+    throw err;
+  }
+
+  // STEP 2: Configure Razorpay modal with order_id
   const rzpOptions = {
     key: key,
-    amount: amountInPaise,
-    currency: options.currency || "INR",
+    order_id: orderData.order_id,
+    amount: orderData.amount || amountInPaise,
+    currency: orderData.currency || "INR",
     name: options.name || "Palak Enterprises",
     description: options.description || `Payment #${options.orderCode || ""}`.trim(),
     image: "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/printer.svg",
-    handler: function (response: any) {
-      if (response && response.razorpay_payment_id) {
-        options.onSuccess(response.razorpay_payment_id, response);
-      } else {
-        options.onSuccess(`pay_test_${Date.now()}`, response);
+    handler: async function (response: {
+      razorpay_payment_id: string;
+      razorpay_order_id: string;
+      razorpay_signature: string;
+    }) {
+      try {
+        // STEP 3: Verify payment signature on backend
+        const verifyRes = await fetch("/api/verify-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          }),
+        });
+
+        const verifyData = await verifyRes.json().catch(() => ({}));
+        if (!verifyRes.ok || !verifyData.success) {
+          const verifyMsg = verifyData.error || verifyData.message || "Payment verification failed. Invalid signature.";
+          throw new Error(verifyMsg);
+        }
+
+        // Only fire success callback if signature was verified successfully
+        options.onSuccess(response.razorpay_payment_id, {
+          ...response,
+          verification: verifyData,
+        });
+      } catch (verifyErr: any) {
+        console.error("Razorpay signature verification error:", verifyErr);
+        if (options.onError) {
+          options.onError(verifyErr);
+        }
       }
     },
     prefill: {
@@ -86,6 +145,7 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
     },
     notes: {
       order_code: options.orderCode || "",
+      razorpay_order_id: orderData.order_id,
     },
     theme: {
       color: "#123B70",
@@ -135,8 +195,9 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
   try {
     const razorpayInstance = new (window as any).Razorpay(rzpOptions);
     razorpayInstance.on("payment.failed", function (resp: any) {
+      console.error("Razorpay payment failed event:", resp.error);
       if (options.onError) {
-        options.onError(resp.error);
+        options.onError(resp.error || new Error("Payment transaction failed."));
       }
     });
 
@@ -149,4 +210,3 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
     throw err;
   }
 };
-
