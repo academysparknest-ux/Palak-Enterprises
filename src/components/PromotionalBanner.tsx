@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Sparkles, X, ArrowRight, Tag, MessageCircle, Eye } from "lucide-react";
+import { Sparkles, X, ArrowRight, MessageCircle, Tag } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { getWhatsAppLink } from "../config/business";
@@ -12,25 +12,32 @@ interface PromoData {
   is_active: boolean;
 }
 
-const POPUP_SEEN_KEY = "palak_promo_popup_seen";
+const POPUP_DISMISS_KEY = "palak_promo_popup_dismissed_v1";
 
 export const PromotionalBanner: React.FC = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
   const [promo, setPromo] = useState<PromoData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showPopup, setShowPopup] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasDismissed, setHasDismissed] = useState(false);
 
+  // Fetch promo content from Supabase
   useEffect(() => {
     let isMounted = true;
 
+    // Check if dismissed in this browser session
+    try {
+      if (sessionStorage.getItem(POPUP_DISMISS_KEY) === "true") {
+        setHasDismissed(true);
+      }
+    } catch {
+      // ignore
+    }
+
     const fetchPromo = async () => {
       try {
-        if (!isSupabaseConfigured || !supabase) {
-          if (isMounted) setLoading(false);
-          return;
-        }
+        if (!isSupabaseConfigured || !supabase) return;
 
         const { data, error } = await supabase
           .from("website_content")
@@ -39,8 +46,7 @@ export const PromotionalBanner: React.FC = () => {
           .single();
 
         if (error) {
-          console.debug("[PromotionalBanner] Fetch notice:", error.message);
-          if (isMounted) setLoading(false);
+          console.debug("[PromotionalPopup] Notice:", error.message);
           return;
         }
 
@@ -52,21 +58,22 @@ export const PromotionalBanner: React.FC = () => {
             image: content.image || "",
             is_active: Boolean(data.is_active),
           };
+
           setPromo(promoItem);
 
-          // If image is present and user hasn't closed popup in this session, trigger popup
-          if (promoItem.image && sessionStorage.getItem(POPUP_SEEN_KEY) !== "true") {
+          // Automatically open popup if active and image exists
+          const isSessionDismissed = sessionStorage.getItem(POPUP_DISMISS_KEY) === "true";
+          if (promoItem.image && !isSessionDismissed) {
+            // Slight delay for smooth entrance after page paints
             setTimeout(() => {
               if (isMounted) {
-                setShowPopup(true);
+                setIsOpen(true);
               }
-            }, 600);
+            }, 500);
           }
         }
       } catch (err) {
-        console.warn("[PromotionalBanner] Error:", err);
-      } finally {
-        if (isMounted) setLoading(false);
+        console.warn("[PromotionalPopup] Error loading promo:", err);
       }
     };
 
@@ -77,24 +84,44 @@ export const PromotionalBanner: React.FC = () => {
     };
   }, []);
 
-  const handleClosePopup = () => {
-    setShowPopup(false);
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+    setHasDismissed(true);
     try {
-      sessionStorage.setItem(POPUP_SEEN_KEY, "true");
+      sessionStorage.setItem(POPUP_DISMISS_KEY, "true");
     } catch {
       // ignore
     }
-  };
+  }, []);
 
-  if (loading || !promo || !promo.is_active) {
-    return null;
-  }
+  const handleOpen = useCallback(() => {
+    setIsOpen(true);
+  }, []);
 
-  const hasHeading = Boolean(promo.heading?.trim());
-  const hasDescription = Boolean(promo.description?.trim());
-  const hasImage = Boolean(promo.image?.trim());
+  // Lock body scroll when popup is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
 
-  if (!hasHeading && !hasDescription && !hasImage) {
+  // Handle ESC key to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, handleClose]);
+
+  if (!promo || !promo.is_active || !promo.image) {
     return null;
   }
 
@@ -104,82 +131,88 @@ export const PromotionalBanner: React.FC = () => {
   return (
     <>
       {/* =========================================================================
-          1. POPUP MODAL (Triggers automatically if promotional graphic is active)
+          LIGHTBOX POPUP MODAL (School / Notice Pop-Up Style like Roshni Public School)
          ========================================================================= */}
-      {showPopup && hasImage && (
+      {isOpen && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-300"
-          onClick={handleClosePopup}
+          aria-label={promo.heading || "Special Offer Popup"}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={handleClose}
         >
+          {/* Centered Modal Card */}
           <div
-            className="relative max-w-lg w-full rounded-2xl sm:rounded-3xl bg-white overflow-hidden shadow-2xl border-2 border-amber-300/90 animate-in zoom-in-95 duration-300"
+            className="relative max-w-xl sm:max-w-2xl w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border-2 border-amber-400/90 animate-in zoom-in-95 duration-250"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Top Close Button */}
+            {/* Prominent Circular Floating Close Button (Top-Right) */}
             <button
               type="button"
-              onClick={handleClosePopup}
-              aria-label="Close promotion popup"
-              className="absolute top-2.5 right-2.5 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/80 hover:bg-slate-900 text-white shadow-md transition-transform hover:scale-105 cursor-pointer"
+              onClick={handleClose}
+              aria-label="Close popup"
+              className="absolute top-2.5 right-2.5 sm:top-3.5 sm:right-3.5 z-30 flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white shadow-xl ring-2 ring-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5 sm:h-6 sm:w-6 stroke-[2.5]" />
             </button>
 
-            {/* Banner Image Container */}
-            <div className="relative bg-slate-950 flex items-center justify-center max-h-[60vh] overflow-hidden">
+            {/* Clickable Banner Image */}
+            <Link
+              to="/printing"
+              onClick={handleClose}
+              className="block relative bg-slate-950 max-h-[72vh] overflow-hidden group cursor-pointer"
+              title="Click to explore printing offers"
+            >
               <img
                 src={promo.image}
-                alt={promo.heading || "Special Offer"}
-                className="w-full max-h-[55vh] object-contain"
+                alt={promo.heading || "Special Promotional Offer"}
+                className="w-full h-auto max-h-[72vh] object-contain mx-auto block group-hover:opacity-95 transition-opacity"
                 loading="eager"
               />
-            </div>
+            </Link>
 
-            {/* Modal Bottom Content */}
-            <div className="p-4 sm:p-5 bg-linear-to-b from-amber-50/60 to-white border-t border-amber-200/60 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-900 border border-amber-400/40">
-                  <Sparkles className="h-3 w-3 text-amber-600 shrink-0" />
+            {/* Bottom Action Strip */}
+            <div className="bg-linear-to-r from-amber-50 via-white to-amber-50 px-4 py-3 sm:px-5 sm:py-3.5 border-t border-amber-200 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full border border-amber-300">
+                  <Sparkles className="w-3 h-3 text-amber-700" />
                   <span>{currentLang === "hi" ? "विशेष ऑफर" : "Special Offer"}</span>
-                </div>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  {currentLang === "hi" ? "सीमित समय के लिए" : "Limited Time"}
                 </span>
+                {promo.heading && (
+                  <span className="text-xs sm:text-sm font-bold text-slate-800 truncate max-w-[180px] sm:max-w-[260px]">
+                    {promo.heading}
+                  </span>
+                )}
               </div>
 
-              {hasHeading && (
-                <h3 className="text-base sm:text-lg font-black tracking-tight text-slate-900">
-                  {promo.heading}
-                </h3>
-              )}
-
-              {hasDescription && (
-                <p className="text-xs sm:text-sm text-slate-600 line-clamp-2">
-                  {promo.description}
-                </p>
-              )}
-
-              <div className="pt-1 flex items-center gap-2.5">
+              <div className="flex items-center gap-2 ml-auto">
                 <Link
                   to="/printing"
-                  onClick={handleClosePopup}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#123B70] hover:bg-[#0e2f5a] text-white py-2.5 px-3 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95"
+                  onClick={handleClose}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#123B70] hover:bg-[#0c2a52] text-white px-3.5 py-2 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95 cursor-pointer"
                 >
-                  <Tag className="h-4 w-4" />
+                  <Tag className="w-3.5 h-3.5" />
                   <span>{currentLang === "hi" ? "ऑर्डर करें" : "Order Now"}</span>
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
+
                 <a
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3.5 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95 cursor-pointer"
                 >
-                  <MessageCircle className="h-4 w-4" />
+                  <MessageCircle className="w-3.5 h-3.5" />
                   <span>{currentLang === "hi" ? "व्हाट्सएप" : "WhatsApp"}</span>
                 </a>
+
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="px-3 py-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {currentLang === "hi" ? "बंद करें" : "Close"}
+                </button>
               </div>
             </div>
           </div>
@@ -187,91 +220,19 @@ export const PromotionalBanner: React.FC = () => {
       )}
 
       {/* =========================================================================
-          2. INLINE HOMEPAGE BANNER CARD (Always displayed on Homepage)
+          Floating Reopen Pill (Only shown if user dismissed the popup so they can reopen it)
          ========================================================================= */}
-      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border-2 border-amber-300/80 bg-linear-to-r from-amber-500/10 via-amber-400/5 to-blue-500/10 p-4 sm:p-6 shadow-md transition-all duration-300">
-        {/* Ambient background glow */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-amber-400/20 blur-2xl"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-blue-500/15 blur-2xl"
-        />
-
-        <div className="relative flex flex-col md:flex-row items-center gap-5 sm:gap-6 justify-between">
-          {/* Banner Graphic Preview */}
-          {hasImage && (
-            <div
-              onClick={() => setShowPopup(true)}
-              className="w-full md:w-5/12 lg:w-4/12 shrink-0 flex items-center justify-center overflow-hidden rounded-xl bg-white/80 p-1.5 shadow-xs border border-amber-200 cursor-pointer group hover:border-amber-400 transition-colors"
-              title="Click to view full banner"
-            >
-              <img
-                src={promo.image}
-                alt={promo.heading || "Special Offer"}
-                className="max-h-[180px] sm:max-h-[200px] w-full object-contain rounded-lg transition-transform duration-300 group-hover:scale-[1.02]"
-                loading="lazy"
-              />
-            </div>
-          )}
-
-          {/* Text Content */}
-          <div className="flex-1 space-y-2 text-center md:text-left pr-0 md:pr-4">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-3 py-1 text-[11px] sm:text-xs font-extrabold text-amber-900 border border-amber-400/40 shadow-2xs">
-              <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-              <span>
-                {currentLang === "hi" ? "विशेष ऑफर एवं छूट" : "Special Promotional Offer"}
-              </span>
-            </div>
-
-            {hasHeading && (
-              <h3 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900">
-                {promo.heading}
-              </h3>
-            )}
-
-            {hasDescription && (
-              <p className="text-xs sm:text-sm font-medium text-slate-700 max-w-2xl leading-relaxed">
-                {promo.description}
-              </p>
-            )}
-
-            <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-2.5 sm:gap-3">
-              <Link
-                to="/printing"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#123B70] hover:bg-[#0e2f5a] text-white px-4 py-2 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95 cursor-pointer"
-              >
-                <Tag className="h-3.5 w-3.5" />
-                <span>{currentLang === "hi" ? "ऑर्डर करें" : "Order Now"}</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95 cursor-pointer"
-              >
-                <MessageCircle className="h-4 w-4" />
-                <span>{currentLang === "hi" ? "व्हाट्सएप पर पूछें" : "WhatsApp"}</span>
-              </a>
-
-              {hasImage && (
-                <button
-                  type="button"
-                  onClick={() => setShowPopup(true)}
-                  className="inline-flex items-center gap-1 rounded-xl bg-white/80 hover:bg-white text-slate-700 px-3 py-2 text-xs font-semibold shadow-xs border border-slate-200 transition-colors cursor-pointer"
-                >
-                  <Eye className="h-3.5 w-3.5 text-[#123B70]" />
-                  <span>{currentLang === "hi" ? "बैनर देखें" : "View Banner"}</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {!isOpen && hasDismissed && (
+        <button
+          type="button"
+          onClick={handleOpen}
+          className="fixed bottom-20 left-4 z-40 inline-flex items-center gap-2 rounded-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-3.5 py-2 text-xs font-bold shadow-lg ring-2 ring-white/80 hover:scale-105 active:scale-95 transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-3 duration-300"
+          title="Click to view special promotional offer"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-100 animate-pulse" />
+          <span>{currentLang === "hi" ? "विशेष ऑफर देखें" : "Special Offer"}</span>
+        </button>
+      )}
     </>
   );
 };

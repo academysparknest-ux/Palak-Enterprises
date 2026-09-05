@@ -95,8 +95,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
       {/* 1. Hero Section */}
       <Hero onOpenRequestModal={onOpenRequestModal} />
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 space-y-12 sm:space-y-16">
-        {/* Promotional Banner (Admin Managed) */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 space-y-16 sm:space-y-20">
+        {/* Promotional Pop-Up Modal (School / Notice style) */}
         <PromotionalBanner />
 
         {/* 2. Main 4 Service Category Cards */}
