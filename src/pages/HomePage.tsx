@@ -20,6 +20,7 @@ import { ProductCard } from "../components/ProductCard";
 import { DigitalServiceCard } from "../components/DigitalServiceCard";
 import { ScrollReveal } from "../components/ui/motion/ScrollReveal";
 import { PalakDataStore } from "../lib/storage/store";
+import { PromotionalBanner } from "../components/PromotionalBanner";
 import { business, businessConfig, getWhatsAppLink, getDirectionsLink } from "../config/business";
 import { cn } from "../lib/utils";
 import { SEO } from "../components/SEO";
@@ -94,7 +95,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
       {/* 1. Hero Section */}
       <Hero onOpenRequestModal={onOpenRequestModal} />
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 space-y-16 sm:space-y-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 space-y-12 sm:space-y-16">
+        {/* Promotional Banner (Admin Managed) */}
+        <ScrollReveal direction="up" distancePx={16}>
+          <PromotionalBanner />
+        </ScrollReveal>
+
         {/* 2. Main 4 Service Category Cards */}
         <ScrollReveal direction="up" distancePx={20}>
           <section className="space-y-6">

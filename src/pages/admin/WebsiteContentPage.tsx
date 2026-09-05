@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { useAuth } from '../../context/AuthContext';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useToast } from '../../components/admin/AdminToast';
 import { logAdminAudit } from '../../lib/supabase/database';
-import { formatAdminErrorMessage } from '../../lib/utils';
-import { Save, Image as ImageIcon } from 'lucide-react';
+import { formatAdminErrorMessage, cn } from '../../lib/utils';
+import { Save, Image as ImageIcon, UploadCloud, Trash2, RefreshCw } from 'lucide-react';
 
 interface BusinessInfo {
   phone: string;
@@ -49,6 +49,120 @@ export const WebsiteContentPage: React.FC = () => {
   const [heroId, setHeroId] = useState<string | null>(null);
   const [promoId, setPromoId] = useState<string | null>(null);
   const [businessInfoExists, setBusinessInfoExists] = useState(false);
+  const [promoImageUploading, setPromoImageUploading] = useState(false);
+  const [isPromoDragging, setIsPromoDragging] = useState(false);
+  const [showPromoUrlInput, setShowPromoUrlInput] = useState(false);
+  const promoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const validatePromoImage = (file: File): boolean => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      addToast({
+        title: 'Invalid File Type',
+        message: 'Please upload a valid image file (PNG, JPG, WebP, SVG, or GIF).',
+        type: 'error',
+      });
+      return false;
+    }
+    // 10MB limit
+    if (file.size > 10 * 1024 * 1024) {
+      addToast({
+        title: 'File Too Large',
+        message: 'Banner image size must be under 10MB.',
+        type: 'error',
+      });
+      return false;
+    }
+    return true;
+  };
+
+  const handlePromoImageUpload = async (file: File) => {
+    if (!validatePromoImage(file)) return;
+
+    setPromoImageUploading(true);
+    try {
+      if (isSupabaseConfigured && supabase) {
+        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
+        const cleanName = file.name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 25);
+        const storagePath = `promo/${Date.now()}_${cleanName}.${fileExt}`;
+
+        // 1. Try public 'business-assets' bucket
+        const { error: uploadErr } = await supabase.storage
+          .from('business-assets')
+          .upload(storagePath, file, {
+            contentType: file.type || 'image/png',
+            cacheControl: '3600',
+            upsert: true,
+          });
+
+        if (!uploadErr) {
+          const { data: pubData } = supabase.storage
+            .from('business-assets')
+            .getPublicUrl(storagePath);
+
+          if (pubData?.publicUrl) {
+            setPromoContent((prev: any) => ({ ...prev, image: pubData.publicUrl }));
+            addToast({
+              type: 'success',
+              title: 'Image Uploaded Successfully',
+              message: 'Banner image uploaded to cloud storage.',
+            });
+            return;
+          }
+        } else {
+          console.warn('[Storage] business-assets upload notice:', uploadErr.message);
+        }
+
+        // 2. Fallback to 'idcard-assets' public bucket if needed
+        const { error: fallbackErr } = await supabase.storage
+          .from('idcard-assets')
+          .upload(`promo/${Date.now()}_${cleanName}.${fileExt}`, file, {
+            contentType: file.type || 'image/png',
+            upsert: true,
+          });
+
+        if (!fallbackErr) {
+          const { data: pubData } = supabase.storage
+            .from('idcard-assets')
+            .getPublicUrl(`promo/${Date.now()}_${cleanName}.${fileExt}`);
+
+          if (pubData?.publicUrl) {
+            setPromoContent((prev: any) => ({ ...prev, image: pubData.publicUrl }));
+            addToast({
+              type: 'success',
+              title: 'Image Uploaded Successfully',
+              message: 'Banner image uploaded to cloud storage.',
+            });
+            return;
+          }
+        }
+      }
+
+      // 3. Fallback: Base64 data URL if storage is unreachable or offline
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          setPromoContent((prev: any) => ({ ...prev, image: result }));
+          addToast({
+            type: 'success',
+            title: 'Image Loaded',
+            message: 'Image preview loaded locally.',
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('Error uploading promo image:', err);
+      addToast({
+        type: 'error',
+        title: 'Upload Failed',
+        message: err?.message || 'Could not upload banner image.',
+      });
+    } finally {
+      setPromoImageUploading(false);
+    }
+  };
 
   const fetchContent = React.useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -321,25 +435,141 @@ export const WebsiteContentPage: React.FC = () => {
                 />
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">Image URL</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                    <ImageIcon size={14} className="text-slate-400" />
-                  </div>
-                  <input
-                    type="text"
-                    value={promoContent.image}
-                    onChange={(e) => setPromoContent({ ...promoContent, image: e.target.value })}
-                    placeholder="https://..."
-                    className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
-                  />
-                </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <ImageIcon size={14} className="text-[#123B70]" />
+                  <span>Banner Image</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPromoUrlInput(!showPromoUrlInput)}
+                  className="text-[11px] text-[#123B70] hover:underline font-semibold cursor-pointer"
+                >
+                  {showPromoUrlInput ? 'Hide URL field' : 'Paste Image URL instead'}
+                </button>
               </div>
-              {promoContent.image && (
-                <div className="mt-1.5 h-24 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
-                  <img src={promoContent.image} alt="Promo preview" className="h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+
+              {/* Hidden File Input for Image Upload */}
+              <input
+                ref={promoFileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handlePromoImageUpload(file);
+                  e.target.value = '';
+                }}
+              />
+
+              {/* Upload Dropzone or Current Image Preview */}
+              {promoContent.image ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 space-y-2">
+                  <div className="relative h-28 sm:h-32 w-full rounded-lg bg-slate-900/5 border border-slate-200 overflow-hidden flex items-center justify-center group">
+                    <img
+                      src={promoContent.image}
+                      alt="Promo preview"
+                      className="max-h-full max-w-full object-contain"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-xs p-1 rounded-md">
+                      <button
+                        type="button"
+                        onClick={() => promoFileInputRef.current?.click()}
+                        disabled={promoImageUploading}
+                        className="p-1 rounded bg-white/20 hover:bg-white/40 text-white text-xs transition-colors cursor-pointer"
+                        title="Upload a different image"
+                      >
+                        <UploadCloud size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPromoContent({ ...promoContent, image: '' })}
+                        className="p-1 rounded bg-rose-600/80 hover:bg-rose-600 text-white text-xs transition-colors cursor-pointer"
+                        title="Remove banner image"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="truncate max-w-[220px] font-mono text-[10px] text-slate-600">
+                      {promoContent.image.startsWith('data:') ? 'Local preview data' : promoContent.image}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => promoFileInputRef.current?.click()}
+                      disabled={promoImageUploading}
+                      className="text-[#123B70] font-bold hover:underline cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      <UploadCloud size={13} />
+                      <span>Change Image</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsPromoDragging(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setIsPromoDragging(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsPromoDragging(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handlePromoImageUpload(file);
+                  }}
+                  onClick={() => promoFileInputRef.current?.click()}
+                  className={cn(
+                    "border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 min-h-[120px]",
+                    isPromoDragging
+                      ? "border-[#123B70] bg-blue-50/50 scale-[1.01]"
+                      : "border-slate-300 hover:border-[#123B70] hover:bg-slate-50/80 bg-slate-50/40"
+                  )}
+                >
+                  {promoImageUploading ? (
+                    <div className="flex flex-col items-center gap-1.5 text-slate-600">
+                      <RefreshCw size={22} className="animate-spin text-[#123B70]" />
+                      <span className="text-xs font-semibold">Uploading banner to cloud storage...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="h-9 w-9 rounded-full bg-blue-50 text-[#123B70] flex items-center justify-center">
+                        <UploadCloud size={18} />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-[#123B70] hover:underline">Click to upload banner image</span>
+                        <span className="text-xs text-slate-500"> or drag and drop</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">PNG, JPG, WebP, SVG or GIF (Max 10MB)</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Optional URL Direct Input */}
+              {showPromoUrlInput && (
+                <div className="space-y-1 pt-1">
+                  <label className="text-[11px] font-medium text-slate-500">Or enter Image URL</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                      <ImageIcon size={14} className="text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={promoContent.image}
+                      onChange={(e) => setPromoContent({ ...promoContent, image: e.target.value })}
+                      placeholder="https://example.com/banner.jpg"
+                      className="w-full pl-8 pr-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-[#123B70]/20 focus:border-[#123B70]"
+                    />
+                  </div>
                 </div>
               )}
             </div>
