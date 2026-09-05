@@ -6,6 +6,7 @@ import { SEO } from "../components/SEO";
 import { PalakDataStore, type StoredOrder, type StoredServiceRequest, type StoredQuoteRequest, type StoredDesignRequest } from "../lib/storage/store";
 import { fetchPublicTracking, getInvoiceByOrderCode, type PublicTrackingResponse } from "../lib/supabase/database";
 import { OrderTimeline } from "../components/OrderTimeline";
+import { OrderItemsSummaryList } from "../components/orders/OrderItemsSummaryList";
 import { getWhatsAppLink } from "../config/business";
 import { getSingleOrderQueueInfo, extractRazorpayId } from "../lib/queue";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
@@ -323,7 +324,34 @@ export const TrackOrderPage: React.FC = () => {
               }))}
             />
 
-            {/* Official Invoice Card for Completed Orders */}
+            {/* Ordered Products & Add-ons (Cloud Verified Order) */}
+            {rpcTrackingResult.entityType === "order" && (
+              <div className="pt-2 border-t border-slate-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Package className="h-4 w-4 text-[#123B70]" />
+                    <span>
+                      {currentLang === "hi" ? "ऑर्डर की गई सामग्री एवं ऐड-ऑन्स" : "Ordered Products & Add-ons"}
+                      {Array.isArray(rpcTrackingResult.record.items) ? ` (${rpcTrackingResult.record.items.length})` : ""}
+                    </span>
+                  </h4>
+                  {rpcTrackingResult.record.totalAmount !== undefined && (
+                    <span className="text-xs text-slate-500 font-semibold">
+                      {currentLang === "hi" ? "कुल राशि:" : "Total:"}{" "}
+                      <strong className="text-slate-900 font-extrabold text-sm font-mono">
+                        ₹{rpcTrackingResult.record.totalAmount}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+
+                <OrderItemsSummaryList
+                  items={rpcTrackingResult.record.items || []}
+                  rootPrintSnapshot={rpcTrackingResult.record.printSnapshot}
+                  currentLang={currentLang}
+                />
+              </div>
+            )}
             {activeInvoice && (
               <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/70 via-white to-blue-50/40 p-4 sm:p-5 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100/80 pb-3">
@@ -507,93 +535,22 @@ export const TrackOrderPage: React.FC = () => {
 
                 {/* Items Summary Table & Concise Production Specifications */}
                 <div className="pt-2 border-t border-slate-100 space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Ordered Products & Specifications ({order.items.length})
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Package className="h-4 w-4 text-[#123B70]" />
+                    <span>
+                      {currentLang === "hi" ? "ऑर्डर की गई सामग्री एवं ऐड-ऑन्स" : "Ordered Products & Add-ons"} ({order.items.length})
+                    </span>
                   </h4>
-                  <div className="space-y-2.5">
-                    {order.items.map((item, idx) => {
-                      const opts = item.selectedOptions || {};
-                      const itemSnap = opts.printSnapshot || order.printSnapshot;
-                      const docList = itemSnap?.documents?.length ? itemSnap.documents : null;
 
-                      return (
-                        <div key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2 text-xs">
-                          <div className="flex items-center justify-between font-bold text-slate-900 pb-1 border-b border-slate-200/60">
-                            <span className="text-xs">{item.productName}</span>
-                            <span className="text-[#123B70] font-black">₹{item.totalPrice}</span>
-                          </div>
-
-                          {docList && docList.length > 0 ? (
-                            <div className="space-y-2 pt-0.5">
-                              {docList.map((doc: any, dIdx: number) => {
-                                const docFin = (doc.finishing || {}) as Record<string, boolean>;
-                                const finList = [
-                                  docFin.lamination ? "Thermal Lamination" : null,
-                                  docFin.holePunching ? "2/4 Hole Punching" : null,
-                                  docFin.bookletMode ? "Booklet Fold & Saddle" : null,
-                                ].filter(Boolean);
-
-                                return (
-                                  <div key={dIdx} className="rounded-lg bg-white p-2.5 border border-slate-200/70 space-y-1.5 text-[11px]">
-                                    {docList.length > 1 && (
-                                      <div className="font-bold text-slate-800 text-[10px] truncate">
-                                        File {dIdx + 1}: {doc.fileName}
-                                      </div>
-                                    )}
-                                    <div className="flex flex-wrap gap-1 text-[10px] font-bold">
-                                      <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
-                                        {String(doc.paperSize || "A4").toUpperCase()}
-                                      </span>
-                                      <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
-                                        {doc.gsm || 75} GSM
-                                      </span>
-                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                                        {doc.colorMode === "bw" ? "B/W" : doc.colorMode === "color" ? "Full Color" : "Mixed"}
-                                      </span>
-                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                                        {doc.sides === "single" ? "Single Sided" : "Double Sided"}
-                                      </span>
-                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                                        {doc.orientation === "landscape" ? "Landscape" : "Portrait"}
-                                      </span>
-                                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                                        Qty: {doc.copies || item.quantity || 1}
-                                      </span>
-                                    </div>
-
-                                    {doc.binding && doc.binding !== "none" && (
-                                      <div className="text-indigo-900 font-semibold text-[10px]">
-                                        Binding: {doc.binding === "staple" ? "Corner / Saddle Staple" : doc.binding === "spiral" ? "Spiral Binding" : doc.binding === "comb" ? "Comb Binding" : doc.binding === "soft" ? "Soft Binding" : doc.binding === "hard" ? "Hard Binding" : doc.binding}
-                                      </div>
-                                    )}
-
-                                    {finList.length > 0 && (
-                                      <div className="flex flex-wrap gap-1.5 text-[10px] text-emerald-800 font-semibold pt-0.5">
-                                        {finList.map((f, fIdx) => (
-                                          <span key={fIdx} className="flex items-center gap-1">
-                                            <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                                            {f}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="text-[11px] text-slate-500">
-                              Qty: {item.quantity} ({item.unitPrice ? `₹${item.unitPrice}/pack` : ""})
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <OrderItemsSummaryList
+                    items={order.items || []}
+                    rootPrintSnapshot={order.printSnapshot}
+                    currentLang={currentLang}
+                  />
 
                   <div className="pt-2 flex justify-between items-baseline text-xs font-bold text-slate-800 border-t border-slate-100">
-                    <span>Total Amount:</span>
-                    <span className="text-sm font-extrabold text-[#123B70]">₹{order.totalAmount}</span>
+                    <span>{currentLang === "hi" ? "कुल राशि:" : "Total Amount:"}</span>
+                    <span className="text-sm font-extrabold text-[#123B70] font-mono">₹{order.totalAmount}</span>
                   </div>
                 </div>
 

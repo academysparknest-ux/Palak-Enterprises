@@ -10,6 +10,7 @@ import { getWhatsAppLink } from "../config/business";
 import { initiateRazorpayPayment } from "../lib/razorpay";
 import { calculateOrderCharges } from "../lib/charges/pricingEngine";
 import { PalakChargesStore } from "../lib/charges/chargesStore";
+import { OrderItemsSummaryList, getOrderAddonsPreviewBadges } from "../components/orders/OrderItemsSummaryList";
 
 const CHECKOUT_SUBMISSION_KEY = "palak_checkout_submission_id_v1";
 
@@ -68,6 +69,7 @@ export const CheckoutPage: React.FC = () => {
     totalAmount: number;
     fulfillmentType: string;
     razorpayPaymentId?: string;
+    items?: any[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -173,6 +175,7 @@ export const CheckoutPage: React.FC = () => {
           totalAmount: order.totalAmount,
           fulfillmentType: order.fulfillmentType,
           razorpayPaymentId,
+          items: order.items || items,
         });
         clearCheckoutSubmissionId();
         clearCart();
@@ -331,8 +334,22 @@ export const CheckoutPage: React.FC = () => {
               </div>
               <div className="flex items-center justify-between text-xs border-t border-slate-200 pt-2 font-bold">
                 <span className="text-slate-800">Total Amount:</span>
-                <span className="text-base text-[#123B70]">₹{placedOrder.totalAmount}</span>
+                <span className="text-base text-[#123B70] font-mono">₹{placedOrder.totalAmount}</span>
               </div>
+
+              {/* Ordered Products & Add-ons Summary */}
+              {placedOrder.items && placedOrder.items.length > 0 && (
+                <div className="pt-2 border-t border-slate-200 space-y-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                    {currentLang === "hi" ? "ऑर्डर की गई सामग्री एवं ऐड-ऑन्स:" : "Ordered Items & Add-ons:"}
+                  </span>
+                  <OrderItemsSummaryList
+                    items={placedOrder.items}
+                    currentLang={currentLang}
+                    compact={true}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -640,15 +657,31 @@ export const CheckoutPage: React.FC = () => {
                 </h3>
 
                 <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
-                  {items.map((item) => (
-                    <div key={item.id} className="py-2 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-bold text-slate-800">{item.productName}</span>
-                        <div className="text-[11px] text-slate-400">{item.unit}</div>
+                  {items.map((item) => {
+                    const addonBadges = getOrderAddonsPreviewBadges({ items: [item] });
+                    return (
+                      <div key={item.id} className="py-2.5 flex items-start justify-between gap-2 text-xs">
+                        <div className="min-w-0 pr-2 space-y-0.5">
+                          <span className="font-bold text-slate-800 block truncate">{item.productName}</span>
+                          <div className="text-[11px] text-slate-500">{item.unit}</div>
+                          {addonBadges.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {addonBadges.map((b, bIdx) => (
+                                <span
+                                  key={bIdx}
+                                  className="inline-flex items-center gap-0.5 text-[9px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 rounded"
+                                >
+                                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                                  <span>{b}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <span className="font-bold text-slate-900 shrink-0 font-mono">₹{item.totalPrice}</span>
                       </div>
-                      <span className="font-bold text-slate-900">₹{item.totalPrice}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs text-slate-600">

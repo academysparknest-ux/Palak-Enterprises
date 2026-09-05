@@ -5,14 +5,12 @@ import {
   Package,
   Clock,
   MapPin,
-  FileText,
   Receipt,
   CheckCircle2,
   AlertCircle,
   Building,
   CreditCard,
   MessageSquare,
-  ExternalLink,
 } from "lucide-react";
 import type { StoredOrder } from "../../lib/storage/store";
 import { useScrollLock } from "../../hooks/useScrollLock";
@@ -20,6 +18,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { getWhatsAppLink } from "../../config/business";
 import { cn } from "../../lib/utils";
 import { isOrderPaidOnline, extractRazorpayId, getQueueClassification } from "../../lib/queue";
+import { OrderItemsSummaryList } from "../orders/OrderItemsSummaryList";
 
 export interface CustomerOrderDetailModalProps {
   isOpen: boolean;
@@ -260,72 +259,18 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
             </div>
           )}
 
-          {/* Ordered Items List */}
+          {/* Ordered Items & Add-ons List */}
           <div className="space-y-3">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
               <Package className="h-4 w-4 text-[#123B70]" />
-              <span>{currentLang === "hi" ? "ऑर्डर की गई सामग्री" : "Ordered Items & Specifications"}</span>
+              <span>{currentLang === "hi" ? "ऑर्डर की गई सामग्री एवं ऐड-ऑन्स" : "Ordered Items & Add-ons"}</span>
             </h3>
 
-            <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl bg-white overflow-hidden">
-              {itemsList.map((item, idx) => {
-                const specs = item.selectedOptionsLabels || item.selectedOptions || {};
-                const specEntries = Object.entries(specs).filter(
-                  ([k, v]) => v !== undefined && v !== null && v !== "" && typeof v !== "object" && k !== "storagePath"
-                );
-
-                return (
-                  <div key={idx} className="p-4 space-y-2.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-0.5">
-                        <h4 className="font-bold text-sm text-slate-900">
-                          {item.productName || "Print Item"}
-                        </h4>
-                        <p className="text-xs text-slate-500">
-                          Qty: <strong>{item.quantity || 1}</strong> × ₹{item.unitPrice || 0}
-                        </p>
-                      </div>
-                      <span className="font-bold text-sm text-slate-900 font-mono">
-                        ₹{item.totalPrice || Number(item.unitPrice || 0) * Number(item.quantity || 1)}
-                      </span>
-                    </div>
-
-                    {/* Specifications List */}
-                    {specEntries.length > 0 && (
-                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-600">
-                        {specEntries.map(([key, val]) => (
-                          <div key={key} className="flex items-baseline gap-1">
-                            <span className="font-semibold text-slate-700 capitalize">{key}:</span>
-                            <span className="text-slate-900 truncate">{String(val)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Uploaded File Link */}
-                    {item.uploadedFileName && (
-                      <div className="flex items-center justify-between text-xs text-slate-600 bg-blue-50/60 border border-blue-100 rounded-xl px-3 py-1.5">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <FileText className="h-3.5 w-3.5 text-[#123B70] shrink-0" />
-                          <span className="truncate">{item.uploadedFileName}</span>
-                        </div>
-                        {item.uploadedFileUrl && (
-                          <a
-                            href={item.uploadedFileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#123B70] font-bold hover:underline inline-flex items-center gap-1 shrink-0 ml-2"
-                          >
-                            <span>View</span>
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <OrderItemsSummaryList
+              items={itemsList}
+              rootPrintSnapshot={order.printSnapshot}
+              currentLang={currentLang}
+            />
           </div>
 
           {/* Fulfillment & Collection Details */}

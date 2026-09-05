@@ -38,6 +38,7 @@ import { supabase } from "../lib/supabase/client";
 import { SEO } from "../components/SEO";
 import { business, businessConfig, getWhatsAppLink } from "../config/business";
 import { CustomerOrderDetailModal } from "../components/customer/CustomerOrderDetailModal";
+import { getOrderAddonsPreviewBadges } from "../components/orders/OrderItemsSummaryList";
 const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal"));
 import type { StoredInvoice } from "../lib/invoice/types";
 import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
@@ -768,6 +769,25 @@ export const AccountPage: React.FC = () => {
                               <span className="truncate">{firstItem.uploadedFileName}</span>
                             </div>
                           )}
+
+                          {/* Configured Add-ons & Options Preview Badges */}
+                          {(() => {
+                            const addonBadges = getOrderAddonsPreviewBadges(order);
+                            if (addonBadges.length === 0) return null;
+                            return (
+                              <div className="flex flex-wrap gap-1 pt-1.5">
+                                {addonBadges.map((badge, bIdx) => (
+                                  <span
+                                    key={bIdx}
+                                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
+                                  >
+                                    <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                                    <span>{badge}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Total & Date Row */}

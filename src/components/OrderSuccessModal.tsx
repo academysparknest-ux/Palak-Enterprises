@@ -409,12 +409,29 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
                 })}
               </div>
             ) : Object.entries(specifications).length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-1">
-                {Object.entries(specifications).map(([key, val]) => (
-                  <div key={key} className="truncate">
-                    <span className="font-semibold text-slate-700">{key}:</span> {val}
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                {Object.entries(specifications).map(([key, val]) => {
+                  const isAddon = /lamination|finish|lanyard|holder|eyelet|binding|cover|mode|premium|uv|cut/i.test(key + " " + String(val));
+                  return (
+                    <div
+                      key={key}
+                      className={cn(
+                        "flex items-baseline justify-between gap-2 p-1.5 rounded-lg border",
+                        isAddon
+                          ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-950 font-medium"
+                          : "bg-white border-slate-200/70 text-slate-700"
+                      )}
+                    >
+                      <span className={cn("font-bold capitalize text-[11px]", isAddon ? "text-emerald-900 flex items-center gap-1" : "text-slate-600")}>
+                        {isAddon && <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0 inline" />}
+                        {key}:
+                      </span>
+                      <span className={cn("text-right truncate text-xs", isAddon ? "font-black text-emerald-950" : "font-semibold text-slate-900")}>
+                        {String(val)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
 
