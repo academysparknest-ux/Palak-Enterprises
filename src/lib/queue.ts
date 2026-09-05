@@ -139,15 +139,41 @@ export function isOrderInActivePrintingQueue(status?: string): boolean {
  */
 export function sortPrintingQueue<T extends Partial<StoredOrder> & Record<string, any>>(orders: T[]): T[] {
   return [...orders].sort((a, b) => {
+    const statusA = (a.orderStatus || "NEW").toUpperCase();
+    const statusB = (b.orderStatus || "NEW").toUpperCase();
+
+    const isClosedA = statusA === "COMPLETED" || statusA === "CANCELLED" || statusA === "REJECTED";
+    const isClosedB = statusB === "COMPLETED" || statusB === "CANCELLED" || statusB === "REJECTED";
+
+    // Rule 1: Active orders ALWAYS come before Closed (Completed / Cancelled) orders
+    if (isClosedA !== isClosedB) {
+      return isClosedA ? 1 : -1;
+    }
+
+    // Rule 2: If both are closed, sort by latest timestamp DESC (most recent completed on top)
+    if (isClosedA && isClosedB) {
+      const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      if (timeA !== timeB) return timeB - timeA;
+      return (b.orderCode || "").localeCompare(a.orderCode || "");
+    }
+
+    // Rule 3: Active Orders: Unfinished printing jobs come before Ready for Pickup
+    const isReadyA = statusA === "READY_FOR_PICKUP" || statusA === "OUT_FOR_DELIVERY";
+    const isReadyB = statusB === "READY_FOR_PICKUP" || statusB === "OUT_FOR_DELIVERY";
+    if (isReadyA !== isReadyB) {
+      return isReadyA ? 1 : -1;
+    }
+
     const classA = getQueueClassification(a);
     const classB = getQueueClassification(b);
 
-    // Rule 1: Queue Priority (1 = Priority before 2 = Normal)
+    // Rule 4: Queue Priority (1 = Priority before 2 = Normal)
     if (classA.queuePriority !== classB.queuePriority) {
       return classA.queuePriority - classB.queuePriority;
     }
 
-    // Rule 2: Deterministic FIFO timestamp comparison
+    // Rule 5: Deterministic FIFO timestamp comparison
     // Priority orders use priorityAt (fallback submittedAt); Normal orders use submittedAt
     const timeA = new Date(
       classA.queuePriority === 1 ? (classA.priorityAt || classA.submittedAt) : classA.submittedAt
@@ -161,7 +187,7 @@ export function sortPrintingQueue<T extends Partial<StoredOrder> & Record<string
       return timeA - timeB;
     }
 
-    // Rule 3: Tie-breaker by orderCode or ID
+    // Rule 6: Tie-breaker by orderCode or ID
     const codeA = a.orderCode || a.id || "";
     const codeB = b.orderCode || b.id || "";
     return codeA.localeCompare(codeB);

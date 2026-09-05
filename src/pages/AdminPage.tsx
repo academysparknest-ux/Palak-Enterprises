@@ -35,6 +35,9 @@ import {
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  XCircle,
   ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -786,6 +789,92 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
   );
 };
 
+interface OrderStatusVisualTheme {
+  borderLeft: string;
+  badgeBg: string;
+  cardBg: string;
+  statusLabel: string;
+  statusColor: string;
+}
+
+function getOrderStatusVisualTheme(order: StoredOrder, isPriority: boolean): OrderStatusVisualTheme {
+  const status = (order.orderStatus || "NEW").toUpperCase();
+
+  if (isPriority) {
+    return {
+      borderLeft: "border-l-4 border-l-amber-500",
+      badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      cardBg: "border-amber-300 ring-1 ring-amber-400/40 bg-amber-50/15",
+      statusLabel: "PRIORITY",
+      statusColor: "text-amber-800",
+    };
+  }
+
+  switch (status) {
+    case "NEW":
+    case "UNDER_REVIEW":
+      return {
+        borderLeft: "border-l-4 border-l-blue-600",
+        badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+        cardBg: "border-blue-200 bg-blue-50/10",
+        statusLabel: status === "NEW" ? "NEW" : "UNDER REVIEW",
+        statusColor: "text-blue-700",
+      };
+    case "CONFIRMED":
+      return {
+        borderLeft: "border-l-4 border-l-sky-600",
+        badgeBg: "bg-sky-100 text-sky-900 border-sky-300",
+        cardBg: "border-sky-200 bg-sky-50/10",
+        statusLabel: "CONFIRMED",
+        statusColor: "text-sky-700",
+      };
+    case "IN_PRODUCTION":
+    case "DESIGN_REVIEW":
+    case "PROCESSING":
+      return {
+        borderLeft: "border-l-4 border-l-indigo-600",
+        badgeBg: "bg-indigo-100 text-indigo-900 border-indigo-300",
+        cardBg: "border-indigo-200 bg-indigo-50/10",
+        statusLabel: "IN PRODUCTION",
+        statusColor: "text-indigo-700",
+      };
+    case "READY_FOR_PICKUP":
+    case "OUT_FOR_DELIVERY":
+      return {
+        borderLeft: "border-l-4 border-l-emerald-600",
+        badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+        cardBg: "border-emerald-200 bg-emerald-50/10",
+        statusLabel: status === "OUT_FOR_DELIVERY" ? "OUT FOR DELIVERY" : "READY FOR PICKUP",
+        statusColor: "text-emerald-700",
+      };
+    case "COMPLETED":
+      return {
+        borderLeft: "border-l-4 border-l-slate-400",
+        badgeBg: "bg-slate-100 text-slate-700 border-slate-300",
+        cardBg: "border-slate-200 bg-slate-50/50 opacity-90",
+        statusLabel: "COMPLETED",
+        statusColor: "text-slate-600",
+      };
+    case "CANCELLED":
+    case "REJECTED":
+      return {
+        borderLeft: "border-l-4 border-l-rose-500",
+        badgeBg: "bg-rose-100 text-rose-800 border-rose-300",
+        cardBg: "border-rose-200 bg-rose-50/30 opacity-80",
+        statusLabel: status,
+        statusColor: "text-rose-700",
+      };
+    default:
+      return {
+        borderLeft: "border-l-4 border-l-slate-400",
+        badgeBg: "bg-slate-100 text-slate-800 border-slate-200",
+        cardBg: "border-slate-200 bg-white",
+        statusLabel: status,
+        statusColor: "text-slate-700",
+      };
+  }
+}
+
 export const AdminPage: React.FC = () => {
   const { user, isStaff, isAuthenticated, logout, loading: authLoading, session } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -866,7 +955,20 @@ export const AdminPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [quickFilter, setQuickFilter] = useState<"ALL" | "PRIORITY" | "NORMAL" | "TODAY" | "NEW" | "IN_PRODUCTION" | "READY_FOR_PICKUP" | "COMPLETED" | "UNPAID">("ALL");
+  const [quickFilter, setQuickFilter] = useState<"ALL" | "ACTIVE" | "PRIORITY" | "NORMAL" | "TODAY" | "NEW" | "IN_PRODUCTION" | "READY_FOR_PICKUP" | "COMPLETED" | "UNPAID">("ALL");
+  const [expandedOrderCodes, setExpandedOrderCodes] = useState<Set<string>>(new Set());
+
+  const toggleOrderExpand = useCallback((orderCode: string) => {
+    setExpandedOrderCodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderCode)) {
+        next.delete(orderCode);
+      } else {
+        next.add(orderCode);
+      }
+      return next;
+    });
+  }, []);
 
   // Search & Filter for Payments Dashboard
   const [paymentSearchQuery, setPaymentSearchQuery] = useState("");
@@ -1489,6 +1591,10 @@ export const AdminPage: React.FC = () => {
   const priorityOrdersCount = queueStats.priorityActiveCount;
   const normalOrdersCount = queueStats.normalActiveCount;
   const totalOrdersCount = orders.length;
+  const activeOrdersCount = orders.filter((o) => {
+    const s = (o.orderStatus || "").toUpperCase();
+    return s !== "COMPLETED" && s !== "CANCELLED" && s !== "REJECTED";
+  }).length;
   const todayOrdersCount = orders.filter((o) => isToday(o.createdAt)).length;
   const newOrdersCount = orders.filter((o) => {
     const s = (o.orderStatus || "").toUpperCase();
@@ -1708,7 +1814,9 @@ export const AdminPage: React.FC = () => {
       const isPaid = o.paymentStatus === "paid" || o.paymentStatus === "confirmed" || isOrderPaidOnline(o);
 
       let matchesQuick = true;
-      if (quickFilter === "TODAY") {
+      if (quickFilter === "ACTIVE") {
+        matchesQuick = ordStatus !== "COMPLETED" && ordStatus !== "CANCELLED" && ordStatus !== "REJECTED";
+      } else if (quickFilter === "TODAY") {
         matchesQuick = isToday(o.createdAt);
       } else if (quickFilter === "PRIORITY") {
         matchesQuick = qMeta.queuePriority === 1;
@@ -1983,7 +2091,7 @@ export const AdminPage: React.FC = () => {
             )}
 
             {/* Quick Filter Summary Counters Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-1.5 sm:gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-1.5 sm:gap-2">
               <button
                 onClick={() => {
                   setQuickFilter("ALL");
@@ -1998,6 +2106,23 @@ export const AdminPage: React.FC = () => {
               >
                 <div className="text-[10px] font-semibold opacity-80">All Orders</div>
                 <div className="text-base sm:text-lg font-black mt-0.5">{totalOrdersCount}</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setQuickFilter("ACTIVE");
+                  setStatusFilter("ALL");
+                }}
+                className={cn(
+                  "p-2.5 rounded-xl border text-left transition-all cursor-pointer",
+                  quickFilter === "ACTIVE"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-blue-50/70 text-blue-900 border-blue-200 hover:bg-blue-100"
+                )}
+              >
+                <div className="text-[10px] font-bold">🖨️ Active</div>
+                <div className="text-base sm:text-lg font-black mt-0.5">{activeOrdersCount}</div>
+                <div className="text-[9px] opacity-75 truncate">Running Jobs</div>
               </button>
 
               <button
@@ -2220,6 +2345,143 @@ export const AdminPage: React.FC = () => {
                     const rzpId = extractRazorpayId(order.orderNotes);
                     const isSelected = selectedOrderCode === order.orderCode;
                     const isDelivery = order.fulfillmentType === "delivery";
+                    const ordStatus = (order.orderStatus || "NEW").toUpperCase();
+                    const isClosed = ordStatus === "COMPLETED" || ordStatus === "CANCELLED" || ordStatus === "REJECTED";
+                    const isExpanded = expandedOrderCodes.has(order.orderCode);
+                    const visualTheme = getOrderStatusVisualTheme(order, isPriority);
+
+                    if (isClosed && !isExpanded) {
+                      const inv = order.orderStatus === "COMPLETED"
+                        ? (invoices.find((i) => i.orderCode && i.orderCode.toUpperCase() === order.orderCode.toUpperCase()) || PalakDataStore.getInvoiceForOrder(order.orderCode))
+                        : null;
+
+                      return (
+                        <div
+                          key={order.id}
+                          id={`order-${order.orderCode}`}
+                          className={cn(
+                            "rounded-xl border p-2.5 sm:p-3 transition-all bg-white hover:bg-slate-50/80 shadow-2xs",
+                            visualTheme.borderLeft,
+                            isSelected
+                              ? "border-[#123B70] ring-2 ring-[#123B70]/40 shadow-sm"
+                              : "border-slate-200"
+                          )}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            {/* Left Summary */}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold", visualTheme.badgeBg)}>
+                                {order.orderStatus === "COMPLETED" ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                ) : (
+                                  <XCircle className="h-3.5 w-3.5 text-rose-600" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="font-mono font-black text-xs text-slate-700">
+                                    {order.orderCode}
+                                  </span>
+                                  <span className={cn("rounded-full px-2 py-0.2 text-[9px] font-bold border", visualTheme.badgeBg)}>
+                                    {order.orderStatus}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-800 truncate">
+                                    {order.customerName}
+                                  </span>
+                                  <a
+                                    href={`tel:${order.customerPhone}`}
+                                    className="text-[11px] text-slate-500 hover:text-blue-700 font-medium inline-flex items-center gap-0.5"
+                                    title="Call Customer"
+                                  >
+                                    <Phone className="h-2.5 w-2.5" />
+                                    <span>{order.customerPhone}</span>
+                                  </a>
+                                  <span className="text-[10px] text-slate-400">
+                                    • {items.length > 1 ? `${items.length} Products` : (firstItem?.productName || "Print Job")}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    • {new Date(order.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right Actions & Amount */}
+                            <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                              <span className="text-xs font-black text-slate-900 px-1">
+                                ₹{order.totalAmount}
+                              </span>
+
+                              {/* Payment Status Indicator */}
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-extrabold border",
+                                  isPaid
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-amber-50 text-amber-800 border-amber-200"
+                                )}
+                              >
+                                {isPaid ? "PAID" : "UNPAID"}
+                              </span>
+
+                              {/* Status Selector */}
+                              <select
+                                value={order.orderStatus}
+                                disabled={updatingStatus === order.orderCode}
+                                onChange={(e: any) => handleUpdateOrderStatus(order.orderCode, e.target.value)}
+                                className={cn(
+                                  "rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider focus:outline-hidden cursor-pointer disabled:opacity-50",
+                                  order.orderStatus === "COMPLETED"
+                                    ? "bg-slate-100 text-slate-700 border-slate-300"
+                                    : "bg-rose-50 text-rose-800 border-rose-200"
+                                )}
+                              >
+                                {orderStatuses.map((st) => (
+                                  <option key={st} value={st}>{st}</option>
+                                ))}
+                              </select>
+
+                              {/* Invoice Quick Button if completed */}
+                              {inv && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenInvoiceModal(order.orderCode)}
+                                  className="p-1 rounded-md bg-[#123B70]/10 hover:bg-[#123B70]/20 text-[#123B70] text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                  title={`View Invoice #${inv.invoiceNumber}`}
+                                >
+                                  <FileText className="h-3 w-3" />
+                                  <span className="hidden sm:inline">Bill</span>
+                                </button>
+                              )}
+
+                              {/* WhatsApp shortcut */}
+                              <a
+                                href={getWhatsAppLink(
+                                  `Hello ${order.customerName}, this is Palak Enterprises regarding your order *${order.orderCode}* (Status: ${order.orderStatus}).`
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                                title="Chat on WhatsApp"
+                              >
+                                <MessageSquare className="h-3 w-3" />
+                              </a>
+
+                              {/* Expand / View Details Button */}
+                              <button
+                                type="button"
+                                onClick={() => toggleOrderExpand(order.orderCode)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+                                title="Expand details & documents"
+                              >
+                                <span>View Details</span>
+                                <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div
@@ -2227,11 +2489,10 @@ export const AdminPage: React.FC = () => {
                         id={`order-${order.orderCode}`}
                         className={cn(
                           "rounded-xl border p-3.5 space-y-3 transition-all bg-white shadow-xs",
+                          visualTheme.borderLeft,
                           isSelected
                             ? "border-[#123B70] ring-2 ring-[#123B70]/40 shadow-sm bg-blue-50/20"
-                            : isPriority
-                            ? "border-amber-400/80 ring-1 ring-amber-400/30 hover:border-amber-500"
-                            : "border-slate-200 hover:border-slate-300"
+                            : visualTheme.cardBg
                         )}
                       >
                         {/* Top Header Row */}
@@ -2398,6 +2659,18 @@ export const AdminPage: React.FC = () => {
                             >
                               <MessageSquare className="h-3.5 w-3.5" />
                             </a>
+
+                            {isClosed && (
+                              <button
+                                type="button"
+                                onClick={() => toggleOrderExpand(order.orderCode)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+                                title="Collapse back to compact row"
+                              >
+                                <span>Collapse</span>
+                                <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+                              </button>
+                            )}
                           </div>
                         </div>
 
