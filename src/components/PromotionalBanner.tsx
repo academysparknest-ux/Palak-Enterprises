@@ -169,48 +169,40 @@ export const PromotionalBanner: React.FC = () => {
               </Link>
             </div>
 
-            {/* Bottom Action Strip */}
-            <div className="bg-linear-to-r from-amber-50 via-white to-amber-50 px-4 py-3 sm:px-5 sm:py-3 border-t border-amber-200 rounded-b-2xl sm:rounded-b-3xl flex flex-wrap items-center justify-between gap-2.5 w-full">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-amber-900 bg-amber-200/90 px-3 py-1 rounded-full border border-amber-300">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+            {/* Bottom Action Strip: Clean, minimal and essential only */}
+            <div className="bg-linear-to-r from-amber-50/80 via-white to-amber-50/80 px-4 py-2.5 sm:px-5 sm:py-3 border-t border-amber-200/80 rounded-b-2xl sm:rounded-b-3xl flex flex-wrap items-center justify-between gap-2.5 w-full">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-extrabold text-amber-900 bg-amber-200/90 px-2.5 py-0.5 rounded-full border border-amber-300 shrink-0">
+                  <Sparkles className="w-3 h-3 text-amber-700" />
                   <span>{currentLang === "hi" ? "विशेष ऑफर" : "Special Offer"}</span>
                 </span>
                 {promo.description && (
-                  <span className="text-xs sm:text-sm font-semibold text-slate-700 hidden sm:inline truncate max-w-[320px]">
+                  <span className="text-xs sm:text-sm font-semibold text-slate-700 truncate">
                     {promo.description}
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-2.5 ml-auto">
+              <div className="flex items-center gap-2 sm:gap-2.5 ml-auto shrink-0">
                 <Link
                   to="/printing"
                   onClick={handleClose}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-[#123B70] hover:bg-[#0c2a52] text-white px-4 py-2 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95 cursor-pointer"
                 >
-                  <ShoppingBag className="w-4 h-4" />
+                  <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span>{currentLang === "hi" ? "अभी ऑर्डर करें" : "Shop Now"}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
 
                 <a
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-xs sm:text-sm font-bold shadow-xs transition-transform active:scale-95 cursor-pointer"
                 >
-                  <MessageCircle className="w-4 h-4" />
+                  <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span>{currentLang === "hi" ? "व्हाट्सएप" : "WhatsApp"}</span>
                 </a>
-
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="px-3.5 py-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
-                >
-                  {currentLang === "hi" ? "बंद करें" : "Close"}
-                </button>
               </div>
             </div>
           </div>
