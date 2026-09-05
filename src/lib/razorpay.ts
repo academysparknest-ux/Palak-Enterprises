@@ -47,7 +47,7 @@ export const loadRazorpayScript = (): Promise<boolean> => {
 };
 
 export const getRazorpayKey = (): string => {
-  const envKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || "").trim();
+  const envKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || "").replace(/['"`\s]/g, "").trim();
   return envKey || "rzp_live_TYE05N6VPfRyrg";
 };
 
@@ -66,7 +66,7 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
   const amountInPaise = Math.max(100, Math.round(Number(options.amount || 0) * 100));
 
   // STEP 1: Call Backend to Create Order
-  let orderData: { order_id: string; amount: number; currency: string };
+  let orderData: { order_id: string; amount: number; currency: string; key_id?: string };
   try {
     const orderRes = await fetch("/api/create-order", {
       method: "POST",
@@ -96,7 +96,7 @@ export const initiateRazorpayPayment = async (options: RazorpayOptions): Promise
 
   // STEP 2: Configure Razorpay modal with order_id
   const rzpOptions = {
-    key: key,
+    key: orderData.key_id || key,
     order_id: orderData.order_id,
     amount: orderData.amount || amountInPaise,
     currency: orderData.currency || "INR",
