@@ -1380,42 +1380,33 @@ export class PalakDataStore {
   }
 
   static syncOrdersFromCloud(cloudOrders: StoredOrder[]): void {
-    if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
-      const existing = this.getOrders();
-      const mergedMap = new Map<string, StoredOrder>();
+    if (!Array.isArray(cloudOrders)) return;
 
-      // 1. Existing local records
-      existing.forEach((o) => {
-        if (o && o.orderCode) {
-          try {
-            mergedMap.set(o.orderCode.trim().toUpperCase(), normalizeOrder(o));
-          } catch {}
-        }
-      });
-
-      // 2. Cloud records take precedence
-      cloudOrders.forEach((o) => {
-        if (o && o.orderCode) {
-          const key = o.orderCode.trim().toUpperCase();
-          const prev = mergedMap.get(key);
-          try {
-            const normalized = normalizeOrder({ ...prev, ...o });
-            mergedMap.set(key, normalized);
-          } catch {}
-        }
-      });
-
-      const mergedList = Array.from(mergedMap.values()).sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-
-      setLocalOrders(mergedList);
-
-      const validCodes = new Set(mergedList.map((o) => o.orderCode.trim().toUpperCase()));
-      const logs = this.getStatusHistoryLogs();
-      setLocalStatusLogs(logs.filter((l) => l.entityType !== "order" || validCodes.has(l.entityCode.toUpperCase())));
-      PalakInvoiceStore.pruneOrphanedInvoices(validCodes);
+    if (cloudOrders.length === 0) {
+      this.clearAllOrders();
+      return;
     }
+
+    // Cloud records are authoritative
+    const cloudMap = new Map<string, StoredOrder>();
+    cloudOrders.forEach((o) => {
+      if (o && o.orderCode) {
+        try {
+          cloudMap.set(o.orderCode.trim().toUpperCase(), normalizeOrder(o));
+        } catch {}
+      }
+    });
+
+    const syncedList = Array.from(cloudMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    setLocalOrders(syncedList);
+
+    const validCodes = new Set(syncedList.map((o) => o.orderCode.trim().toUpperCase()));
+    const logs = this.getStatusHistoryLogs();
+    setLocalStatusLogs(logs.filter((l) => l.entityType !== "order" || validCodes.has(l.entityCode.toUpperCase())));
+    PalakInvoiceStore.pruneOrphanedInvoices(validCodes);
   }
 
   static deleteOrder(orderCode: string): boolean {

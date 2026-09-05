@@ -934,8 +934,8 @@ export const AdminPage: React.FC = () => {
     const currentRequestId = ++loadRequestIdRef.current;
     setLoading(true);
     try {
-      const needsOrders = tabToLoad === "orders" || tabToLoad === "invoices" || tabToLoad === "payments";
-      const needsInvoices = tabToLoad === "invoices" || tabToLoad === "orders" || tabToLoad === "payments";
+      const needsOrders = tabToLoad === "orders" || tabToLoad === "invoices" || tabToLoad === "payments" || tabToLoad === "overview" || !tabToLoad;
+      const needsInvoices = tabToLoad === "invoices" || tabToLoad === "orders" || tabToLoad === "payments" || tabToLoad === "overview" || !tabToLoad;
       const needsServices = tabToLoad === "services";
       const needsQuotes = tabToLoad === "quotes";
       const needsPricing = tabToLoad === "pricing";
@@ -975,79 +975,26 @@ export const AdminPage: React.FC = () => {
       }
 
       // Authoritative Cloud Orders & Local Cache Synchronization
-      const localOrders = PalakDataStore.getOrders();
       const validCloudOrders = Array.isArray(cloudOrders) ? cloudOrders : [];
+      let allOrders = validCloudOrders;
+      PalakDataStore.syncOrdersFromCloud(allOrders);
 
-      // Build merged order list deterministically
-      const mergedMap = new Map<string, StoredOrder>();
-
-      // 1. Seed from local cached store
-      localOrders.forEach((o) => {
-        if (o && o.orderCode) {
-          try {
-            mergedMap.set(o.orderCode.trim().toUpperCase(), normalizeOrder(o));
-          } catch {}
-        }
-      });
-
-      // 2. Overlay cloud orders (authoritative for cloud-backed records)
-      validCloudOrders.forEach((o) => {
-        if (o && o.orderCode) {
-          const key = o.orderCode.trim().toUpperCase();
-          const prev = mergedMap.get(key);
-          try {
-            mergedMap.set(key, normalizeOrder({ ...prev, ...o }));
-          } catch {}
-        }
-      });
-
-      let allOrders = Array.from(mergedMap.values());
-      allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      if (allOrders.length > 0) {
-        PalakDataStore.syncOrdersFromCloud(allOrders);
-      }
-
-      // Set state, preserving existing in-memory orders if transient load returned empty
-      setOrders((prev) => {
-        if (allOrders.length === 0 && prev.length > 0) {
-          return prev;
-        }
-        const finalMap = new Map<string, StoredOrder>();
-        allOrders.forEach((o) => finalMap.set(o.orderCode.trim().toUpperCase(), o));
-        // Preserve any real-time orders not yet in merged set
-        prev.forEach((o) => {
-          if (o && o.orderCode) {
-            const code = o.orderCode.trim().toUpperCase();
-            if (!finalMap.has(code)) {
-              finalMap.set(code, o);
-            }
-          }
-        });
-        const result = Array.from(finalMap.values());
-        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        return result;
-      });
+      setOrders(allOrders);
 
       // Invoices: authoritatively bound to active orders
       const validOrderCodes = allOrders.length > 0
         ? new Set(allOrders.map((o) => o.orderCode.trim().toUpperCase()))
         : new Set<string>();
 
-      if (validOrderCodes.size > 0) {
-        PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
-      }
-
       let allInvoices: StoredInvoice[] = [];
-      if (Array.isArray(cloudInvoices) && cloudInvoices.length > 0) {
+      if (Array.isArray(cloudInvoices)) {
         allInvoices = validOrderCodes.size > 0
-          ? cloudInvoices.filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()))
-          : cloudInvoices;
+          ? cloudInvoices.filter((inv) => !inv.orderCode || validOrderCodes.has(inv.orderCode.trim().toUpperCase()))
+          : cloudInvoices.filter((inv) => inv.source === "ADMIN" && !inv.orderCode);
+        PalakInvoiceStore.syncInvoicesFromCloud(allInvoices);
       } else {
-        const localInvs = PalakInvoiceStore.getAllLocalInvoices();
-        allInvoices = validOrderCodes.size > 0
-          ? localInvs.filter((inv) => inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase()))
-          : localInvs;
+        const localInvs = PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
+        allInvoices = localInvs;
       }
 
       // Ensure any completed order has an invoice automatically generated if not yet present

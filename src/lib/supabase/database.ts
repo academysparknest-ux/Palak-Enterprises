@@ -376,26 +376,9 @@ export async function getStaffOrders(limit: number = 150): Promise<StoredOrder[]
       }
     });
 
-    const localOrders = PalakDataStore.getOrders();
-    const mergedMap = new Map<string, StoredOrder>();
-
-    localOrders.forEach((o) => {
-      if (o?.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
-    });
-
-    normalizedList.forEach((o) => {
-      if (o?.orderCode) mergedMap.set(o.orderCode.trim().toUpperCase(), o);
-    });
-
-    const finalOrders = Array.from(mergedMap.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    if (normalizedList.length > 0) {
-      PalakDataStore.syncOrdersFromCloud(normalizedList);
-    }
-
-    return finalOrders;
+    // Cloud database is authoritative for staff orders
+    PalakDataStore.syncOrdersFromCloud(normalizedList);
+    return normalizedList;
   } catch (queryError: any) {
     console.warn("getStaffOrders database notice:", queryError?.message || queryError);
     return PalakDataStore.getOrders();

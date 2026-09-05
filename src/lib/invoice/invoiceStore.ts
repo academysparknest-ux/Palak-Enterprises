@@ -355,37 +355,38 @@ export class PalakInvoiceStore {
 
   /** Sync authoritative cloud invoices to local storage and memory cache */
   static syncInvoicesFromCloud(cloudInvoices: StoredInvoice[]): void {
-    if (Array.isArray(cloudInvoices)) {
-      const existing = this.getAllLocalInvoices();
-      const map = new Map<string, StoredInvoice>();
-      existing.forEach((i) => {
-        if (i && i.invoiceNumber && isPermanentInvoiceNumber(i.invoiceNumber)) {
-          map.set(i.invoiceNumber.toUpperCase(), i);
-        }
-      });
-      cloudInvoices.forEach((i) => {
-        if (i && i.invoiceNumber && isPermanentInvoiceNumber(i.invoiceNumber)) {
-          map.set(i.invoiceNumber.toUpperCase(), i);
-        }
-      });
-      const merged = Array.from(map.values()).sort(
-        (a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime()
-      );
-      memoryInvoices = merged;
-      setLocal(INVOICES_STORAGE_KEY, merged);
+    if (!Array.isArray(cloudInvoices)) return;
+    if (cloudInvoices.length === 0) {
+      this.clearAllInvoices();
+      return;
     }
+    const map = new Map<string, StoredInvoice>();
+    cloudInvoices.forEach((i) => {
+      if (i && i.invoiceNumber && isPermanentInvoiceNumber(i.invoiceNumber)) {
+        map.set(i.invoiceNumber.toUpperCase(), i);
+      }
+    });
+    const synced = Array.from(map.values()).sort(
+      (a, b) => new Date(b.invoiceDate || b.createdAt).getTime() - new Date(a.invoiceDate || a.createdAt).getTime()
+    );
+    memoryInvoices = synced;
+    setLocal(INVOICES_STORAGE_KEY, synced);
   }
 
   /** Prune invoices whose order codes no longer exist in the authoritative orders list */
   static pruneOrphanedInvoices(validOrderCodes: Set<string>): StoredInvoice[] {
     const list = this.getAllLocalInvoices();
     if (!validOrderCodes || validOrderCodes.size === 0) {
-      return list;
+      // If there are no orders, keep only admin bills not linked to orders
+      const filtered = list.filter((inv) => inv.source === "ADMIN" && !inv.orderCode);
+      memoryInvoices = filtered;
+      setLocal(INVOICES_STORAGE_KEY, filtered);
+      return filtered;
     }
-    // Only prune online invoices whose order codes disappeared; keep admin bills (where orderId is null/undefined)
+    // Only keep invoices belonging to valid orders or standalone admin bills
     const filtered = list.filter((inv) => {
-      if (inv.source === "ADMIN" || !inv.orderCode) return true;
-      return validOrderCodes.has(inv.orderCode.trim().toUpperCase());
+      if (inv.source === "ADMIN" && !inv.orderCode) return true;
+      return inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase());
     });
     memoryInvoices = filtered;
     setLocal(INVOICES_STORAGE_KEY, filtered);
