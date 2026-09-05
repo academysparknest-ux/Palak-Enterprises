@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { Sparkles, X, ArrowRight, MessageCircle, ShoppingBag } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { supabase, isSupabaseConfigured } from "../lib/supabase/client";
 import { getWhatsAppLink } from "../config/business";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface PromoData {
   heading?: string;
@@ -12,7 +14,7 @@ interface PromoData {
   is_active: boolean;
 }
 
-const POPUP_DISMISS_KEY = "palak_promo_popup_dismissed_v3";
+const POPUP_DISMISS_KEY = "palak_promo_popup_dismissed_v4";
 
 export const PromotionalBanner: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -21,6 +23,9 @@ export const PromotionalBanner: React.FC = () => {
   const [promo, setPromo] = useState<PromoData | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [hasDismissed, setHasDismissed] = useState(false);
+
+  // Bulletproof background scroll locking: freezes html + body scroll
+  useScrollLock(isOpen);
 
   useEffect(() => {
     let isMounted = true;
@@ -94,16 +99,7 @@ export const PromotionalBanner: React.FC = () => {
     setIsOpen(true);
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
-    }
-  }, [isOpen]);
-
+  // Handle ESC key to close
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -122,22 +118,28 @@ export const PromotionalBanner: React.FC = () => {
   const promoMessage = `Namaste Palak Enterprises, I would like to inquire about the special offer: "${promo.heading || "Printing Offer"}"`;
   const whatsappUrl = getWhatsAppLink(promoMessage);
 
-  return (
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  // Use createPortal so the modal is mounted directly under document.body,
+  // completely bypassing any CSS transform / filter traps on ancestor elements (like PageTransition).
+  return createPortal(
     <>
       {/* =========================================================================
-          LIGHTBOX POPUP MODAL (Prominent School / Notice Pop-Up Style like Roshni Public School)
+          LIGHTBOX POPUP MODAL (Attached to document.body, dead-center on viewport)
          ========================================================================= */}
       {isOpen && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label={promo.heading || "Special Offer Popup"}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 md:p-8 bg-black/85 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 md:p-8 bg-black/85 backdrop-blur-xs overscroll-contain animate-in fade-in duration-200"
           onClick={handleClose}
         >
-          {/* Centered Modal Card: Generous width for maximum readability */}
+          {/* Centered Modal Card: Generous width, responsive max height */}
           <div
-            className="relative w-full max-w-lg sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-visible border-2 border-amber-400/90 animate-in zoom-in-95 duration-250 flex flex-col"
+            className="relative w-full max-w-lg sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-visible border-2 border-amber-400/90 animate-in zoom-in-95 duration-250 flex flex-col my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Prominent Floating Close Button (Overlapping Top-Right Corner) */}
@@ -145,7 +147,7 @@ export const PromotionalBanner: React.FC = () => {
               type="button"
               onClick={handleClose}
               aria-label="Close popup"
-              className="absolute -top-3.5 -right-3.5 sm:-top-4 sm:-right-4 z-40 flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white shadow-2xl ring-4 ring-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+              className="absolute -top-3.5 -right-3.5 sm:-top-4 sm:-right-4 z-[100000] flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white shadow-2xl ring-4 ring-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
             >
               <X className="h-6 w-6 sm:h-7 sm:w-7 stroke-[2.5]" />
             </button>
@@ -161,7 +163,7 @@ export const PromotionalBanner: React.FC = () => {
                 <img
                   src={promo.image}
                   alt={promo.heading || "Special Promotional Offer"}
-                  className="w-full h-auto max-h-[76vh] object-contain mx-auto block group-hover:opacity-95 transition-opacity"
+                  className="w-full h-auto max-h-[75vh] object-contain mx-auto block group-hover:opacity-95 transition-opacity"
                   loading="eager"
                 />
               </Link>
@@ -215,18 +217,19 @@ export const PromotionalBanner: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Reopen Pill (stays visible so visitors can reopen it anytime) */}
+      {/* Floating Reopen Pill (stays fixed at bottom-left corner of the viewport) */}
       {!isOpen && hasDismissed && (
         <button
           type="button"
           onClick={handleOpen}
-          className="fixed bottom-20 left-4 z-40 inline-flex items-center gap-2 rounded-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-4 py-2.5 text-xs sm:text-sm font-bold shadow-xl ring-2 ring-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-3 duration-300"
+          className="fixed bottom-20 left-4 z-[9990] inline-flex items-center gap-2 rounded-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-4 py-2.5 text-xs sm:text-sm font-bold shadow-xl ring-2 ring-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-3 duration-300"
           title="Click to view special promotional offer"
         >
           <Sparkles className="w-4 h-4 text-amber-100 animate-pulse" />
           <span>{currentLang === "hi" ? "विशेष ऑफर देखें" : "Special Offer"}</span>
         </button>
       )}
-    </>
+    </>,
+    document.body
   );
 };
