@@ -137,12 +137,12 @@ export const PromotionalBanner: React.FC = () => {
           className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 md:p-8 bg-black/85 backdrop-blur-xs overscroll-contain animate-in fade-in duration-200"
           onClick={handleClose}
         >
-          {/* Centered Modal Card: Generous width, responsive max height */}
+          {/* Centered Modal Card: Width strictly hugs the image to eliminate any empty side space */}
           <div
-            className="relative w-full max-w-lg sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-visible border-2 border-amber-400/90 animate-in zoom-in-95 duration-250 flex flex-col my-auto"
+            className="relative w-fit max-w-[min(94vw,1000px)] bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-visible border-2 border-amber-400/90 animate-in zoom-in-95 duration-250 flex flex-col my-auto mx-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Prominent Floating Close Button (Overlapping Top-Right Corner) */}
+            {/* Prominent Floating Close Button (Overlapping Top-Right Corner of Flyer) */}
             <button
               type="button"
               onClick={handleClose}
@@ -152,25 +152,25 @@ export const PromotionalBanner: React.FC = () => {
               <X className="h-6 w-6 sm:h-7 sm:w-7 stroke-[2.5]" />
             </button>
 
-            {/* Flyer Image Container */}
-            <div className="relative w-full bg-slate-950 rounded-t-2xl sm:rounded-t-3xl overflow-hidden flex items-center justify-center">
+            {/* Flyer Image Container: Snugly wraps the image with zero empty side bars */}
+            <div className="relative w-fit overflow-hidden rounded-t-2xl sm:rounded-t-3xl flex items-center justify-center bg-white">
               <Link
                 to="/printing"
                 onClick={handleClose}
-                className="block w-full cursor-pointer group"
+                className="block cursor-pointer group w-fit"
                 title="Click to view all printing products"
               >
                 <img
                   src={promo.image}
                   alt={promo.heading || "Special Promotional Offer"}
-                  className="w-full h-auto max-h-[75vh] object-contain mx-auto block group-hover:opacity-95 transition-opacity"
+                  className="block max-w-[min(92vw,1000px)] max-h-[74vh] w-auto h-auto object-contain mx-auto group-hover:opacity-95 transition-opacity select-none"
                   loading="eager"
                 />
               </Link>
             </div>
 
             {/* Bottom Action Strip */}
-            <div className="bg-linear-to-r from-amber-50 via-white to-amber-50 px-4 py-3 sm:px-6 sm:py-3.5 border-t border-amber-200 rounded-b-2xl sm:rounded-b-3xl flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-linear-to-r from-amber-50 via-white to-amber-50 px-4 py-3 sm:px-5 sm:py-3 border-t border-amber-200 rounded-b-2xl sm:rounded-b-3xl flex flex-wrap items-center justify-between gap-2.5 w-full">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-amber-900 bg-amber-200/90 px-3 py-1 rounded-full border border-amber-300">
                   <Sparkles className="w-3.5 h-3.5 text-amber-700" />
