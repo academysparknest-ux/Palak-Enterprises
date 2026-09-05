@@ -19,6 +19,7 @@ import { useScrollLock } from "../../hooks/useScrollLock";
 import { useLanguage } from "../../context/LanguageContext";
 import { getWhatsAppLink } from "../../config/business";
 import { cn } from "../../lib/utils";
+import { isOrderPaidOnline, extractRazorpayId, getQueueClassification } from "../../lib/queue";
 
 export interface CustomerOrderDetailModalProps {
   isOpen: boolean;
@@ -40,7 +41,10 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
   if (!isOpen || !order) return null;
 
-  const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
+  const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid" || isOrderPaidOnline(order);
+  const qMeta = getQueueClassification(order);
+  const isPriority = qMeta.queuePriority === 1;
+  const rzpId = extractRazorpayId(order.orderNotes);
   const itemsList = Array.isArray(order.items) ? order.items : [];
   const isCompleted = order.orderStatus === "COMPLETED";
   const isReady = (order.orderStatus as string) === "READY_FOR_PICKUP" || (order.orderStatus as string) === "READY";
@@ -191,6 +195,30 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
         {/* Modal Scrollable Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 text-slate-900">
+          {/* Priority Queue Banner for Paid Online Orders */}
+          {isPriority && (
+            <div className="bg-amber-500/10 border border-amber-400/60 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                  🔥
+                </div>
+                <div>
+                  <span className="font-black text-amber-950 block text-xs">
+                    {currentLang === "hi" ? "प्राथमिकता प्रिंटिंग कतार (Level 1 Express Priority)" : "Express Priority Queue (Level 1)"}
+                  </span>
+                  <p className="text-[11px] text-amber-900 font-medium">
+                    {currentLang === "hi"
+                      ? "सत्यापित ऑनलाइन भुगतान: आपका ऑर्डर सीधे प्राथमिकता कतार में है और सबसे पहले प्रिंट किया जाएगा।"
+                      : "Verified Online Payment: Your order jumps ahead in queue and is printed with express priority."}
+                  </p>
+                </div>
+              </div>
+              <span className="bg-amber-400 text-slate-950 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0 shadow-xs">
+                {currentLang === "hi" ? "प्राथमिकता" : "PRIORITY"}
+              </span>
+            </div>
+          )}
+
           {/* Progress Timeline */}
           {statusInfo.step > 0 && (
             <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-3">
@@ -361,7 +389,16 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                 <div className="space-y-0.5">
                   <span className="text-slate-500">{currentLang === "hi" ? "भुगतान विधि:" : "Payment Mode:"}</span>
-                  <p className="font-bold text-slate-900">{paymentMethodLabel(order.paymentMethod)}</p>
+                  <p className="font-bold text-slate-900">
+                    {isPaid && (order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online" || isOrderPaidOnline(order))
+                      ? (currentLang === "hi" ? "ऑनलाइन UPI भुगतान (Razorpay)" : "UPI / Online Payment (Razorpay)")
+                      : paymentMethodLabel(order.paymentMethod)}
+                  </p>
+                  {rzpId && (
+                    <div className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block mt-0.5">
+                      Razorpay ID: {rzpId}
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-left sm:text-right space-y-0.5">

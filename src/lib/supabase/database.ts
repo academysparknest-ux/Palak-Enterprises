@@ -1084,28 +1084,10 @@ export async function getUserOrders(
           }))
         : o.items || [];
 
-      return {
-        id: o.id,
-        orderCode: o.order_code,
-        userId: o.user_id,
-        customerName: o.customer_name,
-        customerPhone: o.customer_phone,
-        customerEmail: o.customer_email,
-        fulfillmentType: o.fulfillment_type || "pickup",
-        deliveryAddress: o.delivery_address,
-        orderNotes: o.order_notes,
-        subtotalAmount: Number(o.subtotal_amount) || 0,
-        discountAmount: Number(o.discount_amount) || 0,
-        deliveryFee: Number(o.delivery_fee) || 0,
-        totalAmount: Number(o.total_amount) || 0,
-        paymentMethod: o.payment_method,
-        paymentStatus: o.payment_status,
-        orderStatus: o.order_status,
+      return normalizeOrder({
+        ...o,
         items: joinedItems,
-        staffNotes: o.staff_notes,
-        createdAt: o.created_at,
-        updatedAt: o.updated_at,
-      };
+      });
     });
 
     mappedList.forEach((ord) => PalakDataStore.saveOrderToLocal(ord));
@@ -2520,6 +2502,27 @@ export async function submitPrintOrder(
           if (existingOrder.print_snapshot) {
             payload.printSnapshot = existingOrder.print_snapshot;
           }
+
+          // If incoming payload has confirmed payment or Razorpay ID, update the cloud record
+          const isPaidOnline = paymentStatus === "confirmed" || payload.paymentStatus === "confirmed" || payload.paymentStatus === "paid";
+          if (isPaidOnline) {
+            try {
+              await client
+                .from("orders")
+                .update({
+                  payment_status: "confirmed",
+                  payment_method: paymentMethod,
+                  order_notes: payload.instructions?.trim() || null,
+                  queue_type: "priority",
+                  queue_priority: 1,
+                  priority_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", existingOrder.id);
+            } catch (updErr) {
+              console.warn("Idempotency cloud update notice:", updErr);
+            }
+          }
           persistenceSucceeded = true;
         } else {
           const orderInsertData: any = {
@@ -2540,6 +2543,10 @@ export async function submitPrintOrder(
             items: [orderItem],
             client_submission_id: clientSubmissionId,
             print_snapshot: payload.printSnapshot || null,
+            queue_type: queueMeta.queueType,
+            queue_priority: queueMeta.queuePriority,
+            submitted_at: queueMeta.submittedAt,
+            priority_at: queueMeta.priorityAt || null,
           };
 
           const insertTimeout = new Promise<{ data: any; error: any }>((resolve) =>
@@ -2559,6 +2566,10 @@ export async function submitPrintOrder(
           if (insertErr && (insertErr.message?.includes("column") || insertErr.code === "42703")) {
             delete orderInsertData.client_submission_id;
             delete orderInsertData.print_snapshot;
+            delete orderInsertData.queue_type;
+            delete orderInsertData.queue_priority;
+            delete orderInsertData.submitted_at;
+            delete orderInsertData.priority_at;
             const retryTimeout = new Promise<{ data: any; error: any }>((resolve) =>
               setTimeout(() => resolve({ data: null, error: { message: "Retry timeout exceeded" } }), 3000)
             );

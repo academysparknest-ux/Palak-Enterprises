@@ -48,34 +48,41 @@ export function isOrderPaidOnline(order: {
   paymentStatus?: string;
   orderNotes?: string;
 }): boolean {
-  const isOnlineMethod = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online";
-  const isPaidStatus = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
+  if (!order) return false;
+  const method = String(order.paymentMethod || "").toLowerCase().trim();
+  const status = String(order.paymentStatus || "").toLowerCase().trim();
   const hasRzpId = Boolean(extractRazorpayId(order.orderNotes));
-  return isOnlineMethod && (isPaidStatus || hasRzpId);
+
+  // A verified Razorpay payment ID in order notes is definitive proof of an online payment
+  if (hasRzpId) return true;
+
+  const isOnlineMethod =
+    method === "upi_online" ||
+    method === "pay_online" ||
+    method === "online" ||
+    method === "razorpay" ||
+    method.includes("upi") ||
+    method.includes("online");
+
+  const isPaidStatus =
+    status === "confirmed" ||
+    status === "paid" ||
+    status === "success" ||
+    status === "completed" ||
+    status === "captured";
+
+  return isOnlineMethod && isPaidStatus;
 }
 
 /**
- * Resolves queue classification (priority vs normal) for any order record
- * Backward-compatible with existing stored orders.
+ * Resolves queue classification (priority vs normal) for any order record.
+ * Paid-online orders always jump to Priority Queue (queuePriority: 1).
  */
 export function getQueueClassification(order: Partial<StoredOrder> & Record<string, any>): QueueMetadata {
   const submittedAt = order.submittedAt || order.createdAt || new Date().toISOString();
-  
-  // If explicitly assigned valid queueType & queuePriority, respect it
-  if (order.queueType === "priority" || order.queueType === "normal") {
-    const queueType: QueueType = order.queueType;
-    const queuePriority: QueuePriority = queueType === "priority" ? 1 : 2;
-    return {
-      queueType,
-      queuePriority,
-      submittedAt,
-      priorityAt: order.priorityAt || (queueType === "priority" ? submittedAt : undefined),
-    };
-  }
 
-  // Otherwise infer based on verified payment status
+  // Rule 1: Authoritative Priority Invariant — Any verified online paid order MUST be in Priority Queue
   const isPaid = isOrderPaidOnline(order);
-
   if (isPaid) {
     return {
       queueType: "priority",
@@ -85,6 +92,17 @@ export function getQueueClassification(order: Partial<StoredOrder> & Record<stri
     };
   }
 
+  // Rule 2: Explicit priority assignment
+  if (order.queueType === "priority" || order.queuePriority === 1) {
+    return {
+      queueType: "priority",
+      queuePriority: 1,
+      submittedAt,
+      priorityAt: order.priorityAt || order.createdAt || submittedAt,
+    };
+  }
+
+  // Rule 3: Unpaid / Counter orders remain in Normal Queue
   return {
     queueType: "normal",
     queuePriority: 2,

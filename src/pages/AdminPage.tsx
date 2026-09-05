@@ -2215,8 +2215,8 @@ export const AdminPage: React.FC = () => {
                     const qMeta = getQueueClassification(order);
                     const isPriority = qMeta.queuePriority === 1;
                     const positionInfo = queueStats.positionsMap.get(order.orderCode);
-                    const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
-                    const isOnlineOrder = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online";
+                    const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid" || isOrderPaidOnline(order);
+                    const isOnlineOrder = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online" || isOrderPaidOnline(order);
                     const isSelected = selectedOrderCode === order.orderCode;
                     const isDelivery = order.fulfillmentType === "delivery";
 
@@ -4128,18 +4128,43 @@ export const AdminPage: React.FC = () => {
                       <strong>Grand Total:</strong>
                       <span className="text-sm font-black text-slate-900">₹{selectedOrderForModal.totalAmount}</span>
                     </div>
-                    <div><strong>Method:</strong> {selectedOrderForModal.paymentMethod === "upi_online" || selectedOrderForModal.paymentMethod === "pay_online" ? "UPI / Online Payment" : "Pay at Shop Counter"}</div>
-                    <div className="flex items-center gap-1.5 pt-0.5">
-                      <strong>Status:</strong>
-                      <span className={cn(
-                        "rounded-md px-1.5 py-0.2 text-[10px] font-bold",
-                        selectedOrderForModal.paymentStatus === "confirmed"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-amber-100 text-amber-900"
-                      )}>
-                        {selectedOrderForModal.paymentStatus === "confirmed" ? "Paid / Verified" : "Pending (Unpaid)"}
-                      </span>
-                    </div>
+                    {(() => {
+                      const isModalPaid =
+                        selectedOrderForModal.paymentStatus === "confirmed" ||
+                        selectedOrderForModal.paymentStatus === "paid" ||
+                        isOrderPaidOnline(selectedOrderForModal);
+                      const isModalOnline =
+                        selectedOrderForModal.paymentMethod === "upi_online" ||
+                        selectedOrderForModal.paymentMethod === "pay_online" ||
+                        isOrderPaidOnline(selectedOrderForModal);
+                      const rzpId = extractRazorpayId(selectedOrderForModal.orderNotes);
+
+                      return (
+                        <>
+                          <div>
+                            <strong>Method:</strong>{" "}
+                            {isModalOnline ? "UPI / Online Payment (Razorpay)" : "Pay at Shop Counter"}
+                          </div>
+                          {rzpId && (
+                            <div className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              <span className="font-bold">Razorpay ID:</span>
+                              <span className="font-black select-all">{rzpId}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1.5 pt-0.5">
+                            <strong>Status:</strong>
+                            <span className={cn(
+                              "rounded-md px-1.5 py-0.2 text-[10px] font-bold",
+                              isModalPaid
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                : "bg-amber-100 text-amber-900 border border-amber-300"
+                            )}>
+                              {isModalPaid ? "Paid / Verified" : "Pending (Unpaid)"}
+                            </span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <button
@@ -4148,7 +4173,9 @@ export const AdminPage: React.FC = () => {
                     disabled={updatingPayment}
                     className="w-full mt-1.5 py-1 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-[11px] font-bold text-slate-700 transition-colors cursor-pointer"
                   >
-                    {selectedOrderForModal.paymentStatus === "confirmed" ? "Mark as Pending / Unpaid" : "✓ Mark as Paid / Verified"}
+                    {selectedOrderForModal.paymentStatus === "confirmed" || selectedOrderForModal.paymentStatus === "paid" || isOrderPaidOnline(selectedOrderForModal)
+                      ? "Mark as Pending / Unpaid"
+                      : "✓ Mark as Paid / Verified"}
                   </button>
                 </div>
               </div>
