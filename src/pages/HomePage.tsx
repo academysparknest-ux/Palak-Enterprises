@@ -97,9 +97,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 space-y-12 sm:space-y-16">
         {/* Promotional Banner (Admin Managed) */}
-        <ScrollReveal direction="up" distancePx={16}>
-          <PromotionalBanner />
-        </ScrollReveal>
+        <PromotionalBanner />
 
         {/* 2. Main 4 Service Category Cards */}
         <ScrollReveal direction="up" distancePx={20}>
