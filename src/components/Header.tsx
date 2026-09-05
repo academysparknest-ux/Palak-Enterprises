@@ -734,11 +734,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
             ) : isStaff ? (
               <Link
                 to="/admin"
-                className="flex h-9 items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2 xs:px-2.5 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
                 title="Open Staff ERP Admin"
+                aria-label="Staff ERP Admin"
               >
                 <ShieldCheck className="h-4 w-4 text-amber-700 shrink-0" />
-                <span className="font-bold">ERP Admin</span>
+                <span className="font-bold hidden xs:inline">ERP Admin</span>
               </Link>
             ) : (
               <Link

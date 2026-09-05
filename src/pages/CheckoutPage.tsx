@@ -479,7 +479,7 @@ export const CheckoutPage: React.FC = () => {
                   {currentLang === "hi" ? "प्राप्ति माध्यम चुनें" : "2. Fulfillment Method"}
                 </h2>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setFulfillmentType("pickup")}
@@ -651,7 +651,7 @@ export const CheckoutPage: React.FC = () => {
 
             {/* Right: Order Summary */}
             <div className="sticky top-20">
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-card space-y-4">
                 <h3 className="text-base font-extrabold text-slate-900">
                   {currentLang === "hi" ? "ऑर्डर का संक्षिप्त विवरण" : "Order Summary"}
                 </h3>
@@ -737,9 +737,9 @@ export const CheckoutPage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
+                <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline gap-2">
                   <span className="text-sm font-bold text-slate-900">Total Payable</span>
-                  <span className="text-2xl font-black text-[#123B70]">
+                  <span className="text-xl sm:text-2xl font-black text-[#123B70] shrink-0 font-mono">
                     ₹{chargesBreakdown.grandTotal.toFixed(2)}
                   </span>
                 </div>

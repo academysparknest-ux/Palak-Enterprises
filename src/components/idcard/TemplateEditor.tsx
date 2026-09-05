@@ -1930,7 +1930,7 @@ export function TemplateEditor({
       {/* ── Main Editor Work Area ─────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_380px]">
         {/* Canvas Area */}
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-100/80 p-8 shadow-inner min-h-[520px] overflow-auto">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-100/80 p-4 sm:p-6 md:p-8 shadow-inner min-h-[420px] sm:min-h-[520px] overflow-auto">
           {/* Card Dimensions & Side Tag */}
           <div className="mb-3 flex items-center justify-between gap-4 text-xs text-slate-600" style={{ width: widthMm * pxPerMm }}>
             <div className="flex items-center gap-2">

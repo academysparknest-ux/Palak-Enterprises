@@ -2115,7 +2115,7 @@ export default function IdCardGeneratePage() {
       </div>
 
       {/* 5. Continuous Scrollable Spreadsheet Table */}
-      <div className="relative overflow-x-auto overflow-y-auto max-h-[620px] rounded-xl border border-slate-200 bg-white shadow-2xs">
+      <div className="relative overflow-x-auto overflow-y-auto max-h-[620px] rounded-xl border border-slate-200 bg-white shadow-2xs responsive-table-container">
         <table className="w-full min-w-[1250px] border-collapse text-left text-xs">
           {/* Sticky Table Header */}
           <thead className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 font-semibold text-slate-700 select-none">

@@ -154,13 +154,13 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestMo
 
             {/* Action Buttons Row */}
             <div
-              className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-0.5"
+              className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2.5 sm:gap-3 pt-0.5"
               style={{ animation: "fadeUp 450ms cubic-bezier(0.22, 1, 0.36, 1) both 220ms" }}
             >
               {/* Primary CTA: PRINT ONLINE */}
               <Link
                 to="/online-services"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 px-5 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-black text-slate-950 shadow-md shadow-amber-400/20 ring-1 ring-amber-300/60 active-press transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer shrink-0"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 px-5 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-black text-slate-950 shadow-md shadow-amber-400/20 ring-1 ring-amber-300/60 active-press transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer w-full xs:w-auto text-center"
                 aria-label={currentLang === "hi" ? "ऑनलाइन प्रिंट ऑर्डर करें" : "Print Online"}
               >
                 <span>{currentLang === "hi" ? "🖨️ ऑनलाइन प्रिंट" : "🖨️ PRINT ONLINE"}</span>
@@ -169,7 +169,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestMo
               {/* Secondary CTA: START A SERVICE */}
               <Link
                 to="/services"
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/30 px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-bold text-white active-press transition-all duration-200 hover:-translate-y-0.5 hover:border-white/50 cursor-pointer backdrop-blur-xs shrink-0 btn-hover-arrow"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/30 px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-bold text-white active-press transition-all duration-200 hover:-translate-y-0.5 hover:border-white/50 cursor-pointer backdrop-blur-xs w-full xs:w-auto text-center btn-hover-arrow"
               >
                 <span>{currentLang === "hi" ? "सेवा शुरू करें" : "START A SERVICE"}</span>
                 <ArrowRight className="h-3.5 w-3.5 btn-icon-right transition-transform duration-200" aria-hidden="true" />
@@ -231,21 +231,21 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRequestModal: _onOpenRequestMo
               </div>
 
               {/* Process Steps (1 Send → 2 Choose → 3 Print → 4 Collect) */}
-              <div className="grid grid-cols-4 items-center gap-1 py-1.5 px-2 rounded-lg bg-slate-950/40 border border-white/10 text-[10px] text-slate-300 font-semibold text-center">
-                <div className="flex items-center justify-center gap-1">
-                  <span className="h-4 w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">1</span>
+              <div className="grid grid-cols-4 items-center gap-0.5 sm:gap-1 py-1.5 px-1 sm:px-2 rounded-lg bg-slate-950/40 border border-white/10 text-[9px] sm:text-[10px] text-slate-300 font-semibold text-center">
+                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                  <span className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[8px] sm:text-[9px] shrink-0">1</span>
                   <span className="truncate">{currentLang === "hi" ? "भेजें" : "Send"}</span>
                 </div>
-                <div className="flex items-center justify-center gap-1">
-                  <span className="h-4 w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">2</span>
+                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                  <span className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[8px] sm:text-[9px] shrink-0">2</span>
                   <span className="truncate">{currentLang === "hi" ? "चुनें" : "Choose"}</span>
                 </div>
-                <div className="flex items-center justify-center gap-1">
-                  <span className="h-4 w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">3</span>
+                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                  <span className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[8px] sm:text-[9px] shrink-0">3</span>
                   <span className="truncate">{currentLang === "hi" ? "प्रिंट" : "Print"}</span>
                 </div>
-                <div className="flex items-center justify-center gap-1">
-                  <span className="h-4 w-4 rounded-full bg-emerald-400 text-slate-950 font-black flex items-center justify-center text-[9px] shrink-0">4</span>
+                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                  <span className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full bg-emerald-400 text-slate-950 font-black flex items-center justify-center text-[8px] sm:text-[9px] shrink-0">4</span>
                   <span className="truncate">{currentLang === "hi" ? "प्राप्त करें" : "Collect"}</span>
                 </div>
               </div>

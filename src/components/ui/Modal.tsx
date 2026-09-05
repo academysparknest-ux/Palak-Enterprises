@@ -173,7 +173,7 @@ export function Modal({
         {hasHeader && (
           <div
             className={cn(
-              'flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-4.5 shrink-0 bg-white rounded-t-2xl',
+              'flex items-center justify-between border-b border-slate-100 px-4 py-3.5 sm:px-6 sm:py-4.5 shrink-0 bg-white rounded-t-2xl',
               headerClassName
             )}
           >
@@ -216,7 +216,7 @@ export function Modal({
         {/* Scrollable Body */}
         <div
           className={cn(
-            'flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 sm:p-6',
+            'flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6',
             bodyClassName
           )}
         >
@@ -227,7 +227,7 @@ export function Modal({
         {footer && (
           <div
             className={cn(
-              'flex flex-wrap items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/80 px-5 py-3.5 sm:px-6 sm:py-4 rounded-b-2xl shrink-0',
+              'flex flex-wrap items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-6 sm:py-4 rounded-b-2xl shrink-0',
               footerClassName
             )}
           >

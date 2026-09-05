@@ -1280,7 +1280,7 @@ export const DocumentPrintingPage: React.FC = () => {
                 <span className="text-[11px] font-semibold text-slate-400">Category</span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
                 {DOCUMENT_TYPES.map((dt) => {
                   const isSelected = selectedDocType === dt.id;
                   return (

@@ -737,7 +737,7 @@ export const IdCardsPage: React.FC = () => {
               {/* Lanyard Addon */}
               <label
                 className={cn(
-                  "flex items-center justify-between rounded-xl border p-3.5 transition-all cursor-pointer mt-2",
+                  "flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2.5 rounded-xl border p-3.5 transition-all cursor-pointer mt-2",
                   includeLanyard ? "border-blue-500 bg-blue-50/60" : "border-slate-200 bg-slate-50"
                 )}
               >

@@ -282,7 +282,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onOpenRequestModal }) => {
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { step: "1", titleEn: "Choose Service", titleHi: "सेवा चुनें", descEn: "Select printing product or digital assistance service." },
                 { step: "2", titleEn: "Configure Options", titleHi: "विकल्प चुनें", descEn: "Pick quantity, paper GSM, finish, or required docs." },

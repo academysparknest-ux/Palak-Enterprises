@@ -16,9 +16,9 @@ export function Footer(): React.JSX.Element {
   return (
     <footer className="bg-[#0F172A] pb-2 pt-8 text-white/80 border-t border-slate-800">
 
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:px-8 md:grid-cols-5">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-8 sm:gap-10 px-4 sm:px-6 lg:px-8">
         {/* Column 1: Brand & Registrations */}
-        <div className="md:col-span-2 space-y-4">
+        <div className="sm:col-span-2 md:col-span-2 space-y-4">
           <Link to="/" className="flex items-center gap-3 group">
             <img
               src={business.logoPath}

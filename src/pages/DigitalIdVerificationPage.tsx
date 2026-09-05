@@ -120,7 +120,7 @@ export const DigitalIdVerificationPage: React.FC = () => {
   const orgLogo = !headerLogoError && org?.logoUrl ? org.logoUrl : business.logoPath;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col justify-between relative selection:bg-[#123B70] selection:text-white">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col justify-between relative selection:bg-[#123B70] selection:text-white w-full overflow-x-hidden">
       <SEO
         title={{ en: "Digital ID Card Verification", hi: "डिजिटल आईडी कार्ड सत्यापन" }}
         description={{ en: "Authentic student and staff PVC ID card verification portal.", hi: "प्रामाणिक छात्र एवं कर्मचारी पीवीसी आईडी कार्ड सत्यापन पोर्टल।" }}
@@ -335,7 +335,7 @@ export const DigitalIdVerificationPage: React.FC = () => {
                       <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">
                         Record ID
                       </span>
-                      <span className="font-mono font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
+                      <span className="font-mono font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md break-all text-[11px]">
                         {result.profile.id}
                       </span>
                     </div>

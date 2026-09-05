@@ -179,9 +179,9 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
       />
 
       {/* Drawer Panel Container */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 pointer-events-none">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-6 pointer-events-none">
         <div
-          className="w-screen max-w-sm bg-white shadow-2xl flex flex-col justify-between overflow-hidden pointer-events-auto transition-transform duration-300 ease-out"
+          className="w-full max-w-[calc(100vw-1rem)] sm:max-w-sm bg-white shadow-2xl flex flex-col justify-between overflow-hidden pointer-events-auto transition-transform duration-300 ease-out"
           style={{ animation: "scaleIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both" }}
           onClick={(e) => e.stopPropagation()}
         >

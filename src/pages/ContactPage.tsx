@@ -387,10 +387,10 @@ export const ContactPage: React.FC = () => {
               </div>
 
               {/* Quick Action CTA Buttons */}
-              <div className="pt-4 border-t border-line flex flex-wrap gap-2.5">
+              <div className="pt-4 border-t border-line flex flex-col xs:flex-row flex-wrap gap-2.5">
                 <a
                   href={getCallLink()}
-                  className="inline-flex items-center gap-1.5 rounded-pill bg-brandred px-4 py-2.5 text-xs font-bold text-white shadow-card transition-transform hover:scale-[1.02]"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-pill bg-brandred px-4 py-2.5 text-xs font-bold text-white shadow-card transition-transform hover:scale-[1.02] w-full xs:w-auto text-center"
                 >
                   <Phone size={14} />
                   {currentLang === "hi" ? "कॉल करें" : "Call Now"}
@@ -400,7 +400,7 @@ export const ContactPage: React.FC = () => {
                   href={getWhatsAppLink("Hello Palak Enterprises, I am contacting you from your contact page.")}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-pill bg-leaf px-4 py-2.5 text-xs font-bold text-white shadow-card transition-transform hover:scale-[1.02]"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-pill bg-leaf px-4 py-2.5 text-xs font-bold text-white shadow-card transition-transform hover:scale-[1.02] w-full xs:w-auto text-center"
                 >
                   <MessageCircle size={14} />
                   WhatsApp
@@ -410,7 +410,7 @@ export const ContactPage: React.FC = () => {
                   href={getDirectionsLink()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-pill bg-navy px-4 py-2.5 text-xs font-bold text-white shadow-card transition-transform hover:scale-[1.02]"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-pill bg-navy px-4 py-2.5 text-xs font-bold text-white shadow-card transition-transform hover:scale-[1.02] w-full xs:w-auto text-center"
                 >
                   <MapPin size={14} />
                   {currentLang === "hi" ? "गूगल मैप रास्ता देखें" : "Get Directions"}

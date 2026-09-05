@@ -97,7 +97,7 @@ export function PersonTable({
   };
 
   return (
-    <div className="relative max-h-[calc(100vh-270px)] min-h-[380px] overflow-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+    <div className="relative max-h-[calc(100vh-270px)] min-h-[380px] overflow-auto rounded-xl border border-slate-200 bg-white shadow-2xs responsive-table-container">
       <table className="w-full min-w-[1100px] text-left text-xs border-separate border-spacing-0">
         <thead className="sticky top-0 z-20 bg-slate-50 font-semibold text-slate-700 shadow-xs select-none">
           <tr className="divide-x divide-slate-200/60 border-b border-slate-200">

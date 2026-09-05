@@ -207,8 +207,8 @@ export function AppContent() {
 
   return (
     <div className={cn(
-      "min-h-screen flex flex-col bg-[#FAF8F5] font-sans selection:bg-[#123B70] selection:text-white",
-      !hideChrome && "pb-16 md:pb-0"
+      "min-h-screen flex flex-col bg-[#FAF8F5] font-sans selection:bg-[#123B70] selection:text-white w-full overflow-x-hidden",
+      !hideChrome && "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
     )}>
       <StructuredData />
       <SpeedInsights />

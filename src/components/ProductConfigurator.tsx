@@ -150,7 +150,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({ produc
               </span>
             </label>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2">
               {option.values.map((val) => {
                 const isSelected = selectedOptions[option.key] === val.key;
                 return (
@@ -183,7 +183,7 @@ export const ProductConfigurator: React.FC<ProductConfiguratorProps> = ({ produc
           {currentLang === "hi" ? "आर्टवर्क / डिज़ाइन विकल्प" : "Artwork & Design Selection"}
         </label>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <button
             type="button"
             onClick={() => setDesignChoice("upload")}

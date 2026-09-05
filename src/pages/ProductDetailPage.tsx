@@ -161,7 +161,7 @@ export const ProductDetailPage: React.FC = () => {
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   {currentLang === "hi" ? "तकनीकी विवरण" : "Technical Specifications"}
                 </h3>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
                     <span className="text-slate-400 block text-[10px]">Standard Dimensions</span>
                     <span className="font-bold text-slate-800">{product.specifications.dimensions || "Customizable"}</span>

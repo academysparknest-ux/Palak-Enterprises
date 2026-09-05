@@ -634,18 +634,18 @@ export const AccountPage: React.FC = () => {
         </div>
 
         {/* Dashboard Tabs Navigation */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xs flex flex-wrap items-center gap-1 max-w-2xl">
+        <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-w-2xl">
           <button
             type="button"
             onClick={() => handleTabChange("orders")}
-            className={`flex-1 min-w-[110px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`w-full py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === "orders" ? "bg-[#123B70] text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            <Package className="h-3.5 w-3.5" />
-            <span>{currentLang === "hi" ? "प्रिंट ऑर्डर्स" : "Print Orders"}</span>
+            <Package className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{currentLang === "hi" ? "प्रिंट ऑर्डर्स" : "Print Orders"}</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 ${
                 activeTab === "orders" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
               }`}
             >
@@ -656,14 +656,14 @@ export const AccountPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabChange("services")}
-            className={`flex-1 min-w-[110px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`w-full py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === "services" ? "bg-[#123B70] text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            <Globe className="h-3.5 w-3.5" />
-            <span>{currentLang === "hi" ? "डिजिटल सेवाएँ" : "Services"}</span>
+            <Globe className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{currentLang === "hi" ? "डिजिटल सेवाएँ" : "Services"}</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 ${
                 activeTab === "services" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
               }`}
             >
@@ -674,14 +674,14 @@ export const AccountPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabChange("quotes")}
-            className={`flex-1 min-w-[110px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`w-full py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === "quotes" ? "bg-[#123B70] text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            <FileText className="h-3.5 w-3.5" />
-            <span>{currentLang === "hi" ? "कोटेशन" : "Quotes"}</span>
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{currentLang === "hi" ? "कोटेशन" : "Quotes"}</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 ${
                 activeTab === "quotes" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
               }`}
             >
@@ -692,12 +692,12 @@ export const AccountPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabChange("profile")}
-            className={`flex-1 min-w-[110px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`w-full py-2.5 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === "profile" ? "bg-[#123B70] text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            <User className="h-3.5 w-3.5" />
-            <span>{currentLang === "hi" ? "प्रोफाइल" : "Profile"}</span>
+            <User className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{currentLang === "hi" ? "प्रोफाइल" : "Profile"}</span>
           </button>
         </div>
 

@@ -192,7 +192,7 @@ export const CartPage: React.FC = () => {
 
           {/* Right Column: Order Summary Card */}
           <div className="sticky top-20">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-card space-y-5">
               <h3 className="text-base font-extrabold text-slate-900">
                 {currentLang === "hi" ? "ऑर्डर सारांश" : "Order Summary"}
               </h3>
@@ -212,9 +212,9 @@ export const CartPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex items-baseline justify-between">
+              <div className="pt-3 border-t border-slate-200 flex items-baseline justify-between gap-2">
                 <span className="text-sm font-bold text-slate-900">Total Payable</span>
-                <span className="text-2xl font-black text-[#123B70]">₹{total}</span>
+                <span className="text-xl sm:text-2xl font-black text-[#123B70] shrink-0 font-mono">₹{total}</span>
               </div>
 
               <button

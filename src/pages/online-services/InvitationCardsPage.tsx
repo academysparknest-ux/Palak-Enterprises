@@ -308,7 +308,7 @@ export const InvitationCardsPage: React.FC = () => {
                 stopReason={stopReason}
               />
             )}
-            <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-card space-y-6">
+            <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-8 md:p-10 shadow-card space-y-6">
             {/* Step 1: Event Type */}
             <div className="space-y-3">
               <label className="block text-xs sm:text-sm font-extrabold text-slate-900">
