@@ -25,7 +25,7 @@ async function backup() {
   console.log(`   -> Orders: ${ordersRes.rows.length}`);
 
   console.log('2. Querying order_items snapshot...');
-  const orderItemsRes = await client.query('SELECT id, order_id, product_id, item_title, quantity, unit_price, total_price, uploaded_file_name, created_at FROM public.order_items ORDER BY id;');
+  const orderItemsRes = await client.query('SELECT id, order_id, product_id, product_name, quantity, unit_price, total_price, uploaded_file_name, created_at FROM public.order_items ORDER BY id;');
   console.log(`   -> Order Items: ${orderItemsRes.rows.length}`);
 
   console.log('3. Querying order_files snapshot...');

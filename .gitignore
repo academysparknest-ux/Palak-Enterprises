@@ -48,5 +48,6 @@ next-env.d.ts
 
 # Scratch & Temporary Scripts
 scratch/
+scripts/backup/
 *.pdf
 

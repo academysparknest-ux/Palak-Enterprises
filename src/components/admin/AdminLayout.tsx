@@ -228,7 +228,7 @@ export const AdminLayout: React.FC = () => {
           loading={dataLoading}
         />
 
-        <div className="flex flex-1 relative w-full min-h-[calc(100vh-2.75rem)]">
+        <div className="flex flex-1 relative w-full min-h-[calc(100vh-2.75rem)] lg:items-start">
           {/* Sidebar: 230px desktop fixed width */}
           <AdminSidebar
             isOpen={sidebarOpen}

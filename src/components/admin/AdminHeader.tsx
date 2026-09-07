@@ -512,7 +512,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   }, []);
 
   return (
-    <header className="bg-[#0F172A] text-white border-b border-slate-800 sticky top-0 z-40">
+    <header className="bg-[#0F172A] text-white border-b border-slate-800 sticky top-0 z-40 w-full">
       <div className="flex items-center justify-between px-3 sm:px-5 h-11">
         {/* Left: Hamburger + Branding */}
         <div className="flex items-center gap-2.5">

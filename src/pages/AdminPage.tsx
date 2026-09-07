@@ -1896,7 +1896,7 @@ export const AdminPage: React.FC = () => {
     <div className={isNestedInLayout ? "pb-6" : "min-h-screen bg-[#F1F5F9] pb-20"}>
       {/* Top Staff ERP Navigation Bar — Hidden when inside AdminLayout */}
       {!isNestedInLayout && (
-      <div className="bg-[#0F172A] text-white py-4 px-4 sm:px-6 border-b border-slate-800">
+      <div className="bg-[#0F172A] text-white py-4 px-4 sm:px-6 border-b border-slate-800 sticky top-0 z-40">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-lg bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm">

@@ -87,7 +87,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={onClose}
         />
       )}
@@ -95,7 +95,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[230px] flex-col bg-[#0F172A] text-white transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 lg:shrink-0 lg:sticky lg:top-11 lg:h-[calc(100vh-2.75rem)]",
+          "fixed inset-y-0 left-0 z-50 flex w-[230px] flex-col bg-[#0F172A] text-white transition-transform duration-300 ease-in-out lg:sticky lg:top-11 lg:self-start lg:z-30 lg:translate-x-0 lg:shrink-0 lg:h-[calc(100vh-2.75rem)] lg:max-h-[calc(100dvh-2.75rem)]",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >

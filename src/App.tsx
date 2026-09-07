@@ -207,7 +207,7 @@ export function AppContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF8F5] font-sans selection:bg-[#123B70] selection:text-white w-full overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-[#FAF8F5] font-sans selection:bg-[#123B70] selection:text-white w-full overflow-x-clip">
       <StructuredData />
       <SpeedInsights />
       <Analytics />
