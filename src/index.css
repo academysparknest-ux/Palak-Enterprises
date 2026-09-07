@@ -150,6 +150,27 @@
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
   }
+
+  /* Shared Fixed Controls: Floating Promotional CTA */
+  .floating-bottom-left-btn {
+    position: fixed;
+    /* On mobile viewports: dock neatly above the bottom nav without overlapping the Home icon */
+    left: 14px;
+    right: auto;
+    bottom: calc(4.125rem + env(safe-area-inset-bottom, 0px));
+    z-index: 45;
+    white-space: nowrap;
+    max-width: calc(100vw - 28px);
+  }
+
+  @media (min-width: 768px) {
+    .floating-bottom-left-btn {
+      /* Mobile ke alawe (desktop/tablet): position at bottom-left corner, 55px up from bottom */
+      left: 20px;
+      right: auto;
+      bottom: max(55px, env(safe-area-inset-bottom, 0px));
+    }
+  }
 }
 
 /* Accessibility & Senior Citizen Font Sizing */

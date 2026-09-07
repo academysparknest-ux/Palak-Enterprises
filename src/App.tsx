@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { LanguageProvider } from "./context/LanguageContext";
 import { AccessibilityProvider } from "./context/AccessibilityContext";
@@ -14,9 +14,7 @@ import { PageTransition } from "./components/ui/motion/PageTransition";
 import { lazyWithRetry } from "./lib/lazyWithRetry";
 import { servicesData, type ServiceItem } from "./config/services";
 import { PalakDataStore } from "./lib/storage/store";
-import { getProducts, getServices, getCategories } from "./lib/supabase/database";
 import { supabase, isSupabaseConfigured } from "./lib/supabase/client";
-import { cn } from "./lib/utils";
 import { AdminRouteGuard } from "./components/admin/AdminRouteGuard";
 import { AppBootstrapScreen } from "./components/AppBootstrapScreen";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -135,21 +133,23 @@ export function AppContent() {
   const isVerifyRoute = location.pathname.startsWith('/verify');
   const hideChrome = isAdminRoute || isVerifyRoute;
 
+  const lastSyncRef = useRef(0);
+
   // Catalog synchronization from Supabase: Gated strictly behind auth initialization
   useEffect(() => {
     if (authLoading || !isReady) return;
     if (!isSupabaseConfigured || !supabase) return;
 
     let isSubscribed = true;
-    let lastSync = 0;
     const SYNC_THROTTLE_MS = 60000; // 1 minute throttle
 
     const syncCatalog = async () => {
       const now = Date.now();
-      if (now - lastSync < SYNC_THROTTLE_MS) return;
-      lastSync = now;
+      if (now - lastSyncRef.current < SYNC_THROTTLE_MS) return;
+      lastSyncRef.current = now;
 
       try {
+        const { getProducts, getServices, getCategories } = await import("./lib/supabase/database");
         const [prods, servs, cats] = await Promise.all([
           getProducts(),
           getServices(),
@@ -182,7 +182,7 @@ export function AppContent() {
       window.removeEventListener("online", syncCatalog);
       document.removeEventListener("visibilitychange", handleFocus);
     };
-  }, [authLoading]);
+  }, [authLoading, isReady]);
 
   const handleOpenRequestModal = (serviceId?: string) => {
     if (serviceId) {
@@ -200,16 +200,14 @@ export function AppContent() {
   };
 
   // Authoritative Application Bootstrap Gate:
-  // Prevents premature Customer / Public shell rendering before role resolution completes
-  if (!isReady && authLoading) {
+  // Only gate admin control center routes during initial role resolution.
+  // Public customer routes mount immediately to optimize real-world LCP, FCP, and Core Web Vitals.
+  if (isAdminRoute && !isReady && authLoading) {
     return <AppBootstrapScreen />;
   }
 
   return (
-    <div className={cn(
-      "min-h-screen flex flex-col bg-[#FAF8F5] font-sans selection:bg-[#123B70] selection:text-white w-full overflow-x-hidden",
-      !hideChrome && "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
-    )}>
+    <div className="min-h-screen flex flex-col bg-[#FAF8F5] font-sans selection:bg-[#123B70] selection:text-white w-full overflow-x-hidden">
       <StructuredData />
       <SpeedInsights />
       <Analytics />

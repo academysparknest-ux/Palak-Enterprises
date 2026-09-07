@@ -31,13 +31,17 @@ export default defineConfig({
     host: true,
   },
   build: {
+    target: 'es2022',
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id: string) {
           if (id.includes('node_modules')) {
-            if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('purify')) {
+            if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('purify') || id.includes('pdf-lib')) {
               return 'vendor-pdf';
+            }
+            if (id.includes('jszip')) {
+              return 'vendor-zip';
             }
             if (id.includes('qrcode')) {
               return 'vendor-qr';

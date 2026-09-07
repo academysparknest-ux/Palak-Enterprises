@@ -207,10 +207,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenRequestModal }) => {
           {/* Brand Logo & Name */}
           <Link to="/" className="flex items-center gap-2 sm:gap-2.5 shrink-0 group min-w-0" aria-label="Palak Enterprises Home">
             <img
-              src={business.logoPath}
+              src={business.logoSmallPath || business.logoPath}
               alt={business.name[currentLang]}
               width={40}
               height={40}
+              decoding="async"
               className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full object-cover ring-2 ring-amber-400/60 shadow-xs group-hover:scale-105 transition-transform shrink-0"
               loading="eager"
             />

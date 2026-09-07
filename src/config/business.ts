@@ -166,6 +166,7 @@ export interface BusinessInfo {
     instagram: string;
   };
   logoPath: string;
+  logoSmallPath?: string;
   signaturePath?: string;
 }
 
@@ -218,6 +219,7 @@ export const business: BusinessInfo = {
     instagram: "",
   },
   logoPath: "/logo.webp",
+  logoSmallPath: "/logo-sm.webp",
   signaturePath: OWNER_SIGNATURE_ONLINE_URL,
 };
 

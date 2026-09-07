@@ -9,16 +9,6 @@
     <meta name="author" content="Kumar Pankaj - Palak Enterprises" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <link rel="canonical" href="https://www.palakenterprises.shop/" />
-    <script>
-      (function() {
-        if (typeof window !== 'undefined' && window.location && window.location.hostname) {
-          var host = window.location.hostname;
-          if (host.indexOf('vercel.app') !== -1) {
-            window.location.replace('https://www.palakenterprises.shop' + window.location.pathname + window.location.search + window.location.hash);
-          }
-        }
-      })();
-    </script>
 
     <!-- Local & Geo Targeting Tags -->
     <meta name="geo.region" content="IN-BR" />
@@ -46,13 +36,14 @@
     <meta name="twitter:description" content="Professional printing, visiting cards, instant photos, digital services &amp; online application assistance in Chakia, East Champaran." />
     <meta name="twitter:image" content="https://www.palakenterprises.shop/images/palak-printing-press-banner.jpeg" />
 
-    <!-- Google Fonts: Plus Jakarta Sans & Noto Sans Devanagari (Optimized weights) -->
+    <!-- Google Fonts: Plus Jakarta Sans & Noto Sans Devanagari (Non-render-blocking font loading) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- Razorpay Checkout Gateway SDK -->
-    <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'">
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    </noscript>
 
     <!-- Official Brand Favicon & App Icons -->
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />

@@ -1,11 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 
 export const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  const [mounted, setMounted] = useState(false);
+  const isFirstMount = useRef(true);
+  const [mounted, setMounted] = useState(true);
 
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
     setMounted(false);
     const timer = setTimeout(() => setMounted(true), 20);
     return () => clearTimeout(timer);

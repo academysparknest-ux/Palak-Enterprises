@@ -225,11 +225,12 @@ export const PromotionalBanner: React.FC = () => {
         <button
           type="button"
           onClick={handleOpen}
-          className="fixed bottom-20 left-4 z-[9990] inline-flex items-center gap-2 rounded-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-4 py-2.5 text-xs sm:text-sm font-bold shadow-xl ring-2 ring-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-3 duration-300"
-          title="Click to view special promotional offer"
+          className="floating-bottom-left-btn inline-flex items-center justify-center gap-1.5 sm:gap-2 w-auto min-w-fit shrink-0 whitespace-nowrap rounded-full bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-bold shadow-xl ring-2 ring-white/90 hover:scale-105 active:scale-95 transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-3 duration-300 focus:outline-hidden focus-visible:ring-3 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white motion-reduce:animate-none motion-reduce:transition-none motion-reduce:transform-none select-none z-[45]"
+          title={currentLang === "hi" ? "विशेष प्रोमोशनल ऑफर देखें" : "Click to view special promotional offer"}
+          aria-label={currentLang === "hi" ? "विशेष प्रोमोशनल ऑफर देखें" : "View special promotional offer"}
         >
-          <Sparkles className="w-4 h-4 text-amber-100 animate-pulse" />
-          <span>{currentLang === "hi" ? "विशेष ऑफर देखें" : "Special Offer"}</span>
+          <Sparkles className="w-4 h-4 text-amber-100 animate-pulse motion-reduce:animate-none shrink-0" />
+          <span className="whitespace-nowrap leading-none">{currentLang === "hi" ? "विशेष ऑफर देखें" : "Special Offer"}</span>
         </button>
       )}
     </>,
