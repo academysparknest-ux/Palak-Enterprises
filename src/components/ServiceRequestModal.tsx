@@ -248,7 +248,7 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-2.5 sm:p-4 md:p-6 popup-backdrop-golden-glossy animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="request-modal-title"

@@ -19,6 +19,7 @@ export interface ModalProps {
   bodyClassName?: string;
   headerClassName?: string;
   footerClassName?: string;
+  backdropClassName?: string;
   closeOnBackdropClick?: boolean;
   preventEscapeClose?: boolean;
   hideCloseButton?: boolean;
@@ -54,6 +55,7 @@ export function Modal({
   bodyClassName,
   headerClassName,
   footerClassName,
+  backdropClassName,
   closeOnBackdropClick = false,
   preventEscapeClose = false,
   hideCloseButton = false,
@@ -151,7 +153,7 @@ export function Modal({
       aria-describedby={ariaDescribedBy}
       className={cn(
         'fixed inset-0 flex items-center justify-center p-3 sm:p-4 md:p-6',
-        'bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200',
+        backdropClassName || 'bg-slate-950/50 backdrop-blur-sm transition-opacity duration-200',
         'overflow-hidden touch-none print:hidden',
         zIndexClass
       )}

@@ -134,25 +134,33 @@ export const PromotionalBanner: React.FC = () => {
           role="dialog"
           aria-modal="true"
           aria-label={promo.heading || "Special Offer Popup"}
-          className="fixed inset-0 z-[99999] overflow-y-auto overflow-x-hidden flex items-center justify-center p-3 pt-6 pb-6 sm:p-5 md:p-8 bg-black/85 backdrop-blur-xs overscroll-contain animate-in fade-in duration-200"
+          className="fixed inset-0 z-[99999] overflow-y-auto overflow-x-hidden flex items-center justify-center p-3 pt-6 pb-6 sm:p-5 md:p-8 popup-backdrop-golden-glossy overscroll-contain animate-in fade-in duration-300"
           onClick={handleClose}
         >
-          {/* Centered Modal Card: Width hugs flyer while maintaining responsive min/max constraints */}
+          {/* Ambient Golden Glossy Radial Glow behind the popup */}
           <div
-            className="relative w-fit max-w-[min(94vw,900px)] min-w-[min(92vw,300px)] sm:min-w-0 bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-visible border-2 border-amber-400/90 animate-in zoom-in-95 duration-250 flex flex-col my-auto mx-auto"
+            className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden"
+            aria-hidden="true"
+          >
+            <div className="w-[min(94vw,680px)] h-[min(94vw,680px)] rounded-full popup-ambient-glow animate-pulseSoft pointer-events-none" />
+          </div>
+
+          {/* Centered Modal Card: Standard ideal size (max-w 580px) with golden glossy premium frame */}
+          <div
+            className="relative w-fit max-w-[min(92vw,580px)] min-w-[min(90vw,310px)] sm:min-w-0 popup-card-golden-glossy rounded-2xl sm:rounded-3xl ring-1 ring-amber-300/80 overflow-visible animate-in zoom-in-95 duration-250 flex flex-col my-auto mx-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Prominent Floating Close Button (Touch friendly, responsive sizing & positioning) */}
+            {/* Standard Floating Close Button */}
             <button
               type="button"
               onClick={handleClose}
               aria-label="Close popup"
-              className="absolute -top-3 -right-3 sm:-top-4 sm:-right-4 z-[100000] flex h-9 w-9 sm:h-11 sm:w-11 md:h-12 md:w-12 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white shadow-2xl ring-3 sm:ring-4 ring-white hover:scale-110 active:scale-95 transition-all cursor-pointer touch-manipulation"
+              className="absolute -top-3 -right-3 sm:-top-3.5 sm:-right-3.5 z-[100000] flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white shadow-xl ring-2 sm:ring-3 ring-amber-300 hover:scale-110 active:scale-95 transition-all cursor-pointer touch-manipulation"
             >
-              <X className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 stroke-[2.5]" />
+              <X className="h-4.5 w-4.5 sm:h-5 sm:w-5 stroke-[2.5]" />
             </button>
 
-            {/* Flyer Image Container: Snugly wraps the image with responsive viewport constraints */}
+            {/* Flyer Image Container: Standard proportioned constraints */}
             <div className="relative w-fit max-w-full overflow-hidden rounded-t-2xl sm:rounded-t-3xl flex items-center justify-center bg-white mx-auto">
               <Link
                 to="/printing"
@@ -163,17 +171,17 @@ export const PromotionalBanner: React.FC = () => {
                 <img
                   src={promo.image}
                   alt={promo.heading || "Special Promotional Offer"}
-                  className="block max-w-[min(92vw,900px)] max-h-[58dvh] sm:max-h-[68dvh] md:max-h-[72dvh] w-auto h-auto object-contain mx-auto group-hover:opacity-95 transition-opacity select-none"
+                  className="block max-w-[min(90vw,580px)] max-h-[50dvh] sm:max-h-[55dvh] md:max-h-[460px] w-auto h-auto object-contain mx-auto group-hover:opacity-95 transition-opacity select-none"
                   loading="eager"
                 />
               </Link>
             </div>
 
-            {/* Bottom Action Strip: Stacked & balanced on mobile, sleek inline row on desktop */}
-            <div className="bg-linear-to-r from-amber-50/80 via-white to-amber-50/80 p-3 sm:px-5 sm:py-3 border-t border-amber-200/80 rounded-b-2xl sm:rounded-b-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 w-full">
+            {/* Bottom Action Strip: Balanced standard proportion */}
+            <div className="bg-linear-to-r from-amber-100/95 via-amber-50/90 to-amber-100/95 p-3 sm:px-4.5 sm:py-3 border-t border-amber-300/80 rounded-b-2xl sm:rounded-b-3xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 w-full backdrop-blur-xs">
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 w-full sm:w-auto">
-                <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-extrabold text-amber-900 bg-amber-200/90 px-2 py-0.5 sm:px-2.5 rounded-full border border-amber-300 shrink-0">
-                  <Sparkles className="w-3 h-3 text-amber-700" />
+                <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-black text-amber-950 bg-linear-to-r from-amber-400 via-amber-300 to-amber-500 px-2 py-0.5 sm:px-2.5 rounded-full border border-amber-300 shadow-xs shrink-0">
+                  <Sparkles className="w-3 h-3 text-amber-900" />
                   <span>{currentLang === "hi" ? "विशेष ऑफर" : "Special Offer"}</span>
                 </span>
                 {promo.description && (

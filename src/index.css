@@ -265,6 +265,35 @@ button, a {
   }
 }
 
+/* =========================================================================
+   GOLDEN GLOSSY PREMIUM POPUP BACKDROP & STYLING
+   ========================================================================= */
+
+.popup-backdrop-golden-glossy {
+  /* High-transparency golden glass veil - page content clearly visible underneath */
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(251, 191, 36, 0.16) 0%, rgba(245, 158, 11, 0.08) 40%, rgba(15, 23, 42, 0.28) 100%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(251, 191, 36, 0.06) 35%, transparent 75%);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+}
+
+.popup-ambient-glow {
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.22) 0%, rgba(245, 158, 11, 0.10) 35%, rgba(217, 119, 6, 0.03) 55%, transparent 70%);
+  filter: blur(40px);
+}
+
+.popup-card-golden-glossy {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 2px solid rgba(245, 158, 11, 0.95);
+  box-shadow:
+    0 0 55px -5px rgba(245, 158, 11, 0.38),
+    0 25px 60px -15px rgba(0, 0, 0, 0.55),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.7);
+}
+
 /* Tactile Active Press */
 .active-press {
   transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
