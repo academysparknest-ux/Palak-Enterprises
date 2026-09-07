@@ -88,6 +88,7 @@ import {
   getQueueClassification,
   extractRazorpayId,
   isOrderPaidOnline,
+  isOrderPaid,
 } from "../lib/queue";
 import type { OrderItemPayload } from "../lib/storage/store";
 
@@ -1459,12 +1460,21 @@ export const AdminPage: React.FC = () => {
       dispatchAdminToast("Offline", "error", "Cannot update payment status while offline. Database connection required.");
       return;
     }
-    const isCurrentlyPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid";
+    const isCurrentlyPaid = isOrderPaid(order);
     const nextStatus = isCurrentlyPaid ? "pending" : "confirmed";
     const previousStatus = order.paymentStatus;
     const cleanCode = order.orderCode.trim().toUpperCase();
     setUpdatingPayment(true);
     try {
+      // Optimistic state update for instant UI feedback
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.orderCode.trim().toUpperCase() === cleanCode
+            ? { ...o, paymentStatus: nextStatus }
+            : o
+        )
+      );
+
       await updateStaffOrderPaymentStatus(cleanCode, nextStatus);
       PalakDataStore.updateOrderPaymentStatus(cleanCode, nextStatus);
       await loadData();
@@ -1609,17 +1619,14 @@ export const AdminPage: React.FC = () => {
     return s === "READY_FOR_PICKUP" || s === "OUT_FOR_DELIVERY";
   }).length;
   const completedOrdersCount = orders.filter((o) => (o.orderStatus || "").toUpperCase() === "COMPLETED").length;
-  const unpaidOrdersCount = orders.filter((o) => {
-    const p = (o.paymentStatus || "").toLowerCase();
-    return p !== "paid" && p !== "confirmed";
-  }).length;
+  const unpaidOrdersCount = orders.filter((o) => !isOrderPaid(o)).length;
 
   // Payments & Revenue Financial Analytics
-  const isPaidOrder = (o: StoredOrder) => isOrderPaidOnline(o);
+  const isPaidOrder = (o: StoredOrder) => isOrderPaid(o);
 
   const paidOrders = orders.filter(isPaidOrder);
   const totalRevenueCollected = paidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  const onlinePaidOrders = paidOrders.filter((o) => o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online");
+  const onlinePaidOrders = paidOrders.filter((o) => o.paymentMethod === "upi_online" || o.paymentMethod === "pay_online" || isOrderPaidOnline(o));
   const onlineRevenueCollected = onlinePaidOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
   const unpaidOrdersList = orders.filter((o) => !isPaidOrder(o));
   const pendingReceivablesAmount = unpaidOrdersList.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
@@ -1811,7 +1818,7 @@ export const AdminPage: React.FC = () => {
 
       const qMeta = getQueueClassification(o);
       const ordStatus = (o.orderStatus || "NEW").toUpperCase();
-      const isPaid = o.paymentStatus === "paid" || o.paymentStatus === "confirmed" || isOrderPaidOnline(o);
+      const isPaid = isOrderPaid(o);
 
       let matchesQuick = true;
       if (quickFilter === "ACTIVE") {
@@ -2340,7 +2347,7 @@ export const AdminPage: React.FC = () => {
                     const qMeta = getQueueClassification(order);
                     const isPriority = qMeta.queuePriority === 1;
                     const positionInfo = queueStats.positionsMap.get(order.orderCode);
-                    const isPaid = order.paymentStatus === "confirmed" || order.paymentStatus === "paid" || isOrderPaidOnline(order);
+                    const isPaid = isOrderPaid(order);
                     const isOnlineOrder = order.paymentMethod === "upi_online" || order.paymentMethod === "pay_online" || isOrderPaidOnline(order);
                     const rzpId = extractRazorpayId(order.orderNotes);
                     const isSelected = selectedOrderCode === order.orderCode;
@@ -4413,10 +4420,7 @@ export const AdminPage: React.FC = () => {
                       <span className="text-sm font-black text-slate-900">₹{selectedOrderForModal.totalAmount}</span>
                     </div>
                     {(() => {
-                      const isModalPaid =
-                        selectedOrderForModal.paymentStatus === "confirmed" ||
-                        selectedOrderForModal.paymentStatus === "paid" ||
-                        isOrderPaidOnline(selectedOrderForModal);
+                      const isModalPaid = isOrderPaid(selectedOrderForModal);
                       const isModalOnline =
                         selectedOrderForModal.paymentMethod === "upi_online" ||
                         selectedOrderForModal.paymentMethod === "pay_online" ||
@@ -4457,7 +4461,7 @@ export const AdminPage: React.FC = () => {
                     disabled={updatingPayment}
                     className="w-full mt-1.5 py-1 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-[11px] font-bold text-slate-700 transition-colors cursor-pointer"
                   >
-                    {selectedOrderForModal.paymentStatus === "confirmed" || selectedOrderForModal.paymentStatus === "paid" || isOrderPaidOnline(selectedOrderForModal)
+                    {isOrderPaid(selectedOrderForModal)
                       ? "Mark as Pending / Unpaid"
                       : "✓ Mark as Paid / Verified"}
                   </button>

@@ -1459,8 +1459,11 @@ export class PalakDataStore {
     newStatus: StoredOrder["orderStatus"],
     staffNotes?: string
   ): StoredOrder | null {
+    const clean = (orderCode || "").trim().toUpperCase();
     const list = [...this.getOrders()];
-    const idx = list.findIndex((o) => o.orderCode === orderCode);
+    const idx = list.findIndex(
+      (o) => (o.orderCode || "").trim().toUpperCase() === clean || o.id === orderCode
+    );
     if (idx === -1) return null;
 
     const prev = list[idx].orderStatus;
@@ -1527,8 +1530,11 @@ export class PalakDataStore {
     orderCode: string,
     paymentStatus: StoredOrder["paymentStatus"]
   ): StoredOrder | null {
+    const clean = (orderCode || "").trim().toUpperCase();
     const list = [...this.getOrders()];
-    const idx = list.findIndex((o) => o.orderCode === orderCode);
+    const idx = list.findIndex(
+      (o) => (o.orderCode || "").trim().toUpperCase() === clean || o.id === orderCode
+    );
     if (idx === -1) return null;
 
     list[idx].paymentStatus = paymentStatus;

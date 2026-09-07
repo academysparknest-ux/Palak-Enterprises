@@ -836,21 +836,28 @@ export async function updateStaffOrderPaymentStatus(
   staffNotes?: string
 ): Promise<void> {
   if (!isSupabaseConfigured || !supabase) return;
+  const cleanCode = (orderCode || "").trim().toUpperCase();
   const updatePayload: any = {
     payment_status: paymentStatus,
     updated_at: new Date().toISOString(),
   };
   if (staffNotes !== undefined) updatePayload.staff_notes = staffNotes;
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("orders")
     .update(updatePayload)
-    .eq("order_code", orderCode);
+    .eq("order_code", cleanCode);
 
-  if (error) throw error;
+  if (error) {
+    const fallback = await supabase
+      .from("orders")
+      .update(updatePayload)
+      .eq("id", orderCode);
+    if (fallback.error) throw error;
+  }
 
   // Synchronize local invoice cache and cloud invoice
-  PalakInvoiceStore.updateInvoicePaymentStatus(orderCode, paymentStatus);
+  PalakInvoiceStore.updateInvoicePaymentStatus(cleanCode, paymentStatus);
   try {
     await supabase
       .from("invoices")
@@ -858,7 +865,7 @@ export async function updateStaffOrderPaymentStatus(
         payment_status: paymentStatus,
         updated_at: new Date().toISOString(),
       })
-      .eq("order_code", orderCode);
+      .eq("order_code", cleanCode);
   } catch (invSyncErr) {
     console.warn("Invoice status update notice:", invSyncErr);
   }
@@ -866,14 +873,14 @@ export async function updateStaffOrderPaymentStatus(
   try {
     await supabase.from("status_history").insert({
       entity_type: "order",
-      entity_code: orderCode,
+      entity_code: cleanCode,
       new_status: `PAYMENT_${paymentStatus.toUpperCase()}`,
       message_en: `Payment status marked as ${paymentStatus.toUpperCase()}`,
       message_hi: `भुगतान स्थिति ${paymentStatus} के रूप में चिह्नित की गई`,
       performed_by: "Palak Staff ERP",
     });
   } catch (historyErr) {
-    console.warn("Payment status history insert notice:", historyErr);
+    console.warn("Status history insert notice:", historyErr);
   }
 }
 

@@ -75,6 +75,27 @@ export function isOrderPaidOnline(order: {
 }
 
 /**
+ * Validates whether an order is paid (either verified online payment or confirmed/paid at store counter)
+ */
+export function isOrderPaid(order?: {
+  paymentMethod?: string;
+  paymentStatus?: string;
+  orderNotes?: string;
+} | null): boolean {
+  if (!order) return false;
+  const status = String(order.paymentStatus || "").toLowerCase().trim();
+  const isPaidStatus =
+    status === "confirmed" ||
+    status === "paid" ||
+    status === "success" ||
+    status === "completed" ||
+    status === "captured";
+
+  if (isPaidStatus) return true;
+  return isOrderPaidOnline(order);
+}
+
+/**
  * Resolves queue classification (priority vs normal) for any order record.
  * Paid-online orders always jump to Priority Queue (queuePriority: 1).
  */
