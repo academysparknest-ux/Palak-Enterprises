@@ -1,12 +1,12 @@
-import React from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { SEO } from "../components/SEO";
 import { PageHero } from "../components/PageHero";
 import { useLanguage } from "../context/LanguageContext";
 import { businessConfig } from "../config/business";
-import { websiteProjects } from "../config/projects";
-import { ScrollReveal } from "../components/ui/motion/ScrollReveal";
+import { websiteProjects, type WebsiteProject, type ProjectFilterCategory } from "../config/projects";
 import { AnimatedButton } from "../components/ui/motion/AnimatedButton";
+import { cn } from "../lib/utils";
 import {
   Smartphone,
   Languages,
@@ -20,6 +20,16 @@ import {
   Sparkles,
   Zap,
   Database,
+  Monitor,
+  Tablet,
+  Globe,
+  RefreshCw,
+  Image as ImageIcon,
+  Layers,
+  Building2,
+  Cpu,
+  GraduationCap,
+  AlertCircle,
 } from "lucide-react";
 
 interface WebsiteDevPageProps {
@@ -29,6 +39,68 @@ interface WebsiteDevPageProps {
 export const WebsiteDevPage: React.FC<WebsiteDevPageProps> = ({ onOpenRequestModal }) => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
+
+  // Filter & Project Showcase State
+  const [selectedFilter, setSelectedFilter] = useState<ProjectFilterCategory>("all");
+  const [activeProjectId, setActiveProjectId] = useState<string>(websiteProjects[0]?.id || "roshani-public-school");
+  const [previewMode, setPreviewMode] = useState<"screenshot" | "interactive">("screenshot");
+  const [deviceViewport, setDeviceViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [iframeState, setIframeState] = useState<"loading" | "loaded" | "blocked">("loading");
+  const [iframeKey, setIframeKey] = useState<number>(0);
+  const showcaseTopRef = useRef<HTMLDivElement>(null);
+
+  const filteredProjects = useMemo(() => {
+    if (selectedFilter === "all") return websiteProjects;
+    return websiteProjects.filter((p) => p.filterCategory === selectedFilter);
+  }, [selectedFilter]);
+
+  const activeProject: WebsiteProject = useMemo(() => {
+    return websiteProjects.find((p) => p.id === activeProjectId) || filteredProjects[0] || websiteProjects[0];
+  }, [activeProjectId, filteredProjects]);
+
+  const handleFilterSelect = (cat: ProjectFilterCategory) => {
+    setSelectedFilter(cat);
+    const matching = cat === "all" ? websiteProjects : websiteProjects.filter((p) => p.filterCategory === cat);
+    if (matching.length > 0 && !matching.some((p) => p.id === activeProjectId)) {
+      setActiveProjectId(matching[0].id);
+      setPreviewMode("screenshot");
+      setIframeState("loading");
+    }
+  };
+
+  const handleProjectSelect = (id: string) => {
+    setActiveProjectId(id);
+    setPreviewMode("screenshot");
+    setIframeState("loading");
+    setIframeKey((prev) => prev + 1);
+  };
+
+  // Reset iframe state and trigger timeout fallback whenever switching to interactive or changing project
+  useEffect(() => {
+    if (previewMode === "interactive") {
+      setIframeState("loading");
+      const timeout = setTimeout(() => {
+        setIframeState((curr) => (curr === "loading" ? "blocked" : curr));
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [previewMode, activeProjectId, iframeKey]);
+
+  const projectIcons: Record<string, React.ReactNode> = {
+    "roshani-public-school": <GraduationCap className="h-4 w-4 text-blue-600" />,
+    "roshani-public-school-erp": <Layers className="h-4 w-4 text-purple-600" />,
+    "ekaagra-technologies": <Cpu className="h-4 w-4 text-emerald-600" />,
+    "palak-enterprises-platform": <Building2 className="h-4 w-4 text-amber-600" />,
+    "sparknest-academy": <Sparkles className="h-4 w-4 text-indigo-600" />,
+  };
+
+  const filterTabs: { id: ProjectFilterCategory; label: { en: string; hi: string } }[] = [
+    { id: "all", label: { en: "All", hi: "सभी" } },
+    { id: "schools", label: { en: "Schools", hi: "स्कूल व शिक्षा" } },
+    { id: "business", label: { en: "Business", hi: "व्यावसायिक" } },
+    { id: "ecommerce", label: { en: "E-commerce", hi: "ई-कॉमर्स" } },
+    { id: "custom", label: { en: "Custom", hi: "कस्टम" } },
+  ];
 
   const websitesWeBuild = [
     {
@@ -158,7 +230,7 @@ export const WebsiteDevPage: React.FC<WebsiteDevPageProps> = ({ onOpenRequestMod
   ];
 
   return (
-    <div className="bg-slate-50 min-h-screen pb-16">
+    <div className="bg-slate-50 min-h-screen pb-28 sm:pb-32">
       <SEO
         title={{
           en: "Custom Website Development & Portfolios in Chakia | Palak Enterprises",
@@ -202,147 +274,430 @@ export const WebsiteDevPage: React.FC<WebsiteDevPageProps> = ({ onOpenRequestMod
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-10 space-y-16 sm:space-y-20">
         {/* ========================================================================= */}
-        {/* 1. DETAILED LIVE PROJECTS & CASE STUDIES SHOWCASE GALLERY */}
+        {/* 1. INTERACTIVE WEBSITE DESIGNS SHOWCASE (PORTFOLIO CORE) */}
         {/* ========================================================================= */}
-        <section className="space-y-8">
-          <div className="text-center max-w-3xl mx-auto">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-[#123B70]">
+        <section ref={showcaseTopRef} className="space-y-8 sm:space-y-10 scroll-mt-24">
+          {/* Header */}
+          <div className="text-center max-w-3xl mx-auto space-y-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-[#123B70]">
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              <span>{currentLang === "hi" ? "हमारे लाइव प्रोजेक्ट्स" : "Featured Case Studies"}</span>
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mt-2.5">
-              {currentLang === "hi" ? "हमारे द्वारा निर्मित लाइव वेबसाइट्स एवं सिस्टम्स" : "Websites & Software We've Built"}
+              <span>{currentLang === "hi" ? "वेबसाइट डिज़ाइन व डेवलपमेंट शोकेस" : "WEBSITE DESIGN & DEVELOPMENT SHOWCASE"}</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight">
+              {currentLang === "hi" ? "हमारे द्वारा निर्मित लाइव वेबसाइट्स" : "OUR WEBSITE DESIGNS"}
             </h2>
-            <p className="text-slate-600 text-sm sm:text-base mt-1.5">
+            <p className="text-sm sm:text-lg font-semibold text-slate-700">
               {currentLang === "hi"
-                ? "पूर्वी चंपारण और बिहार के प्रतिष्ठित स्कूलों, संस्थानों एवं व्यवसायों के लिए विकसित आधुनिक वेब समाधान।"
-                : "Explore production-grade digital platforms, school portals, and web applications built for real institutions."}
+                ? "देखें कि हम आपके व्यवसाय, स्कूल व संस्थान के लिए वास्तव में क्या डिज़ाइन और तैयार कर सकते हैं।"
+                : "See what we can actually design and build for you."}
+            </p>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-2xl mx-auto">
+              {currentLang === "hi"
+                ? "पालक इंटरप्राइजेज एवं एकाग्र टेक्नोलॉजीज द्वारा विकसित वास्तविक, गतिशील एवं मोबाइल-फ्रेंडली डिजिटल प्लेटफॉर्म।"
+                : "Real websites. Real designs. Built for real businesses by Palak Enterprises & Ekaagra Technologies."}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {websiteProjects.map((project) => (
-              <ScrollReveal key={project.id} direction="up" distancePx={20}>
-                <div className="group rounded-3xl bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col justify-between h-full">
-                  <div>
-                    {/* Top Browser Frame Mockup */}
-                    <div className="bg-slate-100/90 border-b border-slate-200 p-2.5 px-4 flex items-center justify-between text-slate-500 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className="h-2.5 w-2.5 rounded-full bg-rose-400 inline-block" />
-                        <span className="h-2.5 w-2.5 rounded-full bg-amber-400 inline-block" />
-                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 inline-block" />
-                      </div>
+          {/* Category Filter Tabs */}
+          <div className="flex items-center justify-center">
+            <div className="inline-flex flex-wrap items-center justify-center gap-2 p-1.5 rounded-2xl bg-slate-100/90 border border-slate-200/90 shadow-2xs">
+              {filterTabs.map((tab) => {
+                const isActive = selectedFilter === tab.id;
+                const count = tab.id === "all" ? websiteProjects.length : websiteProjects.filter((p) => p.filterCategory === tab.id).length;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleFilterSelect(tab.id)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer active-press",
+                      isActive
+                        ? "bg-[#123B70] text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-950 hover:bg-white/80"
+                    )}
+                  >
+                    <span>{tab.label[currentLang]}</span>
+                    <span
+                      className={cn(
+                        "text-[10px] px-1.5 py-0.2 rounded-full font-mono",
+                        isActive ? "bg-white/20 text-white" : "bg-slate-200/80 text-slate-600"
+                      )}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-                      <div className="flex items-center justify-center gap-1 px-3 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] text-slate-700 max-w-[240px] truncate font-mono shadow-2xs">
-                        <Lock className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
-                        <span className="truncate">https://{project.displayUrl}</span>
-                      </div>
+          {/* Large Live Website Preview Mockup Box */}
+          <div className="rounded-3xl bg-white border border-slate-200/90 shadow-lg overflow-hidden transition-all duration-300">
+            {/* Top Browser Bar Chrome */}
+            <div className="bg-slate-100/95 border-b border-slate-200/90 p-3 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
+              {/* Left Traffic Lights & Controls */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-rose-400 inline-block shadow-2xs" />
+                  <span className="h-3 w-3 rounded-full bg-amber-400 inline-block shadow-2xs" />
+                  <span className="h-3 w-3 rounded-full bg-emerald-400 inline-block shadow-2xs" />
+                </div>
 
-                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                        LIVE
+                {/* Viewport Width Controls */}
+                <div className="hidden md:flex items-center bg-white rounded-lg border border-slate-200/80 p-0.5 shadow-2xs text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setDeviceViewport("desktop")}
+                    title="Desktop Preview"
+                    className={cn(
+                      "p-1.5 rounded-md transition-colors cursor-pointer",
+                      deviceViewport === "desktop" ? "bg-slate-100 text-[#123B70] font-bold" : "text-slate-500 hover:text-slate-900"
+                    )}
+                  >
+                    <Monitor className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeviceViewport("tablet")}
+                    title="Tablet Preview"
+                    className={cn(
+                      "p-1.5 rounded-md transition-colors cursor-pointer",
+                      deviceViewport === "tablet" ? "bg-slate-100 text-[#123B70] font-bold" : "text-slate-500 hover:text-slate-900"
+                    )}
+                  >
+                    <Tablet className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeviceViewport("mobile")}
+                    title="Mobile Preview"
+                    className={cn(
+                      "p-1.5 rounded-md transition-colors cursor-pointer",
+                      deviceViewport === "mobile" ? "bg-slate-100 text-[#123B70] font-bold" : "text-slate-500 hover:text-slate-900"
+                    )}
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Center Address Bar */}
+              <div className="flex items-center justify-center flex-1 max-w-lg mx-auto w-full">
+                <div className="flex items-center justify-between w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs text-xs text-slate-700 font-mono">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Lock className="h-3 w-3 text-emerald-600 shrink-0" />
+                    <span className="truncate">https://{activeProject.displayUrl}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0 ml-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>LIVE</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Mode Switcher (Screenshot vs Interactive Live) */}
+              <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center p-0.5 rounded-lg bg-white border border-slate-200 shadow-2xs text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode("screenshot")}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer",
+                      previewMode === "screenshot"
+                        ? "bg-[#123B70] text-white shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    <ImageIcon className="h-3 w-3" />
+                    <span className="hidden sm:inline">{currentLang === "hi" ? "स्क्रीनशॉट" : "Screenshot"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewMode("interactive");
+                      setIframeState("loading");
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer",
+                      previewMode === "interactive"
+                        ? "bg-[#123B70] text-white shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    <Globe className="h-3 w-3" />
+                    <span className="hidden sm:inline">{currentLang === "hi" ? "लाइव इंटरएक्टिव" : "Live Preview"}</span>
+                  </button>
+                </div>
+
+                <a
+                  href={activeProject.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open live website in new tab"
+                  className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-[#123B70] hover:border-slate-300 transition-colors shadow-2xs"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* Viewport Frame */}
+            <div className="bg-slate-950 p-3 sm:p-6 flex items-center justify-center min-h-[380px] sm:min-h-[500px] overflow-hidden">
+              <div
+                className={cn(
+                  "w-full transition-all duration-300 overflow-hidden relative shadow-2xl",
+                  deviceViewport === "desktop" && "max-w-full aspect-[16/10] rounded-xl border border-slate-800",
+                  deviceViewport === "tablet" && "max-w-[680px] aspect-[4/3] rounded-2xl border-4 border-slate-800 bg-slate-900 p-1.5",
+                  deviceViewport === "mobile" && "max-w-[340px] aspect-[9/18] max-h-[580px] rounded-[32px] border-[6px] border-slate-800 bg-slate-900 p-2"
+                )}
+              >
+                {previewMode === "screenshot" ? (
+                  /* High-Resolution Screenshot View */
+                  <div className="relative w-full h-full bg-slate-900 group/screen overflow-hidden">
+                    <img
+                      src={activeProject.image}
+                      alt={`${activeProject.name[currentLang]} preview`}
+                      loading="eager"
+                      className="w-full h-full object-cover object-top transition-transform duration-700 group-hover/screen:scale-[1.02]"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent opacity-0 group-hover/screen:opacity-100 transition-opacity flex items-end justify-between p-4 text-white pointer-events-none">
+                      <span className="text-xs font-semibold bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-md border border-white/20">
+                        {activeProject.name[currentLang]}
+                      </span>
+                      <span className="text-xs font-bold text-amber-300 flex items-center gap-1">
+                        <span>Click Visit Live Website below to open</span>
+                        <ArrowRight className="h-3 w-3" />
                       </span>
                     </div>
+                  </div>
+                ) : (
+                  /* Live Interactive Iframe View with Smart Fallback */
+                  <div className="relative w-full h-full bg-slate-900">
+                    {iframeState === "loading" && (
+                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900/90 text-white gap-3 p-6 text-center">
+                        <RefreshCw className="h-8 w-8 text-amber-400 animate-spin" />
+                        <p className="text-sm font-bold text-slate-200">
+                          {currentLang === "hi" ? "लाइव वेबसाइट लोड हो रही है..." : "Connecting to Live Production Portal..."}
+                        </p>
+                        <p className="text-xs text-slate-400 max-w-sm font-mono truncate">
+                          https://{activeProject.displayUrl}
+                        </p>
+                      </div>
+                    )}
 
-                    {/* Screenshot Viewport */}
-                    <div className="relative aspect-16/10 w-full bg-slate-900 overflow-hidden">
-                      <img
-                        src={project.image}
-                        alt={`${project.name[currentLang]} screenshot`}
-                        loading="lazy"
-                        className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.025] will-change-transform"
-                      />
-                      <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 opacity-40 group-hover:opacity-60 transition-opacity"
-                      />
+                    {iframeState === "blocked" ? (
+                      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center space-y-4">
+                        <div className="h-12 w-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                          <AlertCircle className="h-6 w-6" />
+                        </div>
+                        <div className="space-y-1.5 max-w-md">
+                          <h4 className="text-base sm:text-lg font-bold">
+                            {currentLang === "hi" ? "सुरक्षित लाइव प्रिव्यू" : "Production Security Sandbox"}
+                          </h4>
+                          <p className="text-xs text-slate-300 leading-relaxed">
+                            {currentLang === "hi"
+                              ? "इस वेबसाइट की सुरक्षा नीतियां सीधे एम्बेडेड फ्रेम में खुलने को सीमित करती हैं। आप इसे सीधे खोल सकते हैं या नीचे इसका हाई-रेजोल्यूशन स्क्रीनशॉट देख सकते हैं।"
+                              : "This production website restricts direct third-party iframe embedding for security. You can open the live website directly or switch back to the high-res screenshot view."}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewMode("screenshot")}
+                            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white border border-white/20 transition-colors cursor-pointer"
+                          >
+                            {currentLang === "hi" ? "स्क्रीनशॉट देखें" : "Switch to High-Res Screenshot"}
+                          </button>
+                          <a
+                            href={activeProject.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-xs font-bold text-slate-950 transition-colors inline-flex items-center gap-1.5"
+                          >
+                            <span>{currentLang === "hi" ? "लाइव वेबसाइट खोलें ↗" : "Visit Live Website ↗"}</span>
+                          </a>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <iframe
+                      key={`${activeProject.id}-${iframeKey}`}
+                      src={activeProject.url}
+                      title={activeProject.name[currentLang]}
+                      onLoad={() => setIframeState("loaded")}
+                      onError={() => setIframeState("blocked")}
+                      className="w-full h-full border-0 bg-white"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Project Details & Primary Actions (Matching User Wireframe) */}
+            <div className="p-6 sm:p-8 bg-white border-t border-slate-200/90 space-y-6">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+                {/* Left info */}
+                <div className="space-y-3 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#123B70] bg-blue-50 px-3 py-1 rounded-md border border-blue-200/60">
+                      {activeProject.category[currentLang]}
+                    </span>
+                    {activeProject.highlightBadge && (
+                      <span className="rounded-md bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide">
+                        {activeProject.highlightBadge[currentLang]}
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                    {activeProject.name[currentLang]}
+                  </h3>
+
+                  <p className="text-sm text-slate-600 leading-relaxed max-w-3xl">
+                    {activeProject.description[currentLang]}
+                  </p>
+
+                  {/* Key Highlights with Checkmarks */}
+                  {activeProject.keyHighlights && (
+                    <div className="space-y-2 pt-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                        {currentLang === "hi" ? "मुख्य विशेषताएं" : "Key Platform Features"}
+                      </span>
+                      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {activeProject.keyHighlights.map((hl, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs font-medium text-slate-800 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/70">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <span>{hl[currentLang]}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                  )}
 
-                    {/* Case Study Details */}
-                    <div className="p-6 space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-extrabold uppercase tracking-wider text-[#123B70] bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200/60">
-                          {project.category[currentLang]}
+                  {/* Tech Stack Pills */}
+                  <div className="space-y-1.5 pt-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                      {currentLang === "hi" ? "तकनीक (Technology Stack)" : "Technology Stack"}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeProject.technologies.map((tech) => (
+                        <span
+                          key={tech}
+                          className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200"
+                        >
+                          {tech}
                         </span>
-                        {project.highlightBadge && (
-                          <span className="rounded-md bg-amber-50 border border-amber-200 text-amber-800 px-2 py-0.5 text-[10px] font-bold uppercase">
-                            {project.highlightBadge[currentLang]}
-                          </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Action Buttons (Matching User Wireframe) */}
+                <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0 lg:w-64 pt-2 lg:pt-0">
+                  <a
+                    href={activeProject.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex"
+                  >
+                    <AnimatedButton
+                      variant="primary"
+                      size="lg"
+                      iconLeft={<ExternalLink className="h-4 w-4" />}
+                      className="w-full bg-[#123B70] hover:bg-[#0c274c] text-white font-extrabold shadow-md justify-center py-3.5"
+                    >
+                      {currentLang === "hi" ? "पूरी वेबसाइट देखें ↗" : "View Full Website ↗"}
+                    </AnimatedButton>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenRequestModal("website-development")}
+                    className="w-full px-5 py-3.5 rounded-xl border-2 border-slate-300 hover:border-[#123B70] text-slate-800 hover:text-[#123B70] hover:bg-blue-50/50 text-xs sm:text-sm font-extrabold transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer active-press shadow-2xs"
+                  >
+                    <MessageSquare className="h-4 w-4 text-slate-500" />
+                    <span>{currentLang === "hi" ? "समान प्रोजेक्ट पर चर्चा करें" : "Discuss Similar Project"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* OTHER PROJECTS Carousel / Grid */}
+          <div className="space-y-4 pt-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h4 className="text-lg sm:text-xl font-extrabold text-slate-900 uppercase tracking-tight">
+                  {currentLang === "hi" ? "अन्य वेबसाइट प्रोजेक्ट्स" : "OTHER PROJECTS"}
+                </h4>
+                <p className="text-xs text-slate-500">
+                  {currentLang === "hi"
+                    ? "ऊपर लाइव प्रिव्यू देखने के लिए किसी भी प्रोजेक्ट पर क्लिक करें"
+                    : "Click any project to inspect its live preview above"}
+                </p>
+              </div>
+              <span className="text-xs font-bold text-[#123B70] bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
+                {filteredProjects.length} {currentLang === "hi" ? "प्रोजेक्ट्स" : "Projects"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {filteredProjects.map((project) => {
+                const isSelected = project.id === activeProjectId;
+                return (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => {
+                      handleProjectSelect(project.id);
+                      showcaseTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className={cn(
+                      "group text-left rounded-2xl p-3 border transition-all duration-200 flex flex-col justify-between cursor-pointer active-press",
+                      isSelected
+                        ? "bg-blue-50/60 border-[#123B70] ring-2 ring-[#123B70] shadow-md"
+                        : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                    )}
+                  >
+                    <div className="space-y-2.5 w-full">
+                      {/* Thumbnail with mini browser frame */}
+                      <div className="relative aspect-16/10 w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-200/80">
+                        <img
+                          src={project.image}
+                          alt={project.name[currentLang]}
+                          loading="lazy"
+                          className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+                        />
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 bg-[#123B70] text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-sm">
+                            {currentLang === "hi" ? "सक्रिय" : "Active Preview"}
+                          </div>
                         )}
                       </div>
 
-                      <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">
-                        {project.name[currentLang]}
-                      </h3>
-
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                        {project.description[currentLang]}
-                      </p>
-
-                      {/* Key Highlights */}
-                      {project.keyHighlights && (
-                        <div className="space-y-1.5 pt-1">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                            {currentLang === "hi" ? "मुख्य विशेषताएं" : "Key Platform Features"}
-                          </span>
-                          <div className="space-y-1">
-                            {project.keyHighlights.map((hl, i) => (
-                              <div key={i} className="flex items-center gap-2 text-xs text-slate-700">
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                                <span>{hl[currentLang]}</span>
-                              </div>
-                            ))}
-                          </div>
+                      <div>
+                        <div className="flex items-center gap-1 text-[10px] font-extrabold text-[#123B70] uppercase">
+                          <span>{projectIcons[project.id]}</span>
+                          <span className="truncate">{project.filterCategory}</span>
                         </div>
-                      )}
-
-                      {/* Tech Stack Pills */}
-                      <div className="space-y-1.5 pt-2">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                          {currentLang === "hi" ? "तकनीक (Tech Stack)" : "Technology Stack"}
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {project.technologies.map((tech) => (
-                            <span
-                              key={tech}
-                              className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200"
-                            >
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
+                        <h5 className="font-extrabold text-slate-900 text-sm mt-0.5 line-clamp-1 group-hover:text-[#123B70] transition-colors">
+                          {project.name[currentLang]}
+                        </h5>
+                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                          {project.category[currentLang]}
+                        </p>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Card Bottom Actions */}
-                  <div className="p-6 pt-0 border-t border-slate-100 flex items-center justify-between gap-3 mt-4">
-                    <a
-                      href={project.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex flex-1"
-                    >
-                      <AnimatedButton
-                        variant="primary"
-                        size="md"
-                        iconLeft={<ExternalLink className="h-4 w-4" />}
-                        className="w-full bg-[#123B70] hover:bg-[#0c274c] text-white font-extrabold shadow-sm"
-                      >
-                        {currentLang === "hi" ? "लाइव वेबसाइट खोलें ↗" : "Launch Live Website ↗"}
-                      </AnimatedButton>
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={() => onOpenRequestModal("website-development")}
-                      className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      {currentLang === "hi" ? "समान बनवाएं" : "Build Similar"}
-                    </button>
-                  </div>
-                </div>
-              </ScrollReveal>
-            ))}
+                    <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-[#123B70]">
+                      <span>{isSelected ? (currentLang === "hi" ? "प्रिव्यू हो रहा है" : "Viewing Now") : (currentLang === "hi" ? "प्रिव्यू देखें" : "View Preview")}</span>
+                      <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
 

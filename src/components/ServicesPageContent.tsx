@@ -55,7 +55,14 @@ const categoryIconMap: Record<string, any> = {
   MonitorSmartphone,
 };
 
-export default function ServicesPageContent() {
+interface ServicesPageContentProps {
+  onOpenRequestModal?: (serviceId?: string) => void;
+  onSelectService?: (service: any) => void;
+}
+
+export default function ServicesPageContent({
+  onOpenRequestModal,
+}: ServicesPageContentProps = {}) {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
   const t = extendedTranslations.servicesPage;
@@ -411,6 +418,7 @@ export default function ServicesPageContent() {
                     service={service}
                     onViewSamples={(s) => setSelectedService(s)}
                     showCategoryBadge={selectedCategory === "all"}
+                    onOpenRequestModal={onOpenRequestModal}
                   />
                 ))}
               </div>

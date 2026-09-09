@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, Navigate } from "react-router-dom";
 import {
   categories,
   services,
@@ -25,6 +25,18 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
+  // Canonical Redirect: Any website development service route redirects to /website-development
+  if (
+    categoryParam === "website-development" ||
+    serviceSlug === "custom-website-development" ||
+    serviceSlug === "website-design-development" ||
+    slug === "website-development" ||
+    slug === "custom-website-development" ||
+    slug === "website-design-development"
+  ) {
+    return <Navigate to="/website-development" replace />;
+  }
+
   // Case 1: /services/:category/:serviceSlug
   if (categoryParam && serviceSlug) {
     const matchedCategory = categories.find(
@@ -36,6 +48,9 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
       services.find((s) => s.slug === serviceSlug || s.id === serviceSlug);
 
     if (matchedService) {
+      if (matchedService.categoryId === "website-development") {
+        return <Navigate to="/website-development" replace />;
+      }
       const parentCategory =
         matchedCategory ||
         categories.find((c) => c.id === matchedService.categoryId) ||
@@ -57,6 +72,9 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
     (c) => c.slug === identifier || c.id === identifier
   );
   if (matchedCategory && !serviceSlug) {
+    if (matchedCategory.id === "website-development" || matchedCategory.slug === "website-development") {
+      return <Navigate to="/website-development" replace />;
+    }
     return <CategoryPageContent category={matchedCategory} />;
   }
 
@@ -66,6 +84,9 @@ export const ServiceDetailPage: React.FC<ServiceDetailPageProps> = () => {
     services.find((s) => s.slug === identifier || s.id === identifier);
 
   if (matchedService) {
+    if (matchedService.categoryId === "website-development") {
+      return <Navigate to="/website-development" replace />;
+    }
     const parentCategory =
       categories.find((c) => c.id === matchedService.categoryId) || categories[0];
     return (

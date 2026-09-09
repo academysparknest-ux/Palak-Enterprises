@@ -28,10 +28,7 @@ export const WebsiteProjectsSection: React.FC<WebsiteProjectsSectionProps> = ({
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
 
-  // Exclude self/internal Palak Enterprises platform and Ekaagra Technologies from the homepage showcase
-  const homeProjects = websiteProjects.filter(
-    (p) => p.id !== "palak-enterprises-platform" && p.id !== "ekaagra-technologies"
-  );
+  const homeProjects = websiteProjects.slice(0, 4);
 
   const [activeProjectId, setActiveProjectId] = useState<string>(
     homeProjects[0]?.id || "roshani-public-school"
@@ -45,6 +42,7 @@ export const WebsiteProjectsSection: React.FC<WebsiteProjectsSectionProps> = ({
     "roshani-public-school-erp": <Layers className="h-3.5 w-3.5 text-purple-600" />,
     "ekaagra-technologies": <Cpu className="h-3.5 w-3.5 text-emerald-600" />,
     "palak-enterprises-platform": <Building2 className="h-3.5 w-3.5 text-amber-600" />,
+    "sparknest-academy": <Sparkles className="h-3.5 w-3.5 text-indigo-600" />,
   };
 
   return (
@@ -67,10 +65,13 @@ export const WebsiteProjectsSection: React.FC<WebsiteProjectsSectionProps> = ({
         <ScrollReveal direction="up" distancePx={16}>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/80 pb-5">
             <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/80 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#123B70] mb-2 shadow-2xs">
+              <Link
+                to="/website-development"
+                className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-200/80 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#123B70] mb-2 shadow-2xs transition-colors cursor-pointer"
+              >
                 <Code2 className="h-3 w-3 text-[#123B70]" />
-                <span>{currentLang === "hi" ? "वेबसाइट डेवलपमेंट" : "DIGITAL DEVELOPMENT"}</span>
-              </div>
+                <span>{currentLang === "hi" ? "वेबसाइट डिज़ाइन व डेवलपमेंट" : "WEBSITE DESIGN & DEVELOPMENT"}</span>
+              </Link>
 
               <h2 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
                 {currentLang === "hi" ? "हमारे द्वारा बनाई गई वेबसाइट्स" : "Websites We've Built"}
@@ -225,7 +226,7 @@ export const WebsiteProjectsSection: React.FC<WebsiteProjectsSectionProps> = ({
                       iconRight={<ArrowRight className="h-3.5 w-3.5" />}
                       className="border-slate-300 text-slate-700 hover:bg-slate-50"
                     >
-                      {currentLang === "hi" ? "सभी प्रोजेक्ट्स व सेवाएँ" : "Explore All Details"}
+                      {currentLang === "hi" ? "वेबसाइट डिज़ाइन देखें" : "View Website Designs"}
                     </AnimatedButton>
                   </Link>
                 </div>
@@ -249,7 +250,7 @@ export const WebsiteProjectsSection: React.FC<WebsiteProjectsSectionProps> = ({
             to="/website-development"
             className="inline-flex items-center gap-1 font-bold text-[#123B70] hover:underline shrink-0"
           >
-            <span>{currentLang === "hi" ? "वेबसाइट डेवलपमेंट पेज देखें →" : "View Website Development Page →"}</span>
+            <span>{currentLang === "hi" ? "सभी वेबसाइट डिज़ाइन व पोर्टफोलियो देखें →" : "View All Website Designs & Showcase →"}</span>
           </Link>
         </div>
       </div>

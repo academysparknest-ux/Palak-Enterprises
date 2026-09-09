@@ -6,8 +6,8 @@ export interface ServicesPageProps {
   onSelectService?: (service: any) => void;
 }
 
-export const ServicesPage: React.FC<ServicesPageProps> = () => {
-  return <ServicesPageContent />;
+export const ServicesPage: React.FC<ServicesPageProps> = ({ onOpenRequestModal, onSelectService }) => {
+  return <ServicesPageContent onOpenRequestModal={onOpenRequestModal} onSelectService={onSelectService} />;
 };
 
 export default ServicesPage;

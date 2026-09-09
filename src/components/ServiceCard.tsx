@@ -13,12 +13,14 @@ export interface ServiceCardProps {
   onViewSamples?: (service: Service) => void;
   showCategoryBadge?: boolean;
   onSelectService?: (service: Service) => void;
+  onOpenRequestModal?: (serviceId?: string) => void;
 }
 
 export default function ServiceCard({
   service,
   onViewSamples,
   showCategoryBadge = true,
+  onOpenRequestModal,
 }: ServiceCardProps) {
   const { lang, language } = useLanguage();
   const currentLang = (lang || language || "en") as "en" | "hi";
@@ -33,7 +35,14 @@ export default function ServiceCard({
     hi: "विवरण देखें",
   };
 
-  const detailHref = `/services/${service.categoryId}/${service.slug}`;
+  const isWebsiteService =
+    service.categoryId === "website-development" ||
+    service.id === "website-design-development" ||
+    service.slug === "custom-website-development";
+
+  const detailHref = isWebsiteService
+    ? "/website-development"
+    : `/services/${service.categoryId}/${service.slug}`;
 
   return (
     <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-[#123B70]/40 hover:shadow-md">
@@ -124,7 +133,18 @@ export default function ServiceCard({
 
         {/* Action Footer */}
         <div className="mt-5 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-          {onViewSamples && service.sampleFallbackType ? (
+          {isWebsiteService ? (
+            <Link
+              to="/website-development"
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-[#123B70] transition-colors hover:bg-[#123B70] hover:text-white cursor-pointer shadow-2xs",
+                currentLang === "hi" && "font-hindi"
+              )}
+            >
+              <Eye size={13} aria-hidden />
+              {currentLang === "hi" ? "सैंपल" : "Samples"}
+            </Link>
+          ) : onViewSamples && service.sampleFallbackType ? (
             <button
               type="button"
               onClick={(e) => {
@@ -145,16 +165,37 @@ export default function ServiceCard({
             </span>
           )}
 
-          <Link
-            to={detailHref}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full bg-navy/5 px-3 py-1.5 text-xs font-bold text-navy transition-all group-hover:bg-brandred group-hover:text-white",
-              currentLang === "hi" && "font-hindi"
-            )}
-          >
-            <span>{cta[currentLang]}</span>
-            <ArrowRight size={14} aria-hidden />
-          </Link>
+          {isWebsiteService ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                if (onOpenRequestModal) {
+                  onOpenRequestModal(service.id);
+                } else {
+                  window.location.href = `/request?service=${service.id}`;
+                }
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full bg-navy/5 px-3 py-1.5 text-xs font-bold text-navy transition-all hover:bg-[#123B70] hover:text-white cursor-pointer",
+                currentLang === "hi" && "font-hindi"
+              )}
+            >
+              <span>{cta[currentLang]}</span>
+              <ArrowRight size={14} aria-hidden />
+            </button>
+          ) : (
+            <Link
+              to={detailHref}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full bg-navy/5 px-3 py-1.5 text-xs font-bold text-navy transition-all group-hover:bg-brandred group-hover:text-white",
+                currentLang === "hi" && "font-hindi"
+              )}
+            >
+              <span>{cta[currentLang]}</span>
+              <ArrowRight size={14} aria-hidden />
+            </Link>
+          )}
         </div>
       </div>
     </div>
