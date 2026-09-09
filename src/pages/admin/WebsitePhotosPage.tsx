@@ -10,6 +10,7 @@ import {
   Search, Image as ImageIcon, Trash2, Edit, UploadCloud, 
   RefreshCw, ExternalLink 
 } from 'lucide-react';
+import { uploadAdminImage, deletePreviousAdminImage } from '../../lib/image/adminImageUploadService';
 
 interface ImageItem {
   id: string; // product id or content section id
@@ -157,47 +158,14 @@ export const WebsitePhotosPage: React.FC = () => {
   };
 
   const uploadFileToStorage = async (file: File): Promise<string | null> => {
-    if (!isSupabaseConfigured || !supabase) {
-      addToast({ title: 'Supabase not configured', type: 'error' });
+    try {
+      const result = await uploadAdminImage(file, { folder: 'website-photos' });
+      return result.url;
+    } catch (err: any) {
+      console.error('Admin image optimization / upload error:', err);
+      addToast({ title: 'Failed to upload image', message: err?.message || 'Optimization error', type: 'error' });
       return null;
     }
-
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const cleanName = file.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-    const fileName = `${Date.now()}_${cleanName}.${fileExt}`;
-
-    try {
-      // 1. Try dedicated 'website-assets' public bucket first
-      const { error: assetErr, data: assetData } = await supabase.storage
-        .from('website-assets')
-        .upload(fileName, file, { cacheControl: '3600', upsert: true });
-
-      if (!assetErr && assetData) {
-        const { data: urlData } = supabase.storage
-          .from('website-assets')
-          .getPublicUrl(fileName);
-        return urlData.publicUrl || fileName;
-      }
-
-      // 2. Fallback to 'customer-documents' segregated folder 'website-assets/'
-      const fallbackPath = `website-assets/${fileName}`;
-      const { error: fallbackError, data: fallbackData } = await supabase.storage
-        .from('customer-documents')
-        .upload(fallbackPath, file, { cacheControl: '3600', upsert: true });
-
-      if (fallbackError) throw fallbackError;
-
-      if (fallbackData) {
-        const { data: urlData } = supabase.storage
-          .from('customer-documents')
-          .getPublicUrl(fallbackPath);
-        return urlData.publicUrl || fallbackPath;
-      }
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      addToast({ title: 'Failed to upload image', message: err?.message || 'Storage error', type: 'error' });
-    }
-    return null;
   };
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -233,13 +201,13 @@ export const WebsitePhotosPage: React.FC = () => {
           actorRole: user?.role,
           actionType: 'upload_image',
           entityType: 'photo',
-          details: { fileName: file.name, fileSize: file.size, url },
+          details: { fileName: file.name, fileSize: file.size, url, format: 'webp' },
         });
       }
     }
 
     if (successCount > 0) {
-      addToast({ title: `Uploaded ${successCount} image(s) to media storage`, type: 'success' });
+      addToast({ title: `Optimized & uploaded ${successCount} WebP image(s) to media storage`, type: 'success' });
       await fetchImages();
     }
     setUploading(false);
@@ -286,6 +254,11 @@ export const WebsitePhotosPage: React.FC = () => {
           .eq('id', target.id);
       }
 
+      // Safe cleanup of superseded image AFTER database update succeeds
+      if (oldUrl && oldUrl !== newUrl) {
+        await deletePreviousAdminImage(oldUrl);
+      }
+
       await logAdminAudit({
         actorId: user?.id,
         actorName: user?.name,
@@ -293,12 +266,12 @@ export const WebsitePhotosPage: React.FC = () => {
         actionType: 'replace_image',
         entityType: 'photo',
         entityId: target.id,
-        details: { source: target.sourceName, oldUrl, newUrl },
+        details: { source: target.sourceName, oldUrl, newUrl, format: 'webp' },
         previousValue: oldUrl,
         newValue: newUrl,
       });
 
-      addToast({ title: 'Image replaced successfully', type: 'success' });
+      addToast({ title: 'Image replaced and optimized to WebP successfully', type: 'success' });
       await fetchImages();
     } catch (err: any) {
       console.error('Replace error:', err);
@@ -426,7 +399,7 @@ export const WebsitePhotosPage: React.FC = () => {
               {uploading ? 'Uploading media assets...' : 'Drag & Drop Images or Click to Browse'}
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Supports JPEG, PNG, WebP, SVG • Max 10MB per file • Auto-uploaded to Supabase Storage
+              Supports JPEG, PNG, WebP, SVG • Max 10MB per file • Auto-optimized to WebP
             </p>
           </div>
         </div>

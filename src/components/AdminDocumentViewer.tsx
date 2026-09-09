@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   Eye,
   ShieldCheck,
+  Clock,
 } from "lucide-react";
+import { getDocumentExpirationInfo } from "../config/quickServiceConfig";
 import {
   getFileCategory,
   resolveDocumentUrl,
@@ -33,6 +35,9 @@ export interface DocumentItem {
   mimeType?: string;
   size?: number;
   orderCode?: string;
+  createdAt?: string | number | Date | null;
+  expiresAt?: string | number | Date | null;
+  cleanupStatus?: string | null;
 }
 
 interface AdminFilePreviewModalProps {
@@ -91,6 +96,15 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
     setLoading(true);
     setError(null);
 
+    const expInfo = getDocumentExpirationInfo(doc.createdAt, doc.expiresAt);
+    const isDocExpired = expInfo.isExpired || doc.cleanupStatus === "cleaned_up" || doc.cleanupStatus === "expired";
+
+    if (isDocExpired) {
+      setError("This document has expired per the 7-day retention policy and has been permanently purged.");
+      setLoading(false);
+      return;
+    }
+
     // If it's already a Data URL or Blob URL, load it immediately without async network calls
     if (doc.url.startsWith("data:") || doc.url.startsWith("blob:")) {
       setResolvedUrl(doc.url);
@@ -105,6 +119,9 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
       getVerifiedOriginalDocument(doc.url, {
         fileName: doc.name,
         expectedMinSize: doc.size,
+        expiresAt: doc.expiresAt,
+        orderCreatedAt: doc.createdAt,
+        cleanupStatus: doc.cleanupStatus,
       })
         .then((result) => {
           if (!isMounted) return;
@@ -125,7 +142,7 @@ export const AdminFilePreviewModal: React.FC<AdminFilePreviewModalProps> = ({
         });
     } else {
       // For non-PDF files: resolve signed URL directly (images, etc.)
-      resolveDocumentUrl(doc.url, false, doc.name)
+      resolveDocumentUrl(doc.url, false, doc.name, doc.createdAt, doc.cleanupStatus)
         .then((url) => {
           if (!isMounted) return;
           if (!url) {
@@ -479,6 +496,9 @@ export interface AdminFileActionsProps {
   orderCode?: string;
   compact?: boolean;
   onOpenPreview?: (doc: DocumentItem) => void;
+  createdAt?: string | number | Date | null;
+  expiresAt?: string | number | Date | null;
+  cleanupStatus?: string | null;
 }
 
 /**
@@ -498,6 +518,9 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
   orderCode,
   compact = false,
   onOpenPreview,
+  createdAt,
+  expiresAt,
+  cleanupStatus,
 }) => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -511,18 +534,27 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
   const url = fileUrl || "";
   const category = getFileCategory(name, url, mimeType);
 
+  // 7-day retention calculation
+  const expInfo = getDocumentExpirationInfo(createdAt, expiresAt);
+  const isExpired = expInfo.isExpired || cleanupStatus === "cleaned_up" || cleanupStatus === "expired";
+
   const handleOpenInTab = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (isExpired) return;
     setIsOpening(true);
     try {
-      const res = await openOriginalDocumentInNewTab(url, name, fileSize);
+      const res = await openOriginalDocumentInNewTab(url, name, fileSize, {
+        orderCreatedAt: createdAt,
+        expiresAt,
+        cleanupStatus,
+      });
       if (!res.success && onOpenPreview) {
-        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
+        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode, createdAt, expiresAt, cleanupStatus });
       }
     } catch (err) {
       console.error("Open in new tab error:", err);
       if (onOpenPreview) {
-        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
+        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode, createdAt, expiresAt, cleanupStatus });
       }
     } finally {
       setIsOpening(false);
@@ -531,8 +563,9 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
 
   const handleOpenPreviewModal = (e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (isExpired) return;
     if (onOpenPreview) {
-      onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
+      onOpenPreview({ name, url, mimeType, size: fileSize, orderCode, createdAt, expiresAt, cleanupStatus });
     } else {
       handleOpenInTab();
     }
@@ -540,13 +573,14 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
 
   const handleDirectPrint = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isExpired) return;
     setIsPrinting(true);
     try {
-      await printDocumentFile(url, name, mimeType);
+      await printDocumentFile(url, name, mimeType, createdAt, cleanupStatus);
     } catch (err) {
       console.error("Print error:", err);
       if (onOpenPreview) {
-        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode });
+        onOpenPreview({ name, url, mimeType, size: fileSize, orderCode, createdAt, expiresAt, cleanupStatus });
       }
     } finally {
       setIsPrinting(false);
@@ -555,9 +589,14 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
 
   const handleDirectDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isExpired) return;
     setIsDownloading(true);
     try {
-      await downloadOriginalDocument(url, name, fileSize);
+      await downloadOriginalDocument(url, name, fileSize, {
+        orderCreatedAt: createdAt,
+        expiresAt,
+        cleanupStatus,
+      });
     } catch (err) {
       console.error("Download error:", err);
     } finally {
@@ -572,7 +611,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
     : null;
 
   if (compact) {
-    const hasValidFile = Boolean(url && url.trim().length > 0);
+    const hasValidFile = Boolean(url && url.trim().length > 0) && !isExpired;
 
     return (
       <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200 text-xs shadow-2xs">
@@ -602,9 +641,16 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
             )}>
               {category.toUpperCase()}
             </span>
-            {hasValidFile ? (
-              <span className="shrink-0 whitespace-nowrap text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                ✓ Attached
+            {isExpired ? (
+              <span className="shrink-0 whitespace-nowrap text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-500 border border-slate-300">
+                Expired (7d Policy)
+              </span>
+            ) : hasValidFile ? (
+              <span className={cn(
+                "shrink-0 whitespace-nowrap text-[9px] font-bold px-1.5 py-0.2 rounded-full border",
+                expInfo.badgeColor === "amber" ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+              )}>
+                {expInfo.statusLabel}
               </span>
             ) : (
               <span className="shrink-0 whitespace-nowrap text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
@@ -615,7 +661,11 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {!hasValidFile ? (
+          {isExpired ? (
+            <span className="text-[10px] text-slate-500 font-medium italic px-2 py-0.5 bg-slate-50 border border-slate-200 rounded">
+              Document expired after 7 days
+            </span>
+          ) : !hasValidFile ? (
             <span className="text-[10px] text-slate-400 italic">No stream</span>
           ) : category === "pdf" ? (
             <>
@@ -709,7 +759,7 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
   }
 
   // Full / Card Mode
-  const hasValidFile = Boolean(url && url.trim().length > 0);
+  const hasValidFile = Boolean(url && url.trim().length > 0) && !isExpired;
 
   return (
     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all">
@@ -748,9 +798,18 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
               </span>
             )}
 
-            {hasValidFile ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 whitespace-nowrap">
-                ✓ Original preserved
+            {isExpired ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300 shrink-0 whitespace-nowrap">
+                <Clock className="h-3 w-3 text-slate-400" />
+                <span>Document expired after 7 days</span>
+              </span>
+            ) : hasValidFile ? (
+              <span className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 whitespace-nowrap",
+                expInfo.badgeColor === "amber" ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+              )}>
+                <Clock className="h-3 w-3" />
+                <span>{expInfo.statusLabel}</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0 whitespace-nowrap">
@@ -763,7 +822,12 @@ export const AdminFileActions: React.FC<AdminFileActionsProps> = ({
 
       {/* Action Buttons: If not a previewable stream or if other file format, SHOW ONLY DOWNLOAD OPTION */}
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0 pt-1 md:pt-0">
-        {!hasValidFile ? (
+        {isExpired ? (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 text-xs font-semibold border border-slate-200 cursor-not-allowed">
+            <Clock className="h-3.5 w-3.5 text-slate-400" />
+            <span>Document expired after 7 days</span>
+          </div>
+        ) : !hasValidFile ? (
           <button
             type="button"
             disabled

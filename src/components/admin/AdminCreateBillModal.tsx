@@ -252,6 +252,9 @@ export const AdminCreateBillModal: React.FC<AdminCreateBillModalProps> = ({
         amountPaid: calculatedTotals.amountPaid,
         notes: notes.trim() || undefined,
         performedBy: adminName,
+        idempotencyKey: action === "ISSUE" 
+          ? (draftToEdit?.id ? `draft_issue_${draftToEdit.id}` : `bill_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`)
+          : undefined,
       };
 
       const res = await PalakInvoiceStore.createAdminBill(payload);

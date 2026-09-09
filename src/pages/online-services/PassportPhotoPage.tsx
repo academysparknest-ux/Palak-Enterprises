@@ -24,6 +24,7 @@ import { QuickServiceUnavailableBanner } from "../../components/QuickServiceUnav
 import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailability";
 import { cn, formatPrice } from "../../lib/utils";
 import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
+import { getQuickServiceRetentionNotice } from "../../config/quickServiceConfig";
 
 const PHOTO_LAYOUTS = [
   { id: "sheet8", labelEn: "8 Passport Photos (Single Sheet)", labelHi: "8 पासपोर्ट फोटो (1 शीट)", photosCount: 8, baseKey: "sheet8" as const },
@@ -444,6 +445,10 @@ export const PassportPhotoPage: React.FC = () => {
                   <span className="text-[11px] text-slate-500 mt-1">
                     JPG, JPEG, PNG (Max 25MB)
                   </span>
+                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50/80 px-2.5 py-1 text-[11px] font-medium text-[#123B70] border border-blue-200/60 max-w-md">
+                    <ShieldCheck className="h-3.5 w-3.5 text-[#123B70] shrink-0" />
+                    <span>{getQuickServiceRetentionNotice(currentLang)}</span>
+                  </div>
                   <input
                     type="file"
                     accept="image/*"

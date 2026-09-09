@@ -4,6 +4,7 @@ import {
   Printer,
   Upload,
   CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
@@ -17,6 +18,7 @@ import { SEO } from "../../components/SEO";
 import {
   validateQuickServiceFileSize,
   QUICK_SERVICE_MAX_FILE_SIZE_MB,
+  getQuickServiceRetentionNotice,
 } from "../../config/quickServiceConfig";
 
 const CUSTOM_PRODUCT_TYPES = [
@@ -430,15 +432,21 @@ export const CustomPrintPage: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <label className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-4 text-center hover:border-[#123B70] cursor-pointer bg-slate-50">
-                    <Upload className="h-4 w-4 text-slate-500" />
-                    <span className="text-xs font-bold text-slate-700">
-                      {currentLang === "hi"
-                        ? `सैंपल डिज़ाइन, रफ़ ड्राफ्ट या PDF जोड़ें (अधिकतम ${QUICK_SERVICE_MAX_FILE_SIZE_MB} MB)`
-                        : `Attach Sample Design, Rough Draft or PDF (Max ${QUICK_SERVICE_MAX_FILE_SIZE_MB} MB)`}
-                    </span>
-                    <input type="file" onChange={handleFileChange} className="hidden" />
-                  </label>
+                  <>
+                    <label className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-4 text-center hover:border-[#123B70] cursor-pointer bg-slate-50">
+                      <Upload className="h-4 w-4 text-slate-500" />
+                      <span className="text-xs font-bold text-slate-700">
+                        {currentLang === "hi"
+                          ? `सैंपल डिज़ाइन, रफ़ ड्राफ्ट या PDF जोड़ें (अधिकतम ${QUICK_SERVICE_MAX_FILE_SIZE_MB} MB)`
+                          : `Attach Sample Design, Rough Draft or PDF (Max ${QUICK_SERVICE_MAX_FILE_SIZE_MB} MB)`}
+                      </span>
+                      <input type="file" onChange={handleFileChange} className="hidden" />
+                    </label>
+                    <div className="mt-2.5 flex items-center justify-center gap-1.5 rounded-lg bg-blue-50/80 px-2.5 py-1 text-[11px] font-medium text-[#123B70] border border-blue-200/60 text-center">
+                      <ShieldCheck className="h-3.5 w-3.5 text-[#123B70] shrink-0" />
+                      <span>{getQuickServiceRetentionNotice(currentLang)}</span>
+                    </div>
+                  </>
                 )}
                 {fileError && <p className="text-xs text-rose-600">{fileError}</p>}
               </div>

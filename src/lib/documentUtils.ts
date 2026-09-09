@@ -3,6 +3,7 @@ import {
   openOriginalDocumentInNewTab,
   downloadOriginalDocument,
 } from "./documents/originalDocumentResolver";
+import { getDocumentExpirationInfo } from "../config/quickServiceConfig";
 
 export type FileCategory = "pdf" | "image" | "doc" | "other";
 
@@ -72,30 +73,68 @@ export function getFileCategory(
 export async function resolveDocumentUrl(
   urlOrPath: string,
   forDownload: boolean = false,
-  fileName?: string
+  fileName?: string,
+  expiresAtOrCreatedAt?: string | number | Date | null,
+  cleanupStatus?: string | null
 ): Promise<string> {
   if (!urlOrPath) return "";
+
+  if (cleanupStatus === "cleaned_up" || cleanupStatus === "expired") {
+    console.warn("[DocumentSecurity] Access rejected: Document has expired per 7-day retention policy.");
+    return "";
+  }
+
+  // Enforce 7-day document retention security boundary
+  if (expiresAtOrCreatedAt) {
+    const { isExpired } = getDocumentExpirationInfo(expiresAtOrCreatedAt);
+    if (isExpired) {
+      console.warn("[DocumentSecurity] Access rejected: Document has expired per 7-day retention policy.");
+      return "";
+    }
+  }
 
   // Data URLs and Blob URLs are already local and directly usable
   if (urlOrPath.startsWith("data:") || urlOrPath.startsWith("blob:")) {
     return urlOrPath;
   }
 
-  return getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, forDownload, fileName);
+  return getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, forDownload, fileName, {
+    orderCreatedAt: expiresAtOrCreatedAt,
+    cleanupStatus,
+  });
 }
 
 /**
- * Downloads any document file including PDFs.
+ * Downloads any document file including PDFs, enforcing 7-day retention expiration.
  */
 export async function downloadFile(
   urlOrPath: string,
   fileName?: string,
-  _mimeType?: string
+  _mimeType?: string,
+  expiresAtOrCreatedAt?: string | number | Date | null,
+  cleanupStatus?: string | null
 ): Promise<void> {
   if (!urlOrPath) return;
 
+  if (cleanupStatus === "cleaned_up" || cleanupStatus === "expired") {
+    console.warn("[DocumentSecurity] Download rejected: Document has expired per 7-day retention policy.");
+    return;
+  }
+
+  // Enforce 7-day document retention security boundary
+  if (expiresAtOrCreatedAt) {
+    const { isExpired } = getDocumentExpirationInfo(expiresAtOrCreatedAt);
+    if (isExpired) {
+      console.warn("[DocumentSecurity] Download rejected: Document has expired per 7-day retention policy.");
+      return;
+    }
+  }
+
   const safeName = fileName || `document-${Date.now()}`;
-  await downloadOriginalDocument(urlOrPath, safeName);
+  await downloadOriginalDocument(urlOrPath, safeName, undefined, {
+    orderCreatedAt: expiresAtOrCreatedAt,
+    cleanupStatus,
+  });
 }
 
 /**
@@ -137,13 +176,31 @@ export function dataUrlToBlobUrl(dataUrl: string, defaultMime = "application/pdf
 export async function openDocumentInNewTab(
   urlOrPath: string,
   fileName?: string,
-  mimeType?: string
+  mimeType?: string,
+  expiresAtOrCreatedAt?: string | number | Date | null,
+  cleanupStatus?: string | null
 ): Promise<void> {
   if (!urlOrPath) return;
 
+  if (cleanupStatus === "cleaned_up" || cleanupStatus === "expired") {
+    console.warn("[DocumentSecurity] Open in tab rejected: Document has expired per 7-day retention policy.");
+    return;
+  }
+
+  if (expiresAtOrCreatedAt) {
+    const { isExpired } = getDocumentExpirationInfo(expiresAtOrCreatedAt);
+    if (isExpired) {
+      console.warn("[DocumentSecurity] Open in tab rejected: Document has expired per 7-day retention policy.");
+      return;
+    }
+  }
+
   const category = getFileCategory(fileName, urlOrPath, mimeType);
   if (category === "pdf") {
-    await openOriginalDocumentInNewTab(urlOrPath, fileName);
+    await openOriginalDocumentInNewTab(urlOrPath, fileName, undefined, {
+      orderCreatedAt: expiresAtOrCreatedAt,
+      cleanupStatus,
+    });
     return;
   }
 
@@ -163,7 +220,7 @@ export async function openDocumentInNewTab(
 
   // 3. Supabase Storage Path or Remote URL
   try {
-    const resolvedUrl = await resolveDocumentUrl(urlOrPath, false, fileName);
+    const resolvedUrl = await resolveDocumentUrl(urlOrPath, false, fileName, expiresAtOrCreatedAt, cleanupStatus);
     if (!resolvedUrl) {
       return;
     }
@@ -182,15 +239,30 @@ export const downloadNonPdfFile = downloadFile;
 export async function printDocumentFile(
   urlOrPath: string,
   fileName?: string,
-  mimeType?: string
+  mimeType?: string,
+  expiresAtOrCreatedAt?: string | number | Date | null,
+  cleanupStatus?: string | null
 ): Promise<void> {
   if (!urlOrPath) return;
 
+  if (cleanupStatus === "cleaned_up" || cleanupStatus === "expired") {
+    console.warn("[DocumentSecurity] Print rejected: Document has expired per 7-day retention policy.");
+    throw new Error("Unable to preview this document for printing. Document has expired per 7-day retention policy.");
+  }
+
+  if (expiresAtOrCreatedAt) {
+    const { isExpired } = getDocumentExpirationInfo(expiresAtOrCreatedAt);
+    if (isExpired) {
+      console.warn("[DocumentSecurity] Print rejected: Document has expired per 7-day retention policy.");
+      throw new Error("Unable to preview this document for printing. Document has expired per 7-day retention policy.");
+    }
+  }
+
   const category = getFileCategory(fileName, urlOrPath, mimeType);
-  const inlineUrl = await resolveDocumentUrl(urlOrPath, false, fileName);
+  const inlineUrl = await resolveDocumentUrl(urlOrPath, false, fileName, expiresAtOrCreatedAt, cleanupStatus);
 
   if (!inlineUrl) {
-    throw new Error("Unable to preview this document for printing. Please try again or contact support.");
+    throw new Error("Unable to preview this document for printing. Document has expired or is unavailable.");
   }
 
   if (category === "image") {

@@ -7,8 +7,10 @@ import {
   Bookmark,
   ShieldCheck,
   Tag,
+  Clock,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { getDocumentExpirationInfo } from "../../config/quickServiceConfig";
 
 export interface OrderItemsSummaryListProps {
   items: any[];
@@ -17,6 +19,7 @@ export interface OrderItemsSummaryListProps {
   compact?: boolean;
   className?: string;
   showPrices?: boolean;
+  orderCreatedAt?: string | number | Date;
 }
 
 /**
@@ -70,6 +73,7 @@ export const OrderItemsSummaryList: React.FC<OrderItemsSummaryListProps> = ({
   compact = false,
   className = "",
   showPrices = true,
+  orderCreatedAt,
 }) => {
   const parsedItems = safeParse<any[]>(items);
   const itemsList = Array.isArray(parsedItems) ? parsedItems : [];
@@ -377,28 +381,67 @@ export const OrderItemsSummaryList: React.FC<OrderItemsSummaryListProps> = ({
               </div>
             )}
 
-            {/* Uploaded File Link */}
-            {item.uploadedFileName && (
-              <div className="flex items-center justify-between text-xs text-slate-700 bg-blue-50/70 border border-blue-200/70 rounded-xl px-3 py-1.5">
-                <div className="flex items-center gap-2 truncate min-w-0">
-                  <FileText className="h-4 w-4 text-[#123B70] shrink-0" />
-                  <span className="truncate text-xs font-semibold text-slate-800">
-                    {item.uploadedFileName}
-                  </span>
+            {/* Uploaded File Link with 7-Day Document Retention Lifecycle */}
+            {item.uploadedFileName && (() => {
+              const itemCreated = item.createdAt || orderCreatedAt;
+              const expInfo = getDocumentExpirationInfo(itemCreated, item.expiresAt);
+              const isFileAvailable = Boolean(item.uploadedFileUrl) && !expInfo.isExpired;
+
+              return (
+                <div
+                  className={cn(
+                    "flex flex-col sm:flex-row sm:items-center justify-between text-xs rounded-xl px-3 py-2 gap-2 border transition-all",
+                    isFileAvailable
+                      ? "bg-blue-50/70 border-blue-200/70 text-slate-700"
+                      : "bg-slate-50 border-slate-200 text-slate-500"
+                  )}
+                >
+                  <div className="flex items-center gap-2 truncate min-w-0">
+                    <FileText className={cn("h-4 w-4 shrink-0", isFileAvailable ? "text-[#123B70]" : "text-slate-400")} />
+                    <span className={cn("truncate text-xs font-semibold", isFileAvailable ? "text-slate-800" : "text-slate-500 line-through")}>
+                      {item.uploadedFileName}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Status Badge */}
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-md border inline-flex items-center gap-1",
+                        expInfo.badgeColor === "green" && "bg-emerald-50 text-emerald-900 border-emerald-300",
+                        expInfo.badgeColor === "amber" && "bg-amber-50 text-amber-900 border-amber-300",
+                        expInfo.badgeColor === "gray" && "bg-slate-100 text-slate-600 border-slate-300",
+                        expInfo.badgeColor === "red" && "bg-rose-50 text-rose-800 border-rose-200"
+                      )}
+                    >
+                      <Clock className="h-3 w-3 shrink-0" />
+                      <span>
+                        {expInfo.isExpired
+                          ? (currentLang === "hi" ? "दस्तावेज़ समाप्त (7 दिन पूरे)" : "Document Expired (7-Day Policy)")
+                          : expInfo.statusLabel}
+                      </span>
+                    </span>
+
+                    {/* Action: Active Download Link vs Disabled Expired Label */}
+                    {isFileAvailable ? (
+                      <a
+                        href={item.uploadedFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#123B70] font-bold hover:underline inline-flex items-center gap-1 shrink-0 ml-1 text-xs"
+                      >
+                        <span>{currentLang === "hi" ? "फ़ाइल देखें" : "View File"}</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      <span className="text-[11px] font-medium text-slate-400 italic">
+                        {currentLang === "hi" ? "फ़ाइल सुरक्षा नीति अनुसार हटा दी गई है" : "Deleted per retention policy"}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {item.uploadedFileUrl && (
-                  <a
-                    href={item.uploadedFileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#123B70] font-bold hover:underline inline-flex items-center gap-1 shrink-0 ml-2 text-xs"
-                  >
-                    <span>View File</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-            )}
+              );
+            })()}
 
             {/* Customer Special Notes / Design Notes */}
             {(item.designNotes || item.specialInstructions) && (

@@ -16,6 +16,8 @@ import { useToast } from '../../components/admin/AdminToast';
 import { logAdminAudit } from '../../lib/supabase/database';
 import { cn, formatAdminErrorMessage } from '../../lib/utils';
 import { PalakDataStore } from '../../lib/storage/store';
+import { ImageUpload } from '../../components/admin/ImageUpload';
+import { uploadAdminImage } from '../../lib/image/adminImageUploadService';
 
 type Category = {
   id: string;
@@ -848,14 +850,32 @@ export const WebsiteServicesPage: React.FC = () => {
           </div>
 
           {activeTab === 'products' && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-slate-700">Image URL</label>
-              <div className="flex gap-2">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-slate-700">Product Image (Auto-Optimized to WebP)</label>
+              <ImageUpload
+                currentImageUrl={formData.image_url}
+                onUpload={async (optimizedFile) => {
+                  try {
+                    const result = await uploadAdminImage(optimizedFile, {
+                      folder: 'products',
+                      previousImageUrl: formData.image_url?.startsWith('http') ? formData.image_url : undefined,
+                    });
+                    setFormData(prev => ({ ...prev, image_url: result.url }));
+                    addToast({ type: 'success', title: 'Product Image Uploaded', message: 'Optimized as WebP.' });
+                  } catch (err: any) {
+                    addToast({ type: 'error', title: 'Upload Failed', message: err?.message || 'Error uploading image' });
+                  }
+                }}
+                onRemove={() => setFormData(prev => ({ ...prev, image_url: '' }))}
+                label=""
+              />
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[10px] text-slate-400 shrink-0">Or external URL:</span>
                 <input
                   type="url"
                   value={formData.image_url}
                   onChange={(e) => setFormData({...formData, image_url: e.target.value})}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#123B70]/20"
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#123B70]/20"
                   placeholder="https://..."
                 />
               </div>

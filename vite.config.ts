@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 import handleCreateOrder from './api/create-order.ts'
 import handleVerifyPayment from './api/verify-payment.ts'
+import handleAdminUploadImage from './api/admin/upload-image.ts'
 
 function razorpayDevApi() {
   return {
@@ -16,6 +17,9 @@ function razorpayDevApi() {
         }
         if (url === '/api/verify-payment') {
           return handleVerifyPayment(req, res);
+        }
+        if (url === '/api/admin/upload-image') {
+          return handleAdminUploadImage(req, res);
         }
         next();
       });

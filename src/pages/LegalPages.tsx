@@ -80,7 +80,14 @@ export const PrivacyPage: React.FC = () => {
 
           <h3 className="font-bold text-slate-900 text-base">3. Data Retention & Erasure</h3>
           <p>
-            You may request complete removal of your uploaded design files from our printing servers at any time by contacting our Chakia store.
+            {currentLang === "hi"
+              ? "त्वरित सेवाओं (Quick Services) के लिए ग्राहकों द्वारा अपलोड किए गए दस्तावेज़ ऑर्डर पूरा करने के उद्देश्य से 7 दिनों तक सुरक्षित रूप से रखे जाते हैं और उसके बाद हमारे सर्वर से स्वचालित रूप से स्थायी रूप से हटा दिए जाते हैं। आपकी बिलिंग जानकारी, ऑर्डर रिकॉर्ड और टैक्स इनवॉइस लेखा परीक्षा अनुपालन के लिए सुरक्षित रखे जाते हैं।"
+              : "Customer documents uploaded for Quick Services (e.g., document printing, passport photos) are temporary processing data securely retained for exactly 7 days to fulfill your print orders, after which they are automatically and permanently purged from storage. Permanent business records, invoices, and order history are securely retained for statutory and accounting compliance."}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            {currentLang === "hi"
+              ? "आप अपनी फ़ाइलों को तुरंत हटाने के लिए भी हमारे चकिया स्टोर पर संपर्क कर सकते हैं।"
+              : "You may also request earlier removal of your uploaded design files from our printing servers at any time by contacting our Chakia store."}
           </p>
         </div>
       </div>

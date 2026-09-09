@@ -373,24 +373,21 @@ export class PalakInvoiceStore {
     setLocal(INVOICES_STORAGE_KEY, synced);
   }
 
-  /** Prune invoices whose order codes no longer exist in the authoritative orders list */
+  /** 
+   * Invoices are independent legal and tax documents.
+   * Retain all permanent invoices even if historical orders are archived or cleaned.
+   */
   static pruneOrphanedInvoices(validOrderCodes: Set<string>): StoredInvoice[] {
     const list = this.getAllLocalInvoices();
-    if (!validOrderCodes || validOrderCodes.size === 0) {
-      // If there are no orders, keep only admin bills not linked to orders
-      const filtered = list.filter((inv) => inv.source === "ADMIN" && !inv.orderCode);
-      memoryInvoices = filtered;
-      setLocal(INVOICES_STORAGE_KEY, filtered);
-      return filtered;
-    }
-    // Only keep invoices belonging to valid orders or standalone admin bills
-    const filtered = list.filter((inv) => {
+    // Only prune non-permanent draft or temporary entries that lack orders
+    const preserved = list.filter((inv) => {
+      if (inv && isPermanentInvoiceNumber(inv.invoiceNumber)) return true;
       if (inv.source === "ADMIN" && !inv.orderCode) return true;
-      return inv.orderCode && validOrderCodes.has(inv.orderCode.trim().toUpperCase());
+      return inv.orderCode && validOrderCodes && validOrderCodes.has(inv.orderCode.trim().toUpperCase());
     });
-    memoryInvoices = filtered;
-    setLocal(INVOICES_STORAGE_KEY, filtered);
-    return filtered;
+    memoryInvoices = preserved;
+    setLocal(INVOICES_STORAGE_KEY, preserved);
+    return preserved;
   }
 
   /** Fetch single invoice by order code from local store */
@@ -527,6 +524,8 @@ export class PalakInvoiceStore {
           source: invData.source || "ONLINE",
           documentType: invData.document_type || "TAX_INVOICE",
           financialYear: invData.financial_year || fyInfo.formattedFY,
+          financialYearStart: invData.financial_year_start || undefined,
+          sequenceNumber: invData.sequence_number || undefined,
           orderId: invData.order_id,
           orderCode: invData.order_code,
           userId: invData.user_id,
@@ -611,6 +610,7 @@ export class PalakInvoiceStore {
         p_notes: payload.notes || null,
         p_performed_by: performedBy,
         p_draft_id: payload.draftId || null,
+        p_idempotency_key: payload.idempotencyKey || null,
       });
 
       if (!rpcErr && rpcRes && rpcRes.success && rpcRes.invoice) {
@@ -618,6 +618,9 @@ export class PalakInvoiceStore {
         const mappedInvoice: StoredInvoice = {
           id: invData.id,
           invoiceNumber: invData.invoice_number,
+          sequenceNumber: invData.sequence_number || undefined,
+          financialYearStart: invData.financial_year_start || undefined,
+          idempotencyKey: invData.idempotency_key || payload.idempotencyKey || undefined,
           source: "ADMIN",
           documentType: invData.document_type || payload.documentType,
           financialYear: invData.financial_year || fyInfo.formattedFY,

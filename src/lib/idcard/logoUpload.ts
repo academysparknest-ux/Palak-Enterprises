@@ -106,13 +106,15 @@ export async function optimizeLogoFile(file: File): Promise<File | Blob> {
       ctx.clearRect(0, 0, targetWidth, targetHeight);
       ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-      const outputMime = mime.includes('png') ? 'image/png' : mime.includes('webp') ? 'image/webp' : 'image/jpeg';
-      const quality = outputMime === 'image/png' ? undefined : 0.92;
+      // Centralized WebP conversion for all raster logos (PNG, JPG, etc.)
+      const outputMime = 'image/webp';
+      const quality = 0.80;
 
       canvas.toBlob(
         (blob) => {
-          if (blob && blob.size < file.size) {
-            const optimizedFile = new File([blob], file.name, {
+          if (blob) {
+            const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.webp';
+            const optimizedFile = new File([blob], cleanName, {
               type: outputMime,
               lastModified: Date.now(),
             });
@@ -149,15 +151,16 @@ export async function uploadAndPersistSchoolLogo(projectId: string, file: File):
   const optimized = await optimizeLogoFile(file);
 
   // 3. Storage Upload
-  const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-  const cleanExt = ext === 'jpeg' ? 'jpg' : ext;
+  const isSvg = file.name.toLowerCase().endsWith('.svg') || file.type?.includes('svg');
+  const cleanExt = isSvg ? 'svg' : 'webp';
+  const contentType = isSvg ? 'image/svg+xml' : 'image/webp';
   const storagePath = `logos/${projectId}/logo_${Date.now()}.${cleanExt}`;
 
   return executeWithAuthRetry(
     async (client) => {
       let { error: uploadError } = await client.storage.from(PHOTO_BUCKET).upload(storagePath, optimized, {
         upsert: true,
-        contentType: file.type || 'image/png',
+        contentType,
         cacheControl: '3600',
       });
 

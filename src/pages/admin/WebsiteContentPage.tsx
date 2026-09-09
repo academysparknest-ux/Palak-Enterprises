@@ -6,6 +6,7 @@ import { useToast } from '../../components/admin/AdminToast';
 import { logAdminAudit } from '../../lib/supabase/database';
 import { formatAdminErrorMessage, cn } from '../../lib/utils';
 import { Save, Image as ImageIcon, UploadCloud, Trash2, RefreshCw } from 'lucide-react';
+import { uploadAdminImage } from '../../lib/image/adminImageUploadService';
 
 interface BusinessInfo {
   phone: string;
@@ -81,77 +82,18 @@ export const WebsiteContentPage: React.FC = () => {
 
     setPromoImageUploading(true);
     try {
-      if (isSupabaseConfigured && supabase) {
-        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
-        const cleanName = file.name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 25);
-        const storagePath = `promo/${Date.now()}_${cleanName}.${fileExt}`;
+      const oldUrl = promoContent?.image;
+      const result = await uploadAdminImage(file, {
+        folder: 'promo',
+        previousImageUrl: oldUrl?.startsWith('http') ? oldUrl : undefined,
+      });
 
-        // 1. Try public 'business-assets' bucket
-        const { error: uploadErr } = await supabase.storage
-          .from('business-assets')
-          .upload(storagePath, file, {
-            contentType: file.type || 'image/png',
-            cacheControl: '3600',
-            upsert: true,
-          });
-
-        if (!uploadErr) {
-          const { data: pubData } = supabase.storage
-            .from('business-assets')
-            .getPublicUrl(storagePath);
-
-          if (pubData?.publicUrl) {
-            setPromoContent((prev: any) => ({ ...prev, image: pubData.publicUrl }));
-            addToast({
-              type: 'success',
-              title: 'Image Uploaded Successfully',
-              message: 'Banner image uploaded to cloud storage.',
-            });
-            return;
-          }
-        } else {
-          console.warn('[Storage] business-assets upload notice:', uploadErr.message);
-        }
-
-        // 2. Fallback to 'idcard-assets' public bucket if needed
-        const { error: fallbackErr } = await supabase.storage
-          .from('idcard-assets')
-          .upload(`promo/${Date.now()}_${cleanName}.${fileExt}`, file, {
-            contentType: file.type || 'image/png',
-            upsert: true,
-          });
-
-        if (!fallbackErr) {
-          const { data: pubData } = supabase.storage
-            .from('idcard-assets')
-            .getPublicUrl(`promo/${Date.now()}_${cleanName}.${fileExt}`);
-
-          if (pubData?.publicUrl) {
-            setPromoContent((prev: any) => ({ ...prev, image: pubData.publicUrl }));
-            addToast({
-              type: 'success',
-              title: 'Image Uploaded Successfully',
-              message: 'Banner image uploaded to cloud storage.',
-            });
-            return;
-          }
-        }
-      }
-
-      // 3. Fallback: Base64 data URL if storage is unreachable or offline
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          setPromoContent((prev: any) => ({ ...prev, image: result }));
-          addToast({
-            type: 'success',
-            title: 'Image Loaded',
-            message: 'Image preview loaded locally.',
-          });
-        }
-      };
-      reader.readAsDataURL(file);
+      setPromoContent((prev: any) => ({ ...prev, image: result.url }));
+      addToast({
+        type: 'success',
+        title: 'Banner Image Optimized & Uploaded',
+        message: `Converted to WebP (${result.metadata.savedPercentage}% saved).`,
+      });
     } catch (err: any) {
       console.error('Error uploading promo image:', err);
       addToast({

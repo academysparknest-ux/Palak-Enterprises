@@ -1,9 +1,9 @@
 import React, { useState, useRef } from "react";
-import { UploadCloud, File, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { UploadCloud, File, X, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { cn } from "../lib/utils";
 
-import { QUICK_SERVICE_MAX_FILE_SIZE_MB } from "../config/quickServiceConfig";
+import { QUICK_SERVICE_MAX_FILE_SIZE_MB, getQuickServiceRetentionNotice } from "../config/quickServiceConfig";
 
 interface FileUploadZoneProps {
   onFileSelect: (fileData: { name: string; size: number; url: string } | null) => void;
@@ -194,6 +194,11 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
 
           <p className="text-[11px] text-slate-500 mt-0.5">
             {helperText || `PDF, PNG, JPG, WEBP, DOCX (Max ${maxSizeMB}MB)`}
+          </p>
+
+          <p className="text-[10px] text-slate-500 mt-2 flex items-center justify-center gap-1 max-w-sm">
+            <ShieldCheck className="h-3 w-3 text-[#123B70] shrink-0" />
+            <span>{getQuickServiceRetentionNotice(currentLang)}</span>
           </p>
 
           {uploadProgress !== null && (

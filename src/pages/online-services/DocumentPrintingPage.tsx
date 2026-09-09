@@ -46,6 +46,7 @@ import {
 import {
   validateQuickServiceFiles,
   getQuickServiceUploadLimitText,
+  getQuickServiceRetentionNotice,
 } from "../../config/quickServiceConfig";
 import {
   createOrderPerformanceTracer,
@@ -1371,6 +1372,10 @@ export const DocumentPrintingPage: React.FC = () => {
                 <p className="text-[11px] text-slate-500 mt-1">
                   {getQuickServiceUploadLimitText(currentLang)}
                 </p>
+                <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50/80 px-2.5 py-1 text-[11px] font-medium text-[#123B70] border border-blue-200/60 max-w-md">
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#123B70] shrink-0" />
+                  <span>{getQuickServiceRetentionNotice(currentLang)}</span>
+                </div>
               </div>
 
               {fileError && (

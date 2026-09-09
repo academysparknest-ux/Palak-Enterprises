@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Calculator,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
@@ -18,6 +19,7 @@ import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailabi
 import { cn, formatPrice } from "../../lib/utils";
 import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
 import { SEO } from "../../components/SEO";
+import { getQuickServiceRetentionNotice } from "../../config/quickServiceConfig";
 
 const SIZES = [
   { id: "a4", label: "A4 (8.3 × 11.7 in)", isStandard: true, price: 20 },
@@ -425,6 +427,10 @@ export const PosterBannerPage: React.FC = () => {
                   <Upload className="h-8 w-8 text-slate-400 group-hover:text-[#123B70] mb-2" />
                   <span className="text-xs sm:text-sm font-bold text-slate-800">Choose Poster / Banner Image</span>
                   <span className="text-[11px] text-slate-500 mt-1">PDF, JPG, PNG, PSD, TIFF (Max 50MB)</span>
+                  <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50/80 px-2.5 py-1 text-[11px] font-medium text-[#123B70] border border-blue-200/60 max-w-md">
+                    <ShieldCheck className="h-3.5 w-3.5 text-[#123B70] shrink-0" />
+                    <span>{getQuickServiceRetentionNotice(currentLang)}</span>
+                  </div>
                   <input type="file" accept=".pdf,.jpg,.jpeg,.png,.psd,.tiff" onChange={handleFileChange} className="hidden" />
                 </label>
               )}

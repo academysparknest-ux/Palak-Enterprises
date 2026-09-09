@@ -17,6 +17,7 @@ import {
   broadcastQuickServicesUpdate,
   type QuickServiceItem,
   DEFAULT_QUICK_SERVICES,
+  runDocumentRetentionCleanup,
 } from '../../lib/supabase/database';
 import {
   FileText,
@@ -97,12 +98,41 @@ export const AdminQuickServicesPage: React.FC = () => {
   const [quickServices, setQuickServices] = useState<QuickServiceItem[]>(DEFAULT_QUICK_SERVICES);
   const [servicesLoading, setServicesLoading] = useState(true);
   const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
 
   // Dialog Modals State
   const [stopModalService, setStopModalService] = useState<QuickServiceItem | null>(null);
   const [startModalService, setStartModalService] = useState<QuickServiceItem | null>(null);
   const [selectedStopReason, setSelectedStopReason] = useState<string>('Printer maintenance');
   const [customStopReason, setCustomStopReason] = useState<string>('');
+
+  const handleRunRetentionCleanup = async () => {
+    setIsCleaningUp(true);
+    try {
+      const result = await runDocumentRetentionCleanup(100);
+      if (result.success) {
+        addToast({
+          type: 'success',
+          title: 'Document Retention Cleanup Complete',
+          message: `${result.deleted_storage_count || 0} expired storage files safely deleted. ${result.marked_count || 0} order file records marked as expired. Orders and invoices remain fully intact.`,
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Retention Cleanup Notice',
+          message: result.error || 'Failed to complete cleanup.',
+        });
+      }
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Cleanup Error',
+        message: err?.message || 'Unexpected retention error',
+      });
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
 
   const loadAllData = React.useCallback(async () => {
     setLoading(true);
@@ -443,6 +473,16 @@ export const AdminQuickServicesPage: React.FC = () => {
             >
               <RefreshCw className={cn("w-3.5 h-3.5", (loading || servicesLoading) && "animate-spin text-[#123B70]")} />
               <span>Reload Live</span>
+            </button>
+
+            <button
+              onClick={handleRunRetentionCleanup}
+              disabled={isCleaningUp || loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition-colors text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+              title="Manually trigger 7-day retention cleanup for customer documents"
+            >
+              <Clock className={cn("w-3.5 h-3.5", isCleaningUp && "animate-spin text-amber-400")} />
+              <span>{isCleaningUp ? "Purging Expired..." : "7-Day Cleanup"}</span>
             </button>
 
             <button

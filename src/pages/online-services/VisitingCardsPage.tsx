@@ -21,6 +21,7 @@ import { useQuickServiceAvailability } from "../../hooks/useQuickServiceAvailabi
 import { cn, formatPrice } from "../../lib/utils";
 import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
 import { SEO } from "../../components/SEO";
+import { getQuickServiceRetentionNotice } from "../../config/quickServiceConfig";
 
 export const VisitingCardsPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -510,6 +511,10 @@ export const VisitingCardsPage: React.FC = () => {
                       <span className="text-[11px] text-slate-500 mt-0.5">
                         PDF, JPG, PNG, CDR, AI, PSD (Max 50MB)
                       </span>
+                      <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50/80 px-2.5 py-1 text-[11px] font-medium text-[#123B70] border border-blue-200/60 max-w-md">
+                        <ShieldCheck className="h-3.5 w-3.5 text-[#123B70] shrink-0" />
+                        <span>{getQuickServiceRetentionNotice(currentLang)}</span>
+                      </div>
                       <input
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png,.cdr,.ai,.psd"

@@ -102,6 +102,9 @@ export interface StoredInvoice {
   cancellationReason?: string;
   syncStatus?: "SYNCED" | "LOCAL_PENDING" | "RECONCILIATION_REQUIRED";
   isTemporary?: boolean;
+  sequenceNumber?: number;
+  financialYearStart?: number;
+  idempotencyKey?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -128,6 +131,7 @@ export interface AdminBillPayload {
   amountPaid?: number;
   notes?: string;
   performedBy?: string;
+  idempotencyKey?: string;
 }
 
 export interface InvoiceStats {

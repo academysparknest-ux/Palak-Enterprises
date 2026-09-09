@@ -50,4 +50,5 @@ next-env.d.ts
 scratch/
 scripts/backup/
 *.pdf
+supabase/.temp/
 

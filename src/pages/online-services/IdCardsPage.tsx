@@ -8,6 +8,7 @@ import {
   Plus,
   Minus,
   Crop,
+  ShieldCheck,
 } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
@@ -21,6 +22,7 @@ import { ImageCropModal } from "../../components/idcard/ImageCropModal";
 import { cn, formatPrice } from "../../lib/utils";
 import { usePrintPricingConfig } from "../../hooks/usePrintPricingConfig";
 import { SEO } from "../../components/SEO";
+import { getQuickServiceRetentionNotice } from "../../config/quickServiceConfig";
 
 export const IdCardsPage: React.FC = () => {
   const { lang, language } = useLanguage();
@@ -506,6 +508,10 @@ export const IdCardsPage: React.FC = () => {
               </div>
 
               {/* Uploads Section: Photo & School Logo */}
+              <div className="mt-1 flex items-center justify-center gap-1.5 rounded-lg bg-blue-50/80 px-2.5 py-1 text-[11px] font-medium text-[#123B70] border border-blue-200/60 text-center">
+                <ShieldCheck className="h-3.5 w-3.5 text-[#123B70] shrink-0" />
+                <span>{getQuickServiceRetentionNotice(currentLang)}</span>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 {/* Photo Upload */}
                 <div className="space-y-1.5">

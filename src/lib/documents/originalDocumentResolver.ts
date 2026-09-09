@@ -21,6 +21,9 @@ import {
   verifyFetchedPdfBlob,
 } from "./documentIntegrityEngine";
 import { PalakDataStore } from "../storage/store";
+import {
+  getDocumentExpirationInfo,
+} from "../../config/quickServiceConfig";
 
 export interface VerifiedDocumentResult {
   ok: boolean;
@@ -39,6 +42,12 @@ export interface AuthoritativeSignedUrlResult {
   storagePath: string;
   bucket: string;
   expiresAt: string;
+}
+
+export interface DocumentSecurityOptions {
+  expiresAt?: string | number | Date | null;
+  orderCreatedAt?: string | number | Date | null;
+  cleanupStatus?: string | null;
 }
 
 export interface DocumentDiagnosticReport {
@@ -68,9 +77,39 @@ export async function getAuthoritativeDocumentSignedUrl(
   urlOrPath: string,
   expiresInSeconds: number = 3600,
   forDownload: boolean = false,
-  fileName?: string
+  fileName?: string,
+  securityOptions?: DocumentSecurityOptions
 ): Promise<string> {
   if (!urlOrPath || typeof urlOrPath !== "string") return "";
+
+  // 0. Retention Policy Security Gate
+  if (securityOptions) {
+    if (securityOptions.cleanupStatus === "cleaned_up" || securityOptions.cleanupStatus === "expired") {
+      console.warn("[DocumentSecurity] Access rejected: Document is marked cleaned up / expired.");
+      return "";
+    }
+    if (securityOptions.expiresAt || securityOptions.orderCreatedAt) {
+      const exp = getDocumentExpirationInfo(securityOptions.orderCreatedAt, securityOptions.expiresAt);
+      if (exp.isExpired) {
+        console.warn("[DocumentSecurity] Access rejected: Document has expired per 7-day retention policy.");
+        return "";
+      }
+    }
+  }
+
+  // Automatic path-embedded timestamp check for orders/ paths:
+  // Format: orders/<cleanOrderCode>/<timestamp>_<uniqueId>.<ext>
+  const ordersMatch = urlOrPath.match(/orders\/[^\/]+\/(\d{10,14})_/);
+  if (ordersMatch) {
+    const uploadTimestamp = parseInt(ordersMatch[1], 10);
+    if (!isNaN(uploadTimestamp) && uploadTimestamp > 1000000000000) {
+      const exp = getDocumentExpirationInfo(uploadTimestamp);
+      if (exp.isExpired) {
+        console.warn("[DocumentSecurity] Access rejected: Document path timestamp indicates expiration per 7-day retention policy:", urlOrPath);
+        return "";
+      }
+    }
+  }
 
   // 1. Direct Blob and Data URLs are legitimate browser-local streams
   if (urlOrPath.startsWith("blob:") || urlOrPath.startsWith("data:")) {
@@ -102,10 +141,42 @@ export async function getAuthoritativeDocumentSignedUrl(
       ? { download: fileName || true }
       : { download: false };
 
+    // Cap signed URL duration so the URL cannot outlive the 7-day retention period
+    const requestedExpiresIn = (!expiresInSeconds || expiresInSeconds <= 0 || isNaN(expiresInSeconds)) ? 3600 : expiresInSeconds;
+    let effectiveExpiresIn = requestedExpiresIn;
+
+    // Check remaining retention window from securityOptions or path timestamp
+    let expRemainingSeconds: number | null = null;
+    if (securityOptions?.expiresAt || securityOptions?.orderCreatedAt) {
+      const exp = getDocumentExpirationInfo(securityOptions.orderCreatedAt, securityOptions.expiresAt);
+      if (exp.isExpired) {
+        console.warn("[DocumentSecurity] Access rejected: Document has expired per 7-day retention policy.");
+        return "";
+      }
+      expRemainingSeconds = Math.max(0, Math.floor(exp.msRemaining / 1000));
+    } else if (ordersMatch) {
+      const uploadTimestamp = parseInt(ordersMatch[1], 10);
+      if (!isNaN(uploadTimestamp) && uploadTimestamp > 1000000000000) {
+        const exp = getDocumentExpirationInfo(uploadTimestamp);
+        if (exp.isExpired) {
+          console.warn("[DocumentSecurity] Access rejected: Document path timestamp indicates expiration per 7-day retention policy:", urlOrPath);
+          return "";
+        }
+        expRemainingSeconds = Math.max(0, Math.floor(exp.msRemaining / 1000));
+      }
+    }
+
+    if (expRemainingSeconds !== null) {
+      if (expRemainingSeconds <= 0) {
+        return "";
+      }
+      effectiveExpiresIn = Math.min(requestedExpiresIn, expRemainingSeconds);
+    }
+
     // Primary attempt: Create signed URL from canonical relative storage path
     const { data, error } = await supabase.storage
       .from(DEFAULT_STORAGE_BUCKET)
-      .createSignedUrl(cleanPath, expiresInSeconds, options as any);
+      .createSignedUrl(cleanPath, effectiveExpiresIn, options as any);
 
     if (!error && data?.signedUrl) {
       return data.signedUrl;
@@ -120,14 +191,14 @@ export async function getAuthoritativeDocumentSignedUrl(
       const legacyEncodedPath = cleanPath.replace(/\//g, "%2F");
       const legacyRes = await supabase.storage
         .from(DEFAULT_STORAGE_BUCKET)
-        .createSignedUrl(legacyEncodedPath, expiresInSeconds, options as any);
+        .createSignedUrl(legacyEncodedPath, effectiveExpiresIn, options as any);
 
       if (!legacyRes.error && legacyRes.data?.signedUrl) {
         return legacyRes.data.signedUrl;
       }
     }
 
-    // Tertiary attempt: Public URL fallback if bucket is publicly readable
+    // Tertiary attempt: Public URL fallback (for mock/offline environments or public assets)
     const { data: publicData } = supabase.storage
       .from(DEFAULT_STORAGE_BUCKET)
       .getPublicUrl(cleanPath);
@@ -150,9 +221,10 @@ export async function getAuthoritativeSignedUrl(
   urlOrPath: string,
   expiresInSeconds: number = 3600,
   forDownload: boolean = false,
-  fileName?: string
+  fileName?: string,
+  securityOptions?: DocumentSecurityOptions
 ): Promise<string> {
-  return getAuthoritativeDocumentSignedUrl(urlOrPath, expiresInSeconds, forDownload, fileName);
+  return getAuthoritativeDocumentSignedUrl(urlOrPath, expiresInSeconds, forDownload, fileName, securityOptions);
 }
 
 /**
@@ -163,6 +235,7 @@ export async function getAuthoritativeSignedUrl(
  * 2. Never converts Vite/React index.html SPA responses into PDF blobs.
  * 3. Verifies %PDF- magic bytes before exposing binary stream.
  * 4. Automatically retries once with fresh signed URL if initial attempt hits transient error.
+ * 5. Strictly rejects expired documents under the 7-day retention policy.
  */
 export async function getVerifiedOriginalDocument(
   urlOrPath: string,
@@ -170,6 +243,10 @@ export async function getVerifiedOriginalDocument(
     expectedMinSize?: number;
     forDownload?: boolean;
     fileName?: string;
+    securityOptions?: DocumentSecurityOptions;
+    expiresAt?: string | number | Date | null;
+    orderCreatedAt?: string | number | Date | null;
+    cleanupStatus?: string | null;
   }
 ): Promise<VerifiedDocumentResult> {
   if (!urlOrPath) {
@@ -178,6 +255,50 @@ export async function getVerifiedOriginalDocument(
       url: "",
       error: "Original document is temporarily unavailable. Please retry.",
     };
+  }
+
+  // 0. Enforce Retention Policy Boundary
+  const secOpts: DocumentSecurityOptions = {
+    expiresAt: options?.expiresAt || options?.securityOptions?.expiresAt,
+    orderCreatedAt: options?.orderCreatedAt || options?.securityOptions?.orderCreatedAt,
+    cleanupStatus: options?.cleanupStatus || options?.securityOptions?.cleanupStatus,
+  };
+
+  if (secOpts.cleanupStatus === "cleaned_up" || secOpts.cleanupStatus === "expired") {
+    console.warn("[DocumentSecurity] Access rejected: Document is marked as cleaned up / expired.");
+    return {
+      ok: false,
+      url: "",
+      error: "Document expired after 7 days per retention policy.",
+    };
+  }
+
+  if (secOpts.expiresAt || secOpts.orderCreatedAt) {
+    const exp = getDocumentExpirationInfo(secOpts.orderCreatedAt, secOpts.expiresAt);
+    if (exp.isExpired) {
+      console.warn("[DocumentSecurity] Access rejected: Document has expired per 7-day retention policy.");
+      return {
+        ok: false,
+        url: "",
+        error: "Document expired after 7 days per retention policy.",
+      };
+    }
+  }
+
+  const ordersMatch = urlOrPath.match(/orders\/[^\/]+\/(\d{10,14})_/);
+  if (ordersMatch) {
+    const uploadTimestamp = parseInt(ordersMatch[1], 10);
+    if (!isNaN(uploadTimestamp) && uploadTimestamp > 1000000000000) {
+      const exp = getDocumentExpirationInfo(uploadTimestamp);
+      if (exp.isExpired) {
+        console.warn("[DocumentSecurity] Access rejected: Document path timestamp indicates expiration per 7-day retention policy:", urlOrPath);
+        return {
+          ok: false,
+          url: "",
+          error: "Document expired after 7 days per retention policy.",
+        };
+      }
+    }
   }
 
   // 1. Local Blobs and Data URLs
@@ -208,10 +329,24 @@ export async function getVerifiedOriginalDocument(
       urlOrPath,
       3600,
       Boolean(options?.forDownload),
-      options?.fileName
+      options?.fileName,
+      secOpts
     );
 
     if (!signedUrl || isInvalidAppRouteOrLocalhostUrl(signedUrl)) {
+      const isRetentionBlocked =
+        (secOpts.expiresAt || secOpts.orderCreatedAt)
+          ? getDocumentExpirationInfo(secOpts.orderCreatedAt, secOpts.expiresAt).isExpired
+          : ordersMatch && !isNaN(parseInt(ordersMatch[1], 10)) && getDocumentExpirationInfo(parseInt(ordersMatch[1], 10)).isExpired;
+
+      if (isRetentionBlocked) {
+        return {
+          ok: false,
+          url: "",
+          error: "Document expired after 7 days per retention policy.",
+        };
+      }
+
       if (retryCount === 0) {
         // Try re-normalizing the path and retrying once
         const normalized = normalizeStoragePath(urlOrPath);
@@ -223,7 +358,6 @@ export async function getVerifiedOriginalDocument(
       return {
         ok: false,
         url: "",
-        error: "Original document is temporarily unavailable. Please retry.",
       };
     }
 
@@ -328,7 +462,8 @@ export async function getVerifiedOriginalDocument(
 export async function downloadOriginalDocument(
   urlOrPath: string,
   fileName?: string,
-  expectedMinSize?: number
+  expectedMinSize?: number,
+  securityOptions?: DocumentSecurityOptions
 ): Promise<{ success: boolean; error?: string }> {
   const safeName = fileName || `document-${Date.now()}`;
 
@@ -337,6 +472,7 @@ export async function downloadOriginalDocument(
       forDownload: true,
       fileName: safeName,
       expectedMinSize,
+      securityOptions,
     });
 
     if (result.ok && result.blobUrl) {
@@ -356,13 +492,17 @@ export async function downloadOriginalDocument(
 
       return { success: true };
     }
+
+    if (result.error && (result.error.includes("retention") || result.error.includes("expired"))) {
+      return { success: false, error: result.error };
+    }
   } catch (err) {
     console.warn("[downloadOriginalDocument] Blob verification download notice, falling back to direct stream:", err);
   }
 
   // Authoritative fallback: Resolve direct signed download URL
   try {
-    const signedUrl = await getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, true, safeName) || urlOrPath;
+    const signedUrl = await getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, true, safeName, securityOptions);
     if (signedUrl && (signedUrl.startsWith("http") || signedUrl.startsWith("blob:") || signedUrl.startsWith("data:"))) {
       const link = document.createElement("a");
       link.href = signedUrl;
@@ -378,8 +518,7 @@ export async function downloadOriginalDocument(
     console.error("[downloadOriginalDocument] Direct signed download fallback exception:", err);
   }
 
-  alert("Original document download could not be completed. Please check your network connection.");
-  return { success: false, error: "Original document is temporarily unavailable. Please retry." };
+  return { success: false, error: "Original document is unavailable or has expired." };
 }
 
 /**
@@ -388,18 +527,24 @@ export async function downloadOriginalDocument(
 export async function openOriginalDocumentInNewTab(
   urlOrPath: string,
   fileName?: string,
-  expectedMinSize?: number
+  expectedMinSize?: number,
+  securityOptions?: DocumentSecurityOptions
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const result = await getVerifiedOriginalDocument(urlOrPath, {
       forDownload: false,
       fileName,
       expectedMinSize,
+      securityOptions,
     });
 
     if (result.ok && result.blobUrl) {
       window.open(result.blobUrl, "_blank");
       return { success: true };
+    }
+
+    if (result.error && (result.error.includes("retention") || result.error.includes("expired"))) {
+      return { success: false, error: result.error };
     }
   } catch (err) {
     console.warn("[openOriginalDocumentInNewTab] Blob opening notice, falling back to direct stream:", err);
@@ -407,7 +552,7 @@ export async function openOriginalDocumentInNewTab(
 
   // Fallback: Open authoritative signed URL directly
   try {
-    const signedUrl = await getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, false, fileName) || urlOrPath;
+    const signedUrl = await getAuthoritativeDocumentSignedUrl(urlOrPath, 3600, false, fileName, securityOptions);
     if (signedUrl && (signedUrl.startsWith("http") || signedUrl.startsWith("blob:") || signedUrl.startsWith("data:"))) {
       window.open(signedUrl, "_blank");
       return { success: true };
@@ -416,8 +561,7 @@ export async function openOriginalDocumentInNewTab(
     console.error("[openOriginalDocumentInNewTab] Direct signed URL open exception:", err);
   }
 
-  alert("Original document is temporarily unavailable. Please retry.");
-  return { success: false, error: "Original document is temporarily unavailable. Please retry." };
+  return { success: false, error: "Original document is unavailable or has expired." };
 }
 
 /**
@@ -426,12 +570,14 @@ export async function openOriginalDocumentInNewTab(
 export async function previewOriginalDocument(
   urlOrPath: string,
   fileName?: string,
-  expectedMinSize?: number
+  expectedMinSize?: number,
+  securityOptions?: DocumentSecurityOptions
 ): Promise<VerifiedDocumentResult> {
   return getVerifiedOriginalDocument(urlOrPath, {
     forDownload: false,
     fileName,
     expectedMinSize,
+    securityOptions,
   });
 }
 
@@ -441,16 +587,17 @@ export async function previewOriginalDocument(
 export async function printOriginalDocument(
   urlOrPath: string,
   fileName?: string,
-  _mimeType?: string
+  _mimeType?: string,
+  securityOptions?: DocumentSecurityOptions
 ): Promise<{ success: boolean; error?: string }> {
   const result = await getVerifiedOriginalDocument(urlOrPath, {
     forDownload: false,
     fileName,
+    securityOptions,
   });
 
   if (!result.ok || !result.blobUrl) {
-    alert(result.error || "Original document is temporarily unavailable for printing. Please retry.");
-    return { success: false, error: result.error };
+    return { success: false, error: result.error || "Original document is unavailable or has expired." };
   }
 
   try {

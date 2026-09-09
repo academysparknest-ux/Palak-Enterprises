@@ -173,3 +173,94 @@ export function getQuickServiceUploadLimitText(lang: "en" | "hi" = "en"): string
   }
   return `PDF, Word (DOC/DOCX), JPG, PNG • Maximum file size: ${QUICK_SERVICE_MAX_FILE_SIZE_MB} MB`;
 }
+
+/**
+ * 7-Day Document Retention Policy Constants & Transparency Messages
+ */
+export const QUICK_SERVICE_DOCUMENT_RETENTION_DAYS = 7;
+export const QUICK_SERVICE_DOCUMENT_RETENTION_MS = QUICK_SERVICE_DOCUMENT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+export function getQuickServiceRetentionNotice(lang: "en" | "hi" = "en"): string {
+  if (lang === "hi") {
+    return "त्वरित सेवाओं के लिए अपलोड किए गए दस्तावेज़ आपके ऑर्डर को प्रोसेस करने के लिए 7 दिनों तक सुरक्षित रूप से संग्रहीत किए जाते हैं और उसके बाद स्वचालित रूप से हटा दिए जाते हैं।";
+  }
+  return "Documents uploaded for Quick Services are securely stored for up to 7 days to process your order and are automatically deleted afterward.";
+}
+
+export interface DocumentExpirationInfo {
+  isExpired: boolean;
+  expiresAt: Date;
+  daysRemaining: number;
+  hoursRemaining: number;
+  msRemaining: number;
+  statusLabel: string;
+  badgeColor: "green" | "amber" | "gray" | "red";
+}
+
+/**
+ * Computes deterministic document expiration status from upload/creation date or explicit expires_at.
+ * 
+ * Authoritative Rule:
+ * `authoritative_created_at + 7 days` is the immutable upper ceiling of validity.
+ * Neither client input nor manipulated expires_at can extend validity beyond created_at + 7 days.
+ */
+export function getDocumentExpirationInfo(
+  uploadedAtOrCreatedAt?: string | number | Date | null,
+  explicitExpiresAt?: string | number | Date | null
+): DocumentExpirationInfo {
+  let expiresDate: Date;
+
+  if (uploadedAtOrCreatedAt) {
+    const createdDate = new Date(uploadedAtOrCreatedAt);
+    const calculatedExpiresAt = new Date(createdDate.getTime() + QUICK_SERVICE_DOCUMENT_RETENTION_MS);
+
+    if (explicitExpiresAt) {
+      const explicitDate = new Date(explicitExpiresAt);
+      // created_at + 7 days is the immutable upper ceiling.
+      // An earlier explicit date is respected (e.g. manual early revocation),
+      // but extending beyond created_at + 7 days is strictly forbidden.
+      expiresDate = explicitDate.getTime() <= calculatedExpiresAt.getTime() ? explicitDate : calculatedExpiresAt;
+    } else {
+      expiresDate = calculatedExpiresAt;
+    }
+  } else if (explicitExpiresAt) {
+    expiresDate = new Date(explicitExpiresAt);
+  } else {
+    // If no timestamp available, default to 7 days from now
+    expiresDate = new Date(Date.now() + QUICK_SERVICE_DOCUMENT_RETENTION_MS);
+  }
+
+  const now = Date.now();
+  const msRemaining = expiresDate.getTime() - now;
+  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+  const hoursRemaining = Math.max(0, Math.ceil(msRemaining / (60 * 60 * 1000)));
+  const isExpired = msRemaining <= 0;
+
+  let statusLabel: string;
+  let badgeColor: "green" | "amber" | "gray" | "red";
+
+  if (isExpired) {
+    statusLabel = "Document expired after 7 days";
+    badgeColor = "gray";
+  } else if (daysRemaining <= 1) {
+    statusLabel = "Expires today";
+    badgeColor = "amber";
+  } else if (daysRemaining <= 2) {
+    statusLabel = `Expires in ${daysRemaining} days`;
+    badgeColor = "amber";
+  } else {
+    statusLabel = `Expires in ${daysRemaining} days`;
+    badgeColor = "green";
+  }
+
+  return {
+    isExpired,
+    expiresAt: expiresDate,
+    daysRemaining: Math.max(0, daysRemaining),
+    hoursRemaining,
+    msRemaining,
+    statusLabel,
+    badgeColor,
+  };
+}
+

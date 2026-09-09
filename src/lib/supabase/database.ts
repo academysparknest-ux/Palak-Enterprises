@@ -24,7 +24,10 @@ import { dispatchNewOrderLocally } from "../realtime/adminOrderEvents";
 import {
   validateQuickServiceFileSize,
   QUICK_SERVICE_MAX_FILE_SIZE_MB,
+  QUICK_SERVICE_DOCUMENT_RETENTION_MS,
 } from "../../config/quickServiceConfig";
+import { executeTwoPhaseDocumentRetentionCleanup } from "../orders/quickServiceStorageCleanup";
+import { getAuthoritativeDocumentSignedUrl } from "../documents/originalDocumentResolver";
 
 /** Returns true only for valid UUID strings that can be stored in Supabase user_id columns */
 function isValidSupabaseUUID(id?: string): boolean {
@@ -1190,36 +1193,9 @@ export async function getSecureSignedUrl(
   if (storagePath.startsWith("data:") || storagePath.startsWith("blob:")) {
     return storagePath;
   }
-  if (!isSupabaseConfigured || !supabase) return storagePath;
-  try {
-    let cleanPath = storagePath.trim();
-    if (cleanPath.startsWith("http://") || cleanPath.startsWith("https://")) {
-      const match = cleanPath.match(/\/storage\/v1\/object\/(?:sign|public)\/customer-documents\/(.+?)(?:\?|$)/);
-      if (match && match[1]) {
-        cleanPath = decodeURIComponent(match[1]);
-      } else {
-        return storagePath;
-      }
-    }
-    cleanPath = cleanPath.replace(/^customer-documents\//, "").replace(/^\/+/, "");
-
-    const { data, error } = await supabase.storage
-      .from("customer-documents")
-      .createSignedUrl(cleanPath, expiresIn, options as any);
-
-    if (!error && data?.signedUrl) {
-      return data.signedUrl;
-    }
-
-    if (error) {
-      console.warn("[Palak Storage] createSignedUrl notice:", error.message || error);
-    }
-
-    return storagePath;
-  } catch (err) {
-    console.error("[Palak Storage] Signed URL exception:", err);
-    return storagePath;
-  }
+  const forDownload = Boolean(options?.download);
+  const fileName = typeof options?.download === "string" ? options.download : undefined;
+  return getAuthoritativeDocumentSignedUrl(storagePath, expiresIn, forDownload, fileName);
 }
 
 // In-memory cache for file uploads to eliminate duplicate uploads during session retries
@@ -2710,6 +2686,8 @@ export async function submitPrintOrder(
               ];
 
               if (allFiles.length > 0) {
+                const nowIso = new Date().toISOString();
+                const expiresIso = new Date(Date.now() + QUICK_SERVICE_DOCUMENT_RETENTION_MS).toISOString();
                 const fileRows = allFiles.map((f) => ({
                   order_id: finalOrderId,
                   file_name: f.name,
@@ -2717,6 +2695,9 @@ export async function submitPrintOrder(
                   file_url: f.url || "",
                   file_type: f.mimeType || "application/pdf",
                   file_size: f.size || 0,
+                  created_at: nowIso,
+                  expires_at: expiresIso,
+                  cleanup_status: "active",
                 }));
                 childInsertions.push(Promise.resolve(client.from("order_files").insert(fileRows)));
               }
@@ -3454,4 +3435,40 @@ export async function addPrintJobOverride(
   }
 
   return { success: true };
-}
+}
+
+/**
+ * Executes the 7-day document retention cleanup via coordinated two-phase storage cleanup.
+ * Uses official Supabase Storage API to physically remove files from S3 and updates database state.
+ */
+export async function runDocumentRetentionCleanup(batchSize: number = 100): Promise<{
+  success: boolean;
+  processed_count?: number;
+  deleted_storage_count?: number;
+  marked_count?: number;
+  skipped_count?: number;
+  failed_count?: number;
+  error?: string;
+}> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: false, error: "Database not connected" };
+  }
+
+  try {
+    const result = await executeTwoPhaseDocumentRetentionCleanup(supabase, batchSize);
+
+    return {
+      success: result.success,
+      processed_count: result.claimedCount,
+      deleted_storage_count: result.storageDeletedCount,
+      marked_count: result.markedCleanedCount,
+      skipped_count: result.skippedCount,
+      failed_count: result.failedCount,
+      error: result.error,
+    };
+  } catch (err: any) {
+    console.error("[DocumentRetention] Unexpected cleanup error:", err);
+    return { success: false, error: err?.message || "Cleanup failed" };
+  }
+}
+

@@ -349,6 +349,7 @@ export const TrackOrderPage: React.FC = () => {
                   items={rpcTrackingResult.record.items || []}
                   rootPrintSnapshot={rpcTrackingResult.record.printSnapshot}
                   currentLang={currentLang}
+                  orderCreatedAt={rpcTrackingResult.record.createdAt}
                 />
               </div>
             )}
@@ -546,6 +547,7 @@ export const TrackOrderPage: React.FC = () => {
                     items={order.items || []}
                     rootPrintSnapshot={order.printSnapshot}
                     currentLang={currentLang}
+                    orderCreatedAt={order.createdAt}
                   />
 
                   <div className="pt-2 flex justify-between items-baseline text-xs font-bold text-slate-800 border-t border-slate-100">

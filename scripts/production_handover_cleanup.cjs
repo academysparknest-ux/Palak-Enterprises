@@ -46,21 +46,30 @@ async function runProductionCleanup() {
 
     await client.query('BEGIN;');
 
-    // 2. Clean Test Invoices FIRST (so invoices.order_id foreign key constraint does not lock or block orders)
-    console.log('--- Step 2: Cleaning Test Invoices ---');
-    const delInvAudit = await client.query('DELETE FROM public.invoice_audit_logs;');
-    console.log(`Deleted invoice_audit_logs: ${delInvAudit.rowCount}`);
+    // 2. Invoices Safety Policy:
+    // Invoices are permanent accounting documents. Order cleanup NEVER resets invoice numbering or deletes issued invoices.
+    // Invoices linked to deleted orders have only their order_id safely set to NULL (preserving order_code, snapshots, and financials).
+    console.log('--- Step 2: Preserving Invoices & Unlinking Deleted Order References ---');
+    const shouldResetInvoices = process.argv.includes('--reset-invoices');
+    const confirmToken = (process.argv.find(a => a.startsWith('--confirm=')) || '').split('=')[1] || '';
 
-    const delInvoices = await client.query('DELETE FROM public.invoices;');
-    console.log(`Deleted invoices: ${delInvoices.rowCount}`);
-
-    // Reset invoice sequential counter
-    await client.query(`
-      UPDATE public.invoice_counters 
-      SET last_number = 0, updated_at = NOW() 
-      WHERE year = 2026;
-    `);
-    console.log('Reset invoice_counters for year 2026 to 0.');
+    if (shouldResetInvoices) {
+      if (confirmToken !== 'RESET INVOICE COUNTERS') {
+        throw new Error('SAFETY ABORT: Resetting invoices requires explicit confirmation flag: --confirm="RESET INVOICE COUNTERS"');
+      }
+      console.log('⚠️ EXPLICIT PRE-PRODUCTION RESET REQUESTED: Deleting invoices and resetting counters...');
+      const delInvAudit = await client.query('DELETE FROM public.invoice_audit_logs;');
+      console.log(`Deleted invoice_audit_logs: ${delInvAudit.rowCount}`);
+      const delInvoices = await client.query('DELETE FROM public.invoices;');
+      console.log(`Deleted invoices: ${delInvoices.rowCount}`);
+      await client.query('UPDATE public.invoice_counters SET last_number = 0, updated_at = NOW();');
+      await client.query('UPDATE public.idcard_invoice_counters SET last_number = 0, updated_at = NOW();');
+      console.log('Reset invoice_counters and idcard_invoice_counters to 0.');
+    } else {
+      const unlinkRes = await client.query('UPDATE public.invoices SET order_id = NULL, updated_at = NOW() WHERE order_id IS NOT NULL;');
+      console.log(`Safely unlinked order_id on ${unlinkRes.rowCount} invoice(s). Invoice numbers and financial totals are 100% PRESERVED.`);
+      console.log('Invoice counters were NOT modified.');
+    }
 
     // 3. Clean Test Orders and dependencies
     console.log('\n--- Step 3: Cleaning Test Orders and Queue ---');

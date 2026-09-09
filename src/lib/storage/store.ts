@@ -7,6 +7,7 @@ import type { OrderChargesBreakdown } from "../charges/types";
 import { calculateOrderCharges } from "../charges/pricingEngine";
 import type { OrderPrintSnapshot } from "../../types/printJob";
 import { dispatchNewOrderLocally, dispatchOrderUpdatedLocally, dispatchOrderDeletedLocally } from "../realtime/adminOrderEvents";
+import { QUICK_SERVICE_DOCUMENT_RETENTION_MS } from "../../config/quickServiceConfig";
 
 export interface OrderItemPayload {
   productId: string;
@@ -1219,6 +1220,9 @@ export class PalakDataStore {
                     file_url: f.url || "",
                     file_type: f.type || "application/pdf",
                     file_size: f.size || 0,
+                    created_at: new Date().toISOString(),
+                    expires_at: new Date(Date.now() + QUICK_SERVICE_DOCUMENT_RETENTION_MS).toISOString(),
+                    cleanup_status: "active",
                   }));
                   await supabase.from("order_files").insert(fileRows);
                 } catch (fileInsertErr) {

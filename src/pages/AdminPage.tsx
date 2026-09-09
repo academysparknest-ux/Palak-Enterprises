@@ -79,7 +79,7 @@ const InvoiceModal = React.lazy(() => import("../components/invoice/InvoiceModal
 import { AdminCreateBillModal } from "../components/admin/AdminCreateBillModal";
 import { useScrollLock } from "../hooks/useScrollLock";
 import type { StoredInvoice } from "../lib/invoice/types";
-import { PalakInvoiceStore } from "../lib/invoice/invoiceStore";
+import { PalakInvoiceStore, isPermanentInvoiceNumber } from "../lib/invoice/invoiceStore";
 import { downloadInvoicePDF, printInvoiceElement, shareInvoiceOnWhatsApp } from "../lib/invoice/pdfUtils";
 import { cn } from "../lib/utils";
 import {
@@ -99,6 +99,7 @@ interface AdminOrderItemSpecsProps {
   orderCode?: string;
   isModal?: boolean;
   onOpenPreview?: (doc: DocumentItem) => void;
+  orderCreatedAt?: string | Date;
 }
 
 function getBindingLabel(type?: string): string {
@@ -162,6 +163,7 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
   orderCode,
   isModal = false,
   onOpenPreview,
+  orderCreatedAt,
 }) => {
   const opts = item.selectedOptions || {};
   const labels = item.selectedOptionsLabels || {};
@@ -184,7 +186,7 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
   const isDocumentPrinting = prodId.includes("document") || prodName.includes("document") || (!isVisitingCard && !isPassportPhoto && !isIdCard && !isPosterBanner && !isWeddingCard && (opts.paperSize || opts.colorMode || opts.sides || opts.gsm || opts.printSnapshot));
 
   // Collect all attached files
-  const attachedFiles: Array<{ name: string; url: string; mimeType?: string; size?: number }> = [];
+  const attachedFiles: Array<{ name: string; url: string; mimeType?: string; size?: number; createdAt?: string; expiresAt?: string; cleanupStatus?: string }> = [];
 
   if (Array.isArray(opts.files) && opts.files.length > 0) {
     opts.files.forEach((f: any, idx: number) => {
@@ -196,6 +198,9 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
           url: fUrl,
           mimeType: f.mimeType || f.type || "application/pdf",
           size: f.size || f.fileSize,
+          createdAt: f.createdAt || f.uploadedAt || (orderCreatedAt ? String(orderCreatedAt) : undefined),
+          expiresAt: f.expiresAt,
+          cleanupStatus: f.cleanupStatus,
         });
       }
     });
@@ -209,6 +214,9 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
           url: dUrl,
           mimeType: d.mimeType || "application/pdf",
           size: d.fileSize,
+          createdAt: d.createdAt || d.uploadedAt || (orderCreatedAt ? String(orderCreatedAt) : undefined),
+          expiresAt: d.expiresAt,
+          cleanupStatus: d.cleanupStatus,
         });
       }
     });
@@ -220,6 +228,9 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
       url: item.uploadedFileUrl || opts.storagePath || "",
       mimeType: opts.mimeType || "application/pdf",
       size: opts.fileSize || opts.size,
+      createdAt: (orderCreatedAt ? String(orderCreatedAt) : undefined),
+      expiresAt: opts.expiresAt,
+      cleanupStatus: opts.cleanupStatus,
     });
   }
 
@@ -601,6 +612,9 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
                     orderCode={orderCode}
                     compact={!isModal}
                     onOpenPreview={onOpenPreview}
+                    createdAt={attachedDoc.createdAt || orderCreatedAt}
+                    expiresAt={attachedDoc.expiresAt}
+                    cleanupStatus={attachedDoc.cleanupStatus}
                   />
                 </div>
               </div>
@@ -781,6 +795,9 @@ const AdminOrderItemSpecs: React.FC<AdminOrderItemSpecsProps> = ({
                 orderCode={orderCode}
                 compact={!isModal}
                 onOpenPreview={onOpenPreview}
+                createdAt={af.createdAt || orderCreatedAt}
+                expiresAt={af.expiresAt}
+                cleanupStatus={af.cleanupStatus}
               />
             ))}
           </div>
@@ -1084,20 +1101,13 @@ export const AdminPage: React.FC = () => {
 
       setOrders(allOrders);
 
-      // Invoices: authoritatively bound to active orders
-      const validOrderCodes = allOrders.length > 0
-        ? new Set(allOrders.map((o) => o.orderCode.trim().toUpperCase()))
-        : new Set<string>();
-
+      // Invoices: authoritatively retained permanent tax records
       let allInvoices: StoredInvoice[] = [];
       if (Array.isArray(cloudInvoices)) {
-        allInvoices = validOrderCodes.size > 0
-          ? cloudInvoices.filter((inv) => !inv.orderCode || validOrderCodes.has(inv.orderCode.trim().toUpperCase()))
-          : cloudInvoices.filter((inv) => inv.source === "ADMIN" && !inv.orderCode);
+        allInvoices = cloudInvoices.filter((inv) => inv && isPermanentInvoiceNumber(inv.invoiceNumber));
         PalakInvoiceStore.syncInvoicesFromCloud(allInvoices);
       } else {
-        const localInvs = PalakInvoiceStore.pruneOrphanedInvoices(validOrderCodes);
-        allInvoices = localInvs;
+        allInvoices = PalakInvoiceStore.getAllLocalInvoices();
       }
 
       // Ensure any completed order has an invoice automatically generated if not yet present
@@ -2693,6 +2703,7 @@ export const AdminPage: React.FC = () => {
                                 orderCode={order.orderCode}
                                 isModal={false}
                                 onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                                orderCreatedAt={order.createdAt}
                               />
                             ))
                           ) : (
@@ -4595,6 +4606,7 @@ export const AdminPage: React.FC = () => {
                       orderCode={selectedOrderForModal.orderCode}
                       isModal={true}
                       onOpenPreview={(doc) => setActivePreviewDoc(doc)}
+                      orderCreatedAt={selectedOrderForModal.createdAt}
                     />
                   ))
                 ) : (

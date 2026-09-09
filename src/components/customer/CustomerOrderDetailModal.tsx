@@ -270,6 +270,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
               items={itemsList}
               rootPrintSnapshot={order.printSnapshot}
               currentLang={currentLang}
+              orderCreatedAt={order.createdAt}
             />
           </div>
 
